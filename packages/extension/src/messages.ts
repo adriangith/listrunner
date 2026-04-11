@@ -1,0 +1,41 @@
+/** Messages between service worker, side panel, and content script. */
+
+import type { ParsedItem, ParsedList, WizardState } from "@listrunner/core";
+
+// ── Side Panel → Service Worker ──
+
+export type PanelMessage =
+  | { type: "PARSE_LIST"; text: string }
+  | { type: "START_WIZARD"; items: ParsedItem[] }
+  | { type: "WIZARD_ACTION"; action: "ADVANCE" | "SKIP" | "ADD_ANOTHER" | "UNDO" | "COOLDOWN_COMPLETE" | "BEGIN_REVISIT" | "DISMISS" | "RESET" }
+  | { type: "EDIT_SEARCH"; index: number; searchTerm: string }
+  | { type: "GET_STATE" }
+  | { type: "SET_STORE"; storeId: string }
+  | { type: "PANTRY_ADD"; name: string }
+  | { type: "PANTRY_REMOVE"; name: string }
+  | { type: "PANTRY_GET" };
+
+// ── Service Worker → Side Panel ──
+
+export type WorkerResponse =
+  | { type: "PARSED_LIST"; data: ParsedList }
+  | { type: "STATE_UPDATE"; state: WizardState; storeId: string | null }
+  | { type: "PANTRY_LIST"; names: string[] }
+  | { type: "STORE_LIST"; stores: { id: string; name: string; logoUrl?: string }[] }
+  | { type: "ERROR"; message: string };
+
+// ── Service Worker → Content Script ──
+
+export type ContentMessage =
+  | { type: "SEARCH"; query: string; storeId: string }
+  | { type: "GET_CONFIG"; storeId: string }
+  | { type: "PING" };
+
+// ── Content Script → Service Worker ──
+
+export type ContentResponse =
+  | { type: "CART_ADD_DETECTED"; productName: string; productImageUrl: string | null }
+  | { type: "SEARCH_COMPLETE" }
+  | { type: "CONFIG_LOADED"; storeId: string }
+  | { type: "NO_CONFIG" }
+  | { type: "PONG" };

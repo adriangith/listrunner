@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ListRunner</title>
+  <link rel="stylesheet" href="side-panel.css" />
+</head>
+<body>
+  <header>
+    <h1>🛒 ListRunner</h1>
+  </header>
+
+  <!-- Input View -->
+  <main id="view-input">
+    <p class="hint">Paste or type your shopping list:</p>
+    <textarea
+      id="list-input"
+      rows="10"
+      placeholder="eggs&#10;500g flour&#10;2x chicken breast&#10;1 can (400g) tomatoes&#10;fresh basil"
+    ></textarea>
+    <button id="btn-parse" class="btn primary">Parse List</button>
+  </main>
+
+  <!-- Review View -->
+  <main id="view-review" class="hidden">
+    <div class="store-picker">
+      <label for="store-select">Store:</label>
+      <select id="store-select"></select>
+    </div>
+
+    <h2>Your list</h2>
+    <ol id="review-list" class="review-list"></ol>
+
+    <div id="filtered-section" class="hidden">
+      <h3>Filtered out (pantry)</h3>
+      <ul id="filtered-list" class="filtered-list"></ul>
+    </div>
+
+    <div class="btn-row">
+      <button id="btn-back" class="btn">← Back</button>
+      <button id="btn-start" class="btn primary" disabled>Start Wizard</button>
+    </div>
+  </main>
+
+  <!-- Wizard View -->
+  <main id="view-wizard" class="hidden">
+    <div class="progress">
+      <div class="progress-bar">
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
+      <span id="progress-text" class="progress-text">0/0</span>
+    </div>
+
+    <div class="current-item">
+      <span id="current-item-qty" class="current-qty"></span>
+      <span id="current-item-name" class="current-name"></span>
+    </div>
+
+    <button id="btn-skip" class="btn">Skip →</button>
+
+    <div id="cooldown-bar" class="cooldown-bar hidden">
+      <span id="cooldown-msg"></span>
+      <div class="cooldown-actions">
+        <button id="btn-add-another" class="btn small">Add another</button>
+        <button id="btn-undo" class="btn small">Undo</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Done View -->
+  <main id="view-done" class="hidden">
+    <h2>All done! 🎉</h2>
+    <div id="summary"></div>
+    <div class="btn-row">
+      <button id="btn-revisit" class="btn hidden">Revisit skipped items</button>
+      <button id="btn-new-list" class="btn primary">New List</button>
+    </div>
+  </main>
+
+  <script src="side-panel.js" type="module"></script>
+</body>
+</html>
