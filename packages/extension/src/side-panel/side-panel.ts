@@ -123,18 +123,13 @@ async function init(): Promise<void> {
 
   sendMessage({ type: "GET_STATE" }, (response) => {
     if (response.type === "STATE_UPDATE") {
-      wizardState = response.state;
-      activeStoreId = response.storeId;
-      renderCurrentView();
+      applyStateUpdate(response);
     }
   });
 
   chrome.runtime.onMessage.addListener((message: WorkerResponse) => {
     if (message.type === "STATE_UPDATE") {
-      wizardState = message.state;
-      activeStoreId = message.storeId;
-      if (message.automationFailed) automationFailed = true;
-      renderCurrentView();
+      applyStateUpdate(message);
     }
   });
 
@@ -284,8 +279,7 @@ function handleStart(): void {
     { type: "START_WIZARD", items: parsedList.items },
     (response) => {
       if (response.type === "STATE_UPDATE") {
-        wizardState = response.state;
-        renderCurrentView();
+        applyStateUpdate(response);
       }
     },
   );
@@ -328,8 +322,7 @@ function handleUpdateSearch(): void {
     { type: "EDIT_SEARCH", index, searchTerm: newTerm },
     (response) => {
       if (response.type === "STATE_UPDATE") {
-        wizardState = response.state;
-        renderCurrentView();
+        applyStateUpdate(response);
         // After updating the term, re-fire the search on the current item.
         sendMessage({ type: "RETRIGGER_SEARCH" }, () => {
           /* no-op */
@@ -343,8 +336,7 @@ function handleManualNext(): void {
   automationFailed = false;
   sendMessage({ type: "MANUAL_NEXT" }, (response) => {
     if (response.type === "STATE_UPDATE") {
-      wizardState = response.state;
-      renderCurrentView();
+      applyStateUpdate(response);
     }
   });
 }
@@ -354,8 +346,7 @@ function sendAction(
 ): void {
   sendMessage({ type: "WIZARD_ACTION", action }, (response) => {
     if (response.type === "STATE_UPDATE") {
-      wizardState = response.state;
-      renderCurrentView();
+      applyStateUpdate(response);
     }
   });
 }
@@ -365,6 +356,18 @@ function sendMessage(
   callback: (response: WorkerResponse) => void,
 ): void {
   chrome.runtime.sendMessage(message, callback);
+}
+
+function applyStateUpdate(
+  message: Extract<WorkerResponse, { type: "STATE_UPDATE" }>,
+): void {
+  wizardState = message.state;
+  activeStoreId = message.storeId;
+  if (message.automationFailed) automationFailed = true;
+  if (typeof message.cooldownStartedAt !== "undefined") {
+    cooldownStartedAt = message.cooldownStartedAt;
+  }
+  renderCurrentView();
 }
 
 // ── Rendering ──
@@ -628,6 +631,9 @@ function hideLoupeHint(): void {
 }
 
 function startCooldownDisplay(): void {
+  // cooldownStartedAt is populated by STATE_UPDATE messages from the service
+  // worker (authoritative). If it's still null when cooldown begins — e.g.
+  // the very first state message hadn't arrived yet — fall back to now.
   if (cooldownStartedAt === null) {
     cooldownStartedAt = Date.now();
   }

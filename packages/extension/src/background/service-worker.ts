@@ -19,6 +19,7 @@ let wizardState: WizardState = createWizardState();
 let activeStoreId: string | null = null;
 /** Tab the user chose to run the wizard in. Locked once the wizard starts. */
 let wizardTabId: number | null = null;
+let cooldownStartedAt: number | null = null;
 const pantry = new PantryList();
 const history = new SelectionHistory();
 
@@ -29,16 +30,17 @@ function setWizardState(next: WizardState): void {
   const wasCooldown = wizardState.status === "cooldown";
   const nowCooldown = next.status === "cooldown";
   wizardState = next;
-  void persistSession();
   if (nowCooldown && !wasCooldown) {
+    cooldownStartedAt = Date.now();
     scheduleCooldownAlarm();
   } else if (!nowCooldown && wasCooldown) {
+    cooldownStartedAt = null;
     void chrome.alarms.clear(COOLDOWN_ALARM);
   }
+  void persistSession();
 }
 
 function scheduleCooldownAlarm(): void {
-  // Alarms are minute-granular by default, but `when` accepts an exact time.
   chrome.alarms.create(COOLDOWN_ALARM, { when: Date.now() + COOLDOWN_MS });
 }
 
@@ -108,22 +110,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       (message as Extract<ContentResponse, { type: "CART_ADD_DETECTED" }>)
         .productImageUrl,
     );
-    sendResponse({
-      type: "STATE_UPDATE",
-      state: wizardState,
-      storeId: activeStoreId,
-    } satisfies WorkerResponse);
+    sendResponse(stateUpdate());
     return false;
   }
 
   // Content-originated: AUTOMATION_TIMEOUT. Selectors missing.
   if (message?.type === "AUTOMATION_TIMEOUT") {
     handleAutomationTimeout();
-    sendResponse({
-      type: "STATE_UPDATE",
-      state: wizardState,
-      storeId: activeStoreId,
-    } satisfies WorkerResponse);
+    sendResponse(stateUpdate());
     return false;
   }
 
@@ -155,11 +149,7 @@ function handleMessage(
         );
         captureActiveTab();
         triggerSearch();
-        return {
-          type: "STATE_UPDATE",
-          state: wizardState,
-          storeId: activeStoreId,
-        };
+        return stateUpdate();
       } catch (e) {
         return { type: "ERROR", message: String(e) };
       }
@@ -190,11 +180,7 @@ function handleMessage(
           triggerSearch();
         }
 
-        return {
-          type: "STATE_UPDATE",
-          state: wizardState,
-          storeId: activeStoreId,
-        };
+        return stateUpdate();
       } catch (e) {
         return { type: "ERROR", message: String(e) };
       }
@@ -208,38 +194,22 @@ function handleMessage(
           searchTerm: message.searchTerm,
         }),
       );
-      return {
-        type: "STATE_UPDATE",
-        state: wizardState,
-        storeId: activeStoreId,
-      };
+      return stateUpdate();
     }
 
     case "RETRIGGER_SEARCH": {
       triggerSearch();
-      return {
-        type: "STATE_UPDATE",
-        state: wizardState,
-        storeId: activeStoreId,
-      };
+      return stateUpdate();
     }
 
     case "SET_STORE": {
       setActiveStore(message.storeId);
       notifyActiveContentScript();
-      return {
-        type: "STATE_UPDATE",
-        state: wizardState,
-        storeId: activeStoreId,
-      };
+      return stateUpdate();
     }
 
     case "GET_STATE": {
-      return {
-        type: "STATE_UPDATE",
-        state: wizardState,
-        storeId: activeStoreId,
-      };
+      return stateUpdate();
     }
 
     case "GET_LOUPE_HINT": {
@@ -283,11 +253,7 @@ function handleMessage(
       } catch {
         // ignore
       }
-      return {
-        type: "STATE_UPDATE",
-        state: wizardState,
-        storeId: activeStoreId,
-      };
+      return stateUpdate();
     }
   }
 
@@ -415,17 +381,22 @@ function notifyActiveContentScript(): void {
   });
 }
 
+function stateUpdate(
+  extra?: { automationFailed?: boolean },
+): WorkerResponse {
+  return {
+    type: "STATE_UPDATE",
+    state: wizardState,
+    storeId: activeStoreId,
+    cooldownStartedAt,
+    ...(extra ?? {}),
+  };
+}
+
 function broadcastState(extra?: { automationFailed?: boolean }): void {
-  chrome.runtime
-    .sendMessage({
-      type: "STATE_UPDATE",
-      state: wizardState,
-      storeId: activeStoreId,
-      ...(extra ?? {}),
-    } satisfies WorkerResponse)
-    .catch(() => {
-      // Side panel may not be open.
-    });
+  chrome.runtime.sendMessage(stateUpdate(extra)).catch(() => {
+    // Side panel may not be open.
+  });
 }
 
 async function persistData(): Promise<void> {
@@ -440,6 +411,7 @@ async function persistSession(): Promise<void> {
     wizardState,
     activeStoreId,
     wizardTabId,
+    cooldownStartedAt,
   });
 }
 
@@ -450,6 +422,7 @@ async function loadPersistedData(): Promise<void> {
       "wizardState",
       "activeStoreId",
       "wizardTabId",
+      "cooldownStartedAt",
     ]),
   ]);
 
@@ -470,5 +443,8 @@ async function loadPersistedData(): Promise<void> {
   }
   if (typeof session.wizardTabId === "number") {
     wizardTabId = session.wizardTabId;
+  }
+  if (typeof session.cooldownStartedAt === "number") {
+    cooldownStartedAt = session.cooldownStartedAt;
   }
 }

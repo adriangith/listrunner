@@ -46,6 +46,8 @@ export type WorkerResponse =
       storeId: string | null;
       automationFailed?: boolean;
       loupeHint?: LoupeHint | null;
+      /** Epoch ms the current cooldown started, or null if not cooling down. */
+      cooldownStartedAt?: number | null;
     }
   | { type: "PANTRY_LIST"; names: string[] }
   | {
