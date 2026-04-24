@@ -59,6 +59,12 @@ const updateSearchBtn = document.getElementById(
 ) as HTMLButtonElement;
 const progressText = document.getElementById("progress-text") as HTMLElement;
 const progressBar = document.getElementById("progress-fill") as HTMLElement;
+const progressBarEl = document.getElementById("progress-bar") as HTMLElement;
+const wizardAnnouncer = document.getElementById(
+  "wizard-announcer",
+) as HTMLElement;
+
+let lastAnnouncedKey: string | null = null;
 const skipBtn = document.getElementById("btn-skip") as HTMLButtonElement;
 const dismissBtn = document.getElementById("btn-dismiss") as HTMLButtonElement;
 const revisitBadge = document.getElementById("revisit-badge") as HTMLElement;
@@ -71,6 +77,9 @@ const automationWarning = document.getElementById(
 ) as HTMLElement;
 const shortcutsBtn = document.getElementById(
   "btn-shortcuts",
+) as HTMLButtonElement;
+const exitWizardBtn = document.getElementById(
+  "btn-exit-wizard",
 ) as HTMLButtonElement;
 const shortcutsOverlay = document.getElementById(
   "shortcuts-overlay",
@@ -158,14 +167,11 @@ async function init(): Promise<void> {
   pantryAddForm.addEventListener("submit", handlePantryAdd);
   clearHistoryBtn.addEventListener("click", handleClearHistory);
 
-  shortcutsBtn.addEventListener("click", () =>
-    shortcutsOverlay.classList.remove("hidden"),
-  );
-  shortcutsCloseBtn.addEventListener("click", () =>
-    shortcutsOverlay.classList.add("hidden"),
-  );
+  shortcutsBtn.addEventListener("click", openShortcuts);
+  exitWizardBtn.addEventListener("click", handleExitWizard);
+  shortcutsCloseBtn.addEventListener("click", closeShortcuts);
   shortcutsOverlay.addEventListener("click", (e) => {
-    if (e.target === shortcutsOverlay) shortcutsOverlay.classList.add("hidden");
+    if (e.target === shortcutsOverlay) closeShortcuts();
   });
 
   importBtn.addEventListener("click", () => fileInput.click());
@@ -241,10 +247,28 @@ function handleKeyboardShortcut(e: KeyboardEvent): void {
 
   if (e.key === "?") {
     e.preventDefault();
-    shortcutsOverlay.classList.toggle("hidden");
-  } else if (e.key === "Escape") {
-    shortcutsOverlay.classList.add("hidden");
+    if (shortcutsOverlay.classList.contains("hidden")) {
+      openShortcuts();
+    } else {
+      closeShortcuts();
+    }
+  } else if (
+    e.key === "Escape" &&
+    !shortcutsOverlay.classList.contains("hidden")
+  ) {
+    closeShortcuts();
   }
+}
+
+function openShortcuts(): void {
+  shortcutsOverlay.classList.remove("hidden");
+  shortcutsCloseBtn.focus();
+}
+
+function closeShortcuts(): void {
+  if (shortcutsOverlay.classList.contains("hidden")) return;
+  shortcutsOverlay.classList.add("hidden");
+  shortcutsBtn.focus();
 }
 
 async function handleFileImport(): Promise<void> {
@@ -330,6 +354,23 @@ function handleUpdateSearch(): void {
       }
     },
   );
+}
+
+function handleExitWizard(): void {
+  if (
+    !confirm(
+      "Exit the wizard? Items already added to your cart will stay there; you'll return to the review screen.",
+    )
+  ) {
+    return;
+  }
+  automationFailed = false;
+  sendAction("RESET");
+  if (parsedList) {
+    showView("review");
+  } else {
+    showView("input");
+  }
 }
 
 function handleManualNext(): void {
@@ -524,6 +565,7 @@ function renderWizardView(): void {
       currentSearchInput.value = searchTerm;
     }
     maybeFetchLoupeHint(searchTerm);
+    announceItem(searchTerm, wizardState.status);
   } else {
     hideLoupeHint();
   }
@@ -532,6 +574,8 @@ function renderWizardView(): void {
   const total = items.length;
   progressText.textContent = `${added}/${total}`;
   progressBar.style.width = total > 0 ? `${(added / total) * 100}%` : "0%";
+  progressBarEl.setAttribute("aria-valuenow", String(added));
+  progressBarEl.setAttribute("aria-valuemax", String(total));
 
   const isCooldown = wizardState.status === "cooldown";
   const isRevisiting = wizardState.status === "revisiting";
@@ -588,6 +632,22 @@ function renderDoneView(): void {
 
   const hasSkipped = wizardState.items.some((i) => i.status === "skipped");
   revisitBtn.classList.toggle("hidden", !hasSkipped);
+}
+
+function announceItem(term: string, status: string): void {
+  // Emit an aria-live announcement when the active item changes. Uses a key so
+  // we don't re-announce the same item across unrelated state updates.
+  const key = `${status}::${term}`;
+  if (key === lastAnnouncedKey) return;
+  lastAnnouncedKey = key;
+
+  const prefix =
+    status === "cooldown"
+      ? "Added. Next up: "
+      : status === "revisiting"
+        ? "Revisiting: "
+        : "Now on: ";
+  wizardAnnouncer.textContent = `${prefix}${term}`;
 }
 
 function maybeFetchLoupeHint(searchTerm: string): void {

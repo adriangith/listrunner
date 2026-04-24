@@ -68,6 +68,13 @@
   <main id="view-wizard" class="hidden">
     <div class="wizard-header">
       <button
+        id="btn-exit-wizard"
+        class="btn icon"
+        type="button"
+        aria-label="Exit wizard"
+        title="Exit wizard (back to list)"
+      >↩︎</button>
+      <button
         id="btn-shortcuts"
         class="btn icon"
         type="button"
@@ -91,11 +98,19 @@
       </div>
     </div>
     <div class="progress">
-      <div class="progress-bar">
+      <div
+        id="progress-bar"
+        class="progress-bar"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuenow="0"
+        aria-valuemax="0"
+      >
         <div id="progress-fill" class="progress-fill"></div>
       </div>
       <span id="progress-text" class="progress-text">0/0</span>
     </div>
+    <div id="wizard-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
     <div id="revisit-badge" class="revisit-badge hidden">Revisiting skipped items</div>
 
