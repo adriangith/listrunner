@@ -1,43 +1,67 @@
 import * as esbuild from "esbuild";
-import { cpSync } from "fs";
+import { cpSync, rmSync, mkdirSync, copyFileSync } from "fs";
 
 const watch = process.argv.includes("--watch");
-
-// Copy public files to dist/
-cpSync("public", "dist", { recursive: true });
+const targets = ["chrome", "firefox"];
 
 /** @type {esbuild.BuildOptions} */
 const common = {
   bundle: true,
   sourcemap: true,
-  target: "chrome120",
+  target: "es2022",
   format: "esm",
   logLevel: "info",
 };
 
-const configs = [
-  {
-    ...common,
-    entryPoints: ["src/background/service-worker.ts"],
-    outfile: "dist/service-worker.js",
-  },
-  {
-    ...common,
-    entryPoints: ["src/side-panel/side-panel.ts"],
-    outfile: "dist/side-panel.js",
-  },
-  {
-    ...common,
-    entryPoints: ["src/content/content-script.ts"],
-    outfile: "dist/content-script.js",
-    format: "iife",
-  },
-];
+function buildConfigs(outDir) {
+  return [
+    {
+      ...common,
+      entryPoints: ["src/background/service-worker.ts"],
+      outfile: `${outDir}/service-worker.js`,
+    },
+    {
+      ...common,
+      entryPoints: ["src/side-panel/side-panel.ts"],
+      outfile: `${outDir}/side-panel.js`,
+    },
+    {
+      ...common,
+      entryPoints: ["src/content/content-script.ts"],
+      outfile: `${outDir}/content-script.js`,
+      format: "iife",
+    },
+  ];
+}
+
+function stageAssets(target) {
+  const outDir = `dist/${target}`;
+  rmSync(outDir, { recursive: true, force: true });
+  mkdirSync(outDir, { recursive: true });
+  // Copy every public asset except the manifest variants.
+  cpSync("public", outDir, {
+    recursive: true,
+    filter: (src) => !/manifest\.(chrome|firefox)\.json$/.test(src),
+  });
+  // Install the target-specific manifest as manifest.json.
+  copyFileSync(
+    `public/manifest.${target}.json`,
+    `${outDir}/manifest.json`,
+  );
+}
 
 if (watch) {
-  const contexts = await Promise.all(configs.map((c) => esbuild.context(c)));
-  await Promise.all(contexts.map((ctx) => ctx.watch()));
-  console.log("Watching for changes...");
+  for (const target of targets) {
+    stageAssets(target);
+    const configs = buildConfigs(`dist/${target}`);
+    const contexts = await Promise.all(configs.map((c) => esbuild.context(c)));
+    await Promise.all(contexts.map((ctx) => ctx.watch()));
+  }
+  console.log("Watching for changes (chrome + firefox)...");
 } else {
-  await Promise.all(configs.map((c) => esbuild.build(c)));
+  for (const target of targets) {
+    stageAssets(target);
+    const configs = buildConfigs(`dist/${target}`);
+    await Promise.all(configs.map((c) => esbuild.build(c)));
+  }
 }

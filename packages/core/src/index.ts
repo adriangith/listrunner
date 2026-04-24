@@ -20,6 +20,7 @@ export { splitItems } from "./split.js";
 export { extractQuantity, extractQuantities } from "./quantity.js";
 export { cleanProductName } from "./product-name.js";
 export { applyPantryFilter } from "./pantry-filter.js";
+export { normalizeImportedText, splitCSVLine } from "./import-file.js";
 
 // ── Wizard ──
 export {

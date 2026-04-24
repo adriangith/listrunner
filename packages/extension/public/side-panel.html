@@ -20,7 +20,16 @@
       rows="10"
       placeholder="eggs&#10;500g flour&#10;2x chicken breast&#10;1 can (400g) tomatoes&#10;fresh basil"
     ></textarea>
-    <button id="btn-parse" class="btn primary">Parse List</button>
+    <div class="btn-row">
+      <button id="btn-import" class="btn" type="button">Import file…</button>
+      <button id="btn-parse" class="btn primary">Parse List</button>
+    </div>
+    <input
+      id="file-input"
+      type="file"
+      accept=".txt,.csv,text/plain,text/csv"
+      hidden
+    />
   </main>
 
   <!-- Review View -->
@@ -61,6 +70,13 @@
       <div class="edit-row">
         <input id="current-search-input" type="text" class="search-input" aria-label="Search term" />
         <button id="btn-update-search" class="btn small">Update</button>
+      </div>
+      <div id="loupe-hint" class="loupe-hint hidden">
+        <img id="loupe-image" alt="" class="loupe-image" />
+        <div class="loupe-text">
+          <span class="loupe-label">Last time you picked:</span>
+          <span id="loupe-name"></span>
+        </div>
       </div>
     </div>
 

@@ -13,6 +13,7 @@ import type {
   ContentResponse,
 } from "../messages.js";
 import { getStoreConfig } from "../store-configs/index.js";
+import { openExtensionPanel } from "../browser-api.js";
 
 let wizardState: WizardState = createWizardState();
 let activeStoreId: string | null = null;
@@ -39,9 +40,7 @@ function setWizardTab(id: number | null): void {
 loadPersistedData();
 
 chrome.action.onClicked.addListener((tab) => {
-  if (tab.id) {
-    chrome.sidePanel.open({ tabId: tab.id });
-  }
+  void openExtensionPanel(tab.id);
 });
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -58,7 +57,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     info.selectionText &&
     tab?.id
   ) {
-    chrome.sidePanel.open({ tabId: tab.id });
+    void openExtensionPanel(tab.id);
     chrome.storage.session.set({ pendingListText: info.selectionText });
   }
 });
@@ -207,6 +206,11 @@ function handleMessage(
       };
     }
 
+    case "GET_LOUPE_HINT": {
+      const hint = lookupLoupeHint(message.searchTerm);
+      return { type: "LOUPE_HINT", hint };
+    }
+
     case "PANTRY_ADD": {
       pantry.add(message.name);
       persistData();
@@ -247,6 +251,18 @@ function handleMessage(
   // sender unused for now; kept for future use (e.g., binding content script tab)
   void sender;
   return null;
+}
+
+function lookupLoupeHint(searchTerm: string) {
+  if (!activeStoreId) return null;
+  const records = history.lookup(activeStoreId, searchTerm);
+  if (records.length === 0) return null;
+  const latest = records[0]!;
+  return {
+    productName: latest.productName,
+    productImageUrl: latest.productImageUrl,
+    timestamp: latest.timestamp,
+  };
 }
 
 function handleCartDetected(

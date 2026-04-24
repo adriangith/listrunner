@@ -26,9 +26,16 @@ export type PanelMessage =
   | { type: "PANTRY_ADD"; name: string }
   | { type: "PANTRY_REMOVE"; name: string }
   | { type: "PANTRY_GET" }
-  | { type: "MANUAL_NEXT" };
+  | { type: "MANUAL_NEXT" }
+  | { type: "GET_LOUPE_HINT"; searchTerm: string };
 
 // ── Service Worker → Side Panel ──
+
+export type LoupeHint = {
+  productName: string;
+  productImageUrl: string | null;
+  timestamp: number;
+};
 
 export type WorkerResponse =
   | { type: "PARSED_LIST"; data: ParsedList }
@@ -37,12 +44,14 @@ export type WorkerResponse =
       state: WizardState;
       storeId: string | null;
       automationFailed?: boolean;
+      loupeHint?: LoupeHint | null;
     }
   | { type: "PANTRY_LIST"; names: string[] }
   | {
       type: "STORE_LIST";
       stores: { id: string; name: string; logoUrl?: string }[];
     }
+  | { type: "LOUPE_HINT"; hint: LoupeHint | null }
   | { type: "ERROR"; message: string };
 
 // ── Service Worker → Content Script ──

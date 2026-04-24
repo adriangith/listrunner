@@ -49,4 +49,53 @@ describe("extractQuantity", () => {
     expect(result.quantity).toEqual({ amount: 1.5, unit: "kg" });
     expect(result.remaining).toBe("chicken");
   });
+
+  it("handles ASCII fractions", () => {
+    const result = extractQuantity({ original: "1/2 cup flour" });
+    expect(result.quantity).toEqual({ amount: 0.5, unit: "cup" });
+    expect(result.remaining).toBe("flour");
+  });
+
+  it("handles mixed numbers", () => {
+    const result = extractQuantity({ original: "1 1/2 kg potatoes" });
+    expect(result.quantity).toEqual({ amount: 1.5, unit: "kg" });
+    expect(result.remaining).toBe("potatoes");
+  });
+
+  it("handles unicode fractions", () => {
+    const result = extractQuantity({ original: "½ lemon" });
+    expect(result.quantity).toEqual({ amount: 0.5, unit: null });
+    expect(result.remaining).toBe("lemon");
+  });
+
+  it("handles mixed unicode fractions", () => {
+    const result = extractQuantity({ original: "1½ cups sugar" });
+    expect(result.quantity).toEqual({ amount: 1.5, unit: "cups" });
+    expect(result.remaining).toBe("sugar");
+  });
+
+  it("reduces ranges to the lower bound", () => {
+    const result = extractQuantity({ original: "2-3 eggs" });
+    expect(result.quantity).toEqual({ amount: 2, unit: null });
+    expect(result.remaining).toBe("eggs");
+  });
+
+  it("expands 'a dozen' to 1 dozen", () => {
+    const result = extractQuantity({ original: "a dozen eggs" });
+    expect(result.quantity).toEqual({ amount: 1, unit: "dozen" });
+    expect(result.remaining).toBe("eggs");
+  });
+
+  it("expands 'an' before a count-noun", () => {
+    const result = extractQuantity({ original: "an avocado" });
+    // 'avocado' isn't a unit, so this stays ambiguous — we leave remaining untouched
+    expect(result.quantity).toBeNull();
+    expect(result.remaining).toBe("an avocado");
+  });
+
+  it("handles punnet unit", () => {
+    const result = extractQuantity({ original: "1 punnet strawberries" });
+    expect(result.quantity).toEqual({ amount: 1, unit: "punnet" });
+    expect(result.remaining).toBe("strawberries");
+  });
 });

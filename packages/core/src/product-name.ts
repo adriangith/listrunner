@@ -59,7 +59,14 @@ const STRIP_PHRASES = [
   "room temperature",
   "lightly packed",
   "firmly packed",
+  "plus extra for dusting",
+  "plus extra",
+  "or to taste",
+  "if needed",
 ];
+
+/** Leading article words we silently drop ("a onion" → "onion"). */
+const LEADING_ARTICLES = new Set(["a", "an", "the", "some"]);
 
 /**
  * Cleans a product name into a store-searchable term.
@@ -76,6 +83,26 @@ export function cleanProductName(item: ItemWithQuantity): string {
     text = text.replace(new RegExp(phrase, "gi"), "");
   }
 
+  // Drop trailing "of ..." clauses only when the phrase starts with "juice",
+  // "zest", "rind", "peel" etc — those are recipe-style modifiers.
+  text = text.replace(
+    /^(juice|zest|rind|peel|heart|hearts|leaves?)\s+of\s+.+$/i,
+    "$1",
+  );
+
+  // Strip trailing "or X" alternates: "basil or parsley" → "basil"
+  text = text.replace(/\s+or\s+[a-z]+$/i, "");
+
+  // Drop leading article words.
+  const tokens = text.trim().split(/\s+/);
+  while (
+    tokens.length > 1 &&
+    LEADING_ARTICLES.has(tokens[0]!.toLowerCase())
+  ) {
+    tokens.shift();
+  }
+  text = tokens.join(" ");
+
   // Remove trailing comma-separated prep instructions: "mozzarella, sliced"
   // Only strip if the word after the last comma is a prep word
   const commaIdx = text.lastIndexOf(",");
@@ -89,6 +116,16 @@ export function cleanProductName(item: ItemWithQuantity): string {
       text = text.slice(0, commaIdx);
     }
   }
+
+  // Strip any remaining lone trailing prep word: "carrots diced" → "carrots"
+  const tailTokens = text.trim().split(/\s+/);
+  while (
+    tailTokens.length > 1 &&
+    PREP_WORDS.has(tailTokens[tailTokens.length - 1]!.toLowerCase())
+  ) {
+    tailTokens.pop();
+  }
+  text = tailTokens.join(" ");
 
   // Clean up whitespace and punctuation
   text = text.replace(/\s{2,}/g, " ").trim();

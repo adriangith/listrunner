@@ -71,4 +71,54 @@ describe("cleanProductName", () => {
       }),
     ).toBe("yoghurt");
   });
+
+  it("strips leading articles", () => {
+    expect(
+      cleanProductName({
+        original: "a ripe avocado",
+        quantity: null,
+        remaining: "a ripe avocado",
+      }),
+    ).toBe("ripe avocado");
+  });
+
+  it("collapses 'juice of N lemons' to 'juice'", () => {
+    expect(
+      cleanProductName({
+        original: "juice of 2 lemons",
+        quantity: null,
+        remaining: "juice of 2 lemons",
+      }),
+    ).toBe("juice");
+  });
+
+  it("strips trailing 'or alternate'", () => {
+    expect(
+      cleanProductName({
+        original: "basil or parsley",
+        quantity: null,
+        remaining: "basil or parsley",
+      }),
+    ).toBe("basil");
+  });
+
+  it("strips trailing lone prep word without comma", () => {
+    expect(
+      cleanProductName({
+        original: "carrots diced",
+        quantity: null,
+        remaining: "carrots diced",
+      }),
+    ).toBe("carrots");
+  });
+
+  it("strips 'plus extra'", () => {
+    expect(
+      cleanProductName({
+        original: "flour plus extra for dusting",
+        quantity: null,
+        remaining: "flour plus extra for dusting",
+      }),
+    ).toBe("flour");
+  });
 });

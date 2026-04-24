@@ -4,7 +4,8 @@ import type {
   WizardState,
   WizardItem,
 } from "@listrunner/core";
-import type { PanelMessage, WorkerResponse } from "../messages.js";
+import { normalizeImportedText } from "@listrunner/core";
+import type { LoupeHint, PanelMessage, WorkerResponse } from "../messages.js";
 
 // ── State ──
 
@@ -33,6 +34,8 @@ const views: Record<ViewName, HTMLElement> = {
 const listTextarea = document.getElementById("list-input") as HTMLTextAreaElement;
 const parseBtn = document.getElementById("btn-parse") as HTMLButtonElement;
 const pantryBtn = document.getElementById("btn-pantry") as HTMLButtonElement;
+const importBtn = document.getElementById("btn-import") as HTMLButtonElement;
+const fileInput = document.getElementById("file-input") as HTMLInputElement;
 
 // Review view
 const reviewList = document.getElementById("review-list") as HTMLElement;
@@ -64,6 +67,11 @@ const undoBtn = document.getElementById("btn-undo") as HTMLButtonElement;
 const automationWarning = document.getElementById(
   "automation-warning",
 ) as HTMLElement;
+const loupeHintEl = document.getElementById("loupe-hint") as HTMLElement;
+const loupeImage = document.getElementById("loupe-image") as HTMLImageElement;
+const loupeName = document.getElementById("loupe-name") as HTMLElement;
+
+let lastLoupeKey: string | null = null;
 const manualNextBtn = document.getElementById(
   "btn-manual-next",
 ) as HTMLButtonElement;
@@ -133,6 +141,17 @@ async function init(): Promise<void> {
   pantryBtn.addEventListener("click", openPantry);
   pantryBackBtn.addEventListener("click", closePantry);
   pantryAddForm.addEventListener("submit", handlePantryAdd);
+
+  importBtn.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", handleFileImport);
+}
+
+async function handleFileImport(): Promise<void> {
+  const file = fileInput.files?.[0];
+  if (!file) return;
+  const text = await file.text();
+  listTextarea.value = normalizeImportedText(text, file.name);
+  fileInput.value = "";
 }
 
 // ── Actions ──
@@ -378,6 +397,9 @@ function renderWizardView(): void {
     if (document.activeElement !== currentSearchInput) {
       currentSearchInput.value = searchTerm;
     }
+    maybeFetchLoupeHint(searchTerm);
+  } else {
+    hideLoupeHint();
   }
 
   const added = items.filter((i) => i.status === "added").length;
@@ -442,6 +464,46 @@ function renderDoneView(): void {
 
   const hasSkipped = wizardState.items.some((i) => i.status === "skipped");
   revisitBtn.classList.toggle("hidden", !hasSkipped);
+}
+
+function maybeFetchLoupeHint(searchTerm: string): void {
+  if (!activeStoreId) {
+    hideLoupeHint();
+    return;
+  }
+  const key = `${activeStoreId}::${searchTerm.toLowerCase()}`;
+  if (key === lastLoupeKey) return;
+  lastLoupeKey = key;
+
+  sendMessage({ type: "GET_LOUPE_HINT", searchTerm }, (response) => {
+    if (response.type !== "LOUPE_HINT") return;
+    // Only render if the user is still on this item.
+    if (`${activeStoreId}::${searchTerm.toLowerCase()}` !== lastLoupeKey) {
+      return;
+    }
+    renderLoupeHint(response.hint);
+  });
+}
+
+function renderLoupeHint(hint: LoupeHint | null): void {
+  if (!hint) {
+    hideLoupeHint();
+    return;
+  }
+  loupeName.textContent = hint.productName;
+  if (hint.productImageUrl) {
+    loupeImage.src = hint.productImageUrl;
+    loupeImage.classList.remove("hidden");
+  } else {
+    loupeImage.removeAttribute("src");
+    loupeImage.classList.add("hidden");
+  }
+  loupeHintEl.classList.remove("hidden");
+}
+
+function hideLoupeHint(): void {
+  loupeHintEl.classList.add("hidden");
+  lastLoupeKey = null;
 }
 
 function startCooldownTimer(): void {
