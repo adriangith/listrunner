@@ -144,4 +144,51 @@ describe("wizard state machine", () => {
     expect(() => wizardReducer(state, { type: "ADVANCE" })).toThrow();
     expect(() => wizardReducer(state, { type: "SKIP" })).toThrow();
   });
+
+  it("goes to done after skipping the last item, even if other items were skipped", () => {
+    let state = createWizardState();
+    state = wizardReducer(state, { type: "START", items: testItems });
+
+    // Skip all three items in sequence
+    state = wizardReducer(state, { type: "SKIP" }); // eggs
+    state = wizardReducer(state, { type: "SKIP" }); // milk
+    state = wizardReducer(state, { type: "SKIP" }); // bread
+
+    expect(state.status).toBe("done");
+    expect(state.skippedIndices).toEqual([0, 1, 2]);
+  });
+
+  it("allows BEGIN_REVISIT from done when there are skipped items", () => {
+    let state = createWizardState();
+    state = wizardReducer(state, { type: "START", items: testItems });
+    state = wizardReducer(state, { type: "SKIP" });
+    state = wizardReducer(state, { type: "ADVANCE" });
+    state = wizardReducer(state, { type: "COOLDOWN_COMPLETE" });
+    state = wizardReducer(state, { type: "ADVANCE" });
+    state = wizardReducer(state, { type: "COOLDOWN_COMPLETE" });
+
+    expect(state.status).toBe("done");
+    expect(state.skippedIndices).toEqual([0]);
+
+    state = wizardReducer(state, { type: "BEGIN_REVISIT" });
+    expect(state.status).toBe("revisiting");
+    expect(currentItem(state)?.parsedItem.searchTerm).toBe("eggs");
+  });
+
+  it("preserves search term override during revisit", () => {
+    let state = createWizardState();
+    state = wizardReducer(state, { type: "START", items: testItems });
+    state = wizardReducer(state, { type: "SKIP" });
+    state = wizardReducer(state, {
+      type: "EDIT_SEARCH",
+      index: 0,
+      searchTerm: "organic eggs",
+    });
+    state = wizardReducer(state, { type: "SKIP" });
+    state = wizardReducer(state, { type: "SKIP" });
+    state = wizardReducer(state, { type: "BEGIN_REVISIT" });
+    const active = currentItem(state);
+    expect(active?.searchTermOverride).toBe("organic eggs");
+    expect(active?.parsedItem.searchTerm).toBe("eggs");
+  });
 });

@@ -241,10 +241,8 @@ function moveToNext(state: WizardState): WizardState {
   const nextIndex = state.currentIndex + 1;
 
   if (nextIndex >= state.items.length) {
-    // All items processed — check for skipped
-    if (state.skippedIndices.length > 0) {
-      return { ...state, status: "stepping", currentIndex: nextIndex };
-    }
+    // All primary items processed. The Done view decides whether to offer a
+    // revisit pass based on the presence of skipped items.
     return { ...state, status: "done", currentIndex: nextIndex };
   }
 

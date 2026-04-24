@@ -12,6 +12,8 @@
   --primary: #2d7ff9;
   --primary-hover: #1a6ee0;
   --success: #18a058;
+  --warning: #c77700;
+  --warning-bg: #fff8ea;
   --border: #e0e0e0;
   --radius: 8px;
 }
@@ -28,6 +30,9 @@ body {
 }
 
 header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 16px;
 }
 
@@ -38,6 +43,12 @@ header h1 {
 
 .hidden {
   display: none !important;
+}
+
+.muted-count {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 13px;
 }
 
 /* ── Buttons ── */
@@ -51,6 +62,10 @@ header h1 {
   font-size: 14px;
   cursor: pointer;
   transition: background 0.15s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn:hover {
@@ -75,6 +90,29 @@ header h1 {
 .btn.small {
   padding: 4px 10px;
   font-size: 12px;
+}
+
+.btn.icon {
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.btn.icon:hover {
+  color: var(--text);
+  background: #f0f0f0;
+}
+
+.btn.link {
+  border: none;
+  background: none;
+  color: var(--primary);
+  padding: 4px 8px;
+  text-decoration: underline;
 }
 
 .btn-row {
@@ -108,6 +146,20 @@ textarea:focus {
 
 #btn-parse {
   width: 100%;
+}
+
+.search-input {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 14px;
+  width: 100%;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary);
 }
 
 /* ── Review View ── */
@@ -149,18 +201,42 @@ h3 {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 6px 0;
   border-bottom: 1px solid var(--border);
 }
 
 .item-qty {
   font-size: 12px;
   color: var(--text-muted);
-  min-width: 48px;
+  min-width: 54px;
 }
 
-.item-name {
+.item-name-input {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: 14px;
+  background: transparent;
   font-weight: 500;
+}
+
+.item-name-input:hover {
+  border-color: var(--border);
+}
+
+.item-name-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: var(--surface);
+}
+
+.empty-hint {
+  padding: 16px;
+  color: var(--text-muted);
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
 }
 
 .filtered-list {
@@ -170,9 +246,16 @@ h3 {
   font-size: 13px;
 }
 
-.filtered-list li {
-  padding: 4px 10px;
+.filtered-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
   text-decoration: line-through;
+}
+
+.filtered-row .btn {
+  text-decoration: none;
 }
 
 /* ── Wizard View ── */
@@ -181,7 +264,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .progress-bar {
@@ -208,13 +291,24 @@ h3 {
   text-align: right;
 }
 
+.revisit-badge {
+  background: var(--warning-bg);
+  color: var(--warning);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
 .current-item {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px 16px;
+  padding: 16px;
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .current-name {
@@ -231,8 +325,37 @@ h3 {
   margin-bottom: 2px;
 }
 
-#btn-skip {
-  width: 100%;
+.edit-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.edit-row .search-input {
+  flex: 1;
+}
+
+.wizard-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.wizard-actions .btn {
+  flex: 1;
+}
+
+.automation-warning {
+  margin-top: 12px;
+  background: var(--warning-bg);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.automation-warning p {
+  color: var(--warning);
+  font-weight: 600;
+  margin-bottom: 8px;
 }
 
 .cooldown-bar {
@@ -275,4 +398,40 @@ h3 {
 
 #view-done .btn-row {
   justify-content: center;
+}
+
+/* ── Pantry View ── */
+
+.pantry-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pantry-header h2 {
+  margin-bottom: 0;
+}
+
+.pantry-add {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.pantry-add .search-input {
+  flex: 1;
+}
+
+.pantry-list {
+  list-style: none;
+  padding: 0;
+}
+
+.pantry-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
 }

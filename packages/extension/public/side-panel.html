@@ -9,6 +9,7 @@
 <body>
   <header>
     <h1>🛒 ListRunner</h1>
+    <button id="btn-pantry" class="btn icon" title="Pantry settings" aria-label="Pantry settings">⚙︎</button>
   </header>
 
   <!-- Input View -->
@@ -29,7 +30,7 @@
       <select id="store-select"></select>
     </div>
 
-    <h2>Your list</h2>
+    <h2>Your list <span id="review-count" class="muted-count"></span></h2>
     <ol id="review-list" class="review-list"></ol>
 
     <div id="filtered-section" class="hidden">
@@ -52,12 +53,29 @@
       <span id="progress-text" class="progress-text">0/0</span>
     </div>
 
+    <div id="revisit-badge" class="revisit-badge hidden">Revisiting skipped items</div>
+
     <div class="current-item">
       <span id="current-item-qty" class="current-qty"></span>
       <span id="current-item-name" class="current-name"></span>
+      <div class="edit-row">
+        <input id="current-search-input" type="text" class="search-input" aria-label="Search term" />
+        <button id="btn-update-search" class="btn small">Update</button>
+      </div>
     </div>
 
-    <button id="btn-skip" class="btn">Skip →</button>
+    <div class="wizard-actions">
+      <button id="btn-skip" class="btn">Skip →</button>
+      <button id="btn-dismiss" class="btn hidden">Dismiss</button>
+    </div>
+
+    <div id="automation-warning" class="automation-warning hidden">
+      <p>Automation isn't working for this store right now. You can search and add manually on the store page.</p>
+      <div class="btn-row">
+        <button id="btn-manual-next" class="btn">Skip, try next item →</button>
+        <a id="btn-report" href="#" target="_blank" rel="noopener" class="btn link">Report issue</a>
+      </div>
+    </div>
 
     <div id="cooldown-bar" class="cooldown-bar hidden">
       <span id="cooldown-msg"></span>
@@ -76,6 +94,23 @@
       <button id="btn-revisit" class="btn hidden">Revisit skipped items</button>
       <button id="btn-new-list" class="btn primary">New List</button>
     </div>
+  </main>
+
+  <!-- Pantry View -->
+  <main id="view-pantry" class="hidden">
+    <div class="pantry-header">
+      <button id="btn-pantry-back" class="btn icon" aria-label="Back">←</button>
+      <h2>Pantry (never add)</h2>
+    </div>
+    <p class="hint">Items on this list are skipped automatically when you parse a shopping list.</p>
+
+    <form id="pantry-add-form" class="pantry-add">
+      <input id="pantry-new" type="text" placeholder="e.g. salt" class="search-input" />
+      <button type="submit" class="btn primary small">Add</button>
+    </form>
+
+    <ul id="pantry-list" class="pantry-list"></ul>
+    <p id="pantry-empty" class="hint">Your pantry is empty.</p>
   </main>
 
   <script src="side-panel.js" type="module"></script>
