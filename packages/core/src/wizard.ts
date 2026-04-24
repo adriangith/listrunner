@@ -119,10 +119,14 @@ function handleCooldownComplete(state: WizardState): WizardState {
   if (state.status !== "cooldown") {
     throw new Error(`Cannot COOLDOWN_COMPLETE from status "${state.status}"`);
   }
-  return moveToNext({
-    ...state,
-    cooldownItemIndex: null,
-  });
+  // If the cooldown item is a skipped index that we were revisiting, advance
+  // the revisit pointer; otherwise continue the primary pass.
+  const cooledIdx = state.cooldownItemIndex;
+  const wasRevisiting =
+    cooledIdx !== null && state.skippedIndices.includes(cooledIdx);
+
+  const base = { ...state, cooldownItemIndex: null };
+  return wasRevisiting ? moveToNextRevisit(base) : moveToNext(base);
 }
 
 function handleSkip(state: WizardState): WizardState {

@@ -11,6 +11,8 @@ const DEFAULT_MAX_PER_STORE = 500;
 export class SelectionHistory {
   private records: SelectionRecord[];
   private readonly maxPerStore: number;
+  /** Tracks the highest timestamp handed out so rapid calls remain monotonic. */
+  private lastTimestamp = 0;
 
   constructor(
     initial: SelectionRecord[] = [],
@@ -18,11 +20,17 @@ export class SelectionHistory {
   ) {
     this.records = [...initial];
     this.maxPerStore = options.maxPerStore ?? DEFAULT_MAX_PER_STORE;
+    for (const r of this.records) {
+      if (r.timestamp > this.lastTimestamp) this.lastTimestamp = r.timestamp;
+    }
   }
 
   /** Record a product selection. */
   add(record: Omit<SelectionRecord, "timestamp">): SelectionRecord {
-    const entry: SelectionRecord = { ...record, timestamp: Date.now() };
+    const now = Date.now();
+    const timestamp = now > this.lastTimestamp ? now : this.lastTimestamp + 1;
+    this.lastTimestamp = timestamp;
+    const entry: SelectionRecord = { ...record, timestamp };
     this.records.push(entry);
     this.pruneStore(entry.store);
     return entry;
