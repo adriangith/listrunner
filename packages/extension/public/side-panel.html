@@ -42,6 +42,17 @@
     <h2>Your list <span id="review-count" class="muted-count"></span></h2>
     <ol id="review-list" class="review-list"></ol>
 
+    <form id="add-item-form" class="add-item-form">
+      <input
+        id="add-item-input"
+        type="text"
+        class="search-input"
+        placeholder="Add another item…"
+        aria-label="Add another item"
+      />
+      <button type="submit" class="btn small">Add</button>
+    </form>
+
     <div id="filtered-section" class="hidden">
       <h3>Filtered out (pantry)</h3>
       <ul id="filtered-list" class="filtered-list"></ul>
@@ -127,6 +138,13 @@
 
     <ul id="pantry-list" class="pantry-list"></ul>
     <p id="pantry-empty" class="hint">Your pantry is empty.</p>
+
+    <div class="settings-section">
+      <h3>Data</h3>
+      <p class="hint">Selection history is stored locally and used to show "last time you picked" hints. Clear it whenever you like.</p>
+      <button id="btn-clear-history" class="btn" type="button">Clear selection history</button>
+      <p id="clear-history-feedback" class="hint status-line hidden"></p>
+    </div>
   </main>
 
   <script src="side-panel.js" type="module"></script>

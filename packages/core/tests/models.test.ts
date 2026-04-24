@@ -102,4 +102,62 @@ describe("SelectionHistory", () => {
     });
     expect(history.getAll("woolworths")).toHaveLength(1);
   });
+
+  it("prunes oldest records per store above the cap", () => {
+    const history = new SelectionHistory([], { maxPerStore: 3 });
+    for (let i = 0; i < 5; i++) {
+      history.add({
+        store: "a",
+        searchTerm: "eggs",
+        productName: `A${i}`,
+        productImageUrl: null,
+      });
+    }
+    for (let i = 0; i < 2; i++) {
+      history.add({
+        store: "b",
+        searchTerm: "milk",
+        productName: `B${i}`,
+        productImageUrl: null,
+      });
+    }
+    expect(history.getAll("a")).toHaveLength(3);
+    expect(history.getAll("a").map((r) => r.productName)).toEqual([
+      "A2",
+      "A3",
+      "A4",
+    ]);
+    expect(history.getAll("b")).toHaveLength(2);
+  });
+
+  it("clear() removes all records", () => {
+    const history = new SelectionHistory();
+    history.add({
+      store: "a",
+      searchTerm: "x",
+      productName: "X",
+      productImageUrl: null,
+    });
+    history.clear();
+    expect(history.getAll()).toHaveLength(0);
+  });
+
+  it("clearStore() removes only the named store's records", () => {
+    const history = new SelectionHistory();
+    history.add({
+      store: "a",
+      searchTerm: "x",
+      productName: "X",
+      productImageUrl: null,
+    });
+    history.add({
+      store: "b",
+      searchTerm: "y",
+      productName: "Y",
+      productImageUrl: null,
+    });
+    expect(history.clearStore("a")).toBe(1);
+    expect(history.getAll()).toHaveLength(1);
+    expect(history.getAll()[0]?.store).toBe("b");
+  });
 });

@@ -1,5 +1,8 @@
 import type { SelectionRecord } from "./types.js";
 
+/** Cap on records retained per store — keeps storage footprint bounded. */
+const DEFAULT_MAX_PER_STORE = 500;
+
 /**
  * Append-only selection history log.
  * Records which products the user picks at each store,
@@ -7,16 +10,44 @@ import type { SelectionRecord } from "./types.js";
  */
 export class SelectionHistory {
   private records: SelectionRecord[];
+  private readonly maxPerStore: number;
 
-  constructor(initial: SelectionRecord[] = []) {
+  constructor(
+    initial: SelectionRecord[] = [],
+    options: { maxPerStore?: number } = {},
+  ) {
     this.records = [...initial];
+    this.maxPerStore = options.maxPerStore ?? DEFAULT_MAX_PER_STORE;
   }
 
   /** Record a product selection. */
   add(record: Omit<SelectionRecord, "timestamp">): SelectionRecord {
     const entry: SelectionRecord = { ...record, timestamp: Date.now() };
     this.records.push(entry);
+    this.pruneStore(entry.store);
     return entry;
+  }
+
+  /** Remove every record. */
+  clear(): void {
+    this.records = [];
+  }
+
+  /** Remove every record belonging to a specific store. */
+  clearStore(store: string): number {
+    const before = this.records.length;
+    this.records = this.records.filter((r) => r.store !== store);
+    return before - this.records.length;
+  }
+
+  /** Drop oldest records for a store when it exceeds the cap. */
+  private pruneStore(store: string): void {
+    const storeRecords = this.records.filter((r) => r.store === store);
+    if (storeRecords.length <= this.maxPerStore) return;
+    storeRecords.sort((a, b) => a.timestamp - b.timestamp);
+    const toRemove = storeRecords.slice(0, storeRecords.length - this.maxPerStore);
+    const removeSet = new Set(toRemove);
+    this.records = this.records.filter((r) => !removeSet.has(r));
   }
 
   /** Get all records, optionally filtered by store. */

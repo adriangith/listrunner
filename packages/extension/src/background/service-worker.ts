@@ -211,6 +211,13 @@ function handleMessage(
       return { type: "LOUPE_HINT", hint };
     }
 
+    case "CLEAR_HISTORY": {
+      const removed = history.getAll().length;
+      history.clear();
+      persistData();
+      return { type: "HISTORY_CLEARED", removed };
+    }
+
     case "PANTRY_ADD": {
       pantry.add(message.name);
       persistData();

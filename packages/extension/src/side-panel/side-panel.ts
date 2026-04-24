@@ -45,6 +45,8 @@ const startBtn = document.getElementById("btn-start") as HTMLButtonElement;
 const backBtn = document.getElementById("btn-back") as HTMLButtonElement;
 const filteredSection = document.getElementById("filtered-section") as HTMLElement;
 const filteredList = document.getElementById("filtered-list") as HTMLElement;
+const addItemForm = document.getElementById("add-item-form") as HTMLFormElement;
+const addItemInput = document.getElementById("add-item-input") as HTMLInputElement;
 
 // Wizard view
 const currentItemName = document.getElementById("current-item-name") as HTMLElement;
@@ -90,6 +92,12 @@ const pantryAddForm = document.getElementById("pantry-add-form") as HTMLFormElem
 const pantryNewInput = document.getElementById("pantry-new") as HTMLInputElement;
 const pantryListEl = document.getElementById("pantry-list") as HTMLElement;
 const pantryEmpty = document.getElementById("pantry-empty") as HTMLElement;
+const clearHistoryBtn = document.getElementById(
+  "btn-clear-history",
+) as HTMLButtonElement;
+const clearHistoryFeedback = document.getElementById(
+  "clear-history-feedback",
+) as HTMLElement;
 
 // ── Init ──
 
@@ -132,6 +140,7 @@ async function init(): Promise<void> {
   revisitBtn.addEventListener("click", () => sendAction("BEGIN_REVISIT"));
   newListBtn.addEventListener("click", handleNewList);
   storeSelect.addEventListener("change", handleStoreChange);
+  addItemForm.addEventListener("submit", handleAddReviewItem);
   updateSearchBtn.addEventListener("click", handleUpdateSearch);
   currentSearchInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") handleUpdateSearch();
@@ -141,9 +150,78 @@ async function init(): Promise<void> {
   pantryBtn.addEventListener("click", openPantry);
   pantryBackBtn.addEventListener("click", closePantry);
   pantryAddForm.addEventListener("submit", handlePantryAdd);
+  clearHistoryBtn.addEventListener("click", handleClearHistory);
 
   importBtn.addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", handleFileImport);
+
+  document.addEventListener("keydown", handleKeyboardShortcut);
+}
+
+function handleKeyboardShortcut(e: KeyboardEvent): void {
+  // Don't hijack keys when the user is typing in an input / textarea.
+  const target = e.target as HTMLElement | null;
+  if (target) {
+    const tag = target.tagName;
+    if (
+      tag === "INPUT" ||
+      tag === "TEXTAREA" ||
+      target.isContentEditable
+    ) {
+      return;
+    }
+  }
+  if (!wizardState) return;
+
+  const status = wizardState.status;
+
+  if (status === "stepping" || status === "revisiting") {
+    if (e.key === "s" || e.key === "S") {
+      e.preventDefault();
+      sendAction("SKIP");
+      return;
+    }
+    if (status === "revisiting" && (e.key === "d" || e.key === "D")) {
+      e.preventDefault();
+      sendAction("DISMISS");
+      return;
+    }
+    if (e.key === "e" || e.key === "E") {
+      e.preventDefault();
+      currentSearchInput.focus();
+      currentSearchInput.select();
+      return;
+    }
+  }
+
+  if (status === "cooldown") {
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      sendAction("COOLDOWN_COMPLETE");
+      return;
+    }
+    if (e.key === "u" || e.key === "U") {
+      e.preventDefault();
+      sendAction("UNDO");
+      return;
+    }
+    if (e.key === "a" || e.key === "A") {
+      e.preventDefault();
+      sendAction("ADD_ANOTHER");
+      return;
+    }
+  }
+
+  if (status === "done") {
+    if (e.key === "r" || e.key === "R") {
+      const hasSkipped =
+        wizardState.items.some((i) => i.status === "skipped") ?? false;
+      if (hasSkipped) {
+        e.preventDefault();
+        sendAction("BEGIN_REVISIT");
+      }
+    }
+  }
 }
 
 async function handleFileImport(): Promise<void> {
@@ -373,6 +451,23 @@ function removeReviewItem(index: number): void {
   renderReviewList();
 }
 
+function handleAddReviewItem(e: Event): void {
+  e.preventDefault();
+  const raw = addItemInput.value.trim();
+  if (!raw || !parsedList) return;
+
+  // Run a single-item parse through the service worker so the new entry gets
+  // the same quantity-extraction / cleanup as items pasted in the textarea.
+  sendMessage({ type: "PARSE_LIST", text: raw }, (response) => {
+    if (response.type !== "PARSED_LIST") return;
+    const added = response.data.items[0];
+    if (!added || !parsedList) return;
+    parsedList.items.push(added);
+    addItemInput.value = "";
+    renderReviewList();
+  });
+}
+
 function restoreFiltered(index: number): void {
   if (!parsedList) return;
   const [restored] = parsedList.filtered.splice(index, 1);
@@ -562,6 +657,28 @@ function handlePantryAdd(e: Event): void {
       pantryNewInput.value = "";
       renderPantry(response.names);
     }
+  });
+}
+
+function handleClearHistory(): void {
+  if (
+    !confirm(
+      "Clear all stored product-selection history? You'll lose the 'last time you picked' hints.",
+    )
+  ) {
+    return;
+  }
+  sendMessage({ type: "CLEAR_HISTORY" }, (response) => {
+    if (response.type !== "HISTORY_CLEARED") return;
+    clearHistoryFeedback.textContent =
+      response.removed === 0
+        ? "No history to clear."
+        : `Removed ${response.removed} record${response.removed === 1 ? "" : "s"}.`;
+    clearHistoryFeedback.classList.remove("hidden");
+    hideLoupeHint();
+    setTimeout(() => {
+      clearHistoryFeedback.classList.add("hidden");
+    }, 3000);
   });
 }
 

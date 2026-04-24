@@ -27,7 +27,8 @@ export type PanelMessage =
   | { type: "PANTRY_REMOVE"; name: string }
   | { type: "PANTRY_GET" }
   | { type: "MANUAL_NEXT" }
-  | { type: "GET_LOUPE_HINT"; searchTerm: string };
+  | { type: "GET_LOUPE_HINT"; searchTerm: string }
+  | { type: "CLEAR_HISTORY" };
 
 // ── Service Worker → Side Panel ──
 
@@ -52,6 +53,7 @@ export type WorkerResponse =
       stores: { id: string; name: string; logoUrl?: string }[];
     }
   | { type: "LOUPE_HINT"; hint: LoupeHint | null }
+  | { type: "HISTORY_CLEARED"; removed: number }
   | { type: "ERROR"; message: string };
 
 // ── Service Worker → Content Script ──
