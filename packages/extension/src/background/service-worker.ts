@@ -22,9 +22,24 @@ let wizardTabId: number | null = null;
 const pantry = new PantryList();
 const history = new SelectionHistory();
 
+const COOLDOWN_ALARM = "lr-cooldown";
+const COOLDOWN_MS = 3000;
+
 function setWizardState(next: WizardState): void {
+  const wasCooldown = wizardState.status === "cooldown";
+  const nowCooldown = next.status === "cooldown";
   wizardState = next;
   void persistSession();
+  if (nowCooldown && !wasCooldown) {
+    scheduleCooldownAlarm();
+  } else if (!nowCooldown && wasCooldown) {
+    void chrome.alarms.clear(COOLDOWN_ALARM);
+  }
+}
+
+function scheduleCooldownAlarm(): void {
+  // Alarms are minute-granular by default, but `when` accepts an exact time.
+  chrome.alarms.create(COOLDOWN_ALARM, { when: Date.now() + COOLDOWN_MS });
 }
 
 function setActiveStore(id: string | null): void {
@@ -41,6 +56,27 @@ loadPersistedData();
 
 chrome.action.onClicked.addListener((tab) => {
   void openExtensionPanel(tab.id);
+});
+
+// Alarm-driven cooldown timer survives service-worker sleep and the side panel
+// closing.
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== COOLDOWN_ALARM) return;
+  if (wizardState.status !== "cooldown") return;
+  try {
+    setWizardState(
+      wizardReducer(wizardState, { type: "COOLDOWN_COMPLETE" }),
+    );
+    // Guard was "cooldown"; after COOLDOWN_COMPLETE the reducer lands on
+    // stepping, revisiting, or done — only the first two warrant a new search.
+    const nextStatus: string = wizardState.status;
+    if (nextStatus === "stepping" || nextStatus === "revisiting") {
+      triggerSearch();
+    }
+    broadcastState();
+  } catch {
+    // Stale alarm; ignore.
+  }
 });
 
 chrome.runtime.onInstalled.addListener(() => {

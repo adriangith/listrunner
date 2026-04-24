@@ -66,6 +66,30 @@
 
   <!-- Wizard View -->
   <main id="view-wizard" class="hidden">
+    <div class="wizard-header">
+      <button
+        id="btn-shortcuts"
+        class="btn icon"
+        type="button"
+        aria-label="Show keyboard shortcuts"
+        title="Keyboard shortcuts"
+      >?</button>
+    </div>
+    <div id="shortcuts-overlay" class="shortcuts-overlay hidden" role="dialog" aria-label="Keyboard shortcuts">
+      <div class="shortcuts-card">
+        <h3>Keyboard shortcuts</h3>
+        <dl class="shortcuts-list">
+          <dt><kbd>S</kbd></dt><dd>Skip current item</dd>
+          <dt><kbd>E</kbd></dt><dd>Edit search term</dd>
+          <dt><kbd>Space</kbd> / <kbd>Enter</kbd></dt><dd>Advance during cooldown</dd>
+          <dt><kbd>U</kbd></dt><dd>Undo during cooldown</dd>
+          <dt><kbd>A</kbd></dt><dd>Add another during cooldown</dd>
+          <dt><kbd>D</kbd></dt><dd>Dismiss (revisit only)</dd>
+          <dt><kbd>R</kbd></dt><dd>Revisit skipped items (done view)</dd>
+        </dl>
+        <button id="btn-shortcuts-close" class="btn primary small">Got it</button>
+      </div>
+    </div>
     <div class="progress">
       <div class="progress-bar">
         <div id="progress-fill" class="progress-fill"></div>

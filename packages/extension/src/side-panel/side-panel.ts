@@ -6,13 +6,13 @@ import type {
 } from "@listrunner/core";
 import { normalizeImportedText } from "@listrunner/core";
 import type { LoupeHint, PanelMessage, WorkerResponse } from "../messages.js";
+import { getAllStoreConfigs } from "../store-configs/index.js";
 
 // ── State ──
 
 let parsedList: ParsedList | null = null;
 let wizardState: WizardState | null = null;
 let activeStoreId: string | null = null;
-let cooldownTimer: ReturnType<typeof setTimeout> | null = null;
 let automationFailed = false;
 let previousView: ViewName = "input";
 
@@ -69,11 +69,22 @@ const undoBtn = document.getElementById("btn-undo") as HTMLButtonElement;
 const automationWarning = document.getElementById(
   "automation-warning",
 ) as HTMLElement;
+const shortcutsBtn = document.getElementById(
+  "btn-shortcuts",
+) as HTMLButtonElement;
+const shortcutsOverlay = document.getElementById(
+  "shortcuts-overlay",
+) as HTMLElement;
+const shortcutsCloseBtn = document.getElementById(
+  "btn-shortcuts-close",
+) as HTMLButtonElement;
 const loupeHintEl = document.getElementById("loupe-hint") as HTMLElement;
 const loupeImage = document.getElementById("loupe-image") as HTMLImageElement;
 const loupeName = document.getElementById("loupe-name") as HTMLElement;
 
 let lastLoupeKey: string | null = null;
+let cooldownCountdownTimer: ReturnType<typeof setInterval> | null = null;
+let cooldownStartedAt: number | null = null;
 const manualNextBtn = document.getElementById(
   "btn-manual-next",
 ) as HTMLButtonElement;
@@ -152,6 +163,16 @@ async function init(): Promise<void> {
   pantryAddForm.addEventListener("submit", handlePantryAdd);
   clearHistoryBtn.addEventListener("click", handleClearHistory);
 
+  shortcutsBtn.addEventListener("click", () =>
+    shortcutsOverlay.classList.remove("hidden"),
+  );
+  shortcutsCloseBtn.addEventListener("click", () =>
+    shortcutsOverlay.classList.add("hidden"),
+  );
+  shortcutsOverlay.addEventListener("click", (e) => {
+    if (e.target === shortcutsOverlay) shortcutsOverlay.classList.add("hidden");
+  });
+
   importBtn.addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", handleFileImport);
 
@@ -221,6 +242,13 @@ function handleKeyboardShortcut(e: KeyboardEvent): void {
         sendAction("BEGIN_REVISIT");
       }
     }
+  }
+
+  if (e.key === "?") {
+    e.preventDefault();
+    shortcutsOverlay.classList.toggle("hidden");
+  } else if (e.key === "Escape") {
+    shortcutsOverlay.classList.add("hidden");
   }
 }
 
@@ -520,11 +548,9 @@ function renderWizardView(): void {
   }
 
   if (isCooldown) {
-    cooldownMsg.textContent = "Added! Next item in 3s...";
-    startCooldownTimer();
-  } else if (cooldownTimer) {
-    clearTimeout(cooldownTimer);
-    cooldownTimer = null;
+    startCooldownDisplay();
+  } else {
+    stopCooldownDisplay();
   }
 }
 
@@ -601,21 +627,41 @@ function hideLoupeHint(): void {
   lastLoupeKey = null;
 }
 
-function startCooldownTimer(): void {
-  if (cooldownTimer) clearTimeout(cooldownTimer);
-  cooldownTimer = setTimeout(() => {
-    sendAction("COOLDOWN_COMPLETE");
-    cooldownTimer = null;
-  }, COOLDOWN_MS);
+function startCooldownDisplay(): void {
+  if (cooldownStartedAt === null) {
+    cooldownStartedAt = Date.now();
+  }
+  updateCooldownText();
+  if (cooldownCountdownTimer) return;
+  cooldownCountdownTimer = setInterval(updateCooldownText, 200);
+}
+
+function stopCooldownDisplay(): void {
+  if (cooldownCountdownTimer) {
+    clearInterval(cooldownCountdownTimer);
+    cooldownCountdownTimer = null;
+  }
+  cooldownStartedAt = null;
+}
+
+function updateCooldownText(): void {
+  if (cooldownStartedAt === null) return;
+  const elapsed = Date.now() - cooldownStartedAt;
+  const remainingMs = Math.max(0, COOLDOWN_MS - elapsed);
+  const remaining = Math.ceil(remainingMs / 1000);
+  cooldownMsg.textContent =
+    remaining > 0
+      ? `Added! Next item in ${remaining}s…`
+      : "Added! Advancing…";
 }
 
 function loadStoreList(): void {
-  const stores = [
-    { id: "woolworths-au", name: "Woolworths (AU)" },
-    { id: "coles-au", name: "Coles (AU)" },
-  ];
+  const stores = getAllStoreConfigs().map((c) => ({
+    id: c.id,
+    name: c.regions.length > 0 ? `${c.name} (${c.regions.join(", ")})` : c.name,
+  }));
 
-  storeSelect.innerHTML = '<option value="">Choose a store...</option>';
+  storeSelect.innerHTML = '<option value="">Choose a store…</option>';
   for (const store of stores) {
     const option = document.createElement("option");
     option.value = store.id;

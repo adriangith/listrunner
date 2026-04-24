@@ -3,6 +3,8 @@ import type { ContentMessage } from "../messages.js";
 
 let activeConfig: StoreConfig | null = null;
 let cartObserver: MutationObserver | null = null;
+let selectorObserver: MutationObserver | null = null;
+let selectorTimeoutId: ReturnType<typeof setTimeout> | null = null;
 let clickListenerBound = false;
 
 // How long to wait for expected selectors before declaring automation broken.
@@ -103,6 +105,14 @@ function teardownObservers(): void {
     cartObserver.disconnect();
     cartObserver = null;
   }
+  if (selectorObserver) {
+    selectorObserver.disconnect();
+    selectorObserver = null;
+  }
+  if (selectorTimeoutId !== null) {
+    clearTimeout(selectorTimeoutId);
+    selectorTimeoutId = null;
+  }
 }
 
 function observeCartChanges(): void {
@@ -140,11 +150,21 @@ function observeCartChanges(): void {
  */
 function watchForSelectorAvailability(): void {
   if (!activeConfig) return;
+  // Dispose any previous watch — setupForStore may be called repeatedly
+  // on SPA store pages.
+  if (selectorObserver) {
+    selectorObserver.disconnect();
+    selectorObserver = null;
+  }
+  if (selectorTimeoutId !== null) {
+    clearTimeout(selectorTimeoutId);
+    selectorTimeoutId = null;
+  }
+
   const storeId = activeConfig.id;
   const addSel = activeConfig.cart.addToCartSelector;
   const searchSel = activeConfig.search.inputSelector;
 
-  const start = Date.now();
   const check = (): boolean => {
     try {
       if (addSel && document.querySelector(addSel)) return true;
@@ -158,31 +178,31 @@ function watchForSelectorAvailability(): void {
 
   if (check()) return;
 
-  const observer = new MutationObserver(() => {
+  selectorObserver = new MutationObserver(() => {
     if (check()) {
-      observer.disconnect();
-    } else if (Date.now() - start > SELECTOR_TIMEOUT_MS) {
-      observer.disconnect();
-      chrome.runtime.sendMessage({
-        type: "AUTOMATION_TIMEOUT",
-        storeId,
-      });
+      selectorObserver?.disconnect();
+      selectorObserver = null;
+      if (selectorTimeoutId !== null) {
+        clearTimeout(selectorTimeoutId);
+        selectorTimeoutId = null;
+      }
     }
   });
-  observer.observe(document.documentElement, {
+  selectorObserver.observe(document.documentElement, {
     childList: true,
     subtree: true,
   });
 
-  // Hard deadline even if nothing ever mutates.
-  setTimeout(() => {
+  selectorTimeoutId = setTimeout(() => {
     if (!check()) {
-      observer.disconnect();
+      selectorObserver?.disconnect();
+      selectorObserver = null;
       chrome.runtime.sendMessage({
         type: "AUTOMATION_TIMEOUT",
         storeId,
       });
     }
+    selectorTimeoutId = null;
   }, SELECTOR_TIMEOUT_MS);
 }
 
@@ -193,33 +213,90 @@ function handlePotentialCartClick(event: Event): void {
   const addButton = target.closest(activeConfig.cart.addToCartSelector);
   if (!addButton) return;
 
-  const productTile = addButton.closest(
-    "[class*='product'], [data-testid*='product'], article, .tile",
-  );
-  let productName = "Unknown product";
-  let productImageUrl: string | null = null;
-
-  if (productTile) {
-    const nameEl = productTile.querySelector(
-      activeConfig.cart.productNameSelector,
-    );
-    if (nameEl) {
-      productName = nameEl.textContent?.trim() ?? productName;
-    }
-
-    if (activeConfig.cart.productImageSelector) {
-      const imgEl = productTile.querySelector<HTMLImageElement>(
-        activeConfig.cart.productImageSelector,
-      );
-      if (imgEl) {
-        productImageUrl = imgEl.src || imgEl.getAttribute("data-src") || null;
-      }
-    }
-  }
+  const { productName, productImageUrl } = extractProductInfo(addButton);
 
   chrome.runtime.sendMessage({
     type: "CART_ADD_DETECTED",
     productName,
     productImageUrl,
   });
+}
+
+/**
+ * Extract product info from the DOM around an add-to-cart button.
+ * First looks for a product tile (search-results page), then falls back to
+ * page-level structured metadata (product detail page, single-product view).
+ */
+function extractProductInfo(addButton: Element): {
+  productName: string;
+  productImageUrl: string | null;
+} {
+  const cfg = activeConfig!;
+  let productName = "";
+  let productImageUrl: string | null = null;
+
+  const productTile = addButton.closest(
+    "[class*='product'], [data-testid*='product'], article, .tile, li",
+  );
+
+  if (productTile) {
+    const nameEl = productTile.querySelector(cfg.cart.productNameSelector);
+    if (nameEl) {
+      productName = nameEl.textContent?.trim() ?? "";
+    }
+    if (cfg.cart.productImageSelector) {
+      const imgEl = productTile.querySelector<HTMLImageElement>(
+        cfg.cart.productImageSelector,
+      );
+      if (imgEl) {
+        productImageUrl =
+          imgEl.currentSrc || imgEl.src || imgEl.getAttribute("data-src");
+      }
+    }
+  }
+
+  // Fall back to page-level metadata when tile lookup came up empty.
+  if (!productName) {
+    productName = readPageProductName();
+  }
+  if (!productImageUrl) {
+    productImageUrl = readPageProductImage();
+  }
+
+  return {
+    productName: productName || "Unknown product",
+    productImageUrl,
+  };
+}
+
+function readPageProductName(): string {
+  // Structured data first (most reliable on product detail pages).
+  const ogTitle = document
+    .querySelector<HTMLMetaElement>('meta[property="og:title"]')
+    ?.content?.trim();
+  if (ogTitle) return ogTitle;
+
+  const itemProp = document
+    .querySelector<HTMLElement>("[itemprop='name']")
+    ?.textContent?.trim();
+  if (itemProp) return itemProp;
+
+  const h1 = document.querySelector<HTMLElement>("h1")?.textContent?.trim();
+  if (h1) return h1;
+
+  // Fall through to page title — strip the " | Store" tail commonly appended.
+  return document.title.replace(/\s*[-|–]\s*.+$/, "").trim();
+}
+
+function readPageProductImage(): string | null {
+  const ogImg = document
+    .querySelector<HTMLMetaElement>('meta[property="og:image"]')
+    ?.content;
+  if (ogImg) return ogImg;
+
+  const itemPropImg = document
+    .querySelector<HTMLImageElement>("img[itemprop='image']");
+  if (itemPropImg) return itemPropImg.currentSrc || itemPropImg.src;
+
+  return null;
 }

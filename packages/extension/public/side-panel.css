@@ -298,6 +298,66 @@ h3 {
 
 /* ── Wizard View ── */
 
+.wizard-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 4px;
+}
+
+.shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+
+.shortcuts-card {
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 18px;
+  max-width: 320px;
+  width: 100%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+}
+
+.shortcuts-card h3 {
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.shortcuts-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  row-gap: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.shortcuts-list dt {
+  display: flex;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--hover-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 var(--border);
+}
+
 .progress {
   display: flex;
   align-items: center;
