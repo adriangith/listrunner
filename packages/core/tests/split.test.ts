@@ -47,6 +47,15 @@ describe("splitItems", () => {
     ]);
   });
 
+  it("strips pasted checkbox glyphs without a space", () => {
+    const result = splitItems("☒bread\n☐ milk\n☑eggs");
+    expect(result).toEqual([
+      { original: "bread" },
+      { original: "milk" },
+      { original: "eggs" },
+    ]);
+  });
+
   it("handles bullet characters •", () => {
     const result = splitItems("• eggs\n• milk");
     expect(result).toEqual([{ original: "eggs" }, { original: "milk" }]);

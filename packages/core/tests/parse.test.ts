@@ -61,6 +61,25 @@ salt to taste
     expect(result.items[4]?.quantity).toEqual({ amount: 1.5, unit: "kg" });
   });
 
+  it("ignores standalone grocery headings", () => {
+    const result = parseList(`produce
+bananas
+snacks
+chips
+spices and seasonings
+paprika
+bakery:
+sourdough`);
+
+    expect(result.items.map((i) => i.searchTerm)).toEqual([
+      "bananas",
+      "chips",
+      "paprika",
+      "sourdough",
+    ]);
+    expect(result.filtered).toHaveLength(0);
+  });
+
   it("handles empty input", () => {
     const result = parseList("");
     expect(result.items).toHaveLength(0);

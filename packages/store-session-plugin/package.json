@@ -1,0 +1,32 @@
+{
+  "name": "@listrunner/store-session",
+  "version": "0.1.0",
+  "description": "ListRunner store session plugin with WKWebView and overlay",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": ["capacitor", "plugin", "ios"],
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.0.0"
+  },
+  "peerDependencies": {
+    "@capacitor/core": "^8.0.0"
+  },
+  "files": [
+    "dist/",
+    "ios/"
+  ]
+}

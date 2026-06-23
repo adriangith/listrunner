@@ -30,6 +30,8 @@ export function splitItems(input: string): RawItem[] {
 function stripListPrefix(line: string): string {
   return (
     line
+      // Standalone checkbox/status glyphs copied from apps like Paprika.
+      .replace(/^[☐☑☒✓✔✕✖✗✘]+\s*/u, "")
       // Checkbox: "- [ ] item" or "- [x] item"
       .replace(/^[-*]\s*\[[ x]?\]\s*/i, "")
       // Numbered: "1. item", "1) item", "1 - item"

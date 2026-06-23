@@ -1,0 +1,73 @@
+name: iOS TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: "What to test in this build"
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - "packages/core/**"
+      - "packages/mobile/**"
+      - "packages/store-session-plugin/**"
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-upload:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: packages/mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: packages/mobile/package-lock.json
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Sync to iOS native project
+        run: npx cap sync
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: packages/mobile
+
+      - name: Install CocoaPods
+        run: pod install
+        working-directory: packages/mobile/ios/App
+
+      - name: Import App Store Connect API Key
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" | base64 -d > \
+            ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
+
+      - name: Build and upload to TestFlight
+        run: bundle exec fastlane ios beta
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          FL_IOS_SKIP_MATCH: ${{ secrets.MATCH_GIT_URL == '' && 'true' || '' }}

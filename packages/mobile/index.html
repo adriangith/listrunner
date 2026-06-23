@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>ListRunner</title>
+  <link rel="stylesheet" href="/src/app.css" />
+</head>
+<body>
+  <!-- Input View -->
+  <div id="view-input" class="view">
+    <header class="header">
+      <h1>ListRunner</h1>
+      <p class="subtitle">Paste your shopping list</p>
+    </header>
+    <div class="content">
+      <textarea id="list-input" placeholder="Paste your shopping list here..." rows="10"></textarea>
+      <div class="button-group">
+        <button id="btn-parse" class="btn btn-primary">Parse List</button>
+      </div>
+      <button id="btn-pantry" class="btn btn-secondary">Pantry Settings</button>
+    </div>
+  </div>
+
+  <!-- Review View -->
+  <div id="view-review" class="view hidden">
+    <header class="header">
+      <h2>Review List</h2>
+      <p id="review-count" class="subtitle"></p>
+    </header>
+    <div class="content">
+      <div id="review-list" class="item-list"></div>
+      <div id="filtered-section" class="hidden">
+        <h3>Excluded (Pantry)</h3>
+        <div id="filtered-list" class="item-list"></div>
+      </div>
+      <div class="add-item-form">
+        <form id="add-item-form">
+          <input id="add-item-input" type="text" placeholder="Add item..." />
+          <button type="submit" class="btn btn-small">Add</button>
+        </form>
+      </div>
+      <div class="button-group">
+        <button id="btn-back" class="btn btn-secondary">Back</button>
+        <button id="btn-start" class="btn btn-primary">Start Wizard</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wizard View -->
+  <div id="view-wizard" class="view hidden">
+    <header class="header">
+      <div id="progress-bar" class="progress-bar">
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
+      <p id="progress-text" class="subtitle"></p>
+    </header>
+    <div class="content wizard-content">
+      <div id="current-item-display" class="current-item">
+        <h2 id="current-item-name"></h2>
+        <p id="current-item-qty"></p>
+      </div>
+      <div class="search-section">
+        <input id="current-search-input" type="text" placeholder="Search term..." />
+        <button id="btn-update-search" class="btn btn-small">Update</button>
+      </div>
+      <div id="loupe-hint" class="loupe-hint hidden">
+        <img id="loupe-image" src="" alt="" />
+        <p id="loupe-name"></p>
+      </div>
+      <div id="cooldown-bar" class="cooldown-bar hidden">
+        <p id="cooldown-msg">Waiting...</p>
+      </div>
+      <div id="automation-warning" class="warning hidden">
+        Automation unavailable. Use manual controls below.
+      </div>
+      <div class="wizard-buttons">
+        <button id="btn-skip" class="btn btn-secondary">Skip</button>
+        <button id="btn-added" class="btn btn-primary">Added</button>
+        <button id="btn-undo" class="btn btn-secondary hidden">Undo</button>
+        <button id="btn-add-another" class="btn btn-secondary hidden">Add Another</button>
+        <button id="btn-dismiss" class="btn btn-secondary hidden">Dismiss</button>
+      </div>
+      <div class="wizard-meta">
+        <span id="revisit-badge" class="badge hidden">Revisiting</span>
+      </div>
+    </div>
+    <div class="button-group">
+      <button id="btn-exit-wizard" class="btn btn-secondary">Exit Wizard</button>
+      <button id="btn-shortcuts" class="btn btn-secondary">?</button>
+    </div>
+    <div id="shortcuts-overlay" class="overlay hidden">
+      <div class="overlay-content">
+        <h3>Keyboard Shortcuts</h3>
+        <dl>
+          <dt>S</dt><dd>Skip item</dd>
+          <dt>E</dt><dd>Edit search</dd>
+          <dt>Space/Enter</dt><dd>Advance</dd>
+          <dt>U</dt><dd>Undo</dd>
+          <dt>A</dt><dd>Add another</dd>
+          <dt>D</dt><dd>Dismiss (revisit)</dd>
+          <dt>R</dt><dd>Revisit skipped</dd>
+        </dl>
+        <button id="btn-shortcuts-close" class="btn btn-primary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Done View -->
+  <div id="view-done" class="view hidden">
+    <header class="header">
+      <h2>Done!</h2>
+    </header>
+    <div class="content">
+      <div id="summary" class="summary"></div>
+      <div class="button-group">
+        <button id="btn-revisit" class="btn btn-secondary">Revisit Skipped</button>
+        <button id="btn-new-list" class="btn btn-primary">New List</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pantry View -->
+  <div id="view-pantry" class="view hidden">
+    <header class="header">
+      <h2>Pantry Settings</h2>
+    </header>
+    <div class="content">
+      <div class="add-item-form">
+        <form id="pantry-add-form">
+          <input id="pantry-new" type="text" placeholder="Add to pantry..." />
+          <button type="submit" class="btn btn-small">Add</button>
+        </form>
+      </div>
+      <div id="pantry-list" class="item-list"></div>
+      <p id="pantry-empty" class="empty hidden">Pantry is empty</p>
+      <button id="btn-clear-history" class="btn btn-secondary">Clear History</button>
+      <p id="clear-history-feedback" class="feedback hidden"></p>
+      <button id="btn-pantry-back" class="btn btn-primary">Back</button>
+    </div>
+  </div>
+
+  <div id="wizard-announcer" class="sr-only" aria-live="polite"></div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

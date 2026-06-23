@@ -1,0 +1,45 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and upload a TestFlight beta"
+  lane :beta do
+    # Match signing (requires MATCH_* env vars or match repo access)
+    setup_match_if_needed
+
+    # Build the web assets
+    sh("npm ci")
+    sh("npm run build")
+    sh("npx cap sync")
+
+    # Build the .xcarchive and export for App Store
+    gym(
+      workspace: "ios/App/App.xcodeproj/project.xcworkspace",
+      scheme: "App",
+      clean: true,
+      export_method: "app-store",
+      configuration: "Release",
+      include_symbols: true,
+      include_bitcode: false
+    )
+
+    # Upload to TestFlight
+    pilot(
+      skip_waiting_for_build_processing: false,
+      distribute_only: true
+    )
+  end
+
+  private_lane :setup_match_if_needed do
+    # If match is configured via environment, run it.
+    # Without environment variables, skip (assumes manual cert setup).
+    if ENV["MATCH_GIT_URL"] || ENV["MATCH_KEYCHAIN_PASSWORD"]
+      match(
+        type: "appstore",
+        git_url: ENV["MATCH_GIT_URL"],
+        storage_mode: "git",
+        app_identifier: ["ai.listrunner.app"],
+        readonly: true
+      )
+    end
+  end
+end

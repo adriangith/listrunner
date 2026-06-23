@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ListRunner Harness</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <header>
+    <h1>🛒 ListRunner Harness</h1>
+    <button id="btn-pantry" class="btn icon" title="Pantry settings" aria-label="Pantry settings">⚙︎</button>
+  </header>
+
+  <!-- Input View -->
+  <main id="view-input">
+    <p class="hint">Paste or type your shopping list:</p>
+    <textarea
+      id="list-input"
+      rows="10"
+      placeholder="eggs&#10;500g flour&#10;2x chicken breast&#10;1 can (400g) tomatoes&#10;fresh basil"
+    ></textarea>
+    <button id="btn-parse" class="btn primary">Parse List</button>
+  </main>
+
+  <!-- Review View -->
+  <main id="view-review" class="hidden">
+    <h2>Your list <span id="review-count" class="muted-count"></span></h2>
+    <ol id="review-list" class="review-list"></ol>
+
+    <form id="add-item-form" class="add-item-form">
+      <input
+        id="add-item-input"
+        type="text"
+        class="search-input"
+        placeholder="Add another item…"
+        aria-label="Add another item"
+      />
+      <button type="submit" class="btn small">Add</button>
+    </form>
+
+    <div id="filtered-section" class="hidden">
+      <h3>Filtered out (pantry)</h3>
+      <ul id="filtered-list" class="filtered-list"></ul>
+    </div>
+
+    <p class="hint" style="margin-top:12px">Store: <strong>Coles (AU)</strong></p>
+    <div class="btn-row">
+      <button id="btn-back" class="btn">← Back</button>
+      <button id="btn-start" class="btn primary" disabled>Start Wizard</button>
+    </div>
+  </main>
+
+  <!-- Wizard View -->
+  <main id="view-wizard" class="hidden">
+    <div class="wizard-header">
+      <button
+        id="btn-exit-wizard"
+        class="btn icon"
+        type="button"
+        aria-label="Exit wizard"
+        title="Exit wizard (back to list)"
+      >↩︎</button>
+      <button
+        id="btn-shortcuts"
+        class="btn icon"
+        type="button"
+        aria-label="Show keyboard shortcuts"
+        title="Keyboard shortcuts"
+      >?</button>
+    </div>
+    <div id="shortcuts-overlay" class="shortcuts-overlay hidden" role="dialog" aria-label="Keyboard shortcuts">
+      <div class="shortcuts-card">
+        <h3>Keyboard shortcuts</h3>
+        <dl class="shortcuts-list">
+          <dt><kbd>S</kbd></dt><dd>Skip current item</dd>
+          <dt><kbd>E</kbd></dt><dd>Edit search term</dd>
+          <dt><kbd>Space</kbd> / <kbd>Enter</kbd></dt><dd>Advance during cooldown</dd>
+          <dt><kbd>U</kbd></dt><dd>Undo during cooldown</dd>
+          <dt><kbd>A</kbd></dt><dd>Add another during cooldown</dd>
+          <dt><kbd>D</kbd></dt><dd>Dismiss (revisit only)</dd>
+          <dt><kbd>R</kbd></dt><dd>Revisit skipped items (done view)</dd>
+        </dl>
+        <button id="btn-shortcuts-close" class="btn primary small">Got it</button>
+      </div>
+    </div>
+    <div class="progress">
+      <div
+        id="progress-bar"
+        class="progress-bar"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuenow="0"
+        aria-valuemax="0"
+      >
+        <div id="progress-fill" class="progress-fill"></div>
+      </div>
+      <span id="progress-text" class="progress-text">0/0</span>
+    </div>
+    <div id="wizard-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+    <div id="revisit-badge" class="revisit-badge hidden">Revisiting skipped items</div>
+
+    <div class="current-item">
+      <span id="current-item-qty" class="current-qty"></span>
+      <span id="current-item-name" class="current-name"></span>
+      <div class="edit-row">
+        <input id="current-search-input" type="text" class="search-input" aria-label="Search term" />
+        <button id="btn-update-search" class="btn small">Update</button>
+      </div>
+      <div id="loupe-hint" class="loupe-hint hidden">
+        <div class="loupe-text">
+          <span class="loupe-label">Last time you picked:</span>
+          <span id="loupe-name"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="wizard-actions">
+      <button id="btn-open-coles" class="btn primary">Open/Reopen Coles</button>
+      <button id="btn-added" class="btn">Added ✓</button>
+    </div>
+    <div class="wizard-actions" style="margin-top:8px">
+      <button id="btn-skip" class="btn">Skip →</button>
+      <button id="btn-dismiss" class="btn hidden">Dismiss</button>
+    </div>
+
+    <div id="cooldown-bar" class="cooldown-bar hidden">
+      <span id="cooldown-msg"></span>
+      <div class="cooldown-actions">
+        <button id="btn-add-another" class="btn small">Add another</button>
+        <button id="btn-undo" class="btn small">Undo</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Done View -->
+  <main id="view-done" class="hidden">
+    <h2>All done! 🎉</h2>
+    <div id="summary"></div>
+    <div class="btn-row" style="justify-content:center">
+      <button id="btn-revisit" class="btn hidden">Revisit skipped items</button>
+      <button id="btn-new-list" class="btn primary">New List</button>
+    </div>
+  </main>
+
+  <!-- Pantry View -->
+  <main id="view-pantry" class="hidden">
+    <div class="pantry-header">
+      <button id="btn-pantry-back" class="btn icon" aria-label="Back">←</button>
+      <h2>Pantry (never add)</h2>
+    </div>
+    <p class="hint">Items on this list are skipped automatically when you parse a shopping list.</p>
+
+    <form id="pantry-add-form" class="pantry-add">
+      <input id="pantry-new" type="text" placeholder="e.g. salt" class="search-input" />
+      <button type="submit" class="btn primary small">Add</button>
+    </form>
+
+    <ul id="pantry-list" class="pantry-list"></ul>
+    <p id="pantry-empty" class="hint">Your pantry is empty.</p>
+
+    <div class="settings-section">
+      <h3>Data</h3>
+      <p class="hint">Selection history is stored locally and used to show "last time you picked" hints. Clear it whenever you like.</p>
+      <button id="btn-clear-history" class="btn" type="button">Clear selection history</button>
+      <p id="clear-history-feedback" class="hint status-line hidden"></p>
+    </div>
+  </main>
+
+  <script src="main.js" type="module"></script>
+</body>
+</html>

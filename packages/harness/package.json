@@ -1,0 +1,14 @@
+{
+  "name": "@listrunner/harness",
+  "version": "0.1.0",
+  "description": "ListRunner local dev harness — test wizard behaviour without the extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node build.mjs",
+    "build": "node build.mjs --build"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

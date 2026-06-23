@@ -1,8 +1,17 @@
 import * as esbuild from "esbuild";
-import { cpSync, rmSync, mkdirSync, copyFileSync } from "fs";
+import {
+  cpSync,
+  rmSync,
+  mkdirSync,
+  copyFileSync,
+  existsSync,
+  accessSync,
+  constants,
+} from "fs";
 
 const watch = process.argv.includes("--watch");
 const targets = ["chrome", "firefox"];
+const SHARED_EXTENSION_DIR = "/mnt/listrunner-extension";
 
 /** @type {esbuild.BuildOptions} */
 const common = {
@@ -50,6 +59,15 @@ function stageAssets(target) {
   );
 }
 
+function canWriteDir(path) {
+  try {
+    accessSync(path, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 if (watch) {
   for (const target of targets) {
     stageAssets(target);
@@ -63,5 +81,17 @@ if (watch) {
     stageAssets(target);
     const configs = buildConfigs(`dist/${target}`);
     await Promise.all(configs.map((c) => esbuild.build(c)));
+  }
+
+  // Copy chrome build to shared SMB folder for unpacked extension loading
+  if (existsSync(SHARED_EXTENSION_DIR)) {
+    if (!canWriteDir(SHARED_EXTENSION_DIR)) {
+      console.log(
+        `Skipping shared copy: ${SHARED_EXTENSION_DIR} is not writable in this environment.`,
+      );
+    } else {
+      cpSync("dist/chrome", SHARED_EXTENSION_DIR, { recursive: true });
+      console.log(`Copied chrome build to ${SHARED_EXTENSION_DIR}`);
+    }
   }
 }

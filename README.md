@@ -13,7 +13,8 @@ packages/
 ├─ core/         Shared TypeScript library (parsing, wizard state machine,
 │                pantry + selection history). No browser dependencies; the
 │                same code is consumable from native mobile shells.
-└─ extension/    Chrome + Firefox extension (MV3). Depends on @listrunner/core.
+├─ extension/    Chrome + Firefox extension (MV3). Depends on @listrunner/core.
+└─ harness/      Local web app for manual wizard testing (no extension needed).
 ```
 
 ## Working on the core library
@@ -23,8 +24,52 @@ cd packages/core
 npm install
 npm test              # Vitest suite — parsing, wizard, models.
 npm run typecheck
-npm run build         # Emits to dist/; required before the extension builds.
 ```
+
+## Working on the harness
+
+The harness is a local web app for testing wizard behaviour without loading the
+extension. It uses the same core parsing and wizard logic as the real extension
+but runs entirely in a regular browser tab — no Chrome APIs, no extension
+reloads, no content scripts.
+
+```bash
+cd packages/harness
+npm install
+npm run dev           # Starts on http://localhost:3000
+```
+
+### How it works
+
+1. Paste a shopping list and parse it (same parser as the extension).
+2. Click **Start Wizard** — the store is hardcoded to Coles (AU).
+3. For each item, click **Open Coles search** to open or reuse a dedicated Coles
+   tab/window with the current search. Add the item on Coles manually, then
+   return to the harness and click **Added**.
+4. Skip, undo, revisit, and edit search terms all work the same as the
+   extension.
+5. Pantry exclusions and "last time you picked" hints persist in `localStorage`.
+
+### Core dev loop
+
+The harness builds `@listrunner/core` directly from source (via esbuild alias),
+so editing `packages/core/src/*.ts` updates the harness immediately on
+browser refresh. No `packages/core` rebuild step needed.
+
+### What the harness tests well
+
+- Parsing behaviour (quantities, cleanup, pantry filtering)
+- Wizard progression, cooldown, revisit flow
+- Search term quality against real Coles searches
+- Edit-search overrides
+- Pantry list management and selection history
+
+### What it does not test
+
+- Add-to-cart auto-detection
+- Content-script selectors
+- Chrome extension messaging/service-worker behaviour
+- Extension packaging/loading
 
 ## Working on the extension
 
