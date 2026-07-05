@@ -47,5 +47,7 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSRemindersUsageDescription</key>
+	<string>ListRunner reads your Paprika grocery reminders and marks items complete when you add them.</string>
 </dict>
 </plist>
