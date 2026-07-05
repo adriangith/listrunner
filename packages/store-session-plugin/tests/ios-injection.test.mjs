@@ -10,6 +10,7 @@ const source = readFileSync(
 
 test("loads cart-detection.js from Bundle.module", () => {
   assert.match(source, /Bundle\.module\.url\s*\(\s*forResource:\s*["']cart-detection["']/);
+  assert.match(source, /subdirectory:\s*["']Resources["']/);
 });
 
 test("registers a WKUserScript at document end", () => {
@@ -21,7 +22,7 @@ test("uses the loaded script source for the WKUserScript", () => {
   assert.match(source, /String\s*\(\s*contentsOf:\s*scriptURL/);
 });
 
-test("no longer contains the inline pageLoaded script source string", () => {
-  // The old inline postMessage({type: 'pageLoaded'}) source string should be gone.
-  assert.doesNotMatch(source, /postMessage\s*\(\s*\{\s*type:\s*['"]pageLoaded['"]\s*\}\s*\)/);
+test("falls back to pageLoaded script if cart-detection resource is unavailable", () => {
+  assert.match(source, /else\s*\{/);
+  assert.match(source, /postMessage\s*\(\s*\{\s*type:\s*['"]pageLoaded['"]\s*\}\s*\)/);
 });

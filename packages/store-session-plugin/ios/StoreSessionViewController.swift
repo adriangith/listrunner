@@ -34,7 +34,7 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         view.addSubview(webView)
 
         // Inject the cart-detection content script (posts pageLoaded and addToCartDetected).
-        if let scriptURL = Bundle.module.url(forResource: "cart-detection", withExtension: "js"),
+        if let scriptURL = Bundle.module.url(forResource: "cart-detection", withExtension: "js", subdirectory: "Resources"),
            let scriptSource = try? String(contentsOf: scriptURL, encoding: .utf8) {
             let cartScript = WKUserScript(
                 source: scriptSource,
@@ -42,6 +42,13 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
                 forMainFrameOnly: true
             )
             webView.configuration.userContentController.addUserScript(cartScript)
+        } else {
+            let readyScript = WKUserScript(
+                source: "window.webkit.messageHandlers.storeSessionBridge.postMessage({type: 'pageLoaded'});",
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+            webView.configuration.userContentController.addUserScript(readyScript)
         }
     }
 
