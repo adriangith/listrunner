@@ -139,6 +139,7 @@ function init(): void {
   parseBtn.addEventListener("click", handleParse);
   startBtn.addEventListener("click", handleStart);
   backBtn.addEventListener("click", () => showView("input"));
+  addedBtn.addEventListener("click", () => handleAdded());
   skipBtn.addEventListener("click", () => sendAction("SKIP"));
   dismissBtn.addEventListener("click", () => sendAction("DISMISS"));
   addAnotherBtn.addEventListener("click", () => sendAction("ADD_ANOTHER"));
