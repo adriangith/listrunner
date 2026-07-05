@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-const { importReminders, getReminderIdForItem } = await import(
+const { importReminders, getReminderIdForItem, tryCompleteReminder } = await import(
   "../src/reminder-import.ts"
 );
 
@@ -87,4 +87,28 @@ test("importReminders handles empty reminder list", () => {
   assert.equal(parsedList.items.length, 0);
   assert.equal(parsedList.filtered.length, 0);
   assert.equal(reminderIdByOriginal.size, 0);
+});
+test("tryCompleteReminder returns null for manual items (no reminder ID)", async () => {
+  const map = new Map([["milk", "r1"]]);
+  const item = { original: "coffee", quantity: null, searchTerm: "coffee", filtered: false };
+  let called = false;
+  const result = await tryCompleteReminder(item, map, async () => { called = true; });
+  assert.equal(result, null);
+  assert.equal(called, false, "completeFn must not be called for manual items");
+});
+
+test("tryCompleteReminder returns true when completion succeeds", async () => {
+  const map = new Map([["milk", "r1"]]);
+  const item = { original: "milk", quantity: null, searchTerm: "milk", filtered: false };
+  let calledId = null;
+  const result = await tryCompleteReminder(item, map, async (opts) => { calledId = opts.id; });
+  assert.equal(result, true);
+  assert.equal(calledId, "r1");
+});
+
+test("tryCompleteReminder returns false when completion fails", async () => {
+  const map = new Map([["milk", "r1"]]);
+  const item = { original: "milk", quantity: null, searchTerm: "milk", filtered: false };
+  const result = await tryCompleteReminder(item, map, async () => { throw new Error("permission denied"); });
+  assert.equal(result, false);
 });

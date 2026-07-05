@@ -35,3 +35,18 @@ export function getReminderIdForItem(
 ): string | undefined {
   return reminderIdByOriginal.get(parsedItem.original);
 }
+
+export async function tryCompleteReminder(
+  item: ParsedItem,
+  reminderIdByOriginal: Map<string, string>,
+  completeFn: (opts: { id: string }) => Promise<void>,
+): Promise<boolean | null> {
+  const id = getReminderIdForItem(item, reminderIdByOriginal);
+  if (!id) return null;
+  try {
+    await completeFn({ id });
+    return true;
+  } catch {
+    return false;
+  }
+}

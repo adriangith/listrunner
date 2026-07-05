@@ -13,7 +13,7 @@ import {
 } from "@listrunner/core";
 import StoreSession from "@listrunner/store-session";
 import Reminders from "@listrunner/reminders";
-import { importReminders, getReminderIdForItem } from "./reminder-import.js";
+import { importReminders, tryCompleteReminder } from "./reminder-import.js";
 
 const COOLDOWN_MS = 3000;
 const STORE_ID = "coles-au";
@@ -629,15 +629,15 @@ async function handleAdded(product?: {
   });
   persistData();
 
-  // Complete the source iOS Reminder if this item was imported
-  const reminderId = getReminderIdForItem(item.parsedItem, reminderIdByOriginal);
-  if (reminderId) {
-    try {
-      await Reminders.completeReminder({ id: reminderId });
-      reminderWarning.classList.add("hidden");
-    } catch {
-      reminderWarning.classList.remove("hidden");
-    }
+  const result = await tryCompleteReminder(
+    item.parsedItem,
+    reminderIdByOriginal,
+    (opts) => Reminders.completeReminder(opts),
+  );
+  if (result === false) {
+    reminderWarning.classList.remove("hidden");
+  } else {
+    reminderWarning.classList.add("hidden");
   }
 
   sendAction("ADVANCE");
