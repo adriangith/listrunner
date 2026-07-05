@@ -8,7 +8,7 @@ export type ReminderItem = {
 export function importReminders(
   reminders: ReminderItem[],
   pantryExclusions: string[],
-): { parsedList: ParsedList; reminderIdBySearchTerm: Map<string, string> } {
+): { parsedList: ParsedList; reminderIdByOriginal: Map<string, string> } {
   const rawText = reminders.map((r) => r.title).join("\n");
   const parsedList = parseList(rawText, { pantryExclusions });
 
@@ -18,20 +18,20 @@ export function importReminders(
     cleanedToId.set(cleaned, r.id);
   }
 
-  const reminderIdBySearchTerm = new Map<string, string>();
+  const reminderIdByOriginal = new Map<string, string>();
   for (const item of [...parsedList.items, ...parsedList.filtered]) {
     const id = cleanedToId.get(item.original);
     if (id) {
-      reminderIdBySearchTerm.set(item.searchTerm, id);
+      reminderIdByOriginal.set(item.original, id);
     }
   }
 
-  return { parsedList, reminderIdBySearchTerm };
+  return { parsedList, reminderIdByOriginal };
 }
 
 export function getReminderIdForItem(
   parsedItem: ParsedItem,
-  reminderIdBySearchTerm: Map<string, string>,
+  reminderIdByOriginal: Map<string, string>,
 ): string | undefined {
-  return reminderIdBySearchTerm.get(parsedItem.searchTerm);
+  return reminderIdByOriginal.get(parsedItem.original);
 }

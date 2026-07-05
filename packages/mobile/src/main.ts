@@ -219,13 +219,16 @@ async function handleLoadPaprika(): Promise<void> {
       return;
     }
 
-    const { parsedList: imported, reminderIdBySearchTerm: idMap } = importReminders(
+    const { parsedList: imported, reminderIdByOriginal: idMap } = importReminders(
       result.items,
       pantry.getNames(),
     );
 
-    if (imported.items.length === 0 && imported.filtered.length > 0) {
-      paprikaStatus.textContent = "All reminders were excluded by your pantry.";
+    if (imported.items.length === 0) {
+      paprikaStatus.textContent =
+        imported.filtered.length > 0
+          ? "All reminders were excluded by your pantry."
+          : "No items could be parsed from the reminders.";
       return;
     }
 
