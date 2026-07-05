@@ -9,12 +9,14 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
     var plugin: StoreSessionPlugin?
 
     private var activeStoreId: String?
+    private var pendingStoreURL: URL?
     private var automationLoaded = false
 
     public override func viewDidLoad() {
         super.viewDidLoad()
         setupWebView()
         setupOverlay()
+        loadPendingStoreIfReady()
     }
 
     private func setupWebView() {
@@ -102,7 +104,14 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
 
     public func loadStore(url: URL, storeId: String) {
         activeStoreId = storeId
+        pendingStoreURL = url
         automationLoaded = false
+        loadPendingStoreIfReady()
+    }
+
+    private func loadPendingStoreIfReady() {
+        guard let webView = webView, let url = pendingStoreURL else { return }
+        pendingStoreURL = nil
         webView.load(URLRequest(url: url))
     }
 

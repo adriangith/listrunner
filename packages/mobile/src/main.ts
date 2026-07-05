@@ -31,6 +31,10 @@ const pantry = new PantryList();
 const history = new SelectionHistory();
 
 type ViewName = "input" | "review" | "wizard" | "done" | "pantry";
+type SimpleWizardAction = Exclude<
+  WizardAction,
+  { type: "START" } | { type: "EDIT_SEARCH" }
+>["type"];
 
 // DOM refs - Views
 const views: Record<ViewName, HTMLElement> = {
@@ -284,11 +288,10 @@ function handleAddReviewItem(e: Event): void {
   }
 }
 
-function sendAction(action: WizardAction["type"]): void {
+function sendAction(action: SimpleWizardAction): void {
   if (!wizardState) return;
 
-  const prevStatus = wizardState.status;
-  wizardState = wizardReducer(wizardState, { type: action });
+  wizardState = wizardReducer(wizardState, toWizardAction(action));
 
   if (wizardState.status === "cooldown") {
     startCooldown();
@@ -313,7 +316,7 @@ function navigateToActiveItem(): void {
   // Update native overlay
   StoreSession.setStore({ storeId: STORE_ID });
   StoreSession.updateOverlay({
-    itemName: item.parsedItem.name,
+    itemName: searchTerm,
     searchTerm,
   });
 
@@ -345,7 +348,7 @@ function renderReviewList(): void {
   reviewList.innerHTML = "";
   for (const item of parsedList.items) {
     const li = document.createElement("li");
-    li.textContent = `${item.quantity || ""} ${item.name}`.trim();
+    li.textContent = `${formatQuantity(item)} ${item.searchTerm}`.trim();
     reviewList.appendChild(li);
   }
 
@@ -354,7 +357,7 @@ function renderReviewList(): void {
   filteredList.innerHTML = "";
   for (const item of parsedList.filtered) {
     const li = document.createElement("li");
-    li.textContent = `${item.quantity || ""} ${item.name}`.trim();
+    li.textContent = `${formatQuantity(item)} ${item.searchTerm}`.trim();
     li.style.textDecoration = "line-through";
     li.style.color = "#999";
     filteredList.appendChild(li);
@@ -370,14 +373,14 @@ function renderWizardView(): void {
   const parsedItem = item.parsedItem;
   const searchTerm = item.searchTermOverride ?? parsedItem.searchTerm;
 
-  currentItemName.textContent = parsedItem.name;
-  currentItemQty.textContent = parsedItem.quantity || "";
+  currentItemName.textContent = searchTerm;
+  currentItemQty.textContent = formatQuantity(parsedItem);
   currentSearchInput.value = searchTerm;
 
   // Progress
   const total = wizardState.items.length;
   const done = wizardState.items.filter(
-    (i) => i.status === "done" || i.status === "skipped"
+    (i) => i.status === "added" || i.status === "skipped" || i.status === "dismissed"
   ).length;
   const pct = total > 0 ? (done / total) * 100 : 0;
   progressBar.style.width = `${pct}%`;
@@ -387,16 +390,16 @@ function renderWizardView(): void {
   dismissBtn.classList.toggle("hidden", wizardState.status !== "revisiting");
   undoBtn.classList.toggle("hidden", wizardState.status !== "cooldown");
   addAnotherBtn.classList.toggle("hidden", wizardState.status !== "cooldown");
-  revisitBadge.classList.toggle("hidden", !item.isRevisit);
+  revisitBadge.classList.toggle("hidden", wizardState.status !== "revisiting");
 
   // Loupe hint
   updateLoupeHint(searchTerm);
 
   // Announce
-  const announceKey = `${wizardState.status}:${item.parsedItem.name}`;
+  const announceKey = `${wizardState.status}:${searchTerm}`;
   if (announceKey !== lastAnnouncedKey) {
     lastAnnouncedKey = announceKey;
-    wizardAnnouncer.textContent = `Now: ${parsedItem.name}`;
+    wizardAnnouncer.textContent = `Now: ${searchTerm}`;
   }
 }
 
@@ -428,7 +431,7 @@ function updateLoupeHint(searchTerm: string): void {
 function renderDoneView(): void {
   if (!wizardState) return;
 
-  const doneItems = wizardState.items.filter((i) => i.status === "done");
+  const doneItems = wizardState.items.filter((i) => i.status === "added");
   const skippedItems = wizardState.items.filter((i) => i.status === "skipped");
 
   let html = `<p>Added: ${doneItems.length} item${doneItems.length !== 1 ? "s" : ""}</p>`;
@@ -475,9 +478,37 @@ function stopCooldown(): void {
 }
 
 function findActiveItem(state: WizardState): WizardItem | null {
-  return state.items.find(
-    (i) => i.status === "active" || i.status === "revisiting"
-  ) ?? null;
+  if (state.status === "cooldown" && state.cooldownItemIndex !== null) {
+    return state.items[state.cooldownItemIndex] ?? null;
+  }
+  return currentItem(state);
+}
+
+function formatQuantity(item: ParsedItem): string {
+  if (!item.quantity) return "";
+  const { amount, unit } = item.quantity;
+  return unit ? `${amount} ${unit}` : `×${amount}`;
+}
+
+function toWizardAction(action: SimpleWizardAction): WizardAction {
+  switch (action) {
+    case "ADVANCE":
+      return { type: "ADVANCE" };
+    case "SKIP":
+      return { type: "SKIP" };
+    case "ADD_ANOTHER":
+      return { type: "ADD_ANOTHER" };
+    case "UNDO":
+      return { type: "UNDO" };
+    case "COOLDOWN_COMPLETE":
+      return { type: "COOLDOWN_COMPLETE" };
+    case "BEGIN_REVISIT":
+      return { type: "BEGIN_REVISIT" };
+    case "DISMISS":
+      return { type: "DISMISS" };
+    case "RESET":
+      return { type: "RESET" };
+  }
 }
 
 function showView(name: ViewName): void {

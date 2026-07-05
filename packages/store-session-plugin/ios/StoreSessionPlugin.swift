@@ -3,7 +3,17 @@ import Capacitor
 import WebKit
 
 @objc(StoreSessionPlugin)
-public class StoreSessionPlugin: CAPPlugin {
+public class StoreSessionPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "StoreSessionPlugin"
+    public let jsName = "StoreSession"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "openSession", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "closeSession", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "search", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setStore", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "updateOverlay", returnType: CAPPluginReturnPromise)
+    ]
+
     var storeSessionVC: StoreSessionViewController?
 
     @objc func openSession(_ call: CAPPluginCall) {

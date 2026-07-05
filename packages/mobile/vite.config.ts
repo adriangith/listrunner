@@ -9,7 +9,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@capacitor/core': resolve(__dirname, 'node_modules/@capacitor/core'),
       '@listrunner/core': resolve(__dirname, '../core/src/index.ts'),
+      '@listrunner/store-session': resolve(__dirname, '../store-session-plugin/src/index.ts'),
     },
   },
   server: {

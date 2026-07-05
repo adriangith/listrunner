@@ -6,7 +6,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "node --test tests/*.test.mjs"
   },
   "keywords": ["capacitor", "plugin", "ios"],
   "capacitor": {
@@ -27,6 +28,7 @@
   },
   "files": [
     "dist/",
-    "ios/"
+    "ios/",
+    "Package.swift"
   ]
 }
