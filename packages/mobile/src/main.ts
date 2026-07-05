@@ -12,6 +12,8 @@ import {
   type WizardAction,
 } from "@listrunner/core";
 import StoreSession from "@listrunner/store-session";
+import Reminders from "@listrunner/reminders";
+import { importReminders, getReminderIdForItem } from "./reminder-import.js";
 
 const COOLDOWN_MS = 3000;
 const STORE_ID = "coles-au";
@@ -26,6 +28,7 @@ let previousView: ViewName = "input";
 let lastAnnouncedKey: string | null = null;
 let lastLoupeKey: string | null = null;
 let pendingInitialStoreSearch = false;
+let reminderIdByOriginal: Map<string, string> = new Map();
 
 const pantry = new PantryList();
 const history = new SelectionHistory();
@@ -49,6 +52,8 @@ const views: Record<ViewName, HTMLElement> = {
 const listTextarea = document.getElementById("list-input") as HTMLTextAreaElement;
 const parseBtn = document.getElementById("btn-parse") as HTMLButtonElement;
 const pantryBtn = document.getElementById("btn-pantry") as HTMLButtonElement;
+const paprikaBtn = document.getElementById("btn-paprika-reminders") as HTMLButtonElement;
+const paprikaStatus = document.getElementById("paprika-status") as HTMLElement;
 
 // Review view
 const reviewList = document.getElementById("review-list") as HTMLElement;
@@ -146,6 +151,7 @@ function init(): void {
   });
 
   pantryBtn.addEventListener("click", openPantry);
+  paprikaBtn.addEventListener("click", handleLoadPaprika);
   pantryBackBtn.addEventListener("click", closePantry);
   pantryAddForm.addEventListener("submit", handlePantryAdd);
   clearHistoryBtn.addEventListener("click", handleClearHistory);
@@ -201,6 +207,38 @@ function handleParse(): void {
   showView("review");
 }
 
+async function handleLoadPaprika(): Promise<void> {
+  paprikaStatus.classList.remove("hidden");
+  paprikaStatus.textContent = "Loading Paprika reminders...";
+
+  try {
+    const result = await Reminders.getPaprikaItems();
+    if (result.items.length === 0) {
+      paprikaStatus.textContent = "No incomplete reminders found.";
+      return;
+    }
+
+    const { parsedList: imported, reminderIdBySearchTerm: idMap } = importReminders(
+      result.items,
+      pantry.getNames(),
+    );
+
+    if (imported.items.length === 0 && imported.filtered.length > 0) {
+      paprikaStatus.textContent = "All reminders were excluded by your pantry.";
+      return;
+    }
+
+    parsedList = imported;
+    reminderIdByOriginal = idMap;
+    paprikaStatus.classList.add("hidden");
+    renderReviewList();
+    showView("review");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    paprikaStatus.textContent = `Could not load reminders: ${msg}`;
+  }
+}
+
 function handleStart(): void {
   if (!parsedList) return;
   if (parsedList.items.length === 0) return;
@@ -232,6 +270,7 @@ function getStoreUrl(storeId: string): string {
 function handleNewList(): void {
   wizardState = null;
   parsedList = null;
+  reminderIdByOriginal = new Map();
   listTextarea.value = "";
   showView("input");
 }
