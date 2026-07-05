@@ -33,13 +33,16 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(webView)
 
-        // Send page events to JS bridge
-        let readyScript = WKUserScript(
-            source: "window.webkit.messageHandlers.storeSessionBridge.postMessage({type: 'pageLoaded'});",
-            injectionTime: .atDocumentEnd,
-            forMainFrameOnly: true
-        )
-        webView.configuration.userContentController.addUserScript(readyScript)
+        // Inject the cart-detection content script (posts pageLoaded and addToCartDetected).
+        if let scriptURL = Bundle.module.url(forResource: "cart-detection", withExtension: "js"),
+           let scriptSource = try? String(contentsOf: scriptURL, encoding: .utf8) {
+            let cartScript = WKUserScript(
+                source: scriptSource,
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+            webView.configuration.userContentController.addUserScript(cartScript)
+        }
     }
 
     private func setupOverlay() {
