@@ -1,51 +1,50 @@
 # Paprika Reminders Import And Completion Design
 
-## Summary
+## Goal
 
-ListRunner will add an iOS-only import path for grocery lists exported by Paprika into Apple Reminders. The first version uses a fixed Reminders list name, `Paprika`, imports only incomplete reminders, and marks the exact source reminder complete when the user taps **Added** in ListRunner.
+ListRunner should import grocery items from the iOS Reminders list named exactly `Paprika`, matching Paprika iOS's grocery-list export behavior. When the user marks an imported item as added in ListRunner, ListRunner should mark the corresponding iOS Reminder complete.
 
 Manual paste-based list entry remains available and unchanged.
 
-## Goals
+## Decisions
 
-- Add a **Load from Paprika Reminders** button on the mobile input screen.
-- Read incomplete reminders from the iOS Reminders list named exactly `Paprika`.
-- Reuse the existing parsing and review flow after import.
-- Track each imported reminder's native ID through the wizard.
-- Mark an imported reminder complete in iOS Reminders when its ListRunner item is marked **Added**.
-- Keep skipped, dismissed, exited, pantry-filtered, and manually added items incomplete in Reminders.
-
-## Non-Goals
-
-- Configurable Reminders list names.
-- Automatic import on app launch.
-- Importing completed reminders.
-- Creating or modifying the `Paprika` list.
-- Completing reminders for manually pasted or manually added items.
-- Syncing ListRunner state back to Reminders for actions other than **Added**.
+- The Reminders list name is fixed to `Paprika` for the first version.
+- Import is explicit: the input screen gets a `Load from Paprika Reminders` button.
+- Only incomplete reminders are imported.
+- Tapping `Added` completes the exact source reminder.
+- Tapping `Skip`, `Dismiss`, or `Exit Wizard` does not complete a reminder.
+- Manual paste entry remains available and unchanged.
 
 ## User Flow
 
-The input screen shows the existing textarea and parse button plus a new **Load from Paprika Reminders** button.
+On the input screen, the user can either paste a list or tap `Load from Paprika Reminders`.
 
-When the user taps the new button, ListRunner asks iOS for Reminders permission if needed, looks for the `Paprika` Reminders list, and fetches incomplete reminder titles. It parses those titles with the existing parser and shows the existing review screen.
+When the Reminders button is tapped:
 
-During the wizard, tapping **Added** records normal ListRunner history and completes the exact imported reminder in iOS Reminders. **Skip**, **Dismiss**, and **Exit Wizard** do not complete reminders. Items manually added on the review screen have no reminder ID, so **Added** only advances ListRunner for those items.
+1. iOS asks for Reminders permission if needed.
+2. ListRunner looks for a Reminders list named exactly `Paprika`.
+3. ListRunner reads incomplete reminders from that list.
+4. ListRunner parses the reminder titles with the existing `parseList()` flow.
+5. The user lands on the existing review screen.
+
+During the wizard:
+
+1. The active item may have a source reminder ID if it came from Reminders.
+2. When the user taps `Added`, ListRunner completes that exact reminder in iOS Reminders.
+3. If the item was manually entered or added during review, it has no reminder ID and no Reminders update is attempted.
 
 ## Architecture
 
-Add a new Capacitor Swift Package plugin at `packages/reminders-plugin`.
+Add a new package at `packages/reminders-plugin`. It will follow the existing Capacitor plugin pattern used by `packages/store-session-plugin`.
 
-The package mirrors the existing `packages/store-session-plugin` structure:
+The package contains:
 
-- `src/index.ts` exposes the TypeScript API.
-- `ios/RemindersPlugin.swift` implements the native iOS behavior.
-- `Package.swift` lets Capacitor include the plugin through Swift Package Manager.
-- `package.json` declares `@listrunner/reminders`.
+- `src/index.ts`: TypeScript wrapper and exported plugin types.
+- `ios/RemindersPlugin.swift`: Swift implementation using EventKit.
+- `Package.swift`: Swift Package Manager manifest for Capacitor iOS sync.
+- `package.json`: package metadata and build/test scripts.
 
-The plugin name exposed to JavaScript is `Reminders`.
-
-## Plugin API
+The plugin is registered as `Reminders` and exposes two methods:
 
 ```ts
 type ReminderItem = {
@@ -59,74 +58,98 @@ interface RemindersPlugin {
 }
 ```
 
-`getPaprikaItems()` reads incomplete reminders from the `Paprika` list only. `completeReminder({ id })` marks one reminder complete by native reminder ID.
+The mobile package adds `@listrunner/reminders` as a local dependency and aliases it for Vite and TypeScript, matching the existing local package setup.
 
-## iOS Details
+## iOS Requirements
 
-The native plugin uses Apple EventKit.
+The native plugin uses Apple's EventKit framework to access Reminders.
 
-The mobile iOS app must include a Reminders usage description in `Info.plist`:
+The iOS app must include a Reminders usage description in `Info.plist`:
 
 ```xml
 <key>NSRemindersUsageDescription</key>
 <string>ListRunner reads your Paprika grocery reminders and marks items complete when you add them.</string>
 ```
 
-Permission states:
+The Swift plugin handles these cases:
 
-- Authorized: read and complete reminders normally.
-- Not determined: request Reminders permission and continue if granted.
-- Denied or restricted: reject with a permission-specific error code.
+- Permission granted: continue.
+- Permission not yet determined: request Reminders permission and continue if granted.
+- Permission denied or restricted: reject with a clear error code/message.
+- `Paprika` list missing: reject with a clear error code/message.
+- No incomplete reminders: return an empty items array.
+- Completion target missing: reject so the UI can warn the user.
 
-The plugin should query calendars for a Reminders calendar named exactly `Paprika`. If multiple matching calendars exist, use the first returned by EventKit. The first version does not expose list selection.
+If multiple Reminders calendars named `Paprika` exist, the first version uses the first matching calendar returned by EventKit. It does not expose list selection.
 
-## Mobile Data Flow
+## Data Flow
 
 Import flow:
 
-1. User taps **Load from Paprika Reminders**.
-2. Mobile JS calls `Reminders.getPaprikaItems()`.
-3. JS builds raw list text with `items.map(item => item.title).join("\n")`.
-4. JS calls existing `parseList(rawText, { pantryExclusions })`.
-5. JS keeps source reminder metadata in the mobile layer, keyed by imported item order.
-6. JS renders the existing review screen.
+1. User taps `Load from Paprika Reminders`.
+2. JavaScript calls `Reminders.getPaprikaItems()`.
+3. Swift requests or checks Reminders permission, finds the `Paprika` list, and fetches incomplete reminders.
+4. JavaScript converts reminder titles into newline-separated text and calls `parseList()`.
+5. JavaScript associates parsed items with source reminder IDs by original import order.
+6. The review screen renders normally.
 
 Completion flow:
 
-1. The current wizard item resolves to an optional imported reminder ID.
-2. User taps **Added**.
-3. ListRunner records the normal history entry.
-4. If a reminder ID exists, JS calls `Reminders.completeReminder({ id })`.
+1. The current wizard item resolves to an optional source reminder ID.
+2. User taps `Added`.
+3. ListRunner records the normal selection history entry.
+4. If a reminder ID exists, JavaScript calls `Reminders.completeReminder({ id })`.
 5. The wizard advances regardless of completion success so shopping is not blocked.
-6. If completion fails, ListRunner shows a warning that the iOS reminder could not be checked off.
+6. If completion fails, ListRunner shows a warning that the iOS Reminder could not be checked off.
 
-The core parser models should remain generic. The mobile layer owns imported reminder metadata instead of adding Reminders-specific fields to `ParsedItem`.
+## Parser Metadata Strategy
 
-## Mapping Imported Reminders To Parsed Items
+The core parser should remain generic. It should not know about iOS Reminders.
 
-The first version tracks reminder IDs by original imported item order. This works because each reminder title becomes one input line and the current parser processes list lines in order.
+The mobile layer will track reminder metadata outside the parsed item model, keyed by parsed item order for imported reminders. Pantry-filtered reminders remain incomplete in iOS Reminders because ListRunner did not ask the user to buy them.
 
-Pantry-filtered reminders are not completed automatically. If a reminder title is filtered out, it remains incomplete in Reminders.
+This order-based mapping works because each imported reminder title becomes one input line and the parser processes list lines in order. Manually added review items have no source reminder ID.
 
-Manually added review items have no source reminder ID. They can be added to the ListRunner wizard, but they do not complete any iOS reminder.
+If future work needs richer metadata across all clients, this can be revisited with a core model change.
+
+## UI Changes
+
+Input screen:
+
+- Add `Load from Paprika Reminders` below or beside `Parse List`.
+- Show loading state while Reminders are being read.
+- Show clear inline status/errors for permission denial, missing list, and empty list.
+
+Wizard screen:
+
+- Reuse existing controls.
+- Show a warning if completing an iOS Reminder fails.
+
+No visual redesign is required for the first version.
 
 ## Error Handling
 
-- Permission denied: show a clear message and leave paste entry available.
-- `Paprika` list missing: show `No Paprika list found` and leave paste entry available.
-- No incomplete reminders: show `No incomplete reminders found` and leave paste entry available.
+- Permission denied: show that Reminders permission is needed and keep paste entry available.
+- Missing `Paprika` list: show `No Paprika list found` and keep paste entry available.
+- Empty list: show `No incomplete reminders found`.
 - Import failure: show a generic import failure message with manual paste as fallback.
-- Completion failure: keep advancing the wizard and show a warning that the iOS reminder could not be checked off.
+- Completion failure: keep the ListRunner flow moving and show a warning.
+- Native plugin unavailable, such as web preview: disable or gracefully fail the Reminders button with a clear message.
 
 ## Testing
 
-- Unit-test mobile import mapping: reminder titles become parsed items and retain reminder IDs by order.
-- Unit-test **Added** handling: completion is attempted only for imported items with reminder IDs.
-- Unit-test failure handling: a failed reminder completion does not block wizard advancement.
-- Add source-level Swift/plugin checks for Capacitor method registration and EventKit usage where direct iOS XCTest is not available in the Linux workspace.
-- Verify local packages with `npm test`, `npm run build`, `npx tsc --noEmit`, and mobile `npm run build`.
-- Verify on the Mac with `npm run cap:sync` and an unsigned Xcode iOS build.
+- Add mobile unit tests for converting imported reminders into parsed review items while preserving reminder IDs.
+- Add mobile tests confirming `Added` calls `completeReminder` only for imported items.
+- Add mobile tests confirming a failed reminder completion does not block wizard advancement.
+- Add source-level plugin checks for Capacitor method registration and EventKit usage.
+- Run `npm test` and `npm run build` for the new plugin.
+- Run `npx tsc --noEmit` and `npm run build` for `packages/mobile`.
+- Run `npm run cap:sync` on the Mac checkout and an unsigned Xcode iOS build to confirm Swift compiles.
 
-## Open Decisions
+## Out Of Scope
 
-No open product decisions remain for the first version. Future versions may add configurable Reminders list names or automatic import, but those are outside this scope.
+- Configurable Reminders list names.
+- Importing completed reminders.
+- Completing reminders on skip or dismissal.
+- Bidirectional sync from ListRunner back into Reminders beyond marking imported items complete.
+- Android support.
