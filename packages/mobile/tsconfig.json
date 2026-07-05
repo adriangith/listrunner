@@ -15,6 +15,7 @@
     "paths": {
       "@capacitor/core": ["node_modules/@capacitor/core"],
       "@listrunner/core": ["../core/src/index.ts"],
+      "@listrunner/reminders": ["../reminders-plugin/src/index.ts"],
       "@listrunner/store-session": ["../store-session-plugin/src/index.ts"]
     }
   },

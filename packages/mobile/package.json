@@ -18,6 +18,7 @@
     "@capacitor/ios": "^8.0.0",
     "@capacitor/preferences": "^8.0.0",
     "@listrunner/core": "file:../core",
+    "@listrunner/reminders": "file:../reminders-plugin",
     "@listrunner/store-session": "file:../store-session-plugin"
   },
   "devDependencies": {
