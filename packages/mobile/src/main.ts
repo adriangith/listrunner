@@ -611,10 +611,10 @@ function handleClearHistory(): void {
   setTimeout(() => clearHistoryFeedback.classList.add("hidden"), 3000);
 }
 
-async function handleAdded(product?: {
+function handleAdded(product?: {
   productName?: string;
   productImageUrl?: string | null;
-}): Promise<void> {
+}): void {
   if (!wizardState) return;
   const item = currentItem(wizardState);
   if (!item) return;
@@ -629,16 +629,19 @@ async function handleAdded(product?: {
   });
   persistData();
 
-  const result = await tryCompleteReminder(
+  // Fire-and-forget: complete the source iOS Reminder in the background.
+  // The wizard advances immediately; the warning toggles on eventual failure.
+  void tryCompleteReminder(
     item.parsedItem,
     reminderIdByOriginal,
     (opts) => Reminders.completeReminder(opts),
-  );
-  if (result === false) {
-    reminderWarning.classList.remove("hidden");
-  } else {
-    reminderWarning.classList.add("hidden");
-  }
+  ).then((result) => {
+    if (result === false) {
+      reminderWarning.classList.remove("hidden");
+    } else {
+      reminderWarning.classList.add("hidden");
+    }
+  });
 
   sendAction("ADVANCE");
 }
