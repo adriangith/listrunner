@@ -89,6 +89,7 @@ const loupeName = document.getElementById("loupe-name") as HTMLElement;
 const loupeImage = document.getElementById("loupe-image") as HTMLImageElement;
 const addedBtn = document.getElementById("btn-added") as HTMLButtonElement;
 const automationWarning = document.getElementById("automation-warning") as HTMLElement;
+const reminderWarning = document.getElementById("reminder-warning") as HTMLElement;
 
 // Done view
 const summaryEl = document.getElementById("summary") as HTMLElement;
@@ -303,6 +304,7 @@ function handleExitWizard(): void {
     return;
   }
   wizardState = null;
+  reminderWarning.classList.add("hidden");
 
   // Close store session
   StoreSession.closeSession();
@@ -606,10 +608,10 @@ function handleClearHistory(): void {
   setTimeout(() => clearHistoryFeedback.classList.add("hidden"), 3000);
 }
 
-function handleAdded(product?: {
+async function handleAdded(product?: {
   productName?: string;
   productImageUrl?: string | null;
-}): void {
+}): Promise<void> {
   if (!wizardState) return;
   const item = currentItem(wizardState);
   if (!item) return;
@@ -623,6 +625,17 @@ function handleAdded(product?: {
     productImageUrl: product?.productImageUrl || null,
   });
   persistData();
+
+  // Complete the source iOS Reminder if this item was imported
+  const reminderId = getReminderIdForItem(item.parsedItem, reminderIdByOriginal);
+  if (reminderId) {
+    try {
+      await Reminders.completeReminder({ id: reminderId });
+      reminderWarning.classList.add("hidden");
+    } catch {
+      reminderWarning.classList.remove("hidden");
+    }
+  }
 
   sendAction("ADVANCE");
 }
