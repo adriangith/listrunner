@@ -71,6 +71,7 @@ export type WizardAction =
   | { type: "START"; items: ParsedItem[] }
   | { type: "ADVANCE" }
   | { type: "SKIP" }
+  | { type: "PREVIOUS" }
   | { type: "ADD_ANOTHER" }
   | { type: "UNDO" }
   | { type: "COOLDOWN_COMPLETE" }

@@ -139,6 +139,31 @@ describe("wizard state machine", () => {
     expect(state.status).toBe("idle");
   });
 
+  it("moves to the previous primary item while stepping", () => {
+    let state = createWizardState();
+    state = wizardReducer(state, { type: "START", items: testItems });
+    state = wizardReducer(state, { type: "SKIP" });
+
+    expect(currentItem(state)?.parsedItem.searchTerm).toBe("milk");
+
+    state = wizardReducer(state, { type: "PREVIOUS" });
+
+    expect(state.status).toBe("stepping");
+    expect(state.currentIndex).toBe(0);
+    expect(currentItem(state)?.parsedItem.searchTerm).toBe("eggs");
+    expect(currentItem(state)?.status).toBe("active");
+    expect(state.items[1]?.status).toBe("pending");
+  });
+
+  it("throws when moving previous from the first item", () => {
+    let state = createWizardState();
+    state = wizardReducer(state, { type: "START", items: testItems });
+
+    expect(() => wizardReducer(state, { type: "PREVIOUS" })).toThrow(
+      "Cannot PREVIOUS from first item",
+    );
+  });
+
   it("throws on invalid transitions", () => {
     const state = createWizardState();
     expect(() => wizardReducer(state, { type: "ADVANCE" })).toThrow();

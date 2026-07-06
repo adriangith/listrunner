@@ -51,6 +51,8 @@ export function wizardReducer(
       return handleAdvance(state);
     case "SKIP":
       return handleSkip(state);
+    case "PREVIOUS":
+      return handlePrevious(state);
     case "ADD_ANOTHER":
       return handleAddAnother(state);
     case "UNDO":
@@ -148,6 +150,27 @@ function handleSkip(state: WizardState): WizardState {
   // Add to skipped list and move on
   newState.skippedIndices = [...state.skippedIndices, activeIdx];
   return moveToNext(newState);
+}
+
+function handlePrevious(state: WizardState): WizardState {
+  if (state.status !== "stepping") {
+    throw new Error(`Cannot PREVIOUS from status "${state.status}"`);
+  }
+  if (state.currentIndex <= 0) {
+    throw new Error("Cannot PREVIOUS from first item");
+  }
+
+  const items = [...state.items];
+  items[state.currentIndex] = { ...items[state.currentIndex]!, status: "pending" };
+  const previousIndex = state.currentIndex - 1;
+  items[previousIndex] = { ...items[previousIndex]!, status: "active" };
+
+  return {
+    ...state,
+    items,
+    currentIndex: previousIndex,
+    cooldownItemIndex: null,
+  };
 }
 
 function handleAddAnother(state: WizardState): WizardState {
