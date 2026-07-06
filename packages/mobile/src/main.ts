@@ -13,7 +13,9 @@ import {
 } from "@listrunner/core";
 import StoreSession from "@listrunner/store-session";
 import Reminders from "@listrunner/reminders";
+import { formatItemDisplayName, formatQuantity } from "./item-display.js";
 import { importReminders, tryCompleteReminder } from "./reminder-import.js";
+import { buildStoreSessionOverlayPayload } from "./store-session-overlay.js";
 
 const COOLDOWN_MS = 3000;
 const STORE_ID = "coles-au";
@@ -189,10 +191,28 @@ function init(): void {
   });
 
   StoreSession.addListener("automationTimeout", () => {
-    // Automation failed, show manual fallback
     if (automationWarning) {
       automationWarning.classList.remove("hidden");
     }
+    syncNativeOverlay();
+  });
+
+  StoreSession.addListener("previousRequested", () => {
+    sendAction("PREVIOUS");
+  });
+
+  StoreSession.addListener("nextRequested", handleNativeNextRequested);
+
+  StoreSession.addListener("markAddedRequested", () => {
+    handleAdded();
+  });
+
+  StoreSession.addListener("addAnotherRequested", () => {
+    sendAction("ADD_ANOTHER");
+  });
+
+  StoreSession.addListener("undoRequested", () => {
+    sendAction("UNDO");
   });
 
   showView("input");
@@ -333,6 +353,15 @@ function handleAddReviewItem(e: Event): void {
   }
 }
 
+function handleNativeNextRequested(): void {
+  if (!wizardState) return;
+  if (wizardState.status === "cooldown") {
+    sendAction("COOLDOWN_COMPLETE");
+    return;
+  }
+  sendAction("SKIP");
+}
+
 function sendAction(action: SimpleWizardAction): void {
   if (!wizardState) return;
 
@@ -358,15 +387,36 @@ function navigateToActiveItem(): void {
 
   const searchTerm = item.searchTermOverride ?? item.parsedItem.searchTerm;
 
-  // Update native overlay
   StoreSession.setStore({ storeId: STORE_ID });
-  StoreSession.updateOverlay({
-    itemName: searchTerm,
-    searchTerm,
+  syncNativeOverlay();
+
+  StoreSession.search({ query: searchTerm });
+}
+
+function syncNativeOverlay(): void {
+  if (!wizardState) return;
+  const active = findActiveItem(wizardState);
+  if (!active) return;
+
+  const searchTerm = active.searchTermOverride ?? active.parsedItem.searchTerm;
+  const overlayItemName = formatItemDisplayName(active.parsedItem, searchTerm);
+  const payload = buildStoreSessionOverlayPayload({
+    state: wizardState,
+    automationUnavailable: !automationWarning.classList.contains("hidden"),
+    cooldownRemainingMs: getCooldownRemainingMs(),
+    cooldownTotalMs: COOLDOWN_MS,
   });
 
-  // Navigate to search
-  StoreSession.search({ query: searchTerm });
+  StoreSession.updateOverlay({
+    itemName: overlayItemName,
+    searchTerm,
+    ...payload,
+  });
+}
+
+function getCooldownRemainingMs(): number | null {
+  if (cooldownStartedAt === null || !wizardState || wizardState.status !== "cooldown") return null;
+  return Math.max(0, COOLDOWN_MS - (Date.now() - cooldownStartedAt));
 }
 
 function renderCurrentView(): void {
@@ -393,7 +443,7 @@ function renderReviewList(): void {
   reviewList.innerHTML = "";
   for (const item of parsedList.items) {
     const li = document.createElement("li");
-    li.textContent = `${formatQuantity(item)} ${item.searchTerm}`.trim();
+    li.appendChild(renderItemLabel(item));
     reviewList.appendChild(li);
   }
 
@@ -402,7 +452,7 @@ function renderReviewList(): void {
   filteredList.innerHTML = "";
   for (const item of parsedList.filtered) {
     const li = document.createElement("li");
-    li.textContent = `${formatQuantity(item)} ${item.searchTerm}`.trim();
+    li.appendChild(renderItemLabel(item));
     li.style.textDecoration = "line-through";
     li.style.color = "#999";
     filteredList.appendChild(li);
@@ -418,8 +468,10 @@ function renderWizardView(): void {
   const parsedItem = item.parsedItem;
   const searchTerm = item.searchTermOverride ?? parsedItem.searchTerm;
 
+  const quantityText = formatQuantity(parsedItem);
   currentItemName.textContent = searchTerm;
-  currentItemQty.textContent = formatQuantity(parsedItem);
+  currentItemQty.textContent = quantityText;
+  currentItemQty.classList.toggle("hidden", quantityText.length === 0);
   currentSearchInput.value = searchTerm;
 
   // Progress
@@ -446,6 +498,8 @@ function renderWizardView(): void {
     lastAnnouncedKey = announceKey;
     wizardAnnouncer.textContent = `Now: ${searchTerm}`;
   }
+
+  syncNativeOverlay();
 }
 
 function updateLoupeHint(searchTerm: string): void {
@@ -507,6 +561,7 @@ function updateCooldownMessage(): void {
   const remaining = Math.max(0, COOLDOWN_MS - (Date.now() - cooldownStartedAt));
   const secs = Math.ceil(remaining / 1000);
   cooldownMsg.textContent = `Cooldown: ${secs}s...`;
+  syncNativeOverlay();
 }
 
 function stopCooldown(): void {
@@ -529,10 +584,24 @@ function findActiveItem(state: WizardState): WizardItem | null {
   return currentItem(state);
 }
 
-function formatQuantity(item: ParsedItem): string {
-  if (!item.quantity) return "";
-  const { amount, unit } = item.quantity;
-  return unit ? `${amount} ${unit}` : `×${amount}`;
+function renderItemLabel(item: ParsedItem): HTMLSpanElement {
+  const wrapper = document.createElement("span");
+  wrapper.className = "item-label";
+
+  const quantityText = formatQuantity(item);
+  if (quantityText) {
+    const quantity = document.createElement("span");
+    quantity.className = "quantity-chip";
+    quantity.textContent = quantityText;
+    wrapper.appendChild(quantity);
+  }
+
+  const name = document.createElement("span");
+  name.className = "item-name";
+  name.textContent = item.searchTerm;
+  wrapper.appendChild(name);
+
+  return wrapper;
 }
 
 function toWizardAction(action: SimpleWizardAction): WizardAction {
@@ -541,6 +610,8 @@ function toWizardAction(action: SimpleWizardAction): WizardAction {
       return { type: "ADVANCE" };
     case "SKIP":
       return { type: "SKIP" };
+    case "PREVIOUS":
+      return { type: "PREVIOUS" };
     case "ADD_ANOTHER":
       return { type: "ADD_ANOTHER" };
     case "UNDO":
