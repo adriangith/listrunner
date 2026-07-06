@@ -1,6 +1,26 @@
 import UIKit
 import WebKit
 
+struct StoreSessionOverlayCard {
+    let id: String
+    let title: String
+    let quantity: String
+    let state: String
+    let badge: String?
+}
+
+struct StoreSessionOverlayPayload {
+    let mode: String
+    let cards: [StoreSessionOverlayCard]
+    let activeIndex: Int
+    let primaryAction: String
+    let secondaryAction: String
+    let cooldownSeconds: Int?
+    let cooldownProgress: Double?
+    let itemName: String
+    let searchTerm: String
+}
+
 public class StoreSessionViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHandler {
     var webView: WKWebView!
     var overlayView: UIView!
@@ -8,6 +28,7 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
     var searchInput: UITextField!
     var plugin: StoreSessionPlugin?
 
+    private var currentPayload: StoreSessionOverlayPayload?
     private var activeStoreId: String?
     private var pendingStoreURL: URL?
     private var automationLoaded = false
@@ -142,11 +163,17 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         }
     }
 
-    public func updateOverlay(itemName: String, searchTerm: String) {
+    public func updateOverlay(payload: StoreSessionOverlayPayload) {
         DispatchQueue.main.async {
-            self.currentItemLabel.text = itemName
-            self.searchInput.text = searchTerm
+            self.currentPayload = payload
+            self.renderOverlay()
         }
+    }
+
+    private func renderOverlay() {
+        guard let payload = currentPayload else { return }
+        currentItemLabel.text = payload.itemName
+        searchInput.text = payload.searchTerm
     }
 
     // MARK: - WKNavigationDelegate

@@ -76,13 +76,46 @@ public class StoreSessionPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func updateOverlay(_ call: CAPPluginCall) {
         guard let itemName = call.getString("itemName"),
-              let searchTerm = call.getString("searchTerm") else {
-            call.reject("Invalid itemName or searchTerm")
+              let searchTerm = call.getString("searchTerm"),
+              let mode = call.getString("mode"),
+              let activeIndex = call.getInt("activeIndex"),
+              let primaryAction = call.getString("primaryAction"),
+              let secondaryAction = call.getString("secondaryAction"),
+              let rawCards = call.getArray("cards") as? [[String: Any]] else {
+            call.reject("Invalid overlay payload")
             return
         }
 
+        let cards = rawCards.compactMap { raw -> StoreSessionOverlayCard? in
+            guard let id = raw["id"] as? String,
+                  let title = raw["title"] as? String,
+                  let quantity = raw["quantity"] as? String,
+                  let state = raw["state"] as? String else {
+                return nil
+            }
+            return StoreSessionOverlayCard(
+                id: id,
+                title: title,
+                quantity: quantity,
+                state: state,
+                badge: raw["badge"] as? String
+            )
+        }
+
+        let payload = StoreSessionOverlayPayload(
+            mode: mode,
+            cards: cards,
+            activeIndex: activeIndex,
+            primaryAction: primaryAction,
+            secondaryAction: secondaryAction,
+            cooldownSeconds: call.getInt("cooldownSeconds"),
+            cooldownProgress: call.getDouble("cooldownProgress"),
+            itemName: itemName,
+            searchTerm: searchTerm
+        )
+
         DispatchQueue.main.async {
-            self.storeSessionVC?.updateOverlay(itemName: itemName, searchTerm: searchTerm)
+            self.storeSessionVC?.updateOverlay(payload: payload)
             call.resolve()
         }
     }
