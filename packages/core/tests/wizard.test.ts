@@ -155,6 +155,70 @@ describe("wizard state machine", () => {
     expect(state.items[1]?.status).toBe("pending");
   });
 
+  it("removes a previous item from skipped revisit tracking", () => {
+    let state = createWizardState();
+    state = wizardReducer(state, { type: "START", items: testItems });
+    state = wizardReducer(state, { type: "SKIP" });
+
+    state = wizardReducer(state, { type: "PREVIOUS" });
+    expect(state.skippedIndices).toEqual([]);
+
+    state = wizardReducer(state, { type: "ADVANCE" });
+    state = wizardReducer(state, { type: "COOLDOWN_COMPLETE" });
+
+    expect(state.status).toBe("stepping");
+    expect(currentItem(state)?.parsedItem.searchTerm).toBe("milk");
+  });
+
+  it("selects another primary item by index while stepping", () => {
+    let state = createWizardState();
+    state = wizardReducer(state, { type: "START", items: testItems });
+    state = wizardReducer(state, { type: "SELECT_INDEX", index: 2 });
+
+    expect(state.status).toBe("stepping");
+    expect(state.currentIndex).toBe(2);
+    expect(currentItem(state)?.parsedItem.searchTerm).toBe("bread");
+    expect(state.items[0]?.status).toBe("pending");
+    expect(state.items[2]?.status).toBe("active");
+  });
+
+  it("reselects the current primary item without changing status", () => {
+    let state = createWizardState();
+    state = wizardReducer(state, { type: "START", items: testItems });
+    state = wizardReducer(state, { type: "SELECT_INDEX", index: 0 });
+
+    expect(state.status).toBe("stepping");
+    expect(state.currentIndex).toBe(0);
+    expect(currentItem(state)?.parsedItem.searchTerm).toBe("eggs");
+  });
+
+  it("selects another skipped item by index while revisiting", () => {
+    let state = createWizardState();
+    state = wizardReducer(state, { type: "START", items: testItems });
+    state = wizardReducer(state, { type: "SKIP" });
+    state = wizardReducer(state, { type: "SKIP" });
+    state = wizardReducer(state, { type: "SKIP" });
+    state = wizardReducer(state, { type: "BEGIN_REVISIT" });
+
+    state = wizardReducer(state, { type: "SELECT_INDEX", index: 1 });
+
+    expect(state.status).toBe("revisiting");
+    expect(state.revisitPointer).toBe(1);
+    expect(currentItem(state)?.parsedItem.searchTerm).toBe("milk");
+    expect(state.items[0]?.status).toBe("skipped");
+    expect(state.items[1]?.status).toBe("active");
+  });
+
+  it("throws when selecting a card during cooldown", () => {
+    let state = createWizardState();
+    state = wizardReducer(state, { type: "START", items: testItems });
+    state = wizardReducer(state, { type: "ADVANCE" });
+
+    expect(() => wizardReducer(state, { type: "SELECT_INDEX", index: 1 })).toThrow(
+      'Cannot SELECT_INDEX from status "cooldown"',
+    );
+  });
+
   it("throws when moving previous from the first item", () => {
     let state = createWizardState();
     state = wizardReducer(state, { type: "START", items: testItems });
@@ -215,5 +279,18 @@ describe("wizard state machine", () => {
     const active = currentItem(state);
     expect(active?.searchTermOverride).toBe("organic eggs");
     expect(active?.parsedItem.searchTerm).toBe("eggs");
+  });
+
+  it("keeps an added item added when selected by index", () => {
+    let state = createWizardState();
+    state = wizardReducer(state, { type: "START", items: testItems });
+    state = wizardReducer(state, { type: "ADVANCE" });
+    state = wizardReducer(state, { type: "COOLDOWN_COMPLETE" });
+
+    state = wizardReducer(state, { type: "SELECT_INDEX", index: 0 });
+
+    expect(state.status).toBe("stepping");
+    expect(state.currentIndex).toBe(0);
+    expect(state.items[0]?.status).toBe("added");
   });
 });

@@ -53,6 +53,8 @@ export function wizardReducer(
       return handleSkip(state);
     case "PREVIOUS":
       return handlePrevious(state);
+    case "SELECT_INDEX":
+      return handleSelectIndex(state, action.index);
     case "ADD_ANOTHER":
       return handleAddAnother(state);
     case "UNDO":
@@ -168,7 +170,49 @@ function handlePrevious(state: WizardState): WizardState {
   return {
     ...state,
     items,
+    skippedIndices: state.skippedIndices.filter((idx) => idx !== previousIndex),
     currentIndex: previousIndex,
+    cooldownItemIndex: null,
+  };
+}
+
+function handleSelectIndex(state: WizardState, index: number): WizardState {
+  if (state.status !== "stepping" && state.status !== "revisiting") {
+    throw new Error(`Cannot SELECT_INDEX from status "${state.status}"`);
+  }
+  if (index < 0 || index >= state.items.length) {
+    throw new Error(`Cannot SELECT_INDEX ${index}`);
+  }
+
+  const items = [...state.items];
+  const activeIdx = getActiveIndex(state);
+  if (activeIdx !== index && items[activeIdx]?.status === "active") {
+    items[activeIdx] = {
+      ...items[activeIdx]!,
+      status: state.status === "revisiting" ? "skipped" : "pending",
+    };
+  }
+  if (items[index]?.status !== "added") {
+    items[index] = { ...items[index]!, status: "active" };
+  }
+
+  if (state.status === "revisiting") {
+    const revisitPointer = state.skippedIndices.indexOf(index);
+    if (revisitPointer >= 0) {
+      return {
+        ...state,
+        items,
+        revisitPointer,
+        cooldownItemIndex: null,
+      };
+    }
+  }
+
+  return {
+    ...state,
+    items,
+    status: "stepping",
+    currentIndex: index,
     cooldownItemIndex: null,
   };
 }
