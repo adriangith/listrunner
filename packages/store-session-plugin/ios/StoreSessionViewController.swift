@@ -15,19 +15,38 @@ struct StoreSessionOverlayPayload {
     let activeIndex: Int
     let primaryAction: String
     let secondaryAction: String
+    let secondaryEnabled: Bool
     let cooldownSeconds: Int?
     let cooldownProgress: Double?
     let itemName: String
     let searchTerm: String
 }
 
-public class StoreSessionViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHandler {
+private final class OverlayHitView: UIView {
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        if super.point(inside: point, with: event) {
+            return true
+        }
+
+        return subviews.contains { subview in
+            guard !subview.isHidden, subview.alpha > 0.01, subview.isUserInteractionEnabled else {
+                return false
+            }
+            return subview.point(inside: convert(point, to: subview), with: event)
+        }
+    }
+}
+
+public class StoreSessionViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHandler, UIGestureRecognizerDelegate {
     var webView: WKWebView!
     var overlayView: UIView!
+    private let carouselScrollView = UIScrollView()
     private let carouselStack = UIStackView()
     private let secondaryButton = UIButton(type: .system)
     private let primaryButton = UIButton(type: .system)
     private let progressView = UIProgressView(progressViewStyle: .bar)
+    private let panelGradientLayer = CAGradientLayer()
+    private var manualBadgeView: UILabel?
     var plugin: StoreSessionPlugin?
 
     private var currentPayload: StoreSessionOverlayPayload?
@@ -76,21 +95,37 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
     }
 
     private func setupOverlay() {
-        overlayView = UIView()
-        overlayView.backgroundColor = UIColor.white.withAlphaComponent(0.94)
+        overlayView = OverlayHitView()
+        overlayView.backgroundColor = .clear
         overlayView.layer.shadowColor = UIColor.black.cgColor
-        overlayView.layer.shadowOpacity = 0.12
+        overlayView.layer.shadowOpacity = 0.08
         overlayView.layer.shadowRadius = 18
         overlayView.layer.shadowOffset = CGSize(width: 0, height: -8)
         overlayView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(overlayView)
 
+        panelGradientLayer.type = .radial
+        panelGradientLayer.colors = [
+            UIColor.white.withAlphaComponent(0.98).cgColor,
+            UIColor.white.withAlphaComponent(0.94).cgColor,
+        ]
+        panelGradientLayer.locations = [0, 1]
+        panelGradientLayer.startPoint = CGPoint(x: 0.5, y: 0.0)
+        panelGradientLayer.endPoint = CGPoint(x: 0.95, y: 1.0)
+        overlayView.layer.insertSublayer(panelGradientLayer, at: 0)
+
+        carouselScrollView.showsHorizontalScrollIndicator = false
+        carouselScrollView.alwaysBounceHorizontal = true
+        carouselScrollView.clipsToBounds = false
+        carouselScrollView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(carouselScrollView)
+
         carouselStack.axis = .horizontal
         carouselStack.alignment = .center
-        carouselStack.distribution = .equalSpacing
+        carouselStack.distribution = .fill
         carouselStack.spacing = 10
         carouselStack.translatesAutoresizingMaskIntoConstraints = false
-        overlayView.addSubview(carouselStack)
+        carouselScrollView.addSubview(carouselStack)
 
         secondaryButton.translatesAutoresizingMaskIntoConstraints = false
         primaryButton.translatesAutoresizingMaskIntoConstraints = false
@@ -99,7 +134,7 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         overlayView.addSubview(primaryButton)
         primaryButton.addSubview(progressView)
 
-        styleActionButton(secondaryButton, background: UIColor(red: 0.94, green: 0.95, blue: 0.97, alpha: 1), foreground: .darkText)
+        styleActionButton(secondaryButton, background: UIColor(red: 0.94, green: 0.95, blue: 0.97, alpha: 1), foreground: UIColor(red: 0.17, green: 0.19, blue: 0.23, alpha: 1))
         styleActionButton(primaryButton, background: UIColor(red: 0.00, green: 0.48, blue: 1.00, alpha: 1), foreground: .white)
 
         secondaryButton.addTarget(self, action: #selector(secondaryTapped), for: .touchUpInside)
@@ -111,9 +146,15 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
             overlayView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             overlayView.heightAnchor.constraint(equalToConstant: 202),
 
-            carouselStack.leadingAnchor.constraint(equalTo: overlayView.leadingAnchor, constant: -42),
-            carouselStack.trailingAnchor.constraint(equalTo: overlayView.trailingAnchor, constant: 42),
-            carouselStack.topAnchor.constraint(equalTo: overlayView.topAnchor, constant: -92),
+            carouselScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: -43),
+            carouselScrollView.topAnchor.constraint(equalTo: overlayView.topAnchor, constant: -46),
+            carouselScrollView.widthAnchor.constraint(equalToConstant: 482),
+            carouselScrollView.heightAnchor.constraint(equalToConstant: 120),
+            carouselScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: 43),
+
+            carouselStack.leadingAnchor.constraint(equalTo: carouselScrollView.contentLayoutGuide.leadingAnchor),
+            carouselStack.trailingAnchor.constraint(equalTo: carouselScrollView.contentLayoutGuide.trailingAnchor),
+            carouselStack.topAnchor.constraint(equalTo: carouselScrollView.contentLayoutGuide.topAnchor, constant: -47),
             carouselStack.heightAnchor.constraint(equalToConstant: 182),
 
             secondaryButton.leadingAnchor.constraint(equalTo: overlayView.leadingAnchor, constant: 20),
@@ -180,42 +221,71 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         button.clipsToBounds = true
     }
 
+    private func isBlueCurrentState(_ state: String) -> Bool {
+        return state == "current"
+    }
+
     private func backgroundColor(for state: String) -> UIColor {
-        switch state {
-        case "current", "currentAdded":
+        if isBlueCurrentState(state) {
             return UIColor(red: 0.00, green: 0.48, blue: 1.00, alpha: 1)
-        case "added":
-            return UIColor(red: 0.88, green: 1.00, blue: 0.92, alpha: 1)
-        default:
-            return UIColor(red: 0.98, green: 0.97, blue: 0.94, alpha: 1)
         }
+        return UIColor(red: 0.98, green: 0.97, blue: 0.94, alpha: 1)
     }
 
     private func textColor(for state: String) -> UIColor {
-        return state == "current" || state == "currentAdded" ? .white : UIColor(red: 0.17, green: 0.19, blue: 0.23, alpha: 1)
+        return isBlueCurrentState(state) ? .white : UIColor(red: 0.17, green: 0.19, blue: 0.23, alpha: 1)
     }
 
-    private func addBadge(text: String, to cardView: UIView, color: UIColor) {
+    private func actionTextColor(for state: String) -> UIColor {
+        return state == "currentAdded"
+            ? UIColor(red: 0.12, green: 0.65, blue: 0.19, alpha: 1)
+            : UIColor(red: 0.00, green: 0.32, blue: 0.88, alpha: 1)
+    }
+
+    private func makeAddedStateLabel() -> UILabel {
+        let label = UILabel()
+        label.text = "✓ Added"
+        label.textAlignment = .center
+        label.textColor = UIColor(red: 0.17, green: 0.19, blue: 0.23, alpha: 1)
+        label.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }
+
+    private func makeManualBadge() -> UILabel {
         let badge = UILabel()
-        badge.text = text
+        badge.text = "Manual"
         badge.textAlignment = .center
         badge.textColor = .white
-        badge.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
-        badge.backgroundColor = color
-        badge.layer.cornerRadius = 11
+        badge.font = UIFont.systemFont(ofSize: 8, weight: .semibold)
+        badge.backgroundColor = UIColor(red: 0.70, green: 0.70, blue: 0.70, alpha: 1)
+        badge.layer.cornerRadius = 4
         badge.clipsToBounds = true
         badge.translatesAutoresizingMaskIntoConstraints = false
-        cardView.addSubview(badge)
+        return badge
+    }
+
+    private func updateManualBadge(for payload: StoreSessionOverlayPayload) {
+        manualBadgeView?.removeFromSuperview()
+        manualBadgeView = nil
+
+        guard payload.mode == "manual" else { return }
+
+        let badge = makeManualBadge()
+        overlayView.addSubview(badge)
+        manualBadgeView = badge
+
         NSLayoutConstraint.activate([
-            badge.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 14),
-            badge.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 13),
-            badge.widthAnchor.constraint(equalToConstant: text == "Manual" ? 72 : 78),
-            badge.heightAnchor.constraint(equalToConstant: 22),
+            badge.leadingAnchor.constraint(equalTo: overlayView.leadingAnchor, constant: 134),
+            badge.topAnchor.constraint(equalTo: overlayView.topAnchor, constant: 90),
+            badge.widthAnchor.constraint(equalToConstant: 72),
+            badge.heightAnchor.constraint(equalToConstant: 16),
         ])
     }
 
-    private func makeCard(_ card: StoreSessionOverlayCard) -> UIView {
+    private func makeCard(_ card: StoreSessionOverlayCard, index: Int) -> UIView {
         let cardView = UIView()
+        cardView.isUserInteractionEnabled = true
         cardView.translatesAutoresizingMaskIntoConstraints = false
         cardView.layer.cornerRadius = 18
         cardView.clipsToBounds = false
@@ -225,11 +295,16 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         cardView.layer.shadowRadius = 12
         cardView.layer.shadowOffset = CGSize(width: 0, height: 6)
 
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(cardTapped(_:)))
+        tapGesture.name = String(index)
+        tapGesture.delegate = self
+        cardView.addGestureRecognizer(tapGesture)
+
         let titleLabel = UILabel()
         titleLabel.text = card.title
         titleLabel.numberOfLines = 2
         titleLabel.textAlignment = .center
-        titleLabel.font = UIFont.systemFont(ofSize: card.state == "inactive" ? 16 : 19, weight: .semibold)
+        titleLabel.font = UIFont.systemFont(ofSize: card.state == "inactive" || card.state == "added" ? 16 : 19, weight: .semibold)
         titleLabel.textColor = textColor(for: card.state)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         cardView.addSubview(titleLabel)
@@ -237,15 +312,20 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         let quantityLabel = UILabel()
         quantityLabel.text = card.quantity
         quantityLabel.textAlignment = .center
-        quantityLabel.font = UIFont.systemFont(ofSize: card.state == "inactive" ? 12 : 46, weight: .bold)
+        quantityLabel.font = UIFont.systemFont(ofSize: card.state == "inactive" || card.state == "added" ? 12 : 46, weight: .bold)
         quantityLabel.textColor = textColor(for: card.state)
         quantityLabel.translatesAutoresizingMaskIntoConstraints = false
         cardView.addSubview(quantityLabel)
 
-        if let badge = card.badge {
-            addBadge(text: badge, to: cardView, color: UIColor(red: 0.93, green: 0.55, blue: 0.10, alpha: 1))
-        } else if card.state == "currentAdded" || card.state == "added" {
-            addBadge(text: "✓ Added", to: cardView, color: UIColor(red: 0.10, green: 0.62, blue: 0.33, alpha: 1))
+        if card.state == "added" || card.state == "currentAdded" {
+            let addedLabel = makeAddedStateLabel()
+            cardView.addSubview(addedLabel)
+            NSLayoutConstraint.activate([
+                addedLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 14),
+                addedLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: card.state == "currentAdded" ? 11 : 9),
+                addedLabel.widthAnchor.constraint(equalToConstant: card.state == "currentAdded" ? 72 : 88),
+                addedLabel.heightAnchor.constraint(equalToConstant: 14),
+            ])
         } else {
             let dot = UIView()
             dot.backgroundColor = card.state == "current" ? .white : UIColor(red: 0.86, green: 0.88, blue: 0.91, alpha: 1)
@@ -265,6 +345,7 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         if let actionTitle = actionTitle {
             let button = UIButton(type: .system)
             button.setTitle(actionTitle, for: .normal)
+            button.setTitleColor(actionTextColor(for: card.state), for: .normal)
             button.titleLabel?.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
             button.backgroundColor = .white
             button.layer.cornerRadius = 14
@@ -275,14 +356,14 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         }
 
         NSLayoutConstraint.activate([
-            cardView.widthAnchor.constraint(equalToConstant: card.state == "inactive" ? 116 : 132),
-            cardView.heightAnchor.constraint(equalToConstant: card.state == "inactive" ? 168 : 182),
-            titleLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 14),
-            titleLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -14),
-            titleLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: card.state == "inactive" ? 35 : 42),
+            cardView.widthAnchor.constraint(equalToConstant: card.state == "current" || card.state == "currentAdded" ? 132 : 116),
+            cardView.heightAnchor.constraint(equalToConstant: card.state == "current" || card.state == "currentAdded" ? 182 : card.state == "added" ? 166 : 177),
+            titleLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: card.state == "added" ? 6 : 14),
+            titleLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: card.state == "added" ? -6 : -14),
+            titleLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: card.state == "current" ? 22 : card.state == "currentAdded" ? 29 : card.state == "added" ? 27 : 31),
             quantityLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 14),
             quantityLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -14),
-            quantityLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: card.state == "inactive" ? 48 : 4),
+            quantityLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: card.state == "inactive" || card.state == "added" ? 48 : 4),
         ])
 
         if let actionButton = actionButton {
@@ -305,9 +386,11 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
             view.removeFromSuperview()
         }
 
-        for card in payload.cards {
-            carouselStack.addArrangedSubview(makeCard(card))
+        for (index, card) in payload.cards.enumerated() {
+            carouselStack.addArrangedSubview(makeCard(card, index: index))
         }
+
+        updateManualBadge(for: payload)
 
         let primaryTitle: String
         switch payload.primaryAction {
@@ -319,13 +402,32 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
             progressView.trackTintColor = UIColor.white.withAlphaComponent(0.28)
             styleActionButton(primaryButton, background: UIColor(red: 0.10, green: 0.62, blue: 0.33, alpha: 1), foreground: .white)
         default:
-            primaryTitle = "Next"
+            primaryTitle = "Skip"
             progressView.isHidden = true
             styleActionButton(primaryButton, background: UIColor(red: 0.00, green: 0.48, blue: 1.00, alpha: 1), foreground: .white)
         }
         primaryButton.setTitle(primaryTitle, for: .normal)
 
         secondaryButton.setTitle(payload.secondaryAction == "undo" ? "Undo" : "Previous", for: .normal)
+        secondaryButton.isEnabled = payload.secondaryEnabled
+        secondaryButton.alpha = payload.secondaryEnabled ? 1 : 0.45
+
+        view.layoutIfNeeded()
+        centerActiveCard(for: payload.activeIndex)
+    }
+
+    private func centerActiveCard(for activeIndex: Int) {
+        guard activeIndex >= 0,
+              activeIndex < carouselStack.arrangedSubviews.count else { return }
+
+        let card = carouselStack.arrangedSubviews[activeIndex]
+        let targetCenter = carouselScrollView.convert(card.center, from: carouselStack)
+        let targetX = targetCenter.x - carouselScrollView.bounds.width / 2
+        let maxX = max(0, carouselScrollView.contentSize.width - carouselScrollView.bounds.width)
+        carouselScrollView.setContentOffset(
+            CGPoint(x: min(max(0, targetX), maxX), y: 0),
+            animated: false
+        )
     }
 
     // MARK: - WKNavigationDelegate
@@ -359,6 +461,7 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
 
     @objc private func secondaryTapped() {
         guard let payload = currentPayload else { return }
+        guard payload.secondaryEnabled else { return }
         plugin?.notifyEvent(eventName: payload.secondaryAction == "undo" ? "undoRequested" : "previousRequested")
     }
 
@@ -374,8 +477,26 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         plugin?.notifyEvent(eventName: "addAnotherRequested")
     }
 
+    @objc private func cardTapped(_ gesture: UITapGestureRecognizer) {
+        guard let rawIndex = gesture.name,
+              let index = Int(rawIndex) else { return }
+        plugin?.notifyEvent(eventName: "cardSelected", data: ["index": index])
+    }
+
+    public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        var view: UIView? = touch.view
+        while let current = view {
+            if current is UIControl {
+                return false
+            }
+            view = current.superview
+        }
+        return true
+    }
+
     public override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         webView.frame = view.bounds
+        panelGradientLayer.frame = overlayView.bounds
     }
 }

@@ -33,3 +33,16 @@ test("carousel uses the Figma overscan geometry", () => {
   assert.match(source, /carouselScrollView\.leadingAnchor\.constraint\(equalTo:\s*view\.leadingAnchor,\s*constant:\s*-43\)/);
   assert.match(source, /carouselScrollView\.widthAnchor\.constraint\(equalToConstant:\s*482\)/);
 });
+
+test("card tap gesture emits cardSelected event", () => {
+  assert.match(source, /#selector\(cardTapped/);
+  assert.match(source, /"cardSelected"/);
+});
+
+test("cooldown shows progress view inside the primary button", () => {
+  assert.match(source, /primaryButton\.addSubview\(progressView\)/);
+});
+
+test("currentAdded uses a different title position than current", () => {
+  assert.match(source, /"currentAdded" \? 29/);
+});
