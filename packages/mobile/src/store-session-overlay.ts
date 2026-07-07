@@ -81,7 +81,7 @@ function cardFromItem(
         : isActive
           ? "current"
           : "inactive",
-    badge: isActive && automationUnavailable && state.status !== "cooldown" ? "Manual" : null,
+    badge: null,
   };
 }
 

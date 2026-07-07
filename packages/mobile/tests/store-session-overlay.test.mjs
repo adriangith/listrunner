@@ -31,7 +31,7 @@ test("buildStoreSessionOverlayPayload returns current and inactive cards before 
   assert.equal(payload.cards[0].quantity, "500 g");
 });
 
-test("buildStoreSessionOverlayPayload marks manual mode without changing card state", () => {
+test("buildStoreSessionOverlayPayload marks manual mode without card badges", () => {
   let state = createWizardState();
   state = wizardReducer(state, { type: "START", items });
 
@@ -43,7 +43,7 @@ test("buildStoreSessionOverlayPayload marks manual mode without changing card st
   });
 
   assert.equal(payload.mode, "manual");
-  assert.equal(payload.cards[0].badge, "Manual");
+  assert.equal(payload.cards[0].badge, null);
   assert.equal(payload.cards[0].state, "current");
 });
 
