@@ -76,7 +76,7 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         view.addSubview(webView)
 
         // Inject the cart-detection content script (posts pageLoaded and addToCartDetected).
-        if let scriptURL = Bundle.module.url(forResource: "cart-detection", withExtension: "js", subdirectory: "Resources"),
+        if let scriptURL = cartDetectionScriptURL(),
            let scriptSource = try? String(contentsOf: scriptURL, encoding: .utf8) {
             let cartScript = WKUserScript(
                 source: scriptSource,
@@ -92,6 +92,11 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
             )
             webView.configuration.userContentController.addUserScript(readyScript)
         }
+    }
+
+    private func cartDetectionScriptURL() -> URL? {
+        return Bundle.module.url(forResource: "cart-detection", withExtension: "js")
+            ?? Bundle.module.url(forResource: "cart-detection", withExtension: "js", subdirectory: "Resources")
     }
 
     private func setupOverlay() {
@@ -204,7 +209,7 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         }
     }
 
-    public func updateOverlay(payload: StoreSessionOverlayPayload) {
+    func updateOverlay(payload: StoreSessionOverlayPayload) {
         DispatchQueue.main.async {
             self.currentPayload = payload
             self.renderOverlay()
@@ -265,6 +270,43 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         return badge
     }
 
+    private func makeCarouselSpacer(width: CGFloat) -> UIView {
+        let spacer = UIView()
+        spacer.translatesAutoresizingMaskIntoConstraints = false
+        spacer.widthAnchor.constraint(equalToConstant: width).isActive = true
+        return spacer
+    }
+
+    private func isAddedState(_ state: String) -> Bool {
+        return state == "added" || state == "currentAdded"
+    }
+
+    private func applyAddedGradient(to cardView: UIView) {
+        let gradient = CAGradientLayer()
+        gradient.colors = [
+            UIColor(red: 0.78, green: 0.93, blue: 0.69, alpha: 1).cgColor,
+            UIColor(red: 0.55, green: 0.83, blue: 0.48, alpha: 1).cgColor,
+        ]
+        gradient.startPoint = CGPoint(x: 0.0, y: 0.0)
+        gradient.endPoint = CGPoint(x: 1.0, y: 1.0)
+        gradient.cornerRadius = 18
+        gradient.frame = cardView.bounds
+        cardView.layer.insertSublayer(gradient, at: 0)
+    }
+
+    private func makeQuantityPill(text: String, state: String) -> UILabel {
+        let quantityPill = UILabel()
+        quantityPill.text = text
+        quantityPill.textAlignment = .center
+        quantityPill.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+        quantityPill.textColor = textColor(for: state)
+        quantityPill.backgroundColor = UIColor.white.withAlphaComponent(isAddedState(state) ? 0.58 : 0.72)
+        quantityPill.layer.cornerRadius = 12
+        quantityPill.clipsToBounds = true
+        quantityPill.translatesAutoresizingMaskIntoConstraints = false
+        return quantityPill
+    }
+
     private func updateManualBadge(for payload: StoreSessionOverlayPayload) {
         manualBadgeView?.removeFromSuperview()
         manualBadgeView = nil
@@ -300,6 +342,10 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         tapGesture.delegate = self
         cardView.addGestureRecognizer(tapGesture)
 
+        if isAddedState(card.state) {
+            applyAddedGradient(to: cardView)
+        }
+
         let titleLabel = UILabel()
         titleLabel.text = card.title
         titleLabel.numberOfLines = 2
@@ -315,28 +361,25 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         quantityLabel.font = UIFont.systemFont(ofSize: card.state == "inactive" || card.state == "added" ? 12 : 46, weight: .bold)
         quantityLabel.textColor = textColor(for: card.state)
         quantityLabel.translatesAutoresizingMaskIntoConstraints = false
-        cardView.addSubview(quantityLabel)
 
-        if card.state == "added" || card.state == "currentAdded" {
+        let quantityPill = card.state == "inactive" || card.state == "added"
+            ? makeQuantityPill(text: card.quantity, state: card.state)
+            : nil
+
+        if let quantityPill = quantityPill {
+            cardView.addSubview(quantityPill)
+        } else {
+            cardView.addSubview(quantityLabel)
+        }
+
+        if isAddedState(card.state) {
             let addedLabel = makeAddedStateLabel()
             cardView.addSubview(addedLabel)
             NSLayoutConstraint.activate([
-                addedLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 14),
+                addedLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 8),
                 addedLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: card.state == "currentAdded" ? 11 : 9),
                 addedLabel.widthAnchor.constraint(equalToConstant: card.state == "currentAdded" ? 72 : 88),
                 addedLabel.heightAnchor.constraint(equalToConstant: 14),
-            ])
-        } else {
-            let dot = UIView()
-            dot.backgroundColor = card.state == "current" ? .white : UIColor(red: 0.86, green: 0.88, blue: 0.91, alpha: 1)
-            dot.layer.cornerRadius = 7
-            dot.translatesAutoresizingMaskIntoConstraints = false
-            cardView.addSubview(dot)
-            NSLayoutConstraint.activate([
-                dot.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 14),
-                dot.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 14),
-                dot.widthAnchor.constraint(equalToConstant: 14),
-                dot.heightAnchor.constraint(equalToConstant: 14),
             ])
         }
 
@@ -355,16 +398,30 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
             actionButton = button
         }
 
-        NSLayoutConstraint.activate([
+        var constraints: [NSLayoutConstraint] = [
             cardView.widthAnchor.constraint(equalToConstant: card.state == "current" || card.state == "currentAdded" ? 132 : 116),
             cardView.heightAnchor.constraint(equalToConstant: card.state == "current" || card.state == "currentAdded" ? 182 : card.state == "added" ? 166 : 177),
             titleLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: card.state == "added" ? 6 : 14),
             titleLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: card.state == "added" ? -6 : -14),
             titleLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: card.state == "current" ? 22 : card.state == "currentAdded" ? 29 : card.state == "added" ? 27 : 31),
-            quantityLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 14),
-            quantityLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -14),
-            quantityLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: card.state == "inactive" || card.state == "added" ? 48 : 4),
-        ])
+        ]
+
+        if let quantityPill = quantityPill {
+            constraints.append(contentsOf: [
+                quantityPill.centerXAnchor.constraint(equalTo: cardView.centerXAnchor),
+                quantityPill.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 44),
+                quantityPill.widthAnchor.constraint(greaterThanOrEqualToConstant: 54),
+                quantityPill.heightAnchor.constraint(equalToConstant: 24),
+            ])
+        } else {
+            constraints.append(contentsOf: [
+                quantityLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 14),
+                quantityLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -14),
+                quantityLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 4),
+            ])
+        }
+
+        NSLayoutConstraint.activate(constraints)
 
         if let actionButton = actionButton {
             NSLayoutConstraint.activate([
@@ -386,9 +443,11 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
             view.removeFromSuperview()
         }
 
+        carouselStack.addArrangedSubview(makeCarouselSpacer(width: 165))
         for (index, card) in payload.cards.enumerated() {
             carouselStack.addArrangedSubview(makeCard(card, index: index))
         }
+        carouselStack.addArrangedSubview(makeCarouselSpacer(width: 165))
 
         updateManualBadge(for: payload)
 
@@ -413,7 +472,7 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         secondaryButton.alpha = payload.secondaryEnabled ? 1 : 0.45
 
         view.layoutIfNeeded()
-        centerActiveCard(for: payload.activeIndex)
+        centerActiveCard(for: payload.activeIndex + 1)
     }
 
     private func centerActiveCard(for activeIndex: Int) {

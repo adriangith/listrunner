@@ -34,6 +34,15 @@ test("carousel uses the Figma overscan geometry", () => {
   assert.match(source, /carouselScrollView\.widthAnchor\.constraint\(equalToConstant:\s*482\)/);
 });
 
+test("carousel includes edge spacers so end cards can fully enter the viewport", () => {
+  assert.match(source, /private func makeCarouselSpacer\(width: CGFloat\) -> UIView/);
+  assert.equal(
+    source.match(/carouselStack\.addArrangedSubview\(makeCarouselSpacer\(width:\s*165\)\)/g)?.length,
+    2,
+  );
+  assert.match(source, /centerActiveCard\(for:\s*payload\.activeIndex \+ 1\)/);
+});
+
 test("card tap gesture emits cardSelected event", () => {
   assert.match(source, /#selector\(cardTapped/);
   assert.match(source, /"cardSelected"/);
@@ -45,4 +54,25 @@ test("cooldown shows progress view inside the primary button", () => {
 
 test("currentAdded uses a different title position than current", () => {
   assert.match(source, /"currentAdded" \? 29/);
+});
+
+test("added cards use a green gradient layer", () => {
+  assert.match(source, /private func applyAddedGradient\(to cardView: UIView\)/);
+  assert.match(source, /CAGradientLayer\(\)/);
+  assert.match(source, /UIColor\(red:\s*0\.78,\s*green:\s*0\.93,\s*blue:\s*0\.69,\s*alpha:\s*1\)/);
+});
+
+test("cards do not render top marker circles", () => {
+  assert.doesNotMatch(source, /let dot = UIView\(\)/);
+  assert.doesNotMatch(source, /dot\.layer\.cornerRadius/);
+});
+
+test("added label is shifted left for Figma parity", () => {
+  assert.match(source, /addedLabel\.leadingAnchor\.constraint\(equalTo:\s*cardView\.leadingAnchor,\s*constant:\s*8\)/);
+});
+
+test("non-selected quantities render inside pill backgrounds", () => {
+  assert.match(source, /private func makeQuantityPill\(text: String, state: String\) -> UILabel/);
+  assert.match(source, /quantityPill\.layer\.cornerRadius = 12/);
+  assert.match(source, /cardView\.addSubview\(quantityPill\)/);
 });
