@@ -37,6 +37,51 @@ private final class OverlayHitView: UIView {
     }
 }
 
+private final class AddedGradientCardView: UIView {
+    private let addedGradientLayer = CAGradientLayer()
+    private let currentGradientLayer = CAGradientLayer()
+    private var hasAddedGradient = false
+    private var hasCurrentGradient = false
+
+    func applyCurrentGradient() {
+        guard !hasCurrentGradient else { return }
+
+        currentGradientLayer.type = .radial
+        currentGradientLayer.colors = [
+            UIColor(red: 0.00, green: 0.48, blue: 1.00, alpha: 1).cgColor,
+            UIColor(red: 0.10, green: 0.44, blue: 0.82, alpha: 1).cgColor,
+        ]
+        currentGradientLayer.locations = [0, 1]
+        currentGradientLayer.startPoint = CGPoint(x: 1.0, y: 0.26)
+        currentGradientLayer.endPoint = CGPoint(x: 0.0, y: 0.74)
+        currentGradientLayer.cornerRadius = 18
+        layer.insertSublayer(currentGradientLayer, at: 0)
+        hasCurrentGradient = true
+        setNeedsLayout()
+    }
+
+    func applyAddedGradient() {
+        guard !hasAddedGradient else { return }
+
+        addedGradientLayer.colors = [
+            UIColor(red: 0.78, green: 0.93, blue: 0.69, alpha: 1).cgColor,
+            UIColor(red: 0.55, green: 0.83, blue: 0.48, alpha: 1).cgColor,
+        ]
+        addedGradientLayer.startPoint = CGPoint(x: 0.0, y: 0.0)
+        addedGradientLayer.endPoint = CGPoint(x: 1.0, y: 1.0)
+        addedGradientLayer.cornerRadius = 18
+        layer.insertSublayer(addedGradientLayer, at: 0)
+        hasAddedGradient = true
+        setNeedsLayout()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        currentGradientLayer.frame = bounds
+        addedGradientLayer.frame = bounds
+    }
+}
+
 public class StoreSessionViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHandler, UIGestureRecognizerDelegate {
     var webView: WKWebView!
     var overlayView: UIView!
@@ -282,25 +327,27 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
     }
 
     private func applyAddedGradient(to cardView: UIView) {
-        let gradient = CAGradientLayer()
-        gradient.colors = [
-            UIColor(red: 0.78, green: 0.93, blue: 0.69, alpha: 1).cgColor,
-            UIColor(red: 0.55, green: 0.83, blue: 0.48, alpha: 1).cgColor,
-        ]
-        gradient.startPoint = CGPoint(x: 0.0, y: 0.0)
-        gradient.endPoint = CGPoint(x: 1.0, y: 1.0)
-        gradient.cornerRadius = 18
-        gradient.frame = cardView.bounds
-        cardView.layer.insertSublayer(gradient, at: 0)
+        (cardView as? AddedGradientCardView)?.applyAddedGradient()
+    }
+
+    private func applyCurrentGradient(to cardView: UIView) {
+        (cardView as? AddedGradientCardView)?.applyCurrentGradient()
+    }
+
+    private func quantityFontSize(for state: String) -> CGFloat {
+        if state == "inactive" || state == "added" {
+            return 12
+        }
+        return state == "current" ? 38 : 46
     }
 
     private func makeQuantityPill(text: String, state: String) -> UILabel {
         let quantityPill = UILabel()
         quantityPill.text = text
         quantityPill.textAlignment = .center
-        quantityPill.font = UIFont.systemFont(ofSize: 12, weight: .bold)
-        quantityPill.textColor = textColor(for: state)
-        quantityPill.backgroundColor = UIColor.white.withAlphaComponent(isAddedState(state) ? 0.58 : 0.72)
+        quantityPill.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        quantityPill.textColor = isAddedState(state) ? UIColor(red: 0.12, green: 0.65, blue: 0.19, alpha: 1) : textColor(for: state)
+        quantityPill.backgroundColor = isAddedState(state) ? UIColor.white : UIColor(red: 0.96, green: 0.94, blue: 0.90, alpha: 1)
         quantityPill.layer.cornerRadius = 12
         quantityPill.clipsToBounds = true
         quantityPill.translatesAutoresizingMaskIntoConstraints = false
@@ -326,7 +373,7 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
     }
 
     private func makeCard(_ card: StoreSessionOverlayCard, index: Int) -> UIView {
-        let cardView = UIView()
+        let cardView = AddedGradientCardView()
         cardView.isUserInteractionEnabled = true
         cardView.translatesAutoresizingMaskIntoConstraints = false
         cardView.layer.cornerRadius = 18
@@ -344,6 +391,8 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
 
         if isAddedState(card.state) {
             applyAddedGradient(to: cardView)
+        } else if isBlueCurrentState(card.state) {
+            applyCurrentGradient(to: cardView)
         }
 
         let titleLabel = UILabel()
@@ -358,7 +407,9 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         let quantityLabel = UILabel()
         quantityLabel.text = card.quantity
         quantityLabel.textAlignment = .center
-        quantityLabel.font = UIFont.systemFont(ofSize: card.state == "inactive" || card.state == "added" ? 12 : 46, weight: .bold)
+        quantityLabel.font = UIFont.systemFont(ofSize: quantityFontSize(for: card.state), weight: .bold)
+        quantityLabel.adjustsFontSizeToFitWidth = true
+        quantityLabel.minimumScaleFactor = 0.75
         quantityLabel.textColor = textColor(for: card.state)
         quantityLabel.translatesAutoresizingMaskIntoConstraints = false
 
@@ -409,8 +460,8 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         if let quantityPill = quantityPill {
             constraints.append(contentsOf: [
                 quantityPill.centerXAnchor.constraint(equalTo: cardView.centerXAnchor),
-                quantityPill.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 44),
-                quantityPill.widthAnchor.constraint(greaterThanOrEqualToConstant: 54),
+                quantityPill.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: card.state == "added" ? 48 : 44),
+                quantityPill.widthAnchor.constraint(equalToConstant: 54),
                 quantityPill.heightAnchor.constraint(equalToConstant: 24),
             ])
         } else {

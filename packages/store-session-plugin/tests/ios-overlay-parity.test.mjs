@@ -56,10 +56,31 @@ test("currentAdded uses a different title position than current", () => {
   assert.match(source, /"currentAdded" \? 29/);
 });
 
+test("current card uses the Figma blue radial gradient", () => {
+  assert.match(source, /private func applyCurrentGradient\(to cardView: UIView\)/);
+  assert.match(source, /currentGradientLayer\.type = \.radial/);
+  assert.match(source, /UIColor\(red:\s*0\.00,\s*green:\s*0\.48,\s*blue:\s*1\.00,\s*alpha:\s*1\)/);
+  assert.match(source, /UIColor\(red:\s*0\.10,\s*green:\s*0\.44,\s*blue:\s*0\.82,\s*alpha:\s*1\)/);
+});
+
+test("current card quantity font is smaller to fit the card width", () => {
+  assert.match(source, /private func quantityFontSize\(for state: String\) -> CGFloat/);
+  assert.match(source, /state == "current" \? 38 : 46/);
+  assert.match(source, /quantityLabel\.adjustsFontSizeToFitWidth = true/);
+  assert.match(source, /quantityLabel\.minimumScaleFactor = 0\.75/);
+});
+
 test("added cards use a green gradient layer", () => {
   assert.match(source, /private func applyAddedGradient\(to cardView: UIView\)/);
   assert.match(source, /CAGradientLayer\(\)/);
   assert.match(source, /UIColor\(red:\s*0\.78,\s*green:\s*0\.93,\s*blue:\s*0\.69,\s*alpha:\s*1\)/);
+});
+
+test("added card gradient frame updates after Auto Layout sizes the card", () => {
+  assert.match(source, /private final class AddedGradientCardView: UIView/);
+  assert.match(source, /override func layoutSubviews\(\)/);
+  assert.match(source, /addedGradientLayer\.frame = bounds/);
+  assert.doesNotMatch(source, /gradient\.frame = cardView\.bounds/);
 });
 
 test("cards do not render top marker circles", () => {
@@ -75,4 +96,13 @@ test("non-selected quantities render inside pill backgrounds", () => {
   assert.match(source, /private func makeQuantityPill\(text: String, state: String\) -> UILabel/);
   assert.match(source, /quantityPill\.layer\.cornerRadius = 12/);
   assert.match(source, /cardView\.addSubview\(quantityPill\)/);
+});
+
+test("added card quantity pill matches Figma color, type, size, and position", () => {
+  assert.match(source, /quantityPill\.font = UIFont\.systemFont\(ofSize:\s*12,\s*weight:\s*\.semibold\)/);
+  assert.match(source, /quantityPill\.textColor = isAddedState\(state\) \? UIColor\(red:\s*0\.12,\s*green:\s*0\.65,\s*blue:\s*0\.19,\s*alpha:\s*1\) : textColor\(for:\s*state\)/);
+  assert.match(source, /quantityPill\.backgroundColor = isAddedState\(state\) \? UIColor\.white : UIColor\(red:\s*0\.96,\s*green:\s*0\.94,\s*blue:\s*0\.90,\s*alpha:\s*1\)/);
+  assert.match(source, /quantityPill\.widthAnchor\.constraint\(equalToConstant:\s*54\)/);
+  assert.match(source, /quantityPill\.heightAnchor\.constraint\(equalToConstant:\s*24\)/);
+  assert.match(source, /quantityPill\.topAnchor\.constraint\(equalTo:\s*titleLabel\.bottomAnchor,\s*constant:\s*card\.state == "added" \? 48 : 44\)/);
 });
