@@ -513,6 +513,7 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
         case "nextCooldown":
             primaryTitle = "Next \(payload.cooldownSeconds ?? 0)s"
             progressView.isHidden = false
+            progressView.progress = 0
             progressView.setProgress(Float(payload.cooldownProgress ?? 0), animated: true)
             progressView.tintColor = UIColor.white.withAlphaComponent(0.9)
             progressView.trackTintColor = UIColor.white.withAlphaComponent(0.28)

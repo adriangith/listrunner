@@ -57,6 +57,10 @@ test("cooldown progress animates between native overlay updates", () => {
   assert.doesNotMatch(source, /progressView\.progress = Float\(payload\.cooldownProgress \?\? 0\)/);
 });
 
+test("cooldown resets progress bar before animating to prevent backward jog", () => {
+  assert.match(source, /isHidden = false[\s\S]*progressView\.progress = 0[\s\S]*progressView\.setProgress\(/);
+});
+
 test("currentAdded uses the Figma title and quantity positions", () => {
   assert.match(source, /"currentAdded" \? 39/);
   assert.match(source, /quantityLabel\.topAnchor\.constraint\(equalTo:\s*cardView\.topAnchor,\s*constant:\s*86\)/);
