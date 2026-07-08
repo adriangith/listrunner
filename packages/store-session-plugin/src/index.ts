@@ -24,6 +24,7 @@ export interface StoreSessionOverlayPayload {
   activeIndex: number;
   primaryAction: StoreSessionOverlayAction;
   secondaryAction: StoreSessionOverlayAction;
+  secondaryEnabled: boolean;
   cooldownSeconds: number | null;
   cooldownProgress: number | null;
 }
@@ -63,6 +64,7 @@ export interface StoreSessionPlugin {
   addListener(eventName: 'markAddedRequested', listenerFunc: () => void): Promise<any>;
   addListener(eventName: 'addAnotherRequested', listenerFunc: () => void): Promise<any>;
   addListener(eventName: 'undoRequested', listenerFunc: () => void): Promise<any>;
+  addListener(eventName: 'cardSelected', listenerFunc: (info: { index: number }) => void): Promise<any>;
   removeAllListeners(): Promise<void>;
 }
 

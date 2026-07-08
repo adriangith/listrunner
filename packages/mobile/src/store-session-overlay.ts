@@ -25,6 +25,7 @@ export interface StoreSessionOverlayPayload {
   activeIndex: number;
   primaryAction: StoreSessionOverlayAction;
   secondaryAction: StoreSessionOverlayAction;
+  secondaryEnabled: boolean;
   cooldownSeconds: number | null;
   cooldownProgress: number | null;
 }
@@ -54,9 +55,14 @@ export function buildStoreSessionOverlayPayload({
     activeIndex,
     primaryAction: isCooldown ? "nextCooldown" : "next",
     secondaryAction: isCooldown ? "undo" : "previous",
+    secondaryEnabled: isCooldown || canMovePrevious(state),
     cooldownSeconds: remaining === null ? null : Math.ceil(remaining / 1000),
     cooldownProgress: progress === null ? null : Math.max(0, Math.min(1, progress)),
   };
+}
+
+function canMovePrevious(state: WizardState): boolean {
+  return state.status === "stepping" && state.currentIndex > 0;
 }
 
 function cardFromItem(

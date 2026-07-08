@@ -72,6 +72,7 @@ export type WizardAction =
   | { type: "ADVANCE" }
   | { type: "SKIP" }
   | { type: "PREVIOUS" }
+  | { type: "SELECT_INDEX"; index: number }
   | { type: "ADD_ANOTHER" }
   | { type: "UNDO" }
   | { type: "COOLDOWN_COMPLETE" }

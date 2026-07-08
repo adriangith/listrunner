@@ -81,6 +81,7 @@ public class StoreSessionPlugin: CAPPlugin, CAPBridgedPlugin {
               let activeIndex = call.getInt("activeIndex"),
               let primaryAction = call.getString("primaryAction"),
               let secondaryAction = call.getString("secondaryAction"),
+              let secondaryEnabled = call.getBool("secondaryEnabled"),
               let rawCards = call.getArray("cards") as? [[String: Any]] else {
             call.reject("Invalid overlay payload")
             return
@@ -108,6 +109,7 @@ public class StoreSessionPlugin: CAPPlugin, CAPBridgedPlugin {
             activeIndex: activeIndex,
             primaryAction: primaryAction,
             secondaryAction: secondaryAction,
+            secondaryEnabled: secondaryEnabled,
             cooldownSeconds: call.getInt("cooldownSeconds"),
             cooldownProgress: call.getDouble("cooldownProgress"),
             itemName: itemName,

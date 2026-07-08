@@ -38,7 +38,7 @@ const history = new SelectionHistory();
 type ViewName = "input" | "review" | "wizard" | "done" | "pantry";
 type SimpleWizardAction = Exclude<
   WizardAction,
-  { type: "START" } | { type: "EDIT_SEARCH" }
+  { type: "START" } | { type: "EDIT_SEARCH" } | { type: "SELECT_INDEX" }
 >["type"];
 
 // DOM refs - Views
@@ -198,6 +198,7 @@ function init(): void {
   });
 
   StoreSession.addListener("previousRequested", () => {
+    if (!canMovePrevious()) return;
     sendAction("PREVIOUS");
   });
 
@@ -214,6 +215,8 @@ function init(): void {
   StoreSession.addListener("undoRequested", () => {
     sendAction("UNDO");
   });
+
+  StoreSession.addListener("cardSelected", handleNativeCardSelected);
 
   showView("input");
 }
@@ -360,6 +363,24 @@ function handleNativeNextRequested(): void {
     return;
   }
   sendAction("SKIP");
+}
+
+function canMovePrevious(): boolean {
+  return wizardState?.status === "stepping" && wizardState.currentIndex > 0;
+}
+
+function handleNativeCardSelected(info: { index: number }): void {
+  if (!wizardState) return;
+  if (wizardState.status !== "stepping" && wizardState.status !== "revisiting") return;
+  if (info.index < 0 || info.index >= wizardState.items.length) return;
+
+  wizardState = wizardReducer(wizardState, {
+    type: "SELECT_INDEX",
+    index: info.index,
+  });
+  stopCooldown();
+  navigateToActiveItem();
+  renderCurrentView();
 }
 
 function sendAction(action: SimpleWizardAction): void {

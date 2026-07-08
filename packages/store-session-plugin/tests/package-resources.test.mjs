@@ -8,8 +8,8 @@ const source = readFileSync(
   "utf8",
 );
 
-test("Package.swift declares a Resources copy rule", () => {
-  assert.match(source, /resources:\s*\[\s*\.copy\(\s*["']Resources["']\s*\)\s*\]/);
+test("Package.swift processes Resources for a signable SwiftPM resource bundle", () => {
+  assert.match(source, /resources:\s*\[\s*\.process\(\s*["']Resources["']\s*\)\s*\]/);
 });
 
 test("ListrunnerStoreSession target still has ios path", () => {

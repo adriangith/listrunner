@@ -9,8 +9,9 @@ const source = readFileSync(
 );
 
 test("loads cart-detection.js from Bundle.module", () => {
-  assert.match(source, /Bundle\.module\.url\s*\(\s*forResource:\s*["']cart-detection["']/);
-  assert.match(source, /subdirectory:\s*["']Resources["']/);
+  assert.match(source, /private func cartDetectionScriptURL\(\) -> URL\?/);
+  assert.match(source, /Bundle\.module\.url\s*\(\s*forResource:\s*["']cart-detection["']\s*,\s*withExtension:\s*["']js["']\s*\)/);
+  assert.match(source, /Bundle\.module\.url\s*\(\s*forResource:\s*["']cart-detection["']\s*,\s*withExtension:\s*["']js["']\s*,\s*subdirectory:\s*["']Resources["']\s*\)/);
 });
 
 test("registers a WKUserScript at document end", () => {

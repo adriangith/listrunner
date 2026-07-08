@@ -20,6 +20,6 @@ let package = Package(
                 .product(name: "Cordova", package: "capacitor-swift-pm")
             ],
             path: "ios",
-            resources: [.copy("Resources")])
+            resources: [.process("Resources")])
     ]
 )
