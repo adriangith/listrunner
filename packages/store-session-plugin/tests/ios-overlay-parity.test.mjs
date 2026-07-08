@@ -77,6 +77,9 @@ test("added cards use the Figma green radial gradient layer", () => {
   assert.match(source, /CAGradientLayer\(\)/);
   assert.match(source, /UIColor\(red:\s*0\.88,\s*green:\s*1\.00,\s*blue:\s*0\.93,\s*alpha:\s*1\)/);
   assert.match(source, /UIColor\(red:\s*0\.63,\s*green:\s*0\.91,\s*blue:\s*0\.74,\s*alpha:\s*1\)/);
+  assert.match(source, /addedGradientLayer\.locations = \[0, 1\]/);
+  assert.match(source, /addedGradientLayer\.startPoint = CGPoint\(x:\s*0\.37,\s*y:\s*0\.25\)/);
+  assert.match(source, /addedGradientLayer\.endPoint = CGPoint\(x:\s*0\.63,\s*y:\s*0\.75\)/);
 });
 
 test("added card gradient frame updates after Auto Layout sizes the card", () => {
@@ -91,8 +94,11 @@ test("cards do not render top marker circles", () => {
   assert.doesNotMatch(source, /dot\.layer\.cornerRadius/);
 });
 
-test("currentAdded label is aligned to the Figma left edge", () => {
+test("currentAdded label matches the Figma badge geometry", () => {
   assert.match(source, /addedLabel\.leadingAnchor\.constraint\(equalTo:\s*cardView\.leadingAnchor,\s*constant:\s*card\.state == "currentAdded" \? 0 : 8\)/);
+  assert.match(source, /addedLabel\.topAnchor\.constraint\(equalTo:\s*cardView\.topAnchor,\s*constant:\s*card\.state == "currentAdded" \? 11 : 9\)/);
+  assert.match(source, /addedLabel\.widthAnchor\.constraint\(equalToConstant:\s*card\.state == "currentAdded" \? 72 : 88\)/);
+  assert.match(source, /addedLabel\.heightAnchor\.constraint\(equalToConstant:\s*14\)/);
 });
 
 test("non-selected quantities render inside pill backgrounds", () => {
