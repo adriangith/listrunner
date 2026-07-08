@@ -52,8 +52,9 @@ test("cooldown shows progress view inside the primary button", () => {
   assert.match(source, /primaryButton\.addSubview\(progressView\)/);
 });
 
-test("currentAdded uses a different title position than current", () => {
-  assert.match(source, /"currentAdded" \? 29/);
+test("currentAdded uses the Figma title and quantity positions", () => {
+  assert.match(source, /"currentAdded" \? 39/);
+  assert.match(source, /quantityLabel\.topAnchor\.constraint\(equalTo:\s*cardView\.topAnchor,\s*constant:\s*86\)/);
 });
 
 test("current card uses the Figma blue radial gradient", () => {
@@ -70,10 +71,12 @@ test("current card quantity font is smaller to fit the card width", () => {
   assert.match(source, /quantityLabel\.minimumScaleFactor = 0\.75/);
 });
 
-test("added cards use a green gradient layer", () => {
+test("added cards use the Figma green radial gradient layer", () => {
   assert.match(source, /private func applyAddedGradient\(to cardView: UIView\)/);
+  assert.match(source, /addedGradientLayer\.type = \.radial/);
   assert.match(source, /CAGradientLayer\(\)/);
-  assert.match(source, /UIColor\(red:\s*0\.78,\s*green:\s*0\.93,\s*blue:\s*0\.69,\s*alpha:\s*1\)/);
+  assert.match(source, /UIColor\(red:\s*0\.88,\s*green:\s*1\.00,\s*blue:\s*0\.93,\s*alpha:\s*1\)/);
+  assert.match(source, /UIColor\(red:\s*0\.63,\s*green:\s*0\.91,\s*blue:\s*0\.74,\s*alpha:\s*1\)/);
 });
 
 test("added card gradient frame updates after Auto Layout sizes the card", () => {
@@ -88,8 +91,8 @@ test("cards do not render top marker circles", () => {
   assert.doesNotMatch(source, /dot\.layer\.cornerRadius/);
 });
 
-test("added label is shifted left for Figma parity", () => {
-  assert.match(source, /addedLabel\.leadingAnchor\.constraint\(equalTo:\s*cardView\.leadingAnchor,\s*constant:\s*8\)/);
+test("currentAdded label is aligned to the Figma left edge", () => {
+  assert.match(source, /addedLabel\.leadingAnchor\.constraint\(equalTo:\s*cardView\.leadingAnchor,\s*constant:\s*card\.state == "currentAdded" \? 0 : 8\)/);
 });
 
 test("non-selected quantities render inside pill backgrounds", () => {

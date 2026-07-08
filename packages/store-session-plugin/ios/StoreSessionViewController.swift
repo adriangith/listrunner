@@ -63,12 +63,14 @@ private final class AddedGradientCardView: UIView {
     func applyAddedGradient() {
         guard !hasAddedGradient else { return }
 
+        addedGradientLayer.type = .radial
         addedGradientLayer.colors = [
-            UIColor(red: 0.78, green: 0.93, blue: 0.69, alpha: 1).cgColor,
-            UIColor(red: 0.55, green: 0.83, blue: 0.48, alpha: 1).cgColor,
+            UIColor(red: 0.88, green: 1.00, blue: 0.93, alpha: 1).cgColor,
+            UIColor(red: 0.63, green: 0.91, blue: 0.74, alpha: 1).cgColor,
         ]
-        addedGradientLayer.startPoint = CGPoint(x: 0.0, y: 0.0)
-        addedGradientLayer.endPoint = CGPoint(x: 1.0, y: 1.0)
+        addedGradientLayer.locations = [0, 1]
+        addedGradientLayer.startPoint = CGPoint(x: 0.37, y: 0.25)
+        addedGradientLayer.endPoint = CGPoint(x: 0.63, y: 0.75)
         addedGradientLayer.cornerRadius = 18
         layer.insertSublayer(addedGradientLayer, at: 0)
         hasAddedGradient = true
@@ -427,7 +429,7 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
             let addedLabel = makeAddedStateLabel()
             cardView.addSubview(addedLabel)
             NSLayoutConstraint.activate([
-                addedLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 8),
+                addedLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: card.state == "currentAdded" ? 0 : 8),
                 addedLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: card.state == "currentAdded" ? 11 : 9),
                 addedLabel.widthAnchor.constraint(equalToConstant: card.state == "currentAdded" ? 72 : 88),
                 addedLabel.heightAnchor.constraint(equalToConstant: 14),
@@ -454,7 +456,7 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
             cardView.heightAnchor.constraint(equalToConstant: card.state == "current" || card.state == "currentAdded" ? 182 : card.state == "added" ? 166 : 177),
             titleLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: card.state == "added" ? 6 : 14),
             titleLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: card.state == "added" ? -6 : -14),
-            titleLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: card.state == "current" ? 22 : card.state == "currentAdded" ? 29 : card.state == "added" ? 27 : 31),
+            titleLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: card.state == "current" ? 22 : card.state == "currentAdded" ? 39 : card.state == "added" ? 27 : 31),
         ]
 
         if let quantityPill = quantityPill {
@@ -468,8 +470,12 @@ public class StoreSessionViewController: UIViewController, WKNavigationDelegate,
             constraints.append(contentsOf: [
                 quantityLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 14),
                 quantityLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -14),
-                quantityLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 4),
             ])
+            constraints.append(
+                card.state == "currentAdded"
+                    ? quantityLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 86)
+                    : quantityLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 4)
+            )
         }
 
         NSLayoutConstraint.activate(constraints)
