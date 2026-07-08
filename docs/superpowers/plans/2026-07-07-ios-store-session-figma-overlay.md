@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Native iOS implementation target is `packages/store-session-plugin/ios`, because `packages/mobile/ios/App/CapApp-SPM/Package.swift` points at `../../../../store-session-plugin`.
-- Do not implement the overlay in the old duplicated Swift files under `packages/mobile/src/plugins/store-session/ios` or `packages/mobile/ios/Plugins/StoreSession` unless a later sync process requires copying generated code.
+- The old duplicated Swift files under `packages/mobile/src/plugins/store-session/ios` and `packages/mobile/ios/Plugins/StoreSession` have been removed; keep native overlay work in `packages/store-session-plugin/ios`.
 - Preserve the WKWebView as full-screen website content.
 - The native overlay owns the store-session UI only; the mobile web wizard remains the app-side state source.
 - Bottom actions are navigation/recovery: before add uses Previous/Next, cooldown uses Undo/Next countdown.

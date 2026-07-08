@@ -16,7 +16,7 @@
 - Do not change parser behavior, wizard state transitions, cart detection, or browser automation behavior.
 - Keep implementation UIKit-only; do not introduce SwiftUI.
 - Do not add new package dependencies.
-- Do not edit the old duplicated Swift plugin copies under `packages/mobile/src/plugins/store-session/ios` or `packages/mobile/ios/Plugins/StoreSession`.
+- The old duplicated Swift plugin copies under `packages/mobile/src/plugins/store-session/ios` and `packages/mobile/ios/Plugins/StoreSession` have been removed; keep native overlay work in `packages/store-session-plugin/ios`.
 
 ---
 

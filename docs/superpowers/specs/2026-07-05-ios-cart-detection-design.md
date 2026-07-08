@@ -125,7 +125,7 @@ Add `resources: [.copy("Resources")]` to the `ListrunnerStoreSession` target in 
 
 - `packages/extension/src/content/content-script.ts` — desktop source being ported (lines 118–130, 209–298).
 - `packages/extension/src/store-configs/coles-au.ts` — selector source of truth.
-- `packages/store-session-plugin/ios/StoreSessionViewController.swift` — Swift integration point (the `src/plugins/store-session/ios/` and `ios/Plugins/StoreSession/` copies are not compiled by the SPM build).
+- `packages/store-session-plugin/ios/StoreSessionViewController.swift` — Swift integration point; the old duplicate plugin copies under `packages/mobile` have been removed.
 - `packages/store-session-plugin/Package.swift` — needs `resources` declaration.
 - `packages/store-session-plugin/tests/ios-view-loading.test.mjs` — existing source-level test pattern to mirror.
 - `packages/mobile/src/main.ts` — already correctly routes `addToCartDetected` → `handleAdded` → `sendAction("ADVANCE")`. No changes.
