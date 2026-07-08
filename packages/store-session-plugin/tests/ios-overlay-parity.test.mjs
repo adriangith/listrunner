@@ -52,6 +52,11 @@ test("cooldown shows progress view inside the primary button", () => {
   assert.match(source, /primaryButton\.addSubview\(progressView\)/);
 });
 
+test("cooldown progress animates between native overlay updates", () => {
+  assert.match(source, /progressView\.setProgress\(Float\(payload\.cooldownProgress \?\? 0\),\s*animated:\s*true\)/);
+  assert.doesNotMatch(source, /progressView\.progress = Float\(payload\.cooldownProgress \?\? 0\)/);
+});
+
 test("currentAdded uses the Figma title and quantity positions", () => {
   assert.match(source, /"currentAdded" \? 39/);
   assert.match(source, /quantityLabel\.topAnchor\.constraint\(equalTo:\s*cardView\.topAnchor,\s*constant:\s*86\)/);
