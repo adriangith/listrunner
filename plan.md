@@ -55,7 +55,7 @@ The MVP is an app that imports or accepts a grocery list, uses Coles as the only
 * Ability to skip to a specific item by clicking on the item's card.
 * If at least one `Pending` item remains after an item is added to the cart, a three-second cooldown starts, allowing the user to undo adding to cart if they added the wrong item or need to add multiple of the same item. If supported, the undo function will reverse the adding of the item to the store cart. Undo always rolls back ListRunner’s state; store cart rollback is best-effort only. No cooldown starts after the final pending item is handled.
 * Another automatic add while cooldown is active restarts the cooldown when pending items remain, replaces the transient `Undo` target with the item's current `Added` state, and leaves the item `Added`. Therefore, `Undo` after a later add reverses only the latest add on a best-effort basis and leaves the ListRunner item `Added`.
-* A detected removal cancels any active cooldown. If the resulting Coles quantity remains above zero, the item stays `Added`; if the resulting quantity is zero, the item returns to `Pending`.
+* A detected removal is treated as the newest cart event and cancels any active cooldown, discarding the stale `Undo` target. If the resulting Coles quantity remains above zero, the item stays `Added`; if the resulting quantity is zero, the item returns to `Pending`.
 * Selecting another item during cooldown cancels the cooldown, keeps the previously selected item in `Added` status, and immediately searches the newly selected item.
 * Clicking a next button to skip the cooldown.
 * Marking items as added manually, particularly useful when automation is not available or not working correctly.
