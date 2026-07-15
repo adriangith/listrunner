@@ -20,6 +20,7 @@ The MVP is an app that imports or accepts a grocery list, uses Coles as the only
 * Apple Reminders integration uses the native EventKit framework.
 * Lists, item state, search terms, source identifiers, and last-active dates are persisted locally with SwiftData.
 * A UI-independent native shopping-run state engine owns item status transitions, selected-item history, cooldown decisions, progression, completion, and undo restoration. SwiftUI views and the store-automation bridge send events into this engine rather than changing run state directly.
+* The state engine processes shopping-run events serially in arrival order. Each cooldown receives a unique generation token; cancelling, completing, or replacing a cooldown invalidates its token, and callbacks carrying an invalid token are ignored.
 * The state engine produces updated state and explicit side-effect requests, such as searching the store or updating a linked reminder. Platform services execute those effects so progression rules can be tested without SwiftUI, `WKWebView`, SwiftData, or EventKit.
 
 #### Accessibility
@@ -120,7 +121,7 @@ The in-app Coles browser uses persistent website storage so Coles cookies, login
 
 ### Testing
 * Parser unit tests cover separators, quantity formats, best-effort fallback, sentence-case presentation, acronym formatting, duplicate normalization, quantity merging, incompatible units, and blank input.
-* State-engine unit tests cover every status/action combination, cooldown timing with a controllable clock, final-item behavior, undo restoration, automatic progression, selection history, deletion fallback, completion, and manual-mode scope.
+* State-engine unit tests cover every status/action combination, cooldown timing with a controllable clock, invalidated cooldown callbacks, simultaneous event ordering, final-item behavior, undo restoration, automatic progression, selection history, deletion fallback, completion, and manual-mode scope.
 * SwiftData tests use an in-memory store to cover persistence, same-day overlay restoration, later-day list routing, date-comparison-before-update ordering, editing, deletion, clearing, and transient-state exclusion.
 * Store-config tests decode and validate every bundled JSON configuration.
 * Bridge tests validate accepted automation event payloads and reject malformed or unsupported events.
