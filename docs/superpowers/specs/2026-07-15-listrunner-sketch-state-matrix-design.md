@@ -6,7 +6,7 @@ Create a high-fidelity Sketch prototype for reviewing ListRunner's launch-routin
 
 ## Prototype Scope
 
-The prototype uses one Sketch page containing nine 390x844 iPhone frames arranged as a labeled state matrix. It is an exploratory visual review artifact for evaluating behavioral questions and design decisions, not an implementation handoff or a complete wired prototype.
+The prototype uses one Sketch page containing eleven 390x844 iPhone frames arranged as a labeled state matrix. It is an exploratory visual review artifact for evaluating behavioral questions and design decisions, not an implementation handoff or a complete wired prototype.
 
 ### Launch Routing
 
@@ -26,6 +26,11 @@ The prototype uses one Sketch page containing nine 390x844 iPhone frames arrange
 
 - List editing: show an item name and quantity edit state with `Save`, a per-row `Delete` action, and an `Add item` field with an `Add` button.
 
+### Paprika Import
+
+- Import entry: show the empty-list state with `Import from Paprika Reminders`, the permission timing note, and a paste-list alternative.
+- Imported list: show source attribution to Paprika, imported quantities, editable rows, delete controls, and the normal `Add item` and `Show Store` actions.
+
 ## Visual Direction
 
 - Use adaptive light-interface styling for ListRunner-owned surfaces.
@@ -40,5 +45,6 @@ The prototype uses one Sketch page containing nine 390x844 iPhone frames arrange
 - Shopping states make status, available actions, cooldown, quantity change, and warning behavior visually unambiguous.
 - `Show Store` remains visibly available in the completed non-empty state.
 - List management makes editing, deleting, and adding items visible without relying on hidden interactions.
+- Paprika import makes the entry action, permission timing, source attribution, and imported-list result visible.
 - The matrix can be reviewed side by side without relying on hidden interactions.
 - Each frame makes open behavioral questions easy to discuss and compare before the written specification is finalized.
