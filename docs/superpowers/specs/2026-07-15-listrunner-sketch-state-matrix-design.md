@@ -6,7 +6,7 @@ Create a high-fidelity Sketch prototype for reviewing ListRunner's launch-routin
 
 ## Prototype Scope
 
-The prototype uses one Sketch page containing eight 390x844 iPhone frames arranged as a labeled state matrix. It is an exploratory visual review artifact for evaluating behavioral questions and design decisions, not an implementation handoff or a complete wired prototype.
+The prototype uses one Sketch page containing nine 390x844 iPhone frames arranged as a labeled state matrix. It is an exploratory visual review artifact for evaluating behavioral questions and design decisions, not an implementation handoff or a complete wired prototype.
 
 ### Launch Routing
 
@@ -22,6 +22,10 @@ The prototype uses one Sketch page containing eight 390x844 iPhone frames arrang
 - Removal warning: show the inline `Could not undo store cart change` banner with a dismiss control.
 - Completion summary: show `All items handled` while keeping `Show Store` available for a non-empty list.
 
+### List Management
+
+- List editing: show an item name and quantity edit state with `Save`, a per-row `Delete` action, and an `Add item` field with an `Add` button.
+
 ## Visual Direction
 
 - Use adaptive light-interface styling for ListRunner-owned surfaces.
@@ -35,5 +39,6 @@ The prototype uses one Sketch page containing eight 390x844 iPhone frames arrang
 - The launch states clearly distinguish same-day pending restore from completed and later-day summary routing.
 - Shopping states make status, available actions, cooldown, quantity change, and warning behavior visually unambiguous.
 - `Show Store` remains visibly available in the completed non-empty state.
+- List management makes editing, deleting, and adding items visible without relying on hidden interactions.
 - The matrix can be reviewed side by side without relying on hidden interactions.
 - Each frame makes open behavioral questions easy to discuss and compare before the written specification is finalized.
