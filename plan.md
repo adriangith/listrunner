@@ -16,7 +16,7 @@ The MVP is an app that imports or accepts a grocery list, uses Coles as the only
 * A generic store-automation engine and its JavaScript are bundled with the app. The engine reads bundled store configuration files and passes detected events to the native app through the `WKWebView` message bridge.
 * The MVP bundles one store configuration for Coles. Automation scripts are injected only into domains allowed by the active store configuration. Links to other domains open in Safari and do not receive ListRunner automation scripts.
 * Store automation and configuration files are not downloaded remotely in the MVP.
-* An automation session is scoped to one store. It has a unique session ID, consecutive-failure count, and session-level manual-mode state. In the MVP, the single Coles session begins when the app initializes store automation and ends on app termination or `Reset Coles Session`. It persists through web-view dismissal, navigation, and Coles sign-in/sign-out. Starting a new session resets its failure count and manual-mode state.
+* An automation session is scoped to one store. It has a unique session ID, consecutive failed-item-interaction count, and session-level manual-mode state. In the MVP, the single Coles session begins when the app initializes store automation and ends on app termination or `Reset Coles Session`. It persists through web-view dismissal, navigation, and Coles sign-in/sign-out. Starting a new session resets its failed-item count and manual-mode state.
 * Apple Reminders integration uses the native EventKit framework.
 * Lists, item state, search terms, source identifiers, and last-active dates are persisted locally with SwiftData.
 * A UI-independent native shopping-run state engine owns item status transitions, selected-item history, cooldown decisions, progression, completion, and undo restoration. SwiftUI views and the store-automation bridge send events into this engine rather than changing run state directly.
@@ -169,14 +169,14 @@ If automation is not available, user can still move through items manually and M
 The user's Coles login state does not determine whether ListRunner enters manual mode. Automation continues while the store page permits the required search and cart actions.
 
 #### Manual mode scope
-* Item-level manual mode applies when one search or cart confirmation fails. It affects only the current item, and ListRunner attempts automation again when another item is selected.
-* Two consecutive item-level automation failures without an intervening successful automated operation switch ListRunner to session-level manual mode. A successful automated operation resets the consecutive-failure count.
+* Item-level manual mode applies when search or cart confirmation fails for the current item interaction. Multiple automation failures while handling the same selected item count as one failed item interaction. Item-level manual mode affects only that item interaction, and ListRunner attempts automation again when another item is selected.
+* When the user leaves an item interaction that required manual fallback, the session's consecutive failed-item count increments once. Completing an item interaction with automatic search and confirmed cart detection resets the count to zero. Two failed item interactions in succession switch ListRunner to session-level manual mode; an isolated successful bridge event within an otherwise failed interaction does not reset the count.
 * A store configuration that fails to load enters session-level manual mode immediately. Automation remains disabled for the rest of that store's session.
 * Dismissing and reopening the web view does not end the store session or clear session-level manual mode.
 
 #### Possible failure cases
 * Store automation unavailable
-  * If automation reaches the two-consecutive-failure threshold or the active store configuration fails to load, ListRunner enters session-level manual mode. In overlay view, the user will see an icon that triggers a tooltip explaining that automation is unavailable and that they can still proceed manually with the overlay buttons.
+  * If automation reaches the two-consecutive-failed-item threshold or the active store configuration fails to load, ListRunner enters session-level manual mode. In overlay view, the user will see an icon that triggers a tooltip explaining that automation is unavailable and that they can still proceed manually with the overlay buttons.
 * Search is not loading
   * ListRunner waits up to ten seconds for the Coles results page to become recognizable after starting automatic search. If it does not, the item remains `Pending` and enters item-level manual mode. The overlay shows the manual-mode badge with a tooltip explaining that automatic search is unavailable. The user can search with the Coles search bar, use `Mark Added` after finding the item, or press `Skip`. ListRunner attempts automation again when another item is selected.
 * Add-to-cart cannot be detected
