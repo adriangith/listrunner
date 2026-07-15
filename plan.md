@@ -310,6 +310,8 @@ The selected card action and right-hand navigation control are determined by the
 
 When no `Pending` items remain, `All items handled` replaces the right-hand control regardless of the selected item's status.
 
+- The selected card displays the status label `Added` for an `Added` item and `Skipped` for a `Skipped` item. A `Pending` card does not display a `Pending` label; its pending state is conveyed by the available actions and surrounding context.
+
 - Before an add starts cooldown, ListRunner temporarily records the item's current status for `Undo`. This pre-action status is transient and is discarded when cooldown ends or is cancelled. If another automatic add arrives during cooldown, the current `Added` status replaces the previous undo target so `Undo` applies to the latest add without returning the item to `Pending` or `Skipped`.
 - Selecting `Mark Added` on a skipped item records `Skipped` as the pre-action status, changes the item to `Added`, and starts cooldown only if at least one `Pending` item remains.
 - Manual `Mark Added` behaves like automatic add detection: it records the current status, changes the item to `Added`, and starts cooldown only if at least one `Pending` item remains.
