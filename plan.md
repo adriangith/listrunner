@@ -67,7 +67,7 @@ The MVP is an app that imports or accepts a grocery list, uses Coles as the only
 
 ###### On supported grocery sites -
 * Automatic search triggering and item progression when items are added to cart.
-* Detect adding items to store cart via store's add item button, typing a quantity in the store numerical add-to-cart field, or the store's add additional item button (typically depicted with a plus icon) to automatically progress to the next item.
+* Observe interaction with the store's add item button, store numerical add-to-cart field, or store add-additional-item button (typically depicted with a plus icon) as a candidate add. The interaction alone is not confirmation; ListRunner automatically progresses only after a confirmed cart quantity change or other supported cart signal.
 * Detect removing an item via the store's remove button, typically depicted with a minus icon, or by typing a quantity of 0. When the resulting quantity reaches zero, the Coles product control returns to its red `Add` state, and ListRunner returns the item to `Pending`.
 
 #### Paprika Import
@@ -225,7 +225,7 @@ Each store configuration defines:
 The MVP automation engine supports these named strategies:
 - URL-template search, which percent-encodes the selected item's search term into a configured URL.
 - Selector-based add detection, which recognizes interaction with configured add buttons or quantity inputs.
-- Quantity-value observation, which watches configured quantity controls and classifies the resulting value as an add, remaining-added quantity, or removal to zero.
+- Quantity-value observation, which watches configured quantity controls and classifies a stable committed value as an add, remaining-added quantity, or removal to zero. The initial observed value establishes a baseline without emitting an event, repeated reports of the same resulting value are ignored, and one physical cart change produces at most one ListRunner transition.
 
 Injected JavaScript communicates with native Swift through versioned JSON bridge messages. Each message contains:
 - Message schema version.
