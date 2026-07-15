@@ -2,11 +2,11 @@
 
 ## Goal
 
-Create a high-fidelity Sketch prototype for reviewing ListRunner's launch-routing and shopping-run states before native implementation.
+Create a high-fidelity Sketch prototype for reviewing ListRunner's launch-routing and shopping-run states while refining the design specification.
 
 ## Prototype Scope
 
-The prototype uses one Sketch page containing eight 390x844 iPhone frames arranged as a labeled state matrix. It is a visual review artifact, not a complete wired prototype.
+The prototype uses one Sketch page containing eight 390x844 iPhone frames arranged as a labeled state matrix. It is an exploratory visual review artifact for evaluating behavioral questions and design decisions, not an implementation handoff or a complete wired prototype.
 
 ### Launch Routing
 
@@ -36,3 +36,4 @@ The prototype uses one Sketch page containing eight 390x844 iPhone frames arrang
 - Shopping states make status, available actions, cooldown, quantity change, and warning behavior visually unambiguous.
 - `Show Store` remains visibly available in the completed non-empty state.
 - The matrix can be reviewed side by side without relying on hidden interactions.
+- Each frame makes open behavioral questions easy to discuss and compare before the written specification is finalized.
