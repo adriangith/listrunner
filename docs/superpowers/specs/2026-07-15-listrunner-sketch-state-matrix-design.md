@@ -30,6 +30,7 @@ The prototype uses one Sketch page containing eleven 390x844 iPhone frames arran
 
 - Import entry: show the empty-list state with `Import from Paprika Reminders`, the permission timing note, and a paste-list alternative.
 - Imported list: show source attribution to Paprika, imported quantities, editable rows, delete controls, and the normal `Add item` and `Show Store` actions.
+- Non-empty list surfaces: keep `Import from Paprika` available alongside `Add item` on summary and list-editing screens.
 
 ## Visual Direction
 
@@ -46,5 +47,6 @@ The prototype uses one Sketch page containing eleven 390x844 iPhone frames arran
 - `Show Store` remains visibly available in the completed non-empty state.
 - List management makes editing, deleting, and adding items visible without relying on hidden interactions.
 - Paprika import makes the entry action, permission timing, source attribution, and imported-list result visible.
+- Non-empty list screens keep Paprika import visible rather than limiting it to the empty-list state.
 - The matrix can be reviewed side by side without relying on hidden interactions.
 - Each frame makes open behavioral questions easy to discuss and compare before the written specification is finalized.
