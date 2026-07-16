@@ -73,6 +73,7 @@ The MVP is an app that imports or accepts a grocery list, uses Coles as the only
 
 #### Paprika Import
 ListRunner requests Apple Reminders permission only when the user first selects the Paprika import action, not on app launch.
+After the user selects import, the action is disabled and displays `Importing…` until that attempt finishes; repeated taps do not start additional imports. On completion or failure, the normal import action becomes available again.
 ListRunner matches the Reminders list name exactly and case-sensitively as `Paprika`. If more than one accessible list has that exact name, ListRunner imports nothing, shows `Multiple Paprika lists found`, and leaves the current ListRunner list unchanged.
 Each incomplete reminder title is processed through the same item-name and quantity parser used for typed input. Blank titles and titles containing only bullet characters or whitespace are ignored. Reminder notes do not affect the imported item.
 An imported Paprika reminder is checked when its ListRunner status changes to `Added` after manual `Mark Added` or automatic add detection. The reminder is unchecked when its ListRunner status changes to `Pending` or `Skipped`, including when `Undo`, editing, merging, or detected cart removal causes that transition.
@@ -186,7 +187,9 @@ The user's Coles login state does not determine whether ListRunner enters manual
   * ListRunner cannot know with certainty that add-to-cart detection has failed. If a likely add-to-cart interaction does not produce a confirmable cart signal within three seconds, the current item enters item-level manual mode.
   * In overlay view, the user will see a manual-mode or unconfirmed badge explaining that ListRunner could not confirm the cart change. The user can still add the product on the store website and tap `Mark Added` in the overlay. Manual marking updates the ListRunner item status and triggers cooldown only if another pending item remains, but does not modify the store cart. ListRunner attempts automation again when another item is selected.
 * Reminders permission denied.
-  * Paprika import is disabled and the user is told that ListRunner cannot access Apple Reminders. The message does not include an `Open Settings` action. Typed, pasted, and manually added grocery lists remain fully available.
+  * ListRunner shows `Could not access Paprika reminders` and leaves the current list unchanged. The message does not include an `Open Settings` action. The import action becomes available again so access can be retried after the user changes permission externally. Typed, pasted, and manually added grocery lists remain fully available.
+* Reminders access restricted, revoked, or read failed.
+  * ListRunner shows `Could not access Paprika reminders`, leaves the current list unchanged, and makes the import action available again. The failure does not block typed, pasted, or manually added grocery lists.
 * Paprika list not found.
   * ListRunner shows `Paprika list not found` and leaves the current ListRunner list unchanged.
 * Multiple Paprika lists found.
