@@ -6,7 +6,7 @@ Create a high-fidelity Sketch prototype for reviewing ListRunner's launch-routin
 
 ## Prototype Scope
 
-The prototype uses one Sketch page containing eleven 390x844 iPhone frames arranged as a labeled state matrix. It is an exploratory visual review artifact for evaluating behavioral questions and design decisions, not an implementation handoff or a complete wired prototype.
+The prototype uses one Sketch page containing twelve 390x844 iPhone frames arranged as a labeled state matrix. It is an exploratory visual review artifact for evaluating behavioral questions and design decisions, not an implementation handoff or a complete wired prototype.
 
 ### Launch Routing
 
@@ -32,6 +32,10 @@ The prototype uses one Sketch page containing eleven 390x844 iPhone frames arran
 - Imported list: show source attribution to Paprika, imported quantities, editable rows, delete controls, and the normal `Add item` and `Show Store` actions.
 - Non-empty list surfaces: keep `Import from Paprika` available alongside `Add item` on summary and list-editing screens.
 
+### Store Failure
+
+- Store load error: show the preserved Coles context behind a native error panel with `Retry` and `Return to List` for offline, navigation, or web-process failure review.
+
 ## Visual Direction
 
 - Use adaptive light-interface styling for ListRunner-owned surfaces.
@@ -48,5 +52,6 @@ The prototype uses one Sketch page containing eleven 390x844 iPhone frames arran
 - List management makes editing, deleting, and adding items visible without relying on hidden interactions.
 - Paprika import makes the entry action, permission timing, source attribution, and imported-list result visible.
 - Non-empty list screens keep Paprika import visible rather than limiting it to the empty-list state.
+- Store failure preserves recognizable shopping context while making recovery and return-to-list actions explicit.
 - The matrix can be reviewed side by side without relying on hidden interactions.
 - Each frame makes open behavioral questions easy to discuss and compare before the written specification is finalized.
