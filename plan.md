@@ -73,6 +73,7 @@ The MVP is an app that imports or accepts a grocery list, uses Coles as the only
 
 #### Paprika Import
 ListRunner requests Apple Reminders permission only when the user first selects the Paprika import action, not on app launch.
+ListRunner matches the Reminders list name exactly and case-sensitively as `Paprika`. If more than one accessible list has that exact name, ListRunner imports nothing, shows `Multiple Paprika lists found`, and leaves the current ListRunner list unchanged.
 Each incomplete reminder title is processed through the same item-name and quantity parser used for typed input. Blank titles and titles containing only bullet characters or whitespace are ignored. Reminder notes do not affect the imported item.
 An imported Paprika reminder is checked when its ListRunner status changes to `Added` after manual `Mark Added` or automatic add detection. The reminder is unchecked when its ListRunner status changes to `Pending` or `Skipped`, including when `Undo`, editing, merging, or detected cart removal causes that transition.
 When Paprika is imported into an existing ListRunner list, incomplete reminders whose reminder IDs are already present in the list are ignored. Newly created reminders are imported as new `Pending` items and appended to the end of the ListRunner list in Apple Reminders order.
@@ -188,6 +189,8 @@ The user's Coles login state does not determine whether ListRunner enters manual
   * Paprika import is disabled and the user is told that ListRunner cannot access Apple Reminders. The message does not include an `Open Settings` action. Typed, pasted, and manually added grocery lists remain fully available.
 * Paprika list not found.
   * ListRunner shows `Paprika list not found` and leaves the current ListRunner list unchanged.
+* Multiple Paprika lists found.
+  * If more than one accessible Reminders list is named exactly `Paprika`, ListRunner shows `Multiple Paprika lists found` and leaves the current ListRunner list unchanged.
 * No new Paprika items.
   * If the Paprika list contains no new incomplete reminder IDs to import, ListRunner shows `No new Paprika items` and leaves the current ListRunner list unchanged.
 * Reminder writeback fails.
