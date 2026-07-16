@@ -6,7 +6,7 @@ Create a high-fidelity Sketch prototype for reviewing ListRunner's launch-routin
 
 ## Prototype Scope
 
-The prototype uses one Sketch page containing twelve 390x844 iPhone frames arranged as a labeled state matrix. It is an exploratory visual review artifact for evaluating behavioral questions and design decisions, not an implementation handoff or a complete wired prototype.
+The prototype uses one Sketch page containing thirteen 390x844 iPhone frames arranged as a labeled state matrix. It is an exploratory visual review artifact for evaluating behavioral questions and design decisions, not an implementation handoff or a complete wired prototype.
 
 ### Launch Routing
 
@@ -36,6 +36,10 @@ The prototype uses one Sketch page containing twelve 390x844 iPhone frames arran
 
 - Store load error: show the preserved Coles context behind a native error panel with `Retry` and `Return to List` for offline, navigation, or web-process failure review.
 
+### Settings And Privacy
+
+- Settings: show `Reset Coles Session`, seven-day on-device diagnostic retention, prohibited diagnostic content, and `Clear Diagnostics` with preservation-boundary copy.
+
 ### Overlay Collapse Prototype
 
 - A separate Sketch prototype page compares expanded and collapsed overlay states.
@@ -59,6 +63,7 @@ The prototype uses one Sketch page containing twelve 390x844 iPhone frames arran
 - Paprika import makes the entry action, permission timing, source attribution, and imported-list result visible.
 - Non-empty list screens keep Paprika import visible rather than limiting it to the empty-list state.
 - Store failure preserves recognizable shopping context while making recovery and return-to-list actions explicit.
+- Settings makes Coles-session reset and diagnostics deletion distinct, while explaining that clearing diagnostics does not change the list or Coles session.
 - The collapse prototype makes the gesture zones and amount of recovered Coles screen space reviewable before the behavior is added to the build specification.
 - The matrix can be reviewed side by side without relying on hidden interactions.
 - Each frame makes open behavioral questions easy to discuss and compare before the written specification is finalized.
