@@ -36,6 +36,12 @@ The prototype uses one Sketch page containing twelve 390x844 iPhone frames arran
 
 - Store load error: show the preserved Coles context behind a native error panel with `Retry` and `Return to List` for offline, navigation, or web-process failure review.
 
+### Overlay Collapse Prototype
+
+- A separate Sketch prototype page compares expanded and collapsed overlay states.
+- The expanded card includes a drag handle; the collapsed state becomes a compact bottom bar showing the selected item and an expand affordance while exposing the Coles page.
+- Sketch tap hotspots simulate pull-down collapse and pull-up expansion because Sketch does not support drag-trigger prototype flows.
+
 ## Visual Direction
 
 - Use adaptive light-interface styling for ListRunner-owned surfaces.
@@ -53,5 +59,6 @@ The prototype uses one Sketch page containing twelve 390x844 iPhone frames arran
 - Paprika import makes the entry action, permission timing, source attribution, and imported-list result visible.
 - Non-empty list screens keep Paprika import visible rather than limiting it to the empty-list state.
 - Store failure preserves recognizable shopping context while making recovery and return-to-list actions explicit.
+- The collapse prototype makes the gesture zones and amount of recovered Coles screen space reviewable before the behavior is added to the build specification.
 - The matrix can be reviewed side by side without relying on hidden interactions.
 - Each frame makes open behavioral questions easy to discuss and compare before the written specification is finalized.
