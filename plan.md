@@ -71,7 +71,7 @@ The MVP is an app that imports or accepts a grocery list, uses Coles as the only
 ###### On supported grocery sites -
 * Automatic search triggering and item progression when items are added to cart.
 * Observe direct user interaction with the store's add item button, store numerical add-to-cart field, or store add-additional-item button (typically depicted with a plus icon) as a candidate add for the currently selected ListRunner item. The user may manually refine the Coles search or navigate within Coles without editing the ListRunner item or breaking that association. The interaction alone is not confirmation; ListRunner automatically progresses only after a matching confirmed cart quantity change or other supported cart signal within three seconds.
-* Observe direct user interaction with the store's remove button, typically depicted with a minus icon, or store quantity field as a candidate removal. A matching stable quantity decrease confirms the removal. When the resulting quantity reaches zero, the Coles product control returns to its red `Add` state, and ListRunner returns the item to `Pending`.
+* Observe direct user interaction with the store's remove button, typically depicted with a minus icon, or store quantity field as a candidate removal. A matching stable quantity decrease confirms the removal. When one product's resulting quantity reaches zero, that Coles product control returns to its red `Add` state. ListRunner returns the selected item to `Pending` only when every store product associated with that item has a confirmed quantity of zero; otherwise the item remains `Added`.
 
 #### Paprika Import
 ListRunner requests Apple Reminders permission only when the user first selects the Paprika import action, not on app launch.
