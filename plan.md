@@ -62,7 +62,7 @@ The MVP is an app that imports or accepts a grocery list, uses Coles as the only
 * Clicking a next button to skip the cooldown.
 * Marking items as added manually, particularly useful when automation is not available or not working correctly.
 * Skipping items
-* Ability to import from Reminders on Apple systems from a list called 'Paprika'. Paprika exports grocery lists to Apple Reminders. ListRunner reads a Reminders list named Paprika and imports incomplete reminder items as grocery list items.
+* Ability to import from Reminders on Apple systems from a list called `Paprika`. Paprika exports grocery lists to Apple Reminders. ListRunner reads incomplete reminders from that list and imports each reminder title as grocery-list input. Reminder notes and other fields are ignored.
 * Items that do not have any specified quantity will display as a quantity of '1' in the overlay without any quantity unit.
 * Item quantity is display guidance only. ListRunner does not automatically set or enforce the quantity in the Coles cart.
 
@@ -73,6 +73,7 @@ The MVP is an app that imports or accepts a grocery list, uses Coles as the only
 
 #### Paprika Import
 ListRunner requests Apple Reminders permission only when the user first selects the Paprika import action, not on app launch.
+Each incomplete reminder title is processed through the same item-name and quantity parser used for typed input. Blank titles and titles containing only bullet characters or whitespace are ignored. Reminder notes do not affect the imported item.
 An imported Paprika reminder is checked when its ListRunner status changes to `Added` after manual `Mark Added` or automatic add detection. The reminder is unchecked when its ListRunner status changes to `Pending` or `Skipped`, including when `Undo`, editing, merging, or detected cart removal causes that transition.
 When Paprika is imported into an existing ListRunner list, incomplete reminders whose reminder IDs are already present in the list are ignored. Newly created reminders are imported as new `Pending` items and appended to the end of the ListRunner list in Apple Reminders order.
 Successful imports update the visible ListRunner list without showing a separate success message.
@@ -121,7 +122,7 @@ The in-app Coles browser uses persistent website storage so Coles cookies, login
 * Relaunching on the same local calendar day with `Pending` items restores the persisted list, statuses, edits, Coles web view, and last overlay-selected item. Relaunching on the same day with a completed list, or on a later day, preserves the same run but opens the list/summary screen first. The saved date is compared before it is updated, and today is saved only after the launch destination has been chosen. Cooldown, `Back` history, manual-mode state, and unconfirmed warnings are not restored, while the independent Coles website session remains persistent.
 
 ### Testing
-* Parser unit tests cover separators, quantity formats, best-effort fallback, sentence-case presentation, acronym formatting, duplicate normalization, quantity merging, incompatible units, and blank input.
+* Parser unit tests cover separators, quantity formats, best-effort fallback, sentence-case presentation, acronym formatting, duplicate normalization, quantity merging, incompatible units, blank input, and Paprika reminder-title parsing.
 * State-engine unit tests cover every status/action combination, cooldown timing with a controllable clock, invalidated cooldown callbacks, simultaneous event ordering, final-item behavior, undo restoration, automatic progression, selection history, deletion fallback, completion, and manual-mode scope.
 * SwiftData tests use an in-memory store to cover persistence, same-day overlay restoration, later-day list routing, date-comparison-before-update ordering, editing, deletion, clearing, and transient-state exclusion.
 * Store-config tests decode and validate every bundled JSON configuration.
