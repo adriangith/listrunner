@@ -98,6 +98,7 @@ The in-app Coles browser uses persistent website storage so Coles cookies, login
 * The list/summary screen remains underneath the presented Coles web view. Pulling down to dismiss the web view reveals the list without changing selection or item status, invalidates the active interaction ID, and causes delayed bridge messages for that interaction to be ignored. Dismissal preserves the Coles page, website storage, and automation session.
 * `Show Store` presents the Coles web view, returns to the last item selected in the overlay, creates a fresh interaction ID, and searches it again. If the overlay has not been used for the current list, `Show Store` selects and searches the first item in list order.
 * Dismissing and reopening the Coles web view does not reset the active automation session or its session-level manual-mode state. If the session is already in session-level manual mode, automation is retried only when a new Coles session is started, such as after `Reset Coles Session`.
+* When the app enters the background, ListRunner cancels any active cooldown, keeps the current item status, suspends automation, invalidates the active interaction ID, and ignores bridge messages while inactive. The current Coles page, website storage, and automation session remain preserved. If the Coles web view is still presented when the app returns to the foreground, ListRunner creates a fresh interaction for the selected item and re-establishes product quantity baselines from the current page without forcing a new search.
 * `Show Store` is hidden only while the list is empty and remains available for a completed non-empty list so the user can inspect the Coles cart or store session.
 * Tapping an item on the list/summary screen selects that item, opens the shopping website overlay, and immediately searches for it on Coles. The item's status does not change until the user takes a status-changing action.
 * The list/summary screen preserves list order rather than grouping items by status. Each row displays its status badge, and summary counts for `Pending`, `Added`, and `Skipped` appear above the list.
@@ -125,7 +126,7 @@ The in-app Coles browser uses persistent website storage so Coles cookies, login
 * SwiftData tests use an in-memory store to cover persistence, same-day overlay restoration, later-day list routing, date-comparison-before-update ordering, editing, deletion, clearing, and transient-state exclusion.
 * Store-config tests decode and validate every bundled JSON configuration.
 * Bridge tests validate accepted automation event payloads and reject malformed or unsupported events.
-* UI tests cover the main list-to-store flow, row selection, `Show Store`, pull-down dismissal, manual fallback, and returning to the saved run.
+* UI tests cover the main list-to-store flow, row selection, `Show Store`, pull-down dismissal, background and foreground lifecycle behavior, manual fallback, and returning to the saved run.
 * Before release, a manual smoke test against the live Coles website verifies search navigation, add detection, quantity changes, removal detection, cooldown behavior, and manual fallback.
   
 ### Later Scope
