@@ -120,6 +120,7 @@ The in-app Coles browser uses persistent website storage so Coles cookies, login
 * Given a list of 10 items, the user can import it, show Coles, search each item, mark items added manually, skip items, and handle every item without being blocked by automation.
 * The bundled Coles configuration automatically searches the selected item and detects supported add and removal/quantity changes on the live Coles website.
 * If automatic search, add detection, or removal detection fails, manual fallback still allows the user to navigate the list, use the Coles site directly, mark items added, skip items, and reach `All items handled`.
+* If the Coles web view cannot load or its web-content process terminates, ListRunner preserves the shopping run, makes no item-status change, and presents native `Retry` and `Return to List` recovery actions.
 * With Reminders permission granted and a `Paprika` list present, ListRunner imports new incomplete reminders without duplicates, updates linked reminder text after ListRunner edits, checks the linked reminder when its item becomes `Added`, and unchecks it whenever the item becomes `Pending` or `Skipped`.
 * Relaunching on the same local calendar day with `Pending` items restores the persisted list, statuses, edits, Coles web view, and last overlay-selected item. Relaunching on the same day with a completed list, or on a later day, preserves the same run but opens the list/summary screen first. The saved date is compared before it is updated, and today is saved only after the launch destination has been chosen. Cooldown, `Back` history, manual-mode state, and unconfirmed warnings are not restored, while the independent Coles website session remains persistent.
 
@@ -129,7 +130,7 @@ The in-app Coles browser uses persistent website storage so Coles cookies, login
 * SwiftData tests use an in-memory store to cover persistence, same-day overlay restoration, later-day list routing, date-comparison-before-update ordering, editing, deletion, clearing, and transient-state exclusion.
 * Store-config tests decode and validate every bundled JSON configuration.
 * Bridge tests validate accepted automation event payloads and reject malformed or unsupported events.
-* UI tests cover the main list-to-store flow, row selection, `Show Store`, pull-down dismissal, background and foreground lifecycle behavior, manual fallback, and returning to the saved run.
+* UI tests cover the main list-to-store flow, row selection, `Show Store`, pull-down dismissal, background and foreground lifecycle behavior, initial store-load failure, failed navigation, web-content process termination, retry and return-to-list recovery, manual fallback, and returning to the saved run.
 * Before release, a manual smoke test against the live Coles website verifies search navigation, add detection, quantity changes, removal detection, cooldown behavior, and manual fallback.
   
 ### Later Scope
@@ -179,6 +180,11 @@ The user's Coles login state does not determine whether ListRunner enters manual
 * Dismissing and reopening the web view does not end the store session or clear session-level manual mode.
 
 #### Possible failure cases
+* Store page cannot load.
+  * An offline, DNS, TLS, or top-level navigation failure cancels any active cooldown, keeps the current item status, invalidates the active interaction ID, and shows a native error panel with `Retry` and `Return to List`. `Retry` attempts the intended Coles URL again without changing ListRunner state. `Return to List` dismisses the web view and reveals the preserved list/summary screen.
+  * If the initial Coles load fails, the error panel appears over a neutral web-view background. If a later navigation or reload fails while a previously rendered Coles page remains available, that page may remain visible behind the panel.
+* Coles web-content process terminated.
+  * ListRunner cancels any active cooldown, keeps the current item status, invalidates the active interaction ID, and shows the same native error panel over a neutral background. `Retry` rebuilds the `WKWebView`, preserves website storage where supported, creates a fresh interaction for the selected item, and loads the intended Coles URL. `Return to List` reveals the preserved list/summary screen.
 * Store automation unavailable
   * If automation reaches the two-consecutive-failed-item threshold or the active store configuration fails to load, ListRunner enters session-level manual mode. In overlay view, the user will see an icon that triggers a tooltip explaining that automation is unavailable and that they can still proceed manually with the overlay buttons.
 * Search is not loading
