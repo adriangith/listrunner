@@ -6,15 +6,16 @@ search, detecting when you add to cart, and advancing automatically.
 
 Design spec: [`docs/superpowers/specs/2026-03-29-listrunner-design.md`](docs/superpowers/specs/2026-03-29-listrunner-design.md).
 
-## Layout
+## Current repository
 
 ```
-packages/
-├─ core/         Shared TypeScript library (parsing, wizard state machine,
-│                pantry + selection history). No browser dependencies; the
-│                same code is consumable from native mobile shells.
-├─ extension/    Chrome + Firefox extension (MV3). Depends on @listrunner/core.
-└─ harness/      Local web app for manual wizard testing (no extension needed).
+The native iOS app is being rebuilt from `plan.md` and the OpenPencil UI design.
+The previous Capacitor app and plugins have been removed. Remaining packages:
+
+- `packages/core/` — shared TypeScript library and Vitest tests.
+- `packages/extension/` — Chrome + Firefox extension (MV3).
+- `packages/harness/` — local web app for manual wizard testing.
+- `packages/prototype/` — standalone simulated iPhone-flow prototype.
 ```
 
 ## Working on the core library
