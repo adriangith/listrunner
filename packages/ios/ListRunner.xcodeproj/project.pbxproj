@@ -10,6 +10,8 @@
 		A10000000000000000000002 /* GroceryListScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* GroceryListScreen.swift */; };
 		A10000000000000000000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* Assets.xcassets */; };
 		A10000000000000000000004 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* LaunchScreen.storyboard */; };
+		A10000000000000000000008 /* ShoppingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* ShoppingModels.swift */; };
+		A10000000000000000000009 /* StoreShoppingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* StoreShoppingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,6 +22,8 @@
 		B10000000000000000000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B10000000000000000000006 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = "Preview Assets.xcassets"; path = "Preview Content/Preview Assets.xcassets"; sourceTree = "<group>"; };
 		B10000000000000000000007 /* ListRunner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ListRunner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000008 /* ShoppingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingModels.swift; sourceTree = "<group>"; };
+		B10000000000000000000009 /* StoreShoppingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreShoppingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -28,7 +32,7 @@
 
 /* Begin PBXGroup section */
 		D10000000000000000000001 = {isa = PBXGroup; children = (D10000000000000000000002 /* ListRunner */, D10000000000000000000003 /* Products */); sourceTree = "<group>"; };
-		D10000000000000000000002 /* ListRunner */ = {isa = PBXGroup; children = (B10000000000000000000001, B10000000000000000000002, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005, B10000000000000000000006); path = ListRunner; sourceTree = "<group>"; };
+		D10000000000000000000002 /* ListRunner */ = {isa = PBXGroup; children = (B10000000000000000000001, B10000000000000000000002, B10000000000000000000008, B10000000000000000000009, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005, B10000000000000000000006); path = ListRunner; sourceTree = "<group>"; };
 		D10000000000000000000003 /* Products */ = {isa = PBXGroup; children = (B10000000000000000000007 /* ListRunner.app */); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
@@ -68,7 +72,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		C10000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000008, A10000000000000000000009); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */

@@ -6,5 +6,6 @@ struct ListRunnerApp: App {
         WindowGroup {
             GroceryListScreen()
         }
+        .modelContainer(for: GroceryItem.self)
     }
 }
