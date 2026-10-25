@@ -93,6 +93,14 @@ struct StoreShoppingView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .bottom) {
+            if let preload = browser.preloadWebView {
+                PreloadedStoreWebView(webView: preload)
+                    .id(ObjectIdentifier(preload))
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+
             StoreWebView(browser: browser, bottomOverlayInset: 0)
                 .id(ObjectIdentifier(browser.webView))
                 .ignoresSafeArea(edges: .top)
@@ -614,6 +622,7 @@ struct StoreShoppingView: View {
 
     private func markPending(_ item: GroceryItem) {
         task?.cancel()
+        browser.cancelPreload()
         secondsRemaining = 0
         manuallyPaused = false
         undoRecord = nil
@@ -648,6 +657,12 @@ struct StoreShoppingView: View {
 
     private func beginCooldown() {
         secondsRemaining = 3
+        if let next = nextPending(after: selectedID) {
+            browser.logPreload("Cooldown started; preloading next item")
+            browser.preloadSearch(itemID: next.id, searchTerm: next.searchTerm)
+        } else {
+            browser.logPreload("Cooldown started; no pending item to preload")
+        }
         task = Task { @MainActor in
             while secondsRemaining > 0 {
                 try? await Task.sleep(for: .seconds(1))
@@ -659,8 +674,15 @@ struct StoreShoppingView: View {
         }
     }
 
+    private func nextPending(after id: UUID?) -> GroceryItem? {
+        let currentIndex = items.firstIndex(where: { $0.id == id }) ?? -1
+        return items.dropFirst(max(0, currentIndex + 1)).first(where: { $0.status == .pending })
+            ?? pending.first
+    }
+
     private func undo() {
         task?.cancel()
+        browser.cancelPreload()
         secondsRemaining = 0
         manuallyPaused = false
         guard let record = undoRecord, let item = items.first(where: { $0.id == record.id }) else { return }
@@ -672,12 +694,14 @@ struct StoreShoppingView: View {
 
     private func finish() {
         task?.cancel()
+        browser.cancelPreload()
         undoRecord = nil
         secondsRemaining = 0
     }
 
     private func next() {
         task?.cancel()
+        browser.cancelPreload()
         undoRecord = nil
         secondsRemaining = 0
         manuallyPaused = false
@@ -687,6 +711,7 @@ struct StoreShoppingView: View {
     private func skip() {
         guard let item = selected else { return }
         task?.cancel()
+        browser.cancelPreload()
         undoRecord = nil
         secondsRemaining = 0
         manuallyPaused = false
@@ -729,6 +754,7 @@ struct StoreShoppingView: View {
     private func collapse() {
         if secondsRemaining > 0 {
             task?.cancel()
+            browser.cancelPreload()
             secondsRemaining = 0
             undoRecord = nil
         }
@@ -864,6 +890,7 @@ final class StoreBrowser: ObservableObject {
     }
 
     @Published private(set) var webView: WKWebView
+    @Published private(set) var preloadWebView: WKWebView?
     @Published private(set) var resetPhase: SessionResetPhase = .ready
     @Published private(set) var storeRecovery: StoreRecovery?
     let diagnostics: DiagnosticStore
@@ -894,6 +921,11 @@ final class StoreBrowser: ObservableObject {
     @Published private(set) var cartUndoWarning = false
     @Published private(set) var siteVerificationRequired = false
     private var navigationPacing = StoreNavigationPacing()
+    private var preloadedSearch: (itemID: UUID, term: String, url: URL, view: WKWebView)?
+    private var preloadedSearchReady = false
+    private var preloadedResponseStatus: Int?
+    private var scheduledPreload: (itemID: UUID, term: String)?
+    private var pendingPreloadTask: Task<Void, Never>?
     private var latestRequestedSearchURL: URL?
     private var mainFrameResponseStatus: Int?
     var canRetryAfterVerification: Bool {
@@ -1320,7 +1352,92 @@ final class StoreBrowser: ObservableObject {
         cartDetectionIssue = nil
         applyCartDetectionTestFixture()
         updateIsolatedContext()
+        if let preload = preloadedSearch, preloadedSearchReady,
+           preload.itemID == itemID, preload.term == searchTerm,
+           preload.url == store.searchURL(for: searchTerm),
+           preload.view.url.map({ store.allows($0) }) == true,
+           preload.view.url?.host?.lowercased() == preload.url.host?.lowercased() {
+            logPreload("Promoting completed preload to visible web view")
+            preloadedSearch = nil
+            preloadWebView = nil
+            preloadedSearchReady = false
+            webView = preload.view
+            documentGeneration += 1
+            intendedURL = preload.view.url ?? preload.url
+            latestRequestedSearchURL = preload.url
+            latestNavigation = nil
+            activeSearchNavigation = nil
+            updateIsolatedContext()
+            return
+        }
+        if preloadedSearch != nil { logPreload("Preload unavailable or stale; falling back to normal search") }
+        cancelPreload()
         search(for: searchTerm)
+    }
+
+    func preloadSearch(itemID: UUID, searchTerm: String) {
+        cancelPreload()
+        guard canPresentStore, storeRecovery == nil, !siteVerificationRequired else {
+            logPreload("Skipped: store is unavailable or verification is active")
+            return
+        }
+        guard store.capabilities.search else {
+            logPreload("Skipped: store search is unsupported")
+            return
+        }
+        let pacingDelay = navigationPacing.delay(at: ProcessInfo.processInfo.systemUptime)
+        if pacingDelay > 0 {
+            scheduledPreload = (itemID, searchTerm)
+            logPreload("Waiting \(String(format: "%.1f", pacingDelay))s for retailer navigation pacing")
+            pendingPreloadTask = Task { @MainActor [weak self] in
+                let nanoseconds = UInt64(max(0.05, pacingDelay) * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: nanoseconds)
+                guard !Task.isCancelled, let self,
+                      self.scheduledPreload?.itemID == itemID,
+                      self.scheduledPreload?.term == searchTerm else { return }
+                self.pendingPreloadTask = nil
+                self.scheduledPreload = nil
+                self.preloadSearch(itemID: itemID, searchTerm: searchTerm)
+            }
+            return
+        }
+        guard let url = store.searchURL(for: searchTerm), store.allows(url) else {
+            logPreload("Skipped: search URL is invalid or outside the store allowlist")
+            return
+        }
+        let view = Self.makeWebView(coordinator: coordinator, world: automationWorld, store: store, dataStore: websiteDataStore)
+        preloadedSearch = (itemID, searchTerm, url, view)
+        preloadWebView = view
+        preloadedSearchReady = false
+        preloadedResponseStatus = nil
+        navigationPacing.requested(at: ProcessInfo.processInfo.systemUptime)
+        logPreload("Starting background navigation to \(url.host ?? "store")")
+        _ = view.load(URLRequest(url: url))
+    }
+
+    fileprivate func logPreload(_ message: String) {
+        automationLog("Preload: \(message)")
+    }
+
+    func cancelPreload() {
+        pendingPreloadTask?.cancel()
+        pendingPreloadTask = nil
+        let hadScheduledPreload = scheduledPreload != nil
+        scheduledPreload = nil
+        guard let preload = preloadedSearch else {
+            if hadScheduledPreload { logPreload("Cancelled deferred preload") }
+            return
+        }
+        logPreload("Cancelling unused preload")
+        preloadedSearch = nil
+        preloadWebView = nil
+        preloadedSearchReady = false
+        preloadedResponseStatus = nil
+        preload.view.stopLoading()
+        preload.view.navigationDelegate = nil
+        preload.view.uiDelegate = nil
+        preload.view.configuration.userContentController.removeScriptMessageHandler(forName: "listRunner", contentWorld: automationWorld)
+        preload.view.configuration.userContentController.removeAllUserScripts()
     }
 
     func resumeInteraction(itemID: UUID) {
@@ -1423,6 +1540,7 @@ final class StoreBrowser: ObservableObject {
 
     private func pauseForSiteVerification() {
         siteVerificationRequired = true
+        cancelPreload()
         navigationPacing.blocked(at: ProcessInfo.processInfo.systemUptime)
         pendingSearchTask?.cancel()
         pendingSearchTask = nil
@@ -1629,6 +1747,7 @@ final class StoreBrowser: ObservableObject {
     }
 
     func endInteraction() {
+        cancelPreload()
         interactionEnabled = false
         interactionID = UUID().uuidString
         pendingSearchTask?.cancel()
@@ -1669,6 +1788,7 @@ final class StoreBrowser: ObservableObject {
     }
 
     private func rebuildWebView() {
+        cancelPreload()
         endInteraction()
         retireCurrentNavigation()
         webView.stopLoading()
@@ -1911,11 +2031,53 @@ final class StoreBrowser: ObservableObject {
     private final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         weak var browser: StoreBrowser?
 
+        private func checkPreloadReadiness(_ webView: WKWebView, browser: StoreBrowser, attempt: Int = 0) {
+            guard browser.preloadedSearch?.view === webView, !browser.preloadedSearchReady else { return }
+            guard browser.preloadedResponseStatus.map({ $0 < 400 }) ?? true else {
+                browser.logPreload("Not usable: HTTP error response")
+                return
+            }
+            webView.evaluateJavaScript("({state: document.readyState, title: document.title, heading: document.querySelector('h1')?.textContent || ''})") { [weak browser, weak webView] value, error in
+                guard let browser, let webView, browser.preloadedSearch?.view === webView, !browser.preloadedSearchReady else { return }
+                guard error == nil, let page = value as? [String: String],
+                      let currentURL = webView.url, browser.store.allows(currentURL),
+                      currentURL.host?.lowercased() == browser.preloadedSearch?.url.host?.lowercased() else {
+                    if attempt < 15 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            self.checkPreloadReadiness(webView, browser: browser, attempt: attempt + 1)
+                        }
+                    } else {
+                        browser.logPreload("Not usable: page did not reach a readable search state")
+                    }
+                    return
+                }
+                guard !StoreNavigationPacing.isVerificationPage(title: page["title"] ?? "", heading: page["heading"] ?? "") else {
+                    browser.logPreload("Not usable: retailer verification page")
+                    return
+                }
+                let readyState = page["state"] ?? "loading"
+                if readyState == "interactive" || readyState == "complete" {
+                    browser.preloadedSearchReady = true
+                    browser.logPreload("Background search DOM ready (\(readyState)); ready to promote")
+                } else if attempt < 15 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                        self.checkPreloadReadiness(webView, browser: browser, attempt: attempt + 1)
+                    }
+                } else {
+                    browser.logPreload("Not usable: document remained in loading state")
+                }
+            }
+        }
+
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             browser?.receive(message)
         }
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            if let browser, browser.preloadedSearch?.view === webView {
+                decisionHandler(navigationAction.request.url.map(browser.store.allowsNavigation) == true ? .allow : .cancel)
+                return
+            }
             guard let browser, webView === browser.webView, browser.canPresentStore, browser.storeRecovery == nil else {
                 decisionHandler(.cancel)
                 return
@@ -1944,6 +2106,15 @@ final class StoreBrowser: ObservableObject {
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse,
                      decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+            if let browser, browser.preloadedSearch?.view === webView {
+                if navigationResponse.isForMainFrame,
+                   let response = navigationResponse.response as? HTTPURLResponse {
+                    browser.preloadedResponseStatus = response.statusCode
+                    browser.logPreload("Received preload response HTTP \(response.statusCode)")
+                }
+                decisionHandler(navigationResponse.response.url.map(browser.store.allowsNavigation) == true ? .allow : .cancel)
+                return
+            }
             guard let browser, webView === browser.webView, browser.canPresentStore, browser.storeRecovery == nil else {
                 decisionHandler(.cancel)
                 return
@@ -1967,26 +2138,48 @@ final class StoreBrowser: ObservableObject {
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            if let browser, browser.preloadedSearch?.view === webView {
+                browser.logPreload("Background navigation failed: \(error.localizedDescription)")
+                return
+            }
             guard webView === browser?.webView, let navigation else { return }
             browser?.didFailMainFrameNavigation(navigation, error: error)
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            if let browser, browser.preloadedSearch?.view === webView {
+                browser.logPreload("Background page failed: \(error.localizedDescription)")
+                return
+            }
             guard webView === browser?.webView, let navigation else { return }
             browser?.didFailMainFrameNavigation(navigation, error: error)
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            if let browser, browser.preloadedSearch?.view === webView {
+                browser.logPreload("Background navigation started")
+                return
+            }
             guard webView === browser?.webView, let navigation else { return }
             browser?.navigationStarted(navigation)
         }
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            if let browser, browser.preloadedSearch?.view === webView {
+                browser.logPreload("Background main document committed")
+                checkPreloadReadiness(webView, browser: browser)
+                return
+            }
             guard webView === browser?.webView, let navigation else { return }
             browser?.didCommitMainFrameNavigation(navigation)
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            if let browser, browser.preloadedSearch?.view === webView {
+                browser.logPreload("Background navigation finished")
+                checkPreloadReadiness(webView, browser: browser)
+                return
+            }
             guard webView === browser?.webView, let navigation else { return }
             browser?.didFinishMainFrameNavigation(navigation)
         }
@@ -2023,6 +2216,13 @@ struct CartUndoWarning: View {
         .padding(12)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
     }
+}
+
+private struct PreloadedStoreWebView: UIViewRepresentable {
+    let webView: WKWebView
+
+    func makeUIView(context: Context) -> WKWebView { webView }
+    func updateUIView(_ uiView: WKWebView, context: Context) {}
 }
 
 private struct StoreWebView: UIViewRepresentable {
