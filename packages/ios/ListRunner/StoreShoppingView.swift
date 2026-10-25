@@ -519,13 +519,13 @@ struct StoreShoppingView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(sentenceCase(item.name))
                             .font(.system(size: current ? 26 : 17, weight: current ? .bold : .semibold))
-                            .lineLimit(current ? 2 : 3)
-                            .minimumScaleFactor(0.75)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
                         Text("Quantity · \(item.displayQuantity)")
                             .font(.system(size: current ? 15 : 13))
                             .foregroundStyle(cardForeground(item.status, active: current).opacity(current ? 0.9 : 0.78))
                     }
-                    .frame(height: current ? 53 : 47, alignment: .top)
+                    .frame(height: current ? 86 : 62, alignment: .top)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
