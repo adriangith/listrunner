@@ -521,9 +521,13 @@ struct StoreShoppingView: View {
                             .font(.system(size: current ? 26 : 17, weight: current ? .bold : .semibold))
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text("Quantity · \(item.displayQuantity)")
-                            .font(.system(size: current ? 15 : 13))
-                            .foregroundStyle(cardForeground(item.status, active: current).opacity(current ? 0.9 : 0.78))
+                        QuantityMarquee(
+                            text: "Quantity · \(item.displayQuantity)",
+                            shouldScroll: current && !reduceMotion,
+                            fontSize: current ? 15 : 13,
+                            color: UIColor(cardForeground(item.status, active: current).opacity(current ? 0.9 : 0.78))
+                        )
+                            .frame(width: current ? 128 : 117, height: 19, alignment: .leading)
                     }
                     .frame(height: current ? 86 : 62, alignment: .top)
                 }
@@ -734,6 +738,106 @@ struct StoreShoppingView: View {
     private func dismissStore() {
         if secondsRemaining > 0 { task?.cancel(); secondsRemaining = 0; undoRecord = nil }
         dismiss()
+    }
+}
+
+private struct QuantityMarquee: UIViewRepresentable {
+    let text: String
+    let shouldScroll: Bool
+    let fontSize: CGFloat
+    let color: UIColor
+
+    func makeUIView(context: Context) -> QuantityMarqueeLabel {
+        QuantityMarqueeLabel()
+    }
+
+    func updateUIView(_ uiView: QuantityMarqueeLabel, context: Context) {
+        uiView.configure(text: text, shouldScroll: shouldScroll, fontSize: fontSize, color: color)
+    }
+}
+
+private final class QuantityMarqueeLabel: UIView {
+    private let firstLabel = UILabel()
+    private let secondLabel = UILabel()
+    private let gap: CGFloat = 28
+    private var text = ""
+    private var fontSize: CGFloat = 15
+    private var textColor: UIColor = .label
+    private var shouldScroll = false
+    private var layoutKey: LayoutKey?
+    private var cycle = 0
+
+    private struct LayoutKey: Equatable {
+        let text: String
+        let fontSize: CGFloat
+        let width: CGFloat
+        let scroll: Bool
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        clipsToBounds = true
+        isAccessibilityElement = false
+        accessibilityElementsHidden = true
+        for label in [firstLabel, secondLabel] {
+            label.numberOfLines = 1
+            label.lineBreakMode = .byClipping
+            addSubview(label)
+        }
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func configure(text: String, shouldScroll: Bool, fontSize: CGFloat, color: UIColor) {
+        guard self.text != text || self.shouldScroll != shouldScroll || self.fontSize != fontSize || !self.textColor.isEqual(color) else { return }
+        self.text = text
+        self.shouldScroll = shouldScroll
+        self.fontSize = fontSize
+        textColor = color
+        for label in [firstLabel, secondLabel] {
+            label.text = text
+            label.font = .systemFont(ofSize: fontSize)
+            label.textColor = color
+        }
+        layoutKey = nil
+        setNeedsLayout()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let measured = firstLabel.sizeThatFits(CGSize(width: 10_000, height: bounds.height)).width
+        let key = LayoutKey(text: text, fontSize: fontSize, width: bounds.width, scroll: shouldScroll && measured > bounds.width + 1)
+        guard key != layoutKey else { return }
+        layoutKey = key
+        cycle += 1
+        let currentCycle = cycle
+        firstLabel.layer.removeAllAnimations()
+        secondLabel.layer.removeAllAnimations()
+        firstLabel.lineBreakMode = key.scroll ? .byClipping : .byTruncatingTail
+        firstLabel.frame = CGRect(x: 0, y: 0, width: key.scroll ? measured : bounds.width, height: bounds.height)
+        secondLabel.isHidden = !key.scroll
+        secondLabel.frame = CGRect(x: measured + gap, y: 0, width: measured, height: bounds.height)
+        guard key.scroll else { return }
+        beginCycle(currentCycle, distance: measured + gap)
+    }
+
+    private func beginCycle(_ currentCycle: Int, distance: CGFloat) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            guard let self, self.cycle == currentCycle else { return }
+            let duration = max(3, Double(distance / 18))
+            UIView.animate(withDuration: duration, delay: 0, options: [.curveLinear, .beginFromCurrentState]) {
+                self.firstLabel.frame.origin.x = -distance
+                self.secondLabel.frame.origin.x = 0
+            } completion: { [weak self] finished in
+                guard let self, finished, self.cycle == currentCycle else { return }
+                self.firstLabel.frame.origin.x = 0
+                self.secondLabel.frame.origin.x = distance
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                    guard let self, self.cycle == currentCycle else { return }
+                    self.beginCycle(currentCycle, distance: distance)
+                }
+            }
+        }
     }
 }
 
