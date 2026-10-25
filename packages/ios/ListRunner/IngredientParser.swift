@@ -189,6 +189,9 @@ struct IngredientParser {
         if let counted = captures(text, #"^(\d+)\s+(cloves?|spears?|stalks?|pieces?|sprigs?)$"#),
            let amount = rational(counted[0]) { return .count(amount) }
         if let count = captures(text, #"^(\d+)$"#), let value = rational(count[0]) { return .count(value) }
+        let leadingNumber = #"(?:\d+\s+)?\d+\s*/\s*\d+|\d*[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]|\d+(?:\.\d+)?"#
+        let leadingMeasure = #"^((?:"# + leadingNumber + #")\s*(?:g|grams?|kg|ml|l|litres?|oz|ounces?|lb|lbs|cups?|tbsp|tbs|tablespoons?|tsp|teaspoons?))(?=\s|$)"#
+        if let leading = captures(text, leadingMeasure), let quantity = quantityPattern(leading[0]) { return quantity }
         return nil
     }
 

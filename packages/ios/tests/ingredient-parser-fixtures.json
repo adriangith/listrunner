@@ -253,5 +253,35 @@
     "input": "1 bunch finely chopped parsley",
     "expectedName": "Finely chopped parsley",
     "expectedQuantity": "packages:1:unspecified:unspecified:bunch"
+  },
+  {
+    "input": "200g frozen edamame or broad beans",
+    "expectedName": "frozen edamame or broad beans",
+    "expectedQuantity": "measure:200:g"
+  },
+  {
+    "input": "200 g frozen edamame",
+    "expectedName": "Frozen edamame",
+    "expectedQuantity": "measure:200:g"
+  },
+  {
+    "input": "200 g broad beans",
+    "expectedName": "Broad beans",
+    "expectedQuantity": "measure:200:g"
+  },
+  {
+    "input": "1 cup pinto beans",
+    "expectedName": "Pinto beans",
+    "expectedQuantity": "measure:1:cup"
+  },
+  {
+    "input": "1 can navy beans",
+    "expectedName": "Navy beans",
+    "expectedQuantity": "packages:1:unspecified:unspecified:can"
+  },
+  {
+    "input": "2 cups black-eyed peas",
+    "expectedName": "Black-eyed peas",
+    "expectedQuantity": "measure:2:cup"
   }
 ]
