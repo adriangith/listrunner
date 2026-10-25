@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "coles",
+  "displayName": "Coles",
+  "homepage": "https://www.coles.com.au",
+  "allowedHosts": ["www.coles.com.au", "coles.com.au"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.coles.com.au/search?q={query}"},
+  "addedColor": {"red": 224, "green": 26, "blue": 34},
+  "capabilities": {"search": true, "cartDetection": true, "cartUndo": true},
+  "cart": {
+    "strategy": "trustedTileQuantity",
+    "identityStrategy": "numericURLSuffix",
+    "tileSelector": "[data-testid=\"product-tile\"]",
+    "linkSelector": "a[href*=\"/product/\"]",
+    "productURLPattern": "/product/[^/?#]+-(\\d{1,32})(?:[/?#]|$)",
+    "addSelector": "[data-testid=\"add-to-cart-button\"]",
+    "addLabelPatterns": ["^add to trolley:\\s*\\S", "^increase .+ quantity by one$"],
+    "quantitySelector": "[data-testid=\"quantity-input\"],input[type=\"number\"],[role=\"spinbutton\"]",
+    "emptyStatusSelector": "[role=\"status\"]",
+    "emptyStatusText": "product is not in your trolley",
+    "decrementLabelPattern": "^decrease .+ quantity by one$"
+  }
+}

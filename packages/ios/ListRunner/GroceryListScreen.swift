@@ -1,44 +1,211 @@
 import SwiftData
 import SwiftUI
 
+struct ShoppingRootScreen: View {
+    @StateObject private var sessions: StoreSessions
+    @StateObject private var paprikaReminders = PaprikaReminders()
+    @AppStorage("activeStoreID") private var activeStoreID = StoreID.coles.rawValue
+    @State private var drafts: [StoreID: String] = [:]
+
+    init(diagnostics: DiagnosticStore) {
+        _sessions = StateObject(wrappedValue: StoreSessions(diagnostics: diagnostics))
+    }
+
+    var body: some View {
+        let storeID = StoreID(rawValue: activeStoreID) ?? .coles
+        GroceryListScreen(storeID: storeID, sessions: sessions, paprikaReminders: paprikaReminders,
+                           rawInput: Binding(get: { drafts[storeID] ?? "" }, set: { drafts[storeID] = $0 }),
+                           onSelectStore: { id in
+                              sessions.endAllInteractions()
+                              activeStoreID = id.rawValue
+                          })
+            .id(storeID)
+    }
+}
+
 struct GroceryListScreen: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \GroceryItem.position) private var items: [GroceryItem]
-    @StateObject private var browser = ColesBrowser()
-    @AppStorage("lastOverlaySelectedItemID") private var lastSelectedItemID = ""
-    @State private var rawInput = ""
+    @Environment(\.scenePhase) private var scenePhase
+    @Query(sort: \GroceryItem.position) private var allItems: [GroceryItem]
+    @Query private var lists: [GroceryList]
+    @StateObject private var browser: StoreBrowser
+    @ObservedObject var paprikaReminders: PaprikaReminders
+    let storeID: StoreID
+    let sessions: StoreSessions
+    let onSelectStore: (StoreID) -> Void
+    @Binding private var rawInput: String
+    @State private var routedLaunch = false
+    @State private var itemToMove: GroceryItem?
     @State private var editingItem: GroceryItem?
     @State private var showingStore = false
     @State private var showingClearConfirmation = false
     @State private var notice: String?
+    @State private var saveFailed = false
+    @State private var pendingReminderWrites: [UUID: ReminderWriteback] = [:]
+    @FocusState private var groceryInputFocused: Bool
+    @State private var recentlyAddedItemIDs = Set<UUID>()
+    @State private var scrollTargetItemID: UUID?
+
+    init(storeID: StoreID, sessions: StoreSessions, paprikaReminders: PaprikaReminders, rawInput: Binding<String>,
+         onSelectStore: @escaping (StoreID) -> Void) {
+        self.storeID = storeID; self.sessions = sessions
+        self.paprikaReminders = paprikaReminders
+        self.onSelectStore = onSelectStore; self._rawInput = rawInput
+        _browser = StateObject(wrappedValue: sessions.browser(for: storeID))
+    }
+
+    private var items: [GroceryItem] { allItems.filter { $0.listID == storeID.listID } }
+    private var selectedList: GroceryList? { lists.first { $0.id == storeID.listID } }
 
     private var pendingCount: Int { items.filter { $0.status == .pending }.count }
     private var addedCount: Int { items.filter { $0.status == .added }.count }
     private var skippedCount: Int { items.filter { $0.status == .skipped }.count }
+    // The storefront configuration is the single source of truth for the
+    // selected store's visual identity, including all list-screen accents.
+    private var storePrimaryColor: Color {
+        let color = browser.store.brandColors?.primary ?? browser.store.addedColor
+        return Color(red: Double(color.red) / 255,
+                     green: Double(color.green) / 255,
+                     blue: Double(color.blue) / 255)
+    }
+    private var storeHighlightColor: Color {
+        guard let color = browser.store.brandColors?.highlight else { return storePrimaryColor }
+        return Color(red: Double(color.red) / 255,
+                     green: Double(color.green) / 255,
+                     blue: Double(color.blue) / 255)
+    }
 
     var body: some View {
+        ScrollViewReader { scrollProxy in
         NavigationStack {
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
+            List {
+                    Section {
                         summary
+                            // Keep the native separator farther below the totals;
+                            // this leaves the summary itself in place.
+                            .padding(.bottom, 20)
+                            .contentShape(Rectangle())
+                            .onTapGesture { groceryInputFocused = false }
                         if let notice { messageBanner(notice) }
-                        entryCard
+                        if saveFailed { PersistenceWarning() }
+                        if browser.cartUndoWarning {
+                            CartUndoWarning(storeName: storeID.displayName) { browser.dismissCartUndoWarning() }
+                        }
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 0, trailing: 20))
+
+                    Section("Add grocery items") {
+                        TextField("Milk, bread, eggs", text: $rawInput, axis: .vertical)
+                            .lineLimit(1...4)
+                            .focused($groceryInputFocused)
+                            .submitLabel(.continue)
+                            .onSubmit(addItems)
+                            .onChange(of: rawInput) { _, value in
+                                // In a vertically-growing TextField, Return can
+                                // arrive as a newline rather than a submit event.
+                                // Treat that newline as submission; a multiline
+                                // paste still enters in one edit and is parsed
+                                // into multiple items by GroceryParser.
+                                if value.contains(where: { $0.isNewline }) {
+                                    addItems()
+                                }
+                            }
+                            .accessibilityLabel("Type or paste groceries")
+                            .accessibilityIdentifier("grocery-input")
+
+                        HStack {
+                            Button(action: importPaprika) {
+                                Label(paprikaReminders.importing ? "Importing…" : "Import from Paprika",
+                                      systemImage: paprikaReminders.importing ? "hourglass" : "checklist")
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                    .contentShape(Rectangle())
+                            }
+                            .font(.footnote.weight(.semibold))
+                            .buttonStyle(.plain)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .disabled(paprikaReminders.importing)
+                            .accessibilityIdentifier("import-from-paprika")
+                            .accessibilityHint("Imports incomplete reminders from the Paprika list in Apple Reminders")
+
+                            Spacer(minLength: 8)
+
+                            Button("Add Items", action: addItems)
+                                .buttonStyle(.borderedProminent)
+                                .disabled(GroceryParser.parse(rawInput).isEmpty)
+                        }
+                    }
+
+                    Section {
                         if items.isEmpty {
                             ContentUnavailableView("Your list is empty", systemImage: "basket",
                                                    description: Text("Add groceries here, then shop through them with ListRunner."))
                                 .padding(.vertical, 12)
                         } else {
                             groceryList
-                            Button("Clear List", role: .destructive) { clearList() }
-                                .frame(maxWidth: .infinity, minHeight: 44)
+                            Button(action: clearList) {
+                                HStack(spacing: 8) {
+                                    Spacer(minLength: 0)
+                                    Label("Clear List", systemImage: "trash")
+                                    Spacer(minLength: 0)
+                                }
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(.red)
+                                .frame(maxWidth: .infinity, minHeight: 56)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .contentShape(Rectangle())
+                            .confirmationDialog("Clear your list?", isPresented: $showingClearConfirmation,
+                                                titleVisibility: .visible) {
+                                Button("Clear List", role: .destructive) { deleteAllItems() }
+                                Button("Cancel", role: .cancel) { }
+                            } message: {
+                                Text("This clears only your \(storeID.displayName) list in ListRunner. It does not change any store cart or Apple Reminders.")
+                            }
                         }
+                    } header: {
+                        if !items.isEmpty { Text("Groceries") }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 20)
+            }
+            .listStyle(.insetGrouped)
+            .contentMargins(.top, 0, for: .scrollContent)
+            .listSectionSpacing(.compact)
+            .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                HStack(alignment: .center) {
+                    Text("Your list")
+                        .font(.largeTitle.weight(.bold))
+                        .foregroundStyle(.primary)
+                    Spacer(minLength: 8)
+                    Menu {
+                        ForEach(StoreID.allCases) { store in
+                            Button(store.displayName) { onSelectStore(store) }
+                        }
+                    } label: {
+                                HStack(spacing: 6) {
+                                    Text(storeID.displayName)
+                                        .font(.system(.title3, design: .default, weight: .heavy))
+                                .lineLimit(1)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.caption2.weight(.black))
+                        }
+                        .foregroundStyle(storePrimaryColor)
+                        .contentShape(Rectangle())
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 9)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
+                    }
+                    .accessibilityIdentifier("store-picker")
+                    .disabled(!browser.canPresentStore)
+                    .accessibilityHint("Each store has its own grocery list and basket")
                 }
-
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(Color(uiColor: .systemGroupedBackground))
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 if !items.isEmpty {
                     Button {
                         showingStore = true
@@ -47,30 +214,40 @@ struct GroceryListScreen: View {
                             .font(.headline)
                             .frame(maxWidth: .infinity, minHeight: 52)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color.listRunnerGreen)
+                    .modifier(StoreLaunchButtonStyle(tint: storePrimaryColor))
+                    .disabled(!browser.canPresentStore)
                     .padding(.horizontal, 20)
-                    .padding(.top, 10)
-                    .padding(.bottom, 8)
-                    .background(.bar)
+                    .padding(.top, 8)
+                    // Keep the action inside the adjusted safe area so it stays
+                    // above the keyboard while the grocery field is focused.
+                    .padding(.bottom, groceryInputFocused ? 16 : 0)
                 }
             }
-            .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle("Your list")
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if !items.isEmpty { EditButton() }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { notice = "Settings and session controls are being built next." } label: {
+                    NavigationLink {
+                        SettingsOverviewScreen(sessions: sessions)
+                    } label: {
                         Image(systemName: "gearshape")
                     }
                     .accessibilityLabel("Settings")
                 }
             }
             .sheet(isPresented: $showingStore) {
-                StoreShoppingView(items: items, browser: browser, initialSelectedID: UUID(uuidString: lastSelectedItemID), onSelectionChange: { id in
-                    lastSelectedItemID = id.uuidString
-                }, onStatusChange: saveChanges)
+                StoreShoppingView(items: items, browser: browser, initialSelectedID: selectedList?.selectedItemID, saveFailed: saveFailed, onSelectionChange: { id in
+                    selectedList?.selectedItemID = id
+                    saveChanges()
+                }, onStatusChange: { item in
+                    stageReminderWriteback(for: item)
+                    saveChanges()
+                })
                     .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
+                    .presentationDragIndicator(.hidden)
                     .presentationCornerRadius(32)
             }
             .sheet(item: $editingItem) { item in
@@ -80,19 +257,50 @@ struct GroceryListScreen: View {
                     item.quantityAmount = amount
                     item.quantityUnit = amount == nil ? nil : unit
                     item.status = .pending
+                    stageReminderWriteback(for: item)
                     saveChanges()
                 }
                 .presentationDetents([.medium, .large])
             }
-            .confirmationDialog("Clear your list?", isPresented: $showingClearConfirmation,
-                                titleVisibility: .visible) {
-                Button("Clear List", role: .destructive) { deleteAllItems() }
-                Button("Cancel", role: .cancel) { }
+            .confirmationDialog("Move item to another store?", isPresented: Binding(get: { itemToMove != nil }, set: { if !$0 { itemToMove = nil } }), titleVisibility: .visible) {
+                if let item = itemToMove {
+                    ForEach(StoreID.allCases.filter { $0 != storeID }) { destination in
+                        Button("Move to \(destination.displayName)") { moveItem(item, to: destination); itemToMove = nil }
+                    }
+                }
+                Button("Cancel", role: .cancel) { itemToMove = nil }
             } message: {
-                Text("This removes the list from ListRunner. It does not change Coles or Apple Reminders.")
+                Text("The item moves to the other list as Pending. Neither store basket is changed. Existing items in the other list are not merged.")
             }
         }
-        .tint(Color.listRunnerGreen)
+        .tint(storePrimaryColor)
+        .onAppear {
+            guard !routedLaunch else { return }
+            routedLaunch = true
+            let today = Self.localDay()
+            selectedList?.lastActiveDay = today
+            saveChanges()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                browser.diagnostics.purge()
+                if saveFailed { saveChanges() }
+                selectedList?.lastActiveDay = Self.localDay()
+                saveChanges()
+            }
+        }
+        .onChange(of: scrollTargetItemID) { _, itemID in
+            guard let itemID else { return }
+            scrollToAddedItem(itemID, using: scrollProxy)
+        }
+        .onChange(of: items.map(\.id)) { _, itemIDs in
+            // When adding the first row, SwiftUI replaces the empty-state row
+            // and may not have registered the new row when the target changes.
+            // Retry after the query reflects the inserted row.
+            guard let itemID = scrollTargetItemID, itemIDs.contains(itemID) else { return }
+            scrollToAddedItem(itemID, using: scrollProxy)
+        }
+        }
     }
 
     private var summary: some View {
@@ -100,10 +308,12 @@ struct GroceryListScreen: View {
             Text(items.isEmpty ? "Ready when you are" : pendingCount == 0 ? "Complete" : "Ready when you are")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            HStack(spacing: 8) {
-                countPill("\(pendingCount) Pending", color: .listRunnerGreen)
-                countPill("\(addedCount) Added", color: .green)
-                countPill("\(skippedCount) Skipped", color: .secondary)
+            HStack(spacing: 0) {
+                summaryMetric(count: pendingCount, label: "Pending", color: storePrimaryColor)
+                Divider().frame(height: 32)
+                summaryMetric(count: addedCount, label: "Added", color: storePrimaryColor)
+                Divider().frame(height: 32)
+                summaryMetric(count: skippedCount, label: "Skipped", color: .secondary)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(pendingCount) pending, \(addedCount) added, \(skippedCount) skipped")
@@ -111,115 +321,93 @@ struct GroceryListScreen: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func countPill(_ title: String, color: Color) -> some View {
-        Text(title)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(color.opacity(0.1), in: Capsule())
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-    }
-
-    private var entryCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Add grocery items").font(.subheadline.weight(.semibold))
-            TextField("Milk, bread, eggs", text: $rawInput, axis: .vertical)
-                .lineLimit(2...4)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityLabel("Type or paste groceries")
-            HStack {
-                Button {
-                    notice = "Paprika import will be added in a later implementation step."
-                } label: {
-                    Label("Import from Paprika", systemImage: "checklist")
-                }
-                .font(.footnote.weight(.semibold))
-                .accessibilityHint("Apple Reminders import is not available yet")
-                Spacer(minLength: 8)
-                Button("Add Items", action: addItems)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(GroceryParser.parse(rawInput).isEmpty)
-            }
+    private func summaryMetric(count: Int, label: String, color: Color) -> some View {
+        VStack(spacing: 1) {
+            Text(count, format: .number)
+                .font(.headline.monospacedDigit())
+                .foregroundStyle(color)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
-        .padding(16)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+        .frame(maxWidth: .infinity)
     }
 
     private var groceryList: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("GROCERIES").font(.caption2.weight(.bold)).tracking(1.2).foregroundStyle(.secondary)
-                Spacer()
-                Text("Edit items").font(.caption).foregroundStyle(.secondary)
-            }
-            VStack(spacing: 0) {
-                ForEach(Array(items.enumerated()), id: \.element.persistentModelID) { index, item in
+        ForEach(items) { item in
+            HStack(spacing: 12) {
+                Button {
+                    guard browser.canPresentStore else { return }
+                    selectedList?.selectedItemID = item.id
+                    saveChanges()
+                    showingStore = true
+                } label: {
                     HStack(spacing: 12) {
-                        Button {
-                            lastSelectedItemID = item.id.uuidString
-                            showingStore = true
-                        } label: {
-                            HStack(spacing: 12) {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(item.name).font(.body.weight(.medium)).foregroundStyle(.primary)
-                                    Text("Quantity \(item.displayQuantity)").font(.caption).foregroundStyle(.secondary)
-                                }
-                                Spacer(minLength: 6)
-                                Text(item.status.rawValue)
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(statusColor(item.status))
-                                    .padding(.horizontal, 9).padding(.vertical, 6)
-                                    .background(statusColor(item.status).opacity(0.11), in: Capsule())
-                            }
-                            .contentShape(Rectangle())
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(sentenceCase(item.name)).font(.body.weight(.medium)).foregroundStyle(.primary)
+                            Text("Quantity \(item.displayQuantity)").font(.caption).foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel("\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue). Find in Coles")
-                        .accessibilityHint("Opens Coles and selects this item")
-
-                        Menu {
-                            Button("Edit Item", systemImage: "pencil") { editingItem = item }
-                            Button("Delete Item", systemImage: "trash", role: .destructive) { delete(item) }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .accessibilityLabel("Actions for \(item.name)")
+                        Spacer(minLength: 6)
+                        Text(item.status.rawValue)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(statusColor(item.status))
+                            .padding(.horizontal, 9).padding(.vertical, 6)
+                            .background(statusColor(item.status).opacity(0.11), in: Capsule())
                     }
-                    .padding(.leading, 14)
-                    .padding(.trailing, 4)
-                    .frame(minHeight: 60)
-                    if index < items.count - 1 { Divider().padding(.leading, 14) }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue). Find in \(storeID.displayName)")
+
+                Menu {
+                    if item.status == .pending {
+                        Button("Mark Added", systemImage: "checkmark.circle") { setStatus(.added, for: item) }
+                    } else if item.status == .added {
+                        Button("Mark Pending", systemImage: "arrow.uturn.backward.circle") { setStatus(.pending, for: item) }
+                    }
+                    if item.status != .skipped {
+                        Button("Mark Skipped", systemImage: "forward.end") { setStatus(.skipped, for: item) }
+                    }
+                    Button("Edit Item", systemImage: "pencil") { editingItem = item }
+                    Button("Move to Another Store", systemImage: "arrow.right.arrow.left") { itemToMove = item }
+                    Button("Delete Item", systemImage: "trash", role: .destructive) { delete(item) }
+                } label: {
+                    Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle())
+                }
+                .accessibilityLabel("Actions for \(item.name)")
             }
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-            Text("Tap an item to edit it. Show Store opens Coles.")
-                .font(.caption).foregroundStyle(.secondary)
+            .frame(minHeight: 48)
+            .id(item.id)
+            .onTapGesture { groceryInputFocused = false }
+            .transition(.asymmetric(
+                insertion: .move(edge: .top).combined(with: .opacity),
+                removal: .opacity
+            ))
+            .listRowBackground(
+                recentlyAddedItemIDs.contains(item.id)
+                    ? storeHighlightColor.opacity(0.18)
+                    : Color(uiColor: .secondarySystemGroupedBackground)
+            )
         }
+        .onMove(perform: moveItems)
     }
 
     private func messageBanner(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(message).font(.subheadline.weight(.semibold))
-            }
+        HStack(spacing: 12) {
+            Label(message, systemImage: "info.circle")
+                .font(.subheadline)
+                .foregroundStyle(.primary)
             Spacer(minLength: 4)
-            Button("Dismiss") { notice = nil }.frame(minWidth: 44, minHeight: 44)
+            Button("Dismiss") { notice = nil }
+                .buttonStyle(.borderless)
+                .frame(minWidth: 44, minHeight: 44)
                 .accessibilityLabel("Dismiss notice")
         }
-        .padding(.leading, 14)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
-        .accessibilityElement(children: .contain)
     }
 
     private func statusColor(_ status: GroceryStatus) -> Color {
         switch status {
-        case .pending: Color.listRunnerGreen
-        case .added: .green
+        case .pending, .added: storePrimaryColor
         case .skipped: .secondary
         }
     }
@@ -227,35 +415,94 @@ struct GroceryListScreen: View {
     private func addItems() {
         let parsed = GroceryParser.parse(rawInput)
         guard !parsed.isEmpty else { return }
-        var stagedItems = items
-        for entry in parsed {
-            if let existing = stagedItems.first(where: {
-                let sameName = GroceryParser.normalizedName($0.name) == GroceryParser.normalizedName(entry.name)
-                let sameUnit = Self.normalizedUnit($0.quantityUnit) == Self.normalizedUnit(entry.unit)
-                let oneUnspecified = $0.quantityAmount == nil || entry.amount == nil
-                return sameName && (sameUnit || oneUnspecified)
-            }) {
-                switch (existing.quantityAmount, entry.amount) {
-                case let (old?, new?): existing.quantityAmount = old + new
-                case (nil, let new?): existing.quantityAmount = new
-                default: break
+        var newlyAddedIDs = Set<UUID>()
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+            var stagedItems = items
+            var promotedItems: [GroceryItem] = []
+            for entry in parsed {
+                if let existing = stagedItems.first(where: {
+                    let sameName = GroceryParser.normalizedName($0.name) == GroceryParser.normalizedName(entry.name)
+                    let sameUnit = Self.normalizedUnit($0.quantityUnit) == Self.normalizedUnit(entry.unit)
+                    let oneUnspecified = $0.quantityAmount == nil || entry.amount == nil
+                    return sameName && (sameUnit || oneUnspecified)
+                }) {
+                    switch (existing.quantityAmount, entry.amount) {
+                    case let (old?, new?): existing.quantityAmount = old + new
+                    case (nil, let new?): existing.quantityAmount = new
+                    default: break
+                    }
+                    existing.status = .pending
+                    if !promotedItems.contains(where: { $0.id == existing.id }) {
+                        promotedItems.append(existing)
+                    }
+                    stageReminderWriteback(for: existing)
+                } else {
+                    let item = GroceryItem(name: entry.name, amount: entry.amount, unit: entry.unit, position: stagedItems.count, listID: storeID.listID)
+                    modelContext.insert(item)
+                    stagedItems.append(item)
+                    promotedItems.append(item)
+                    newlyAddedIDs.insert(item.id)
                 }
-                existing.status = .pending
-            } else {
-                let item = GroceryItem(name: entry.name, amount: entry.amount, unit: entry.unit, position: stagedItems.count)
-                modelContext.insert(item)
-                stagedItems.append(item)
+            }
+            // New and reactivated items go to the front in the same order they
+            // appeared in the input. Existing untouched items retain their order.
+            let promotedIDs = Set(promotedItems.map(\.id))
+            let reorderedItems = promotedItems + stagedItems.filter { !promotedIDs.contains($0.id) }
+            for (position, item) in reorderedItems.enumerated() {
+                item.position = position
+            }
+            recentlyAddedItemIDs.formUnion(newlyAddedIDs)
+            scrollTargetItemID = promotedItems.first?.id
+            rawInput = ""
+            groceryInputFocused = true
+            saveChanges()
+        }
+
+        guard !newlyAddedIDs.isEmpty else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.25))
+            withAnimation(.easeOut(duration: 0.45)) {
+                recentlyAddedItemIDs.subtract(newlyAddedIDs)
             }
         }
-        rawInput = ""
-        saveChanges()
+    }
+
+    private func scrollToAddedItem(_ itemID: UUID, using proxy: ScrollViewProxy) {
+        Task { @MainActor in
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(100))
+            guard scrollTargetItemID == itemID, items.contains(where: { $0.id == itemID }) else { return }
+            withAnimation(.easeInOut(duration: 0.35)) {
+                proxy.scrollTo(itemID, anchor: .bottom)
+            }
+        }
     }
 
     private static func normalizedUnit(_ unit: String?) -> String { unit?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "" }
 
     private func delete(_ item: GroceryItem) {
+        pendingReminderWrites.removeValue(forKey: item.id)
+        paprikaReminders.cancelQueuedWriteback(for: item)
+        if selectedList?.selectedItemID == item.id {
+            selectedList?.selectedItemID = ShoppingLists.selection(afterRemoving: item.id, from: items)
+        }
         modelContext.delete(item)
         normalizePositions()
+        saveChanges()
+    }
+
+    private func setStatus(_ status: GroceryStatus, for item: GroceryItem) {
+        item.status = status
+        stageReminderWriteback(for: item)
+        saveChanges()
+    }
+
+    private func moveItems(from source: IndexSet, to destination: Int) {
+        var orderedItems = items
+        orderedItems.move(fromOffsets: source, toOffset: destination)
+        for (position, item) in orderedItems.enumerated() {
+            item.position = position
+        }
         saveChanges()
     }
 
@@ -265,8 +512,11 @@ struct GroceryListScreen: View {
     }
 
     private func deleteAllItems() {
+        for item in items { paprikaReminders.cancelQueuedWriteback(for: item) }
+        pendingReminderWrites.removeAll()
         for item in items { modelContext.delete(item) }
         notice = nil
+        selectedList?.selectedItemID = nil
         saveChanges()
     }
 
@@ -275,8 +525,95 @@ struct GroceryListScreen: View {
     }
 
     private func saveChanges() {
-        do { try modelContext.save() }
-        catch { notice = "Changes may not be saved" }
+        do {
+            try modelContext.save()
+            saveFailed = false
+            let writes = Array(pendingReminderWrites.values)
+            pendingReminderWrites.removeAll()
+            for write in writes { paprikaReminders.queueWriteback(write) }
+        } catch {
+            if !saveFailed {
+                UIAccessibility.post(notification: .announcement, argument: "Changes may not be saved")
+            }
+            saveFailed = true
+            browser.diagnostics.record(.storage, .localSave, reason: .storageFailure, outcome: .failed)
+        }
+    }
+
+    private func moveItem(_ item: GroceryItem, to destination: StoreID) {
+        guard item.listID == storeID.listID, destination != storeID else { return }
+        if selectedList?.selectedItemID == item.id {
+            selectedList?.selectedItemID = ShoppingLists.selection(afterRemoving: item.id, from: items)
+        }
+        browser.endInteraction()
+        ShoppingLists.move(item, to: destination, allItems: allItems)
+        stageReminderWriteback(for: item)
+        saveChanges()
+    }
+
+    private func stageReminderWriteback(for item: GroceryItem) {
+        if let write = paprikaReminders.desiredWriteback(for: item) {
+            pendingReminderWrites[item.id] = write
+        }
+    }
+
+    private func importPaprika() {
+        guard !paprikaReminders.importing else { return }
+        notice = nil
+        Task { @MainActor in
+            do {
+                // Keep the import transaction isolated from any earlier failed
+                // save. The existing local list must be durable before staging
+                // a second, all-or-nothing transaction.
+                saveChanges()
+                guard !saveFailed else { throw PaprikaImportError.transaction }
+                let snapshot = try await paprikaReminders.fetchPaprikaSnapshot()
+                let linkedIDs = Set(items.compactMap(\.paprikaReminderID))
+                let staged = PaprikaImportPlanner.stage(reminders: snapshot, existingIDs: linkedIDs)
+                guard !staged.isEmpty else { throw PaprikaImportError.noNewItems }
+
+                do {
+                    try modelContext.transaction {
+                        var position = (items.map(\.position).max() ?? -1) + 1
+                        for entry in staged {
+                            let item = GroceryItem(name: entry.grocery.name,
+                                                   amount: entry.grocery.amount,
+                                                   unit: entry.grocery.unit,
+                                                   position: position,
+                                                   listID: storeID.listID)
+                            item.paprikaReminderID = entry.reminderID
+                            modelContext.insert(item)
+                            position += 1
+                        }
+                    }
+                    saveFailed = false
+                } catch {
+                    modelContext.rollback()
+                    throw PaprikaImportError.transaction
+                }
+                // Successful imports are shown in the list without a toast.
+            } catch let error as PaprikaImportError {
+                switch error {
+                case .access: notice = "Could not access Paprika reminders"
+                case .listNotFound: notice = "Paprika list not found"
+                case .multipleLists: notice = "Multiple Paprika lists found"
+                case .noNewItems: notice = "No new Paprika items"
+                case .transaction: notice = "Could not import Paprika reminders"
+                }
+            } catch {
+                notice = "Could not import Paprika reminders"
+            }
+            paprikaReminders.finishImport()
+        }
+    }
+
+    private static func localDay() -> String {
+        let format = DateFormatter()
+        format.calendar = Calendar(identifier: .gregorian)
+        format.locale = Locale(identifier: "en_US_POSIX")
+        format.timeZone = .current
+        format.dateFormat = "yyyy-MM-dd"
+        return format.string(from: Date())
     }
 }
 
@@ -313,7 +650,7 @@ private struct ItemEditorSheet: View {
                     }
                 }
                 Section {
-                    Text("Saving changes marks this item Pending. Quantity is guidance only and does not change Coles.")
+                    Text("Saving changes marks this item Pending. Quantity is guidance only and does not change any store basket.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
@@ -343,6 +680,28 @@ private extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
-private extension Color {
-    static let listRunnerGreen = Color(red: 0.10, green: 0.52, blue: 0.37)
+private struct StoreLaunchButtonStyle: ViewModifier {
+    let tint: Color
+    @Environment(\.isEnabled) private var isEnabled
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .buttonStyle(.glass)
+                .tint(tint)
+        } else {
+            content
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .background {
+                    Capsule()
+                        .fill(.regularMaterial)
+                        .overlay(Capsule().fill(tint.opacity(0.72)))
+                        .overlay(Capsule().strokeBorder(.white.opacity(0.55), lineWidth: 1))
+                }
+                .shadow(color: tint.opacity(0.18), radius: 8, y: 3)
+                .opacity(isEnabled ? 1 : 0.5)
+        }
+    }
 }

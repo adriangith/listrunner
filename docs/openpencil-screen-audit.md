@@ -95,3 +95,9 @@ Read back S3 document `3758a235-313a-4893-80aa-f8e986d0c2cc` and parsed its FIG 
 - Visually exported the revised store, final-item, complete-store, completed-list, inline-edit, and local-data recovery compositions.
 - OpenPencil top-level frame/component overlap analysis reported no major artboard overlaps after arrangement.
 - Historical checks do not establish every nested layout, connector route or runtime interaction. The 2026-10-21 saved-file verification and closeout above describe the current scope and remaining device-validation limitations.
+# Mark Pending update
+
+- Components includes a separate `Card / Selected Added · Mark Pending · no active confirmation` variant; the existing Pause variant is reserved for a timed automatic-add countdown.
+- The Complete overlay component and Shopping Flow screen 15 show Mark Pending on the selected Added card, in the existing action-button slot.
+- Mark Pending restores Pending locally and keeps selection; it never removes anything from the Coles cart. It reopens completed runs after Finish. Final-item confirmation retains Undo / Finish without the card action.
+- Runtime checks: revisit an Added item → Mark Pending → same selected card becomes Pending, totals update, Mark Added appears, and the state survives relaunch. Verify Mark Pending after Finish, no Mark Pending during timed cooldown/final confirmation, and clearing paused confirmation without changing Coles.
