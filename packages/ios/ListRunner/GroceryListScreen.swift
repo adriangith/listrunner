@@ -106,7 +106,7 @@ struct GroceryListScreen: View {
                                 // arrive as a newline rather than a submit event.
                                 // Treat that newline as submission; a multiline
                                 // paste still enters in one edit and is parsed
-                                // into multiple items by GroceryParser.
+                                // into multiple items by IngredientParser.
                                 if value.contains(where: { $0.isNewline }) {
                                     addItems()
                                 }
@@ -133,7 +133,7 @@ struct GroceryListScreen: View {
 
                             Button("Add Items", action: addItems)
                                 .buttonStyle(.borderedProminent)
-                                .disabled(GroceryParser.parse(rawInput).isEmpty)
+                                .disabled(IngredientParser.application.parseGroceries(rawInput).isEmpty)
                         }
                     }
 
@@ -413,7 +413,7 @@ struct GroceryListScreen: View {
     }
 
     private func addItems() {
-        let parsed = GroceryParser.parse(rawInput)
+        let parsed = IngredientParser.application.parseGroceries(rawInput)
         guard !parsed.isEmpty else { return }
         var newlyAddedIDs = Set<UUID>()
         withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {

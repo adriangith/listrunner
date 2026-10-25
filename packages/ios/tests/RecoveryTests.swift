@@ -32,6 +32,18 @@ struct RecoveryTests {
               && recipeGroceries[4].amount == 3 && recipeGroceries[4].unit == "tbsp"
               && recipeGroceries[7].amount == 1.0 / 3.0 && recipeGroceries[7].unit == "cup",
               "recipe quantities, abbreviated measures and can sizes are retained")
+        let dictionary = try IngredientDictionary(data: Data(contentsOf: resources.appendingPathComponent("ingredients.json")))
+        let ingredientParser = IngredientParser(dictionary: dictionary)
+        let chilledRice = ingredientParser.parseGroceries("4 cups cooked and chilled rice(I prefer short-grain white rice)")
+        check(chilledRice.count == 1
+              && chilledRice[0].name == "Rice (I prefer short-grain white rice)"
+              && chilledRice[0].amount == 4 && chilledRice[0].unit == "cups",
+              "quantity survives an intervening cooked-and-chilled note and parenthetical preference is preserved")
+        let cashews = ingredientParser.parseRecord("¼ cup (40g) roasted salted cashews")
+        check(cashews?.disposition == .recognized
+              && cashews?.grocery.name == "Roasted salted cashews"
+              && cashews?.grocery.amount == 0.25 && cashews?.grocery.unit == "cup",
+              "cashews resolve to the ingredient while the primary volume quantity and clean name are retained")
         check(coles.addedColor.red == 224 && coles.addedColor.green == 26 && coles.addedColor.blue == 34,
               "Coles Added colour is explicitly configured as RGB(224, 26, 34)")
         check(woolworths.addedColor.red == 0 && woolworths.addedColor.green == 114 && woolworths.addedColor.blue == 61,

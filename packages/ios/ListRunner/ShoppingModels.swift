@@ -45,12 +45,6 @@ final class GroceryItem {
     }
 }
 
-struct ParsedGrocery {
-    var name: String
-    var amount: Double?
-    var unit: String?
-}
-
 enum GroceryParser {
     private static let units: Set<String> = [
         "g", "kg", "mg", "ml", "l", "oz", "lb", "lbs", "cans", "can", "tins", "tin",

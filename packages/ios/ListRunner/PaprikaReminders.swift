@@ -36,7 +36,7 @@ enum PaprikaImportPlanner {
         var staged: [StagedPaprikaItem] = []
         for reminder in ordered {
             guard !reminder.id.isEmpty, seen.insert(reminder.id).inserted else { continue }
-            let parsed = GroceryParser.parse(reminder.title)
+            let parsed = IngredientParser.application.parseGroceries(reminder.title)
             guard !parsed.isEmpty else { continue }
             // Paprika normally exports one grocery per reminder. If a title uses
             // ListRunner's comma syntax, preserve every parsed grocery while

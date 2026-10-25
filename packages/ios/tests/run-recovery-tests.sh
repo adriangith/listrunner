@@ -7,6 +7,10 @@ xcrun swiftc -parse-as-library -target "$(uname -m)-apple-macosx14.0" \
   "$base/tests/LegacyStoreWriter.swift" -o "$output/legacy-writer"
 xcrun swiftc -parse-as-library -target "$(uname -m)-apple-macosx14.0" \
   "$base/ListRunner/ShoppingModels.swift" \
+  "$base/ListRunner/IngredientQuantity.swift" \
+  "$base/ListRunner/IngredientParseResult.swift" \
+  "$base/ListRunner/IngredientDictionary.swift" \
+  "$base/ListRunner/IngredientParser.swift" \
   "$base/ListRunner/ShoppingLists.swift" \
   "$base/ListRunner/StoreConfiguration.swift" \
   "$base/tests/StoreV2Writer.swift" -o "$output/store-v2-writer"

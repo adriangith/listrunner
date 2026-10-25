@@ -13,6 +13,11 @@
 		A10000000000000000000016 = {isa = PBXBuildFile; fileRef = B10000000000000000000016; };
 		A10000000000000000000017 = {isa = PBXBuildFile; fileRef = B10000000000000000000017; };
 		A10000000000000000000018 /* PaprikaReminders.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000018; };
+		A10000000000000000000019 /* IngredientQuantity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000019; };
+		A10000000000000000000020 /* IngredientParseResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000020; };
+		A10000000000000000000021 /* IngredientDictionary.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000021; };
+		A10000000000000000000022 /* IngredientParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000022; };
+		A10000000000000000000023 /* ingredients.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000023; };
 		A10000000000000000000012 /* RecoveryServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012; };
 		A10000000000000000000010 /* RecoverySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010; };
 		A10000000000000000000011 /* AppRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011; };
@@ -33,6 +38,11 @@
 		B10000000000000000000016 = {isa = PBXFileReference; lastKnownFileType = text.json; path = Resources/coles.json; sourceTree = "<group>"; };
 		B10000000000000000000017 = {isa = PBXFileReference; lastKnownFileType = text.json; path = Resources/woolworths.json; sourceTree = "<group>"; };
 		B10000000000000000000018 /* PaprikaReminders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaprikaReminders.swift; sourceTree = "<group>"; };
+		B10000000000000000000019 /* IngredientQuantity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientQuantity.swift; sourceTree = "<group>"; };
+		B10000000000000000000020 /* IngredientParseResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientParseResult.swift; sourceTree = "<group>"; };
+		B10000000000000000000021 /* IngredientDictionary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientDictionary.swift; sourceTree = "<group>"; };
+		B10000000000000000000022 /* IngredientParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientParser.swift; sourceTree = "<group>"; };
+		B10000000000000000000023 /* ingredients.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Resources/ingredients.json; sourceTree = "<group>"; };
 		B10000000000000000000012 /* RecoveryServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryServices.swift; sourceTree = "<group>"; };
 		B10000000000000000000010 /* RecoverySupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoverySupport.swift; sourceTree = "<group>"; };
 		B10000000000000000000011 /* AppRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRecovery.swift; sourceTree = "<group>"; };
@@ -55,7 +65,7 @@
 /* Begin PBXGroup section */
 		D10000000000000000000001 = {isa = PBXGroup; children = (D10000000000000000000002 /* ListRunner */, D20000000000000000000001 /* ListRunnerUITests */, D10000000000000000000003 /* Products */); sourceTree = "<group>"; };
 		D20000000000000000000001 = {isa = PBXGroup; children = (B20000000000000000000001); path = ListRunnerUITests; sourceTree = "<group>"; };
-		D10000000000000000000002 /* ListRunner */ = {isa = PBXGroup; children = (B10000000000000000000001, B10000000000000000000002, B10000000000000000000008, B10000000000000000000009, B10000000000000000000010, B10000000000000000000011, B10000000000000000000012, B10000000000000000000013, B10000000000000000000014, B10000000000000000000015, B10000000000000000000016, B10000000000000000000017, B10000000000000000000018, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005, B10000000000000000000006); path = ListRunner; sourceTree = "<group>"; };
+		D10000000000000000000002 /* ListRunner */ = {isa = PBXGroup; children = (B10000000000000000000001, B10000000000000000000002, B10000000000000000000008, B10000000000000000000009, B10000000000000000000010, B10000000000000000000011, B10000000000000000000012, B10000000000000000000013, B10000000000000000000014, B10000000000000000000015, B10000000000000000000016, B10000000000000000000017, B10000000000000000000018, B10000000000000000000019, B10000000000000000000020, B10000000000000000000021, B10000000000000000000022, B10000000000000000000023, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005, B10000000000000000000006); path = ListRunner; sourceTree = "<group>"; };
 		D10000000000000000000003 /* Products */ = {isa = PBXGroup; children = (B10000000000000000000007 /* ListRunner.app */, B20000000000000000000002); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
@@ -100,12 +110,12 @@
 /* End PBXTargetDependency section */
 
 /* Begin PBXResourcesBuildPhase section */
-		C10000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000003, A10000000000000000000004, A10000000000000000000016, A10000000000000000000017); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000003, A10000000000000000000004, A10000000000000000000016, A10000000000000000000017, A10000000000000000000023); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		C20000000000000000000002 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A20000000000000000000001); runOnlyForDeploymentPostprocessing = 0; };
-		C10000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000008, A10000000000000000000009, A10000000000000000000010, A10000000000000000000011, A10000000000000000000012, A10000000000000000000013, A10000000000000000000014, A10000000000000000000015, A10000000000000000000018); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000008, A10000000000000000000009, A10000000000000000000010, A10000000000000000000011, A10000000000000000000012, A10000000000000000000013, A10000000000000000000014, A10000000000000000000015, A10000000000000000000018, A10000000000000000000019, A10000000000000000000020, A10000000000000000000021, A10000000000000000000022); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
