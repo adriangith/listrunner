@@ -630,6 +630,7 @@ final class StoreVisibilityPreferences: ObservableObject {
     private let countryKey = "shoppingCountry.v1"
     private let countryInitializedKey = "shoppingCountryInitialized.v1"
     private let regionalKey = "storeRegionalChoices.v1"
+    private let pendingSelectionKey = "pendingEnabledStoreSelection.v1"
 
     init(defaults: UserDefaults? = nil, suggestedCountryCode: String? = Locale.current.region?.identifier) {
         if let defaults {
@@ -686,6 +687,15 @@ final class StoreVisibilityPreferences: ObservableObject {
     }
 
     private func saveVisibility(_ updated: Set<StoreID>) {
+        var pending = (defaults.array(forKey: pendingSelectionKey) as? [String] ?? [])
+            .compactMap(StoreID.init(rawValue:)).filter { updated.contains($0) }
+        // Record actual disabled→enabled transitions only. A repeated on-value
+        // or country/filter change must not steal a later explicit selection.
+        for id in updated.subtracting(visibleIDs).sorted(by: { $0.rawValue < $1.rawValue }) {
+            pending.removeAll { $0 == id }
+            pending.append(id)
+        }
+        defaults.set(pending.map(\.rawValue), forKey: pendingSelectionKey)
         visibleIDs = updated
         defaults.set(updated.map(\.rawValue).sorted(), forKey: visibleKey)
     }
@@ -693,7 +703,14 @@ final class StoreVisibilityPreferences: ObservableObject {
     func selectionForList(current: StoreID, definitions: [StoreDefinition]) -> StoreID? {
         // Resolve only when returning to the list, never during management.
         // Reading persisted visibility also repairs an old disabled selection on launch.
-        visibleIDs.contains(current) ? current
+        let available = Set(definitions.map(\.id)).intersection(visibleIDs)
+        let pending = (defaults.array(forKey: pendingSelectionKey) as? [String] ?? [])
+            .compactMap(StoreID.init(rawValue:)).last(where: { available.contains($0) })
+        // Consume on return, even when already active, so subsequent visits or
+        // explicit picker choices are not overridden by an old enable action.
+        defaults.removeObject(forKey: pendingSelectionKey)
+        if let pending { return pending }
+        return visibleIDs.contains(current) ? current
             : StoreCatalogue.ordered(definitions, countryCode: nil, enabledIDs: visibleIDs).first?.id
     }
 

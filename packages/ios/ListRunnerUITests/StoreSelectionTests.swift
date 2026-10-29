@@ -267,6 +267,33 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("Coles fixture item", status: "Skipped").waitForExistence(timeout: 3))
     }
 
+    func testMostRecentlyEnabledStoreBecomesActiveOnReturn() {
+        app.buttons["Settings"].tap()
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility("bigW", shown: true)
+        setStoreVisibility("kmart", shown: true)
+        XCTAssertTrue(app.navigationBars["Manage Stores"].exists, "Enabling must not dismiss management")
+        tapNavigationBack()
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["store-picker"].label, "Kmart")
+        choose("Coles")
+        app.buttons["Settings"].tap()
+        tapNavigationBack()
+        XCTAssertEqual(app.buttons["store-picker"].label, "Coles", "The enable preference must be consumed only once")
+        app.buttons["Settings"].tap()
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility("bigW", shown: false)
+        setStoreVisibility("bigW", shown: true)
+        tapNavigationBack()
+        tapNavigationBack()
+        XCTAssertEqual(app.buttons["store-picker"].label, "BIG W")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["store-picker"].label, "BIG W")
+    }
+
     func testHidingAndReenablingStorePreservesItsList() {
         app.buttons["Settings"].tap()
         XCTAssertTrue(app.buttons["Manage Stores"].waitForExistence(timeout: 5))

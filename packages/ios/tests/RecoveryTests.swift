@@ -82,13 +82,13 @@ struct RecoveryTests {
         emptyRestored.setVisible(false, for: .coles)
         emptyRestored.setVisible(true, for: .woolworths)
         emptyRestored.setVisible(true, for: .coles)
-        check(emptyRestored.selectionForList(current: .woolworths, definitions: brandDefinitions) == .woolworths,
-              "recovery retains the previous active store if it is enabled again")
+        check(emptyRestored.selectionForList(current: .woolworths, definitions: brandDefinitions) == .coles,
+               "the most recently enabled store wins even when the current store is enabled")
         for id in StoreID.allCases { emptyRestored.setVisible(false, for: id) }
         emptyRestored.setVisible(true, for: .woolworths)
         emptyRestored.setVisible(true, for: .coles)
         check(emptyRestored.selectionForList(current: .bunnings, definitions: brandDefinitions.reversed()) == .coles,
-              "multiple re-enabled stores use stable alphabetical selection, never a disabled list")
+               "multiple re-enabled stores select the latest enabled store, independent of catalogue order")
         let recoveryCostco = StoreBrand.catalogue(brandDefinitions).first { $0.id == "costco" }!
         for id in StoreID.allCases { emptyRestored.setVisible(false, for: id) }
         emptyRestored.chooseRegion(.costcoUS, for: recoveryCostco)
@@ -103,14 +103,30 @@ struct RecoveryTests {
         activePreferences.setVisible(true, for: .woolworths)
         activePreferences.setVisible(true, for: .bunnings)
         activePreferences.setVisible(false, for: .bunnings)
-        check(activePreferences.selectionForList(current: .bunnings, definitions: brandDefinitions) == .coles,
-              "disabling only active Bunnings selects enabled Coles without an all-disabled transition")
+        check(activePreferences.selectionForList(current: .bunnings, definitions: brandDefinitions) == .woolworths,
+               "disabling the newest enabled store selects the previous pending enable")
         let activeRestored = StoreVisibilityPreferences(defaults: emptyDefaults)
         check(activeRestored.selectionForList(current: .bunnings, definitions: brandDefinitions) == .coles,
               "relaunch repairs a previously persisted disabled active store")
         activeRestored.setShoppingCountry("US")
         check(activeRestored.selectionForList(current: .woolworths, definitions: brandDefinitions) == .woolworths,
-              "country changes never switch an active store that remains enabled")
+               "country changes never switch an active store that remains enabled")
+        activeRestored.setVisible(true, for: .bigW)
+        activeRestored.setVisible(true, for: .kmart)
+        check(emptyDefaults.string(forKey: "activeStoreID") == "bunnings", "enabling never changes activeStoreID before returning")
+        let pendingRestored = StoreVisibilityPreferences(defaults: emptyDefaults)
+        check(pendingRestored.selectionForList(current: .coles, definitions: brandDefinitions) == .kmart,
+              "latest enable order survives relaunch until list reconciliation")
+        check(pendingRestored.selectionForList(current: .coles, definitions: brandDefinitions) == .coles,
+              "enable selection is consumed once and preserves subsequent manual choices")
+        pendingRestored.setVisible(true, for: .bigW)
+        check(pendingRestored.selectionForList(current: .coles, definitions: brandDefinitions) == .coles,
+              "repeated already-enabled assignments do not requeue selection")
+        pendingRestored.setVisible(false, for: .bigW)
+        pendingRestored.setVisible(true, for: .bigW)
+        pendingRestored.setVisible(false, for: .bigW)
+        check(pendingRestored.selectionForList(current: .coles, definitions: brandDefinitions) == .coles,
+              "enabling then disabling before returning cannot activate a hidden store")
         let costcoBrand = StoreBrand.catalogue(brandDefinitions).first { $0.id == "costco" }!
         check(costcoBrand.regions.map(\.id) == [.costco, .costcoUS], "reviewed Costco regions share one brand entry")
         check(StoreBrand.catalogue(brandDefinitions).count == 8, "nine regional stores have eight brand rows")
@@ -851,6 +867,7 @@ struct RecoveryTests {
         check(afterRetry == preserved, "Retry preserves unreadable data")
         try Data("old-wal".utf8).write(to: URL(fileURLWithPath: url.path + "-wal"))
         try Data("old-shm".utf8).write(to: URL(fileURLWithPath: url.path + "-shm"))
+        defaults.set(["bigW"], forKey: "pendingEnabledStoreSelection.v1")
         allowOpen = true
         storage.resetAfterConfirmation()
         check(storage.container != nil, "confirmed local reset opens an empty store")
@@ -865,7 +882,8 @@ struct RecoveryTests {
                 && defaults.object(forKey: "shoppingCountry.v1") == nil
                  && defaults.object(forKey: "shoppingCountryInitialized.v1") == nil
                  && defaults.object(forKey: "storeRegionalChoices.v1") == nil
-                 && defaults.object(forKey: "selectEnabledStoreAfterEmpty.v1") == nil,
+                  && defaults.object(forKey: "selectEnabledStoreAfterEmpty.v1") == nil
+                  && defaults.object(forKey: "pendingEnabledStoreSelection.v1") == nil,
                 "local reset clears store visibility, legacy ordering and shopping-country preferences")
         check(defaults.string(forKey: "unrelated") == "keep", "local reset preserves unrelated preferences")
         check(FileManager.default.fileExists(atPath: unrelatedFile.path), "local reset preserves neighboring files")

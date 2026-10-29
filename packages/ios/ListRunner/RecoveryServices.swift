@@ -78,7 +78,7 @@ final class LocalDataController: ObservableObject {
             for key in ["lastOverlaySelectedItemID", "lastActiveLocalDate", "activeStoreID",
                         "visibleStoreIDs.v1", "knownStoreIDs.v1", "storeSortMode.v1",
                          "shoppingCountry.v1", "shoppingCountryInitialized.v1", "storeRegionalChoices.v1", "useLocalIngredientNames.v1",
-                        "selectEnabledStoreAfterEmpty.v1"] {
+                        "selectEnabledStoreAfterEmpty.v1", "pendingEnabledStoreSelection.v1"] {
                 defaults.removeObject(forKey: key)
             }
             try diagnostics.clear()
