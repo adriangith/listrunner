@@ -48,7 +48,8 @@ struct GroceryListScreen: View {
     @State private var notice: String?
     @State private var saveFailed = false
     @State private var pendingReminderWrites: [UUID: ReminderWriteback] = [:]
-    @FocusState private var groceryInputFocused: Bool
+    // The native editor owns first-responder focus; mirror it as view state.
+    @State private var groceryInputFocused = false
     @State private var recentlyAddedItemIDs = Set<UUID>()
     @State private var scrollTargetItemID: UUID?
     @State private var addedItemScrollTask: Task<Void, Never>?
@@ -123,7 +124,7 @@ struct GroceryListScreen: View {
 
                     Section("Add products") {
                         ProductEntryEditor(text: $rawInput,
-                                           isFocused: Binding(get: { groceryInputFocused }, set: { groceryInputFocused = $0 }),
+                                           isFocused: $groceryInputFocused,
                                            onSubmit: addItems)
                             .onChange(of: rawInput) { _, value in
                                 // Multiline paste is parsed in a single edit.
