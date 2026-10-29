@@ -166,7 +166,7 @@ function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = f
     if (duplicateLinks) tile.append(new FakeElement('a', { href: url }, 'Same product image'));
     if (ambiguous) tile.append(new FakeElement('a', { href: 'https://www.bunnings.com.au/other_p9999999' }, 'Another product'));
     const controls = tile.append(new FakeElement('div'));
-    const control = controls.append(new FakeElement('button', { 'aria-label': quantity ? 'Increase quantity' : config.id === 'kmart' ? 'Add' : 'Add to Cart' }, quantity ? '' : 'Add'));
+    const control = controls.append(new FakeElement('button', { 'aria-label': quantity ? 'Increase quantity' : config.id === 'kmart' ? 'Add Foldaway PVC Chair - Black colour to bag' : 'Add to Cart' }, quantity ? '' : 'Add'));
     const inner = control.append(new FakeElement('span', {}, 'Add'));
     const card = { tile, link, controls, control, inner };
     if (quantity) setCardQuantity(card, quantity);
@@ -204,6 +204,7 @@ function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = f
     click(trusted = true) { click({ isTrusted: trusted, target: selected.inner, composedPath: () => [selected.inner, selected.control, selected.controls, selected.tile] }); },
     setQuantity(value) { setCardQuantity(selected, value); mutation(); },
     setKmartToast(text) { document.body.innerText = text; mutation(); },
+    setAddLabel(label) { selected.control.attributes['aria-label'] = label; },
     setOtherQuantity(value) { setCardQuantity(other, value); badge.value = String(value); mutation(); },
     reuseForDifferentProduct() { selected.link.attributes.href = 'https://www.bunnings.com.au/reused_p1234567'; setCardQuantity(selected, 1); mutation(); },
     replaceCard(sameProduct = true) {
@@ -246,6 +247,46 @@ test('Kmart search grid confirms Add only after stable product-specific receipt'
   assert.equal(page.messages[0].beforeQuantity, 0);
   assert.equal(page.messages.at(-1).type, 'addDetected');
   assert.equal(page.messages.at(-1).resultingQuantity, 1);
+});
+
+test('Kmart named Add labels accept the observed mobile control but not in-progress controls', () => {
+  const oldRules = { ...kmart, cart: { ...kmart.cart,
+    addLabelPatterns: ['^add$', '^add to bag$', '^increase quantity$'] } };
+  const regression = bunningsGridFixture({ config: oldRules });
+  regression.click();
+  regression.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00 View your bag');
+  regression.tick(8);
+  assert.equal(regression.messages.length, 0, 'old rules silently ignored the live named control');
+  for (const label of ['Add', 'Add to bag', 'Add Foldaway PVC Chair - Black colour to bag',
+    'Add Foldaway PVC Chair - Black colour to bag Add']) {
+    const page = bunningsGridFixture({ config: kmart });
+    page.setAddLabel(label);
+    page.click();
+    page.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00 View your bag');
+    page.tick(8);
+    assert.equal(page.messages.at(-1)?.type, 'addDetected', label);
+  }
+  for (const label of ['Adding Foldaway PVC Chair - Black colour to bag', 'Remove Foldaway PVC Chair', 'View your bag']) {
+    const page = bunningsGridFixture({ config: kmart });
+    page.setAddLabel(label);
+    page.click();
+    page.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00 View your bag');
+    page.tick(8);
+    assert.equal(page.messages.length, 0, label);
+  }
+});
+
+test('Kmart named Add still rejects an unrelated receipt and untrusted taps', () => {
+  const page = bunningsGridFixture({ config: kmart });
+  page.click();
+  page.setKmartToast('Added to your bag Basic Camp Chair Qty 1 $6.00 View your bag');
+  page.tick(8);
+  assert.equal(page.messages.length, 0);
+  const synthetic = bunningsGridFixture({ config: kmart });
+  synthetic.click(false);
+  synthetic.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00 View your bag');
+  synthetic.tick(8);
+  assert.equal(synthetic.messages.length, 0);
 });
 
 test('Bunnings duplicate image/title links to one product are not ambiguous', () => {

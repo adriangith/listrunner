@@ -19,7 +19,7 @@
     "linkSelector": "a[href*='/product/']",
     "productURLPattern": "/product/[^/?#]+-(\\d{1,32})(?:[/?#]|$)",
     "addSelector": "button",
-    "addLabelPatterns": ["^add$", "^add to bag$", "^increase quantity$"],
+    "addLabelPatterns": ["^add$", "^add to bag$", "^add .+ to bag(?: add)?$", "^increase quantity$"],
     "quantitySelector": "input[aria-label=\"Quantity\"],input[name=\"quantity\"]",
     "emptyStatusSelector": "button",
     "emptyStatusText": "Add",
