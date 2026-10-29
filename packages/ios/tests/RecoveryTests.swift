@@ -45,6 +45,7 @@ struct RecoveryTests {
         let tesco = try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("tesco.json")))
         let walmart = try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("walmart.json")))
         let kmart = try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("kmart.json")))
+        let bigW = try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("bigW.json")))
         let costcoUS = try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("costcoUS.json")))
         check(costcoUS.serviceArea.countryCodes == ["US"] && !costcoUS.capabilities.search
               && !costcoUS.capabilities.cartDetection && !costcoUS.capabilities.cartUndo && costcoUS.cart == nil,
@@ -174,6 +175,14 @@ struct RecoveryTests {
               "Kmart Australia is browsing-only with all automation disabled")
         check(!StoreID.kmart.permitsSearch && !StoreID.kmart.permitsCartDetection && !StoreID.kmart.permitsCartUndo,
               "native Kmart policy prohibits unreviewed automation")
+        check(bigW.isConfigurationValid && bigW.serviceArea.countryCodes == ["AU"]
+              && !bigW.capabilities.search && !bigW.capabilities.cartDetection && !bigW.capabilities.cartUndo && bigW.cart == nil,
+              "BIG W is browsing-only with all automation disabled")
+        check(!StoreID.bigW.permitsSearch && !StoreID.bigW.permitsCartDetection && !StoreID.bigW.permitsCartUndo,
+              "native BIG W policy prohibits unreviewed automation")
+        check(bigW.allows(bigW.homepage) && bigW.allows(URL(string: "https://bigw.com.au")!)
+              && !bigW.allows(URL(string: "https://www.bigw.co.nz")!)
+              && !bigW.allows(URL(string: "https://www.bigw.com.au.evil.test")!), "BIG W hosts are exact and Australia-only")
         var widenedKmart = kmart
         widenedKmart.capabilities.search = true
         check(!widenedKmart.isConfigurationValid, "JSON cannot enable Kmart automatic search")
