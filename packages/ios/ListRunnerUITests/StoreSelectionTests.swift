@@ -192,6 +192,13 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(toggle.value as? String, "1")
         toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertEqual(toggle.value as? String, "0")
+        tapNavigationBack()
+        app.buttons["Show Store"].tap()
+        let original = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@",
+                                                           "regional-search-test-status", "zucchini")).firstMatch
+        XCTAssertTrue(original.waitForExistence(timeout: 8), "Cached browser must use the changed toggle without a relaunch")
+        XCTAssertFalse(localized.exists)
+        app.buttons["Dismiss store"].tap()
         app.terminate()
         app.launch()
         XCTAssertTrue(row("Zucchini", status: "Pending").waitForExistence(timeout: 5))
@@ -199,9 +206,29 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(app.switches["use-local-ingredient-names"].value as? String, "0")
         tapNavigationBack()
         app.buttons["Show Store"].tap()
-        let original = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@",
-                                                           "regional-search-test-status", "zucchini")).firstMatch
         XCTAssertTrue(original.waitForExistence(timeout: 8), app.debugDescription)
+        XCTAssertFalse(localized.exists)
+    }
+
+    func testRegionalSearchCountryChangeUpdatesCachedBrowser() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("2 zucchini")
+        app.buttons["Add Items"].tap()
+        app.buttons["Show Store"].tap()
+        let localized = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label CONTAINS %@",
+                                                            "regional-search-test-status", "courgette")).firstMatch
+        XCTAssertTrue(localized.waitForExistence(timeout: 8), app.debugDescription)
+        app.buttons["Dismiss store"].tap()
+        app.buttons["Settings"].tap()
+        changeCountry("AU", name: "Australia")
+        XCTAssertEqual(app.switches["use-local-ingredient-names"].value as? String, "1")
+        tapNavigationBack()
+        XCTAssertTrue(row("Zucchini", status: "Pending").exists)
+        app.buttons["Show Store"].tap()
+        let australian = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@",
+                                                             "regional-search-test-status", "zucchini")).firstMatch
+        XCTAssertTrue(australian.waitForExistence(timeout: 8), app.debugDescription)
         XCTAssertFalse(localized.exists)
     }
 

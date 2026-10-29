@@ -1041,6 +1041,12 @@ final class StoreBrowser: ObservableObject {
         enterStoreRecovery(.loadFailed)
         retryStoreLoad()
         check(intendedURL == store.homepage, "recovery cannot replay stale search")
+        let manual = StoreBrowser(store: StoreDefinition.load(.tesco), websiteDataStore: .nonPersistent(), diagnostics: diagnostics)
+        manual.updateIngredientSearchContext(nz)
+        manual.search(for: "zucchini")
+        manual.preloadSearch(itemID: next, searchTerm: "zucchini")
+        check(manual.searchUnavailable && manual.latestRequestedSearchURL == nil && manual.preloadedSearch == nil
+              && manual.intendedURL == manual.store.homepage, "naming never enables browsing-only search")
         updateIngredientSearchContext(originalContext)
         regionalSearchTestStatus = failures.isEmpty ? "PASS: \(checks) browser regional search checks" : "FAIL: " + failures.joined(separator: ", ")
     }
