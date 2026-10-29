@@ -580,7 +580,6 @@ final class StoreVisibilityPreferences: ObservableObject {
             defaults.set(true, forKey: countryInitializedKey)
         }
         // Both legacy sort modes migrate identically, without a location request.
-        ingredientSearchContext = IngredientSearchContext(countryCode: shoppingCountryCode, enabled: localNames)
         defaults.removeObject(forKey: "storeSortMode.v1")
         let current = Set(StoreID.allCases)
         if defaults.array(forKey: knownKey) != nil {
@@ -594,6 +593,7 @@ final class StoreVisibilityPreferences: ObservableObject {
         defaults.set(visibleIDs.map(\.rawValue).sorted(), forKey: visibleKey)
         // Superseded by checking the active store on every return to the list.
         defaults.removeObject(forKey: "selectEnabledStoreAfterEmpty.v1")
+        ingredientSearchContext = IngredientSearchContext(countryCode: shoppingCountryCode, enabled: localNames)
     }
 
     func setVisible(_ visible: Bool, for id: StoreID) {
