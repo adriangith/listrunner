@@ -37,7 +37,7 @@ Main Settings now contains Manage Stores and **Country**, with no individual sto
 
 Each store row opens its complete settings, even when disabled. **Enable store** and (where applicable) **Region** appear first, followed by the selected region's included support, session status, session reset, diagnostics and About. Changing region retains explicit confirmation and refreshes the settings to that region's isolated session; country changes do not switch an enabled region. Earlier descriptions below of inline management switches, a country row in Manage Stores, or enabled-store rows on main Settings are superseded by this alternate hierarchy.
 
-Native build and UI-test validation for this revision still require the Mac/Xcode checkout; prior validation records do not certify this revision.
+Revision `e5f6d1634f828ba158f9ee4c98b31e90418bd366` passed 287 native checks and a signed Mac/Xcode device build, and was installed in place and launched on the physical iPhone for user review. Automated UI checks and visual/accessibility sign-off remain pending; see `VALIDATION.md`.
 
 - Add one or many items from comma-, newline-, and bullet-separated text.
 - Parse common counts, multipliers, and grocery units; unrecognized entries are retained as names.
