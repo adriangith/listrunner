@@ -773,6 +773,27 @@ struct RecoveryTests {
         check(memory.byteCount == exactBytes, "sorted-key UTF-8 byte accounting")
         let payload = try JSONSerialization.jsonObject(with: encoder.encode(memory.entries[0])) as! [String: Any]
         check(Set(payload.keys).isSubset(of: ["timestamp", "sequence", "category", "event", "reason", "outcome", "host"]), "diagnostic privacy whitelist")
+        let legacyDiagnostic = try JSONDecoder().decode(DiagnosticEntry.self, from: encoder.encode(memory.entries[0]))
+        check(legacyDiagnostic.failureDomain == nil && legacyDiagnostic.failureCode == nil
+              && legacyDiagnostic.httpStatus == nil && legacyDiagnostic.browsingActive == nil,
+              "older diagnostics decode without new failure metadata")
+        let failureRecords = DiagnosticStore(fileURL: nil, clock: { now })
+        for code in [NSURLErrorTimedOut, NSURLErrorNotConnectedToInternet] {
+            failureRecords.record(.store, .load, reason: .network, outcome: .failed, host: .bunnings,
+                                  failureDomain: .url, failureCode: code, browsingActive: false)
+        }
+        failureRecords.record(.store, .load, reason: .httpResponse, outcome: .failed, host: .bunnings,
+                              httpStatus: 503, browsingActive: true)
+        check(failureRecords.entries.count == 3, "distinct failure codes/statuses are not throttled together")
+        let failureData = try encoder.encode(failureRecords.entries)
+        let decodedFailures = try JSONDecoder().decode([DiagnosticEntry].self, from: failureData)
+        check(decodedFailures == failureRecords.entries,
+              "safe failure metadata round-trips")
+        let failurePayloads = try JSONSerialization.jsonObject(with: failureData) as! [[String: Any]]
+        let failureKeys: Set<String> = ["timestamp", "sequence", "category", "event", "reason", "outcome", "host",
+                                        "failureDomain", "failureCode", "httpStatus", "browsingActive"]
+        check(failurePayloads.allSatisfy { Set($0.keys).isSubset(of: failureKeys) },
+              "failure diagnostics contain only closed metadata, no descriptions or URLs")
 
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("ListRunnerRecoveryTests-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

@@ -9,6 +9,9 @@ final class StoreSelectionTests: XCTestCase {
         app = XCUIApplication()
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
+        if name.contains("IdleRecovery") {
+            app.launchEnvironment["LISTRUNNER_IDLE_RECOVERY_TEST_FIXTURE"] = "enabled"
+        }
         if name.contains("RegionalSearch") {
             app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "NZ"
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
@@ -169,6 +172,16 @@ final class StoreSelectionTests: XCTestCase {
             NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@", "preload-debug-status", "Promoting completed preload")
         ).firstMatch
         XCTAssertTrue(promoted.waitForExistence(timeout: 25), app.debugDescription)
+    }
+
+    func testIdleRecoveryBrowserChecks() {
+        app.buttons["Show Store"].tap()
+        let status = app.staticTexts["idle-recovery-test-status"]
+        let finished = NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@", "PASS:", "FAIL:")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: finished, object: status)], timeout: 60),
+                       .completed, app.debugDescription)
+        XCTAssertTrue(status.label.hasPrefix("PASS:"), status.label)
+        XCTAssertFalse(app.alerts["Could not load Coles"].exists)
     }
 
     func testRegionalSearchBrowserChecks() {

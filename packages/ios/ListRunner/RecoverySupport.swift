@@ -58,8 +58,9 @@ struct SessionResetOperation {
 // can enter release diagnostics through this API.
 struct DiagnosticEntry: Codable, Equatable {
     enum Category: String, Codable { case store, storage, automation }
-    enum Event: String, Codable { case load, processExit, sessionReset, localOpen, localReset, localSave, cartDetection, cartUndo }
-    enum Reason: String, Codable { case none, network, timedOut, verificationFailed, unavailable, staleContext, unsupported, storageFailure }
+    enum Event: String, Codable { case load, processExit, browserRecovery, sessionReset, localOpen, localReset, localSave, cartDetection, cartUndo }
+    enum Reason: String, Codable { case none, network, timedOut, httpResponse, webKit, verificationFailed, unavailable, staleContext, unsupported, storageFailure }
+    enum FailureDomain: String, Codable { case url, webKit, other }
     enum Outcome: String, Codable { case succeeded, failed, cancelled, ignored }
     enum Host: String, Codable {
         case www = "www.coles.com.au", bare = "coles.com.au"
@@ -79,6 +80,12 @@ struct DiagnosticEntry: Codable, Equatable {
     let reason: Reason
     let outcome: Outcome
     let host: Host?
+    // Optional, bounded metadata keeps older diagnostic files readable. Never
+    // persist NSError descriptions/userInfo or failing URLs (which may contain queries).
+    let failureDomain: FailureDomain?
+    let failureCode: Int?
+    let httpStatus: Int?
+    let browsingActive: Bool?
 }
 
 final class DiagnosticStore {
@@ -113,16 +120,22 @@ final class DiagnosticStore {
 
     func record(_ category: DiagnosticEntry.Category, _ event: DiagnosticEntry.Event,
                 reason: DiagnosticEntry.Reason = .none, outcome: DiagnosticEntry.Outcome,
-                host: DiagnosticEntry.Host? = nil) {
+                host: DiagnosticEntry.Host? = nil,
+                failureDomain: DiagnosticEntry.FailureDomain? = nil, failureCode: Int? = nil,
+                httpStatus: Int? = nil, browsingActive: Bool? = nil) {
         let now = clock()
         purgeExpired(now)
         let duplicate = entries.contains {
             $0.category == category && $0.event == event && $0.reason == reason &&
-            $0.outcome == outcome && $0.host == host && now.timeIntervalSince($0.timestamp) < 60
+            $0.outcome == outcome && $0.host == host && $0.failureDomain == failureDomain &&
+            $0.failureCode == failureCode && $0.httpStatus == httpStatus && $0.browsingActive == browsingActive &&
+            now.timeIntervalSince($0.timestamp) < 60
         }
         if !duplicate {
             entries.append(DiagnosticEntry(timestamp: now, sequence: nextSequence, category: category,
-                                           event: event, reason: reason, outcome: outcome, host: host))
+                                           event: event, reason: reason, outcome: outcome, host: host,
+                                           failureDomain: failureDomain, failureCode: failureCode,
+                                           httpStatus: httpStatus, browsingActive: browsingActive))
             nextSequence &+= 1
         }
         trim()

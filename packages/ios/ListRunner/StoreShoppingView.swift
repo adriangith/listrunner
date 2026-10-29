@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import WebKit
+import OSLog
 
 struct StoreShoppingView: View {
     // The controls and card carousel retain their existing geometry. Only the
@@ -110,6 +111,13 @@ struct StoreShoppingView: View {
                     .opacity(0.01)
                     .allowsHitTesting(false)
             }
+            if browser.isIdleRecoveryTestFixture {
+                Text(browser.idleRecoveryTestStatus)
+                    .accessibilityIdentifier("idle-recovery-test-status")
+                    .frame(width: 1, height: 1)
+                    .opacity(0.01)
+                    .allowsHitTesting(false)
+            }
             if ProcessInfo.processInfo.environment["LISTRUNNER_PRELOAD_TEST_FIXTURE"] == "enabled" {
                 Text(browser.preloadDebugStatus)
                     .accessibilityIdentifier("preload-debug-status")
@@ -182,6 +190,7 @@ struct StoreShoppingView: View {
                 Text(browser.cartDetectionExplanation + " You can still add the product on the store page, then use Mark Added in ListRunner. This changes ListRunner's status only; it does not change the store cart.")
             }
             .onAppear {
+            browser.setBrowsingActive(scenePhase == .active)
             if selectedID == nil || !items.contains(where: { $0.id == selectedID }) { selectedID = items.first?.id }
             if let selected {
                 browser.beginInteraction(itemID: selected.id, searchTerm: selected.searchTerm)
@@ -203,6 +212,9 @@ struct StoreShoppingView: View {
             }
             .task {
                 #if DEBUG
+                if browser.isIdleRecoveryTestFixture {
+                    await browser.runIdleRecoveryTestChecks()
+                }
                 if ProcessInfo.processInfo.environment["LISTRUNNER_REGIONAL_SEARCH_TEST_FIXTURE"] == "checks" {
                     await browser.runRegionalSearchTestChecks()
                 }
@@ -241,8 +253,13 @@ struct StoreShoppingView: View {
                 if !isFinalConfirmation { undoRecord = nil }
             }
             .onChange(of: scenePhase) { _, phase in
+            browser.setBrowsingActive(phase == .active)
             if phase == .active {
-                if let selected { browser.resumeInteraction(itemID: selected.id) }
+                if let selected {
+                    browser.resumeInteraction(itemID: selected.id, searchTerm: selected.searchTerm)
+                } else {
+                    browser.loadIfNeeded()
+                }
             } else {
                 task?.cancel()
                 secondsRemaining = 0
@@ -261,6 +278,7 @@ struct StoreShoppingView: View {
             Text("Your shopping run is safe. Try again or return to your list.")
             }
             .onDisappear {
+            browser.setBrowsingActive(false)
             task?.cancel()
             browser.endInteraction()
             browser.dismissCartUndoWarning()
@@ -914,6 +932,7 @@ private final class QuantityMarqueeLabel: UIView {
 
 @MainActor
 final class StoreBrowser: ObservableObject {
+    private static let recoveryLogger = Logger(subsystem: "ListRunner", category: "StoreRecovery")
     private var uiTestMode: Bool {
         #if DEBUG
         return ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"].flatMap(UUID.init(uuidString:)) != nil
@@ -948,6 +967,10 @@ final class StoreBrowser: ObservableObject {
     private var resetOperation = SessionResetOperation()
     private var intendedURL: URL
     private var interactionEnabled = false
+    // Presentation/foreground state is separate from automation: a visible
+    // browser can have detection disabled, paused or unsupported.
+    private var browsingActive = false
+    private var needsIdleBrowserRebuild = false
     private var retiredNavigations: Set<WKNavigation> = []
     @Published private(set) var searchUnavailable = false
     var searchNotIncluded: Bool { store.isConfigurationValid && !store.capabilities.search }
@@ -987,6 +1010,111 @@ final class StoreBrowser: ObservableObject {
     private var intendedSearchNamingGeneration: UUID?
 
     #if DEBUG
+    var isIdleRecoveryTestFixture: Bool {
+        uiTestMode && ProcessInfo.processInfo.environment["LISTRUNNER_IDLE_RECOVERY_TEST_FIXTURE"] == "enabled"
+    }
+    @Published private(set) var idleRecoveryTestStatus = ""
+
+    // Inject delegate callbacks against isolated browsers instead of hoping iOS
+    // reclaims a real retailer process after an unpredictable idle interval.
+    func runIdleRecoveryTestChecks() async {
+        guard isIdleRecoveryTestFixture else { return }
+        var failures: [String] = []
+        var checks = 0
+        func check(_ condition: Bool, _ name: String) {
+            checks += 1
+            if !condition { failures.append(name) }
+        }
+        for id in [StoreID.coles, .woolworths, .bunnings, .tesco] {
+            let dataStore = WKWebsiteDataStore.nonPersistent()
+            let records = DiagnosticStore(fileURL: nil)
+            let subject = StoreBrowser(store: .load(id), websiteDataStore: dataStore, diagnostics: records)
+            let item = UUID()
+            let cookie = HTTPCookie(properties: [.domain: subject.store.homepage.host!, .path: "/",
+                                               .name: "idle-recovery-fixture", .value: "preserved", .secure: "TRUE"])!
+            await dataStore.httpCookieStore.setCookie(cookie)
+            subject.setBrowsingActive(true)
+            subject.beginInteraction(itemID: item, searchTerm: "milk")
+            // Exercise both dismissal/reopen and background/foreground resumption.
+            for resume in [false, true] {
+                subject.setBrowsingActive(false)
+                subject.endInteraction()
+                let oldView = subject.webView
+                let oldNavigation = subject.latestNavigation
+                let generation = subject.documentGeneration
+                let session = subject.sessionID
+                let interaction = subject.interactionID
+                // Pretend the last page was a checkout: it must never be replayed.
+                subject.intendedURL = subject.store.homepage.appendingPathComponent("checkout/fixture")
+                subject.coordinator.webViewWebContentProcessDidTerminate(oldView)
+                // SwiftUI may update a still-mounted WebView while backgrounded.
+                subject.loadIfNeeded()
+                check(subject.storeRecovery == nil && subject.needsIdleBrowserRebuild,
+                      "\(id) idle termination deferred")
+                check(subject.webView === oldView && subject.pendingSearchTask == nil && !subject.interactionEnabled,
+                      "\(id) no hidden reload or automation")
+                subject.setBrowsingActive(true)
+                if resume { subject.resumeInteraction(itemID: item, searchTerm: "milk") }
+                else { subject.beginInteraction(itemID: item, searchTerm: "milk") }
+                check(subject.webView !== oldView && !subject.needsIdleBrowserRebuild && subject.storeRecovery == nil,
+                      "\(id) fresh browser without alert")
+                check(subject.webView.configuration.websiteDataStore === dataStore && subject.sessionID == session,
+                      "\(id) website data and session retained")
+                check(subject.documentGeneration > generation && subject.interactionID != interaction && subject.itemID == item,
+                      "\(id) stale bridge context invalidated, selection retained")
+                let cookies = await dataStore.httpCookieStore.allCookies()
+                check(cookies.contains { $0.name == cookie.name && $0.value == cookie.value }, "\(id) cookie retained")
+                for _ in 0..<120 {
+                    if subject.pendingSearchTask == nil && !subject.webView.isLoading { break }
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+                let safeURL = subject.store.capabilities.search ? subject.store.searchURL(for: "milk") : subject.store.homepage
+                check(subject.intendedURL == safeURL, "\(id) selected search/homepage, never checkout")
+                subject.coordinator.webViewWebContentProcessDidTerminate(oldView)
+                check(subject.storeRecovery == nil && !subject.needsIdleBrowserRebuild, "\(id) replaced-view callback ignored")
+                if let oldNavigation {
+                    subject.didFailMainFrameNavigation(oldNavigation, error: NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut))
+                    check(subject.storeRecovery == nil, "\(id) retired-navigation failure ignored")
+                }
+            }
+            check(records.entries.contains { $0.event == .processExit && $0.browsingActive == false }
+                  && records.entries.contains { $0.event == .browserRecovery }, "\(id) idle failure/rebuild diagnosed")
+            let currentView = subject.webView
+            subject.coordinator.webViewWebContentProcessDidTerminate(currentView)
+            check(subject.storeRecovery == .processTerminated && subject.webView === currentView,
+                  "\(id) active termination still requires Retry")
+            subject.retryStoreLoad()
+            check(subject.storeRecovery == nil && subject.webView !== currentView, "\(id) explicit Retry rebuilds")
+            subject.enterStoreRecovery(.loadFailed, error: NSError(domain: NSURLErrorDomain, code: NSURLErrorTimedOut))
+            subject.setBrowsingActive(false)
+            subject.setBrowsingActive(true)
+            subject.beginInteraction(itemID: item, searchTerm: "milk")
+            check(subject.storeRecovery == .loadFailed && !subject.needsIdleBrowserRebuild,
+                  "\(id) timeout never silently retried")
+            check(records.entries.last?.reason == .timedOut && records.entries.last?.failureCode == NSURLErrorTimedOut,
+                  "\(id) timeout retains safe numeric diagnosis")
+            subject.leaveStoreRecovery()
+            subject.enterStoreRecovery(.loadFailed, httpStatus: 503)
+            check(records.entries.last?.reason == .httpResponse && records.entries.last?.httpStatus == 503,
+                  "\(id) HTTP failure distinguished")
+            subject.leaveStoreRecovery()
+            subject.setBrowsingActive(false)
+            subject.siteVerificationRequired = true
+            subject.contentProcessDidTerminate()
+            check(subject.storeRecovery == .processTerminated && !subject.needsIdleBrowserRebuild,
+                  "\(id) verification never bypassed by idle recovery")
+            subject.leaveStoreRecovery()
+            subject.siteVerificationRequired = false
+            subject.contentProcessDidTerminate()
+            subject.setBrowsingActive(true)
+            subject.loadIfNeeded()
+            check(subject.storeRecovery == nil && !subject.needsIdleBrowserRebuild && subject.intendedURL == subject.store.homepage,
+                  "\(id) no-selection recovery uses homepage")
+            subject.endInteraction()
+        }
+        idleRecoveryTestStatus = failures.isEmpty ? "PASS: \(checks) idle recovery checks" : "FAIL: " + failures.joined(separator: ", ")
+    }
+
     var isRegionalSearchTestFixture: Bool {
         uiTestMode && ProcessInfo.processInfo.environment["LISTRUNNER_REGIONAL_SEARCH_TEST_FIXTURE"] != nil
     }
@@ -1684,6 +1812,8 @@ final class StoreBrowser: ObservableObject {
 
     func loadIfNeeded(searchTerm: String? = nil) {
         guard canPresentStore, storeRecovery == nil else { return }
+        guard !needsIdleBrowserRebuild || browsingActive else { return }
+        prepareIdleBrowserIfNeeded()
         if hasLoaded {
             if let searchTerm, !searchTerm.isEmpty { search(for: searchTerm) }
             return
@@ -1723,6 +1853,8 @@ final class StoreBrowser: ObservableObject {
 
     func beginInteraction(itemID: UUID, searchTerm: String) {
         guard canPresentStore, storeRecovery == nil else { return }
+        guard !needsIdleBrowserRebuild || browsingActive else { return }
+        prepareIdleBrowserIfNeeded()
         cancelCartUndo()
         dismissCartUndoWarning()
         candidateTimeoutTask?.cancel()
@@ -1841,8 +1973,12 @@ final class StoreBrowser: ObservableObject {
         preload.view.configuration.userContentController.removeAllUserScripts()
     }
 
-    func resumeInteraction(itemID: UUID) {
+    func resumeInteraction(itemID: UUID, searchTerm: String) {
         guard canPresentStore, storeRecovery == nil else { return }
+        if needsIdleBrowserRebuild {
+            beginInteraction(itemID: itemID, searchTerm: searchTerm)
+            return
+        }
         self.itemID = itemID
         interactionID = UUID().uuidString
         interactionEnabled = true
@@ -1929,7 +2065,7 @@ final class StoreBrowser: ObservableObject {
             if status == 429 || StoreNavigationPacing.isVerificationPage(title: page?["title"] ?? "", heading: page?["heading"] ?? "") {
                 self.pauseForSiteVerification()
             } else if status == 403 {
-                self.enterStoreRecovery(.loadFailed)
+                self.enterStoreRecovery(.loadFailed, httpStatus: status)
             } else if page != nil {
                 self.siteVerificationRequired = false
                 self.navigationPacing.clearBlock()
@@ -2109,7 +2245,7 @@ final class StoreBrowser: ObservableObject {
         let nsError = error as NSError
         guard !(nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled) else { return }
         guard navigation === latestNavigation, !retiredNavigations.contains(navigation), canPresentStore else { return }
-        enterStoreRecovery(.loadFailed)
+        enterStoreRecovery(.loadFailed, error: error)
     }
 
     private var diagnosticHost: DiagnosticEntry.Host? {
@@ -2170,15 +2306,61 @@ final class StoreBrowser: ObservableObject {
         webView.evaluateJavaScript("window.__listRunnerSetContext?.(null);", in: nil, in: automationWorld)
     }
 
-    fileprivate func enterStoreRecovery(_ recovery: StoreRecovery) {
+    func setBrowsingActive(_ active: Bool) {
+        browsingActive = active
+    }
+
+    fileprivate func contentProcessDidTerminate() {
         guard canPresentStore, storeRecovery == nil else { return }
+        if browsingActive || siteVerificationRequired {
+            enterStoreRecovery(.processTerminated)
+            return
+        }
+        recordStoreFailure(.processTerminated)
+        endInteraction()
+        retireCurrentNavigation()
+        webView.stopLoading()
+        // Do not reload hidden stores, replay the last page/form, or clear cookies.
+        // The next explicit open/resume supplies a selected search or homepage.
+        needsIdleBrowserRebuild = true
+        hasLoaded = false
+    }
+
+    private func prepareIdleBrowserIfNeeded() {
+        guard needsIdleBrowserRebuild else { return }
+        rebuildWebView()
+        diagnostics.record(.store, .browserRecovery, reason: .unavailable, outcome: .succeeded,
+                           host: defaultDiagnosticHost, browsingActive: browsingActive)
+        Self.recoveryLogger.info("Idle browser rebuilt: store=\(self.store.id.rawValue, privacy: .public) active=\(self.browsingActive, privacy: .public)")
+    }
+
+    private func recordStoreFailure(_ recovery: StoreRecovery, error: Error? = nil, httpStatus: Int? = nil) {
+        let nsError = error as NSError?
+        let domain: DiagnosticEntry.FailureDomain? = nsError.map {
+            $0.domain == NSURLErrorDomain ? .url : ($0.domain == WKErrorDomain ? .webKit : .other)
+        }
+        let reason: DiagnosticEntry.Reason
+        if recovery == .processTerminated { reason = .unavailable }
+        else if httpStatus != nil { reason = .httpResponse }
+        else if domain == .url && nsError?.code == NSURLErrorTimedOut { reason = .timedOut }
+        else if domain == .webKit { reason = .webKit }
+        else { reason = .network }
+        let event: DiagnosticEntry.Event = recovery == .processTerminated ? .processExit : .load
+        diagnostics.record(.store, event, reason: reason, outcome: .failed, host: diagnosticHost,
+                           failureDomain: domain, failureCode: nsError?.code,
+                           httpStatus: httpStatus, browsingActive: browsingActive)
+        // Only enum values/numbers reach the console; never log a request URL,
+        // search term, NSError description, cookies or userInfo.
+        Self.recoveryLogger.error("Store failure: store=\(self.store.id.rawValue, privacy: .public) event=\(event.rawValue, privacy: .public) reason=\(reason.rawValue, privacy: .public) domain=\(domain?.rawValue ?? "none", privacy: .public) code=\(nsError?.code ?? 0, privacy: .public) http=\(httpStatus ?? 0, privacy: .public) active=\(self.browsingActive, privacy: .public)")
+    }
+
+    fileprivate func enterStoreRecovery(_ recovery: StoreRecovery, error: Error? = nil, httpStatus: Int? = nil) {
+        guard canPresentStore, storeRecovery == nil else { return }
+        recordStoreFailure(recovery, error: error, httpStatus: httpStatus)
         endInteraction()
         retireCurrentNavigation()
         webView.stopLoading()
         storeRecovery = recovery
-        diagnostics.record(.store, recovery == .processTerminated ? .processExit : .load,
-                           reason: recovery == .processTerminated ? .unavailable : .network,
-                           outcome: .failed, host: diagnosticHost)
     }
 
     func leaveStoreRecovery() {
@@ -2200,6 +2382,7 @@ final class StoreBrowser: ObservableObject {
     }
 
     private func rebuildWebView() {
+        needsIdleBrowserRebuild = false
         cancelPreload()
         endInteraction()
         retireCurrentNavigation()
@@ -2543,7 +2726,7 @@ final class StoreBrowser: ObservableObject {
                 // Verification pages can return 200, 403 or 429. Let them render
                 // so the user can complete the retailer's legitimate challenge.
                 if response.statusCode >= 400 && ![403, 429].contains(response.statusCode) {
-                    browser.enterStoreRecovery(.loadFailed)
+                    browser.enterStoreRecovery(.loadFailed, httpStatus: response.statusCode)
                     decisionHandler(.cancel)
                     return
                 }
@@ -2553,7 +2736,7 @@ final class StoreBrowser: ObservableObject {
 
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
             guard webView === browser?.webView else { return }
-            browser?.enterStoreRecovery(.processTerminated)
+            browser?.contentProcessDidTerminate()
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
