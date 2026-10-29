@@ -968,12 +968,15 @@ final class StoreSelectionTests: XCTestCase {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         XCTAssertEqual(input.placeholderValue, "Tap to add products…")
-        XCTAssertTrue(app.staticTexts["Type or paste a list, e.g. milk, bread, eggs"].exists)
-        let addProducts = app.buttons["Add products"]
-        XCTAssertTrue(addProducts.isHittable)
-        XCTAssertGreaterThanOrEqual(addProducts.frame.width, 43.99)
-        XCTAssertGreaterThanOrEqual(addProducts.frame.height, 43.99)
-        addProducts.tap()
+        XCTAssertFalse(app.staticTexts["Type or paste a list, e.g. milk, bread, eggs"].exists)
+        XCTAssertFalse(app.buttons["Add products"].exists, "No separate plus button should remain")
+        XCTAssertGreaterThanOrEqual(input.frame.height, 51.99)
+        // Tap the padding, not the text, to verify the entire outline is active.
+        input.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.9)).tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        app.staticTexts["Ready when you are"].tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        input.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.1)).tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
         input.typeText("Milk")
         XCTAssertTrue(app.buttons["Add Items"].isEnabled)
