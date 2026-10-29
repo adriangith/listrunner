@@ -171,8 +171,7 @@ struct GroceryListScreen: View {
                             Spacer(minLength: 8)
 
                             Button("Add Items") {
-                                addItems()
-                                groceryInputFocused = false
+                                addItems(keepingInputFocused: false)
                             }
                                 .buttonStyle(.borderedProminent)
                                 .disabled(IngredientParser.application.parseGroceries(rawInput).isEmpty)
@@ -532,6 +531,10 @@ struct GroceryListScreen: View {
     }
 
     private func addItems() {
+        addItems(keepingInputFocused: true)
+    }
+
+    private func addItems(keepingInputFocused: Bool) {
         let parsed = IngredientParser.application.parseGroceries(rawInput)
         guard !parsed.isEmpty else { return }
         var newlyAddedIDs = Set<UUID>()
@@ -576,7 +579,7 @@ struct GroceryListScreen: View {
             recentlyAddedItemIDs.formUnion(newlyAddedIDs)
             scrollTargetItemID = promotedItems.first?.id
             rawInput = ""
-            groceryInputFocused = true
+            groceryInputFocused = keepingInputFocused
             saveChanges()
         }
 
