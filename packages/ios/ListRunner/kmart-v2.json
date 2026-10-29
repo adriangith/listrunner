@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "id": "kmart",
+  "displayName": "Kmart",
+  "serviceArea": {
+    "countryCodes": [
+      "AU"
+    ]
+  },
+  "homepage": "https://www.kmart.com.au",
+  "allowedHosts": [
+    "www.kmart.com.au",
+    "kmart.com.au"
+  ],
+  "search": {
+    "strategy": "urlTemplate",
+    "template": "https://www.kmart.com.au/?q={query}"
+  },
+  "addedColor": {
+    "red": 0,
+    "green": 91,
+    "blue": 172
+  },
+  "brandColors": {
+    "primary": {
+      "red": 0,
+      "green": 91,
+      "blue": 172
+    },
+    "highlight": {
+      "red": 227,
+      "green": 24,
+      "blue": 55
+    }
+  },
+  "capabilities": {
+    "search": false,
+    "cartDetection": false,
+    "cartUndo": false
+  },
+  "cart": null
+}

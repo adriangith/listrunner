@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 2,
+  "id": "woolworths",
+  "displayName": "Woolworths",
+  "serviceArea": {"countryCodes": ["AU"]},
+  "homepage": "https://www.woolworths.com.au",
+  "allowedHosts": ["www.woolworths.com.au", "woolworths.com.au"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.woolworths.com.au/shop/search/products?searchTerm={query}"},
+  "addedColor": {"red": 0, "green": 114, "blue": 61},
+  "capabilities": {"search": true, "cartDetection": true, "cartUndo": false},
+  "cart": {
+    "strategy": "trustedTileQuantity",
+    "identityStrategy": "numericURLSuffix",
+    "tileSelector": "wc-product-tile",
+    "linkSelector": "a[href*='/shop/productdetails/']",
+    "productURLPattern": "/shop/productdetails/(\\d{1,32})(?:[/?#]|$)",
+    "addSelector": "button.add-to-cart-btn",
+    "addLabelPatterns": ["^add .+ to cart$"],
+    "quantitySelector": "input.quantity-input[aria-valuenow]",
+    "emptyStatusSelector": "button.add-to-cart-btn",
+    "emptyStatusText": "Add to cart",
+    "decrementLabelPattern": "^woolworths-undo-disabled$"
+  }
+}

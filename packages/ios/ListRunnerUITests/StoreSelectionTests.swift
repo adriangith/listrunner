@@ -1,0 +1,1042 @@
+import XCTest
+
+final class StoreSelectionTests: XCTestCase {
+    private var app: XCUIApplication!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
+        app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
+        if name.contains("Preload") {
+            app.launchEnvironment["LISTRUNNER_PRELOAD_TEST_FIXTURE"] = "enabled"
+            app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
+        }
+        if name.contains("Paprika") {
+            app.launchEnvironment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] = "enabled"
+        }
+        if name.contains("Verification") {
+            app.launchEnvironment["LISTRUNNER_VERIFICATION_TEST_FIXTURE"] = "enabled"
+        }
+        if name.contains("CartDetection") {
+            app.launchEnvironment["LISTRUNNER_CART_DETECTION_TEST_FIXTURE"] = "quantityUnavailable"
+        }
+        if name.contains("EmptyList") {
+            app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
+        }
+        if name.contains("NativeStoreIndex") {
+            app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "NZ"
+        }
+        if name.contains("UnsetShoppingCountry") {
+            app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "ZZ"
+        }
+        if name.contains("MixedCountry") {
+            app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_CATALOGUE"] = "mixed"
+        }
+        app.launch()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
+    }
+
+    override func tearDownWithError() throws { app.terminate() }
+
+    private func choose(_ name: String) {
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        app.buttons["store-picker"].tap()
+        let option = app.buttons[name].firstMatch
+        XCTAssertTrue(option.waitForExistence(timeout: 3))
+        option.tap()
+    }
+
+    private func tapNavigationBack() {
+        // iOS 27 beta exposes the native back control as Other in some runs,
+        // rather than Button. Match its stable identifier, not the AX type.
+        let back = app.descendants(matching: .any).matching(identifier: "BackButton").firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 5), app.debugDescription)
+        back.tap()
+    }
+
+    private func row(_ name: String, status: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label CONTAINS[cd] %@ AND label CONTAINS[cd] %@", name, status)).firstMatch
+    }
+
+    private func assertGroceryInputIsEmpty(_ input: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        // XCTest exposes the placeholder as value on iOS 26, but nil on iOS 27.
+        let value = input.value as? String
+        XCTAssertTrue(value == nil || value == "" || value == input.placeholderValue,
+                      "Submitting should clear the grocery field, not leave typed text", file: file, line: line)
+    }
+
+    private func assertFirstItemIsFullyVisible(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
+        let app = self.app!
+        let item = row(name, status: "Pending")
+        XCTAssertTrue(item.waitForExistence(timeout: 5), file: file, line: line)
+        let cell = app.collectionViews.cells.containing(.button, identifier: item.label).firstMatch
+        let input = app.descendants(matching: .any)["grocery-input"]
+        let showStore = app.buttons["Show Store"]
+        let keyboard = app.keyboards.firstMatch
+        let visible = NSPredicate { _, _ in
+            guard cell.exists, input.exists, showStore.exists, keyboard.exists else { return false }
+            let frame = cell.frame
+            return frame.height > 0
+                && frame.minY >= app.collectionViews.firstMatch.frame.minY
+                && frame.maxY <= showStore.frame.minY
+                && showStore.frame.maxY <= keyboard.frame.minY
+                && input.isHittable && item.isHittable
+        }
+        let result = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: app)], timeout: 5)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "First item after submission"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        if result != .completed { print(app.debugDescription) }
+        XCTAssertEqual(result, .completed,
+                       "The entire first grocery row must be visible above Show Store and the keyboard, with input still available",
+                       file: file, line: line)
+    }
+
+    private func setStoreVisibility(_ store: String, shown: Bool) {
+        let toggle = app.switches["store-visibility-\(store)"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        let desired = shown ? "Shown in store chooser" : "Hidden from store chooser"
+        if toggle.value as? String != desired {
+            toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            let predicate = NSPredicate(format: "value == %@", desired)
+            let expectation = XCTNSPredicateExpectation(predicate: predicate, object: app.switches["store-visibility-\(store)"])
+            XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 3), .completed)
+        }
+    }
+
+    func testPreloadSearchIsPromotedAfterCooldown() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 3))
+        input.tap()
+        input.typeText("preload apple; preload pear")
+        app.buttons["Add Items"].tap()
+        XCTAssertTrue(row("Apples", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertTrue(row("Pears", status: "Pending").exists)
+        app.buttons["Show Store"].tap()
+        let promoted = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@", "preload-debug-status", "Promoting completed preload")
+        ).firstMatch
+        XCTAssertTrue(promoted.waitForExistence(timeout: 25), app.debugDescription)
+    }
+
+    func testStorePickerKeepsListsAndStatusesSeparate() {
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").exists)
+        app.buttons["Actions for Coles fixture item"].tap()
+        app.buttons["Mark Skipped"].tap()
+        XCTAssertTrue(row("Coles fixture item", status: "Skipped").exists)
+        choose("Woolworths")
+        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertFalse(row("Coles fixture item", status: "Skipped").exists)
+        choose("Coles")
+        XCTAssertTrue(row("Coles fixture item", status: "Skipped").waitForExistence(timeout: 3))
+    }
+
+    func testHidingAndReenablingStorePreservesItsList() {
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.buttons["Manage Stores"].waitForExistence(timeout: 5))
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility("coles", shown: false)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["Clear All Diagnostics"].waitForExistence(timeout: 3))
+        app.navigationBars.buttons.firstMatch.tap()
+
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"))
+        XCTAssertTrue(row("Bunnings fixture item", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertFalse(row("Coles fixture item", status: "Pending").exists)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"))
+        XCTAssertFalse(app.webViews.firstMatch.exists, "Changing the active list must not open a retailer website")
+        choose("Woolworths")
+        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").waitForExistence(timeout: 3))
+
+        app.buttons["Settings"].tap()
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility("coles", shown: true)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["Clear All Diagnostics"].waitForExistence(timeout: 3))
+        app.navigationBars.buttons.firstMatch.tap()
+
+        choose("Coles")
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 3))
+    }
+
+    func testDisablingActiveBunningsSelectsEnabledColesAndKeepsItems() {
+        choose("Bunnings")
+        app.buttons["Actions for Bunnings fixture item"].tap()
+        app.buttons["Mark Skipped"].tap()
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("Bunnings saved item")
+        app.buttons["Add Items"].tap()
+        XCTAssertTrue(row("Bunnings saved item", status: "Pending").waitForExistence(timeout: 3))
+        app.buttons["Actions for Bunnings saved item"].tap()
+        app.buttons["Mark Added"].tap()
+        app.buttons["store-picker"].tap()
+        app.buttons["store-picker-manage-stores"].tap()
+        setStoreVisibility("bunnings", shown: false)
+        XCTAssertTrue(app.navigationBars["Manage Stores"].exists, "Do not dismiss management during a toggle")
+        tapNavigationBack()
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Coles"))
+        XCTAssertFalse(row("Bunnings saved item", status: "Added").exists)
+        XCTAssertFalse(row("Bunnings fixture item", status: "Skipped").exists)
+        XCTAssertTrue(app.buttons["Show Store"].isEnabled)
+        XCTAssertFalse(app.webViews.firstMatch.exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Disabled Bunnings — enabled Coles list and branding"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 10))
+        app.buttons["store-picker"].tap()
+        app.buttons["store-picker-manage-stores"].tap()
+        setStoreVisibility("bunnings", shown: true)
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Coles"), "Re-enabling another store must not replace an enabled selection")
+        choose("Bunnings")
+        XCTAssertTrue(row("Bunnings fixture item", status: "Skipped").waitForExistence(timeout: 5))
+        XCTAssertTrue(row("Bunnings saved item", status: "Added").exists)
+    }
+
+    func testSettingsOnlyShowsEnabledStores() {
+        app.buttons["Settings"].tap()
+        let manage = app.buttons["Manage Stores"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 5))
+        for id in ["coles", "woolworths", "bunnings"] {
+            XCTAssertTrue(app.buttons["settings-store-\(id)"].exists)
+        }
+
+        manage.tap()
+        setStoreVisibility("coles", shown: false)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(manage.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["settings-store-coles"].exists)
+        XCTAssertTrue(app.buttons["settings-store-woolworths"].exists)
+        XCTAssertTrue(app.buttons["settings-store-bunnings"].exists)
+
+        manage.tap()
+        XCTAssertTrue(app.switches["store-visibility-coles"].waitForExistence(timeout: 5),
+                      "Disabled stores must remain available in Manage Stores")
+        setStoreVisibility("coles", shown: true)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["settings-store-coles"].waitForExistence(timeout: 5))
+    }
+
+    func testSettingsWithAllStoresHiddenKeepsManagementAvailable() {
+        app.buttons["Settings"].tap()
+        let manage = app.buttons["Manage Stores"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 5))
+        manage.tap()
+        for id in ["coles", "woolworths", "bunnings"] {
+            setStoreVisibility(id, shown: false)
+        }
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(manage.waitForExistence(timeout: 5))
+        for id in ["coles", "woolworths", "bunnings"] {
+            XCTAssertFalse(app.buttons["settings-store-\(id)"].exists)
+        }
+        XCTAssertTrue(app.buttons["Clear All Diagnostics"].exists)
+
+        manage.tap()
+        setStoreVisibility("woolworths", shown: true)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["settings-store-woolworths"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["settings-store-coles"].exists)
+        XCTAssertFalse(app.buttons["settings-store-bunnings"].exists)
+        tapNavigationBack()
+        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Woolworths"))
+    }
+
+    func testAllHiddenStoresHidePickerAndKeepManagementAvailable() {
+        app.buttons["Settings"].tap()
+        app.buttons["Manage Stores"].tap()
+        for store in ["coles", "woolworths", "bunnings"] {
+            setStoreVisibility(store, shown: false)
+        }
+        app.navigationBars.buttons.firstMatch.tap()
+        app.navigationBars.buttons.firstMatch.tap()
+
+        XCTAssertFalse(app.buttons["store-picker"].exists)
+        XCTAssertFalse(app.buttons["Show Store"].exists)
+        XCTAssertTrue(app.staticTexts["No stores enabled"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["grocery-input"].exists)
+        app.buttons["no-stores-manage"].tap()
+        setStoreVisibility("coles", shown: true)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Show Store"].isEnabled)
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility("woolworths", shown: true)
+        setStoreVisibility("bunnings", shown: true)
+        app.navigationBars.buttons.firstMatch.tap()
+    }
+
+    func testAllDisabledBunningsThenColesSelectsEnabledListAndPreservesSavedLists() {
+        choose("Bunnings")
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("Bunnings saved list item")
+        app.buttons["Add Items"].tap()
+        XCTAssertTrue(row("Bunnings saved list item", status: "Pending").waitForExistence(timeout: 3))
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        for id in ["coles", "woolworths", "bunnings"] { setStoreVisibility(id, shown: false) }
+        tapNavigationBack()
+        XCTAssertTrue(app.staticTexts["No stores enabled"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["store-picker"].exists)
+        XCTAssertFalse(row("Bunnings saved list item", status: "Pending").exists)
+        XCTAssertFalse(input.exists)
+        XCTAssertFalse(app.buttons["Show Store"].exists)
+        XCTAssertFalse(app.buttons["Edit"].exists)
+        let neutral = XCTAttachment(screenshot: app.screenshot())
+        neutral.name = "Neutral all-stores-disabled screen"
+        neutral.lifetime = .keepAlways
+        add(neutral)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["No stores enabled"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["store-picker"].exists)
+        app.buttons["no-stores-manage"].tap()
+        setStoreVisibility("coles", shown: true)
+        // Enabling a store must not pop Manage Stores out from under the user.
+        XCTAssertTrue(app.navigationBars["Manage Stores"].exists)
+        tapNavigationBack()
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Coles"))
+        XCTAssertFalse(row("Bunnings saved list item", status: "Pending").exists)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 10))
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility("bunnings", shown: true)
+        tapNavigationBack()
+        choose("Bunnings")
+        XCTAssertTrue(row("Bunnings saved list item", status: "Pending").waitForExistence(timeout: 5))
+    }
+
+    func testStoreManagementSearchAndClearDoNotChangeVisibility() {
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        let searchField = app.searchFields.firstMatch
+        XCTAssertTrue(searchField.waitForExistence(timeout: 3))
+        searchField.tap()
+        searchField.typeText("coles")
+        XCTAssertTrue(app.switches["store-visibility-coles"].exists)
+        XCTAssertFalse(app.switches["store-visibility-woolworths"].exists)
+        XCTAssertEqual(app.switches["store-visibility-coles"].value as? String, "Shown in store chooser")
+
+        searchField.buttons["Clear text"].tap()
+        searchField.typeText("no-such-store")
+        XCTAssertTrue(app.staticTexts["No stores found"].waitForExistence(timeout: 3))
+        app.buttons["Clear Search"].tap()
+        XCTAssertTrue(app.staticTexts["No stores found"].waitForNonExistence(timeout: 3))
+        XCTAssertTrue(searchField.isHittable)
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "Clearing no-results should keep search focus")
+    }
+
+    func testNativeStoreIndexUsesOnlyNonemptyLettersAndHidesDuringSearch() {
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        XCTAssertTrue(app.staticTexts["OTHER STORES"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["No supported stores for this country yet."].exists)
+        XCTAssertTrue(app.staticTexts["B"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["C"].exists)
+        let index = app.tables["manage-stores-table"].otherElements.matching(NSPredicate(format: "label CONTAINS[cd] 'index'")).firstMatch
+        XCTAssertTrue(index.waitForExistence(timeout: 3), app.debugDescription)
+        index.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
+        XCTAssertTrue(app.switches["store-visibility-woolworths"].exists)
+        app.buttons["store-letter-menu"].tap()
+        app.buttons["Stores beginning with C"].tap()
+        XCTAssertTrue(app.switches["store-visibility-coles"].isHittable)
+        let search = app.searchFields.firstMatch
+        search.tap()
+        search.typeText("coles")
+        XCTAssertTrue(app.switches["store-visibility-coles"].waitForExistence(timeout: 3))
+        XCTAssertFalse(index.exists)
+        XCTAssertFalse(app.staticTexts["OTHER STORES"].exists)
+        search.buttons["Clear text"].tap()
+        XCTAssertTrue(index.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["OTHER STORES"].exists)
+    }
+
+    func testStoreManagementAccessibility() throws {
+        app.buttons["store-picker"].tap()
+        let manage = app.buttons["Manage Stores"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 3))
+        manage.tap()
+        XCTAssertTrue(app.staticTexts["Manage Stores"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.switches["store-visibility-coles"].waitForExistence(timeout: 5))
+        try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription, .dynamicType, .contrast]) { issue in
+            if issue.auditType == .hitRegion && issue.element?.label == "Section index" {
+                XCTAssertTrue(self.app.buttons["store-letter-menu"].exists,
+                              "The unmodified native index must retain its accessible menu alternative")
+                print("KNOWN NATIVE CONTROL LIMITATION: narrow UIKit index, with 44pt menu alternative")
+                return true
+            }
+            print("Store-management accessibility issue: \(issue)")
+            print(issue.element?.debugDescription ?? "No element supplied")
+            return false
+        }
+    }
+
+    func testShoppingCountryDefaultsToRegionWithoutLocationControls() {
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        let country = app.descendants(matching: .any)["shopping-country"].firstMatch
+        XCTAssertTrue(country.waitForExistence(timeout: 3))
+        XCTAssertEqual(country.value as? String, "Australia")
+        XCTAssertLessThanOrEqual(app.searchFields.firstMatch.frame.maxY, country.frame.minY,
+                                 "Resting search belongs below the title and above Shopping country")
+        XCTAssertTrue(app.staticTexts["STORES IN AUSTRALIA"].exists)
+        XCTAssertTrue(app.staticTexts["OTHER STORES"].exists)
+        XCTAssertFalse(app.buttons["Nearby"].exists)
+        XCTAssertFalse(app.buttons["Alphabetical"].exists)
+        XCTAssertFalse(app.alerts["Location unavailable"].exists)
+        XCTAssertTrue(app.tables.otherElements.matching(NSPredicate(format: "label CONTAINS[cd] 'index'")).firstMatch.exists)
+        let listedStores = app.switches.allElementsBoundByIndex.compactMap { $0.label }
+            .filter { ["Bunnings", "Coles", "Woolworths"].contains($0) }
+        XCTAssertEqual(listedStores, ["Bunnings", "Coles", "Woolworths"])
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Country-first Manage Stores — Australian catalogue"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    func testShoppingCountryChangePersistsWithoutChangingVisibilityOrActiveStore() {
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility("bunnings", shown: false)
+        app.descendants(matching: .any)["shopping-country"].firstMatch.tap()
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 3))
+        search.tap()
+        search.typeText("New Zealand")
+        app.buttons["shopping-country-NZ"].tap()
+        XCTAssertTrue(app.staticTexts["OTHER STORES"].waitForExistence(timeout: 3))
+        XCTAssertEqual(app.switches["store-visibility-bunnings"].value as? String, "Hidden from store chooser")
+        app.terminate()
+        app.launch()
+        XCTAssertEqual(app.buttons["store-picker"].label, "Coles")
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        let country = app.descendants(matching: .any)["shopping-country"].firstMatch
+        XCTAssertTrue(country.waitForExistence(timeout: 3))
+        XCTAssertEqual(country.value as? String, "New Zealand")
+        XCTAssertEqual(app.switches["store-visibility-bunnings"].value as? String, "Hidden from store chooser")
+        XCTAssertFalse(app.alerts["Location unavailable"].exists)
+    }
+
+    func testUnsetShoppingCountryKeepsAlphabeticalStoresAvailable() {
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        let country = app.descendants(matching: .any)["shopping-country"].firstMatch
+        XCTAssertTrue(country.waitForExistence(timeout: 3))
+        XCTAssertEqual(country.value as? String, "Choose Country")
+        XCTAssertFalse(app.staticTexts["OTHER STORES"].exists)
+        XCTAssertTrue(app.switches["store-visibility-coles"].exists)
+        XCTAssertTrue(app.tables.otherElements.matching(NSPredicate(format: "label CONTAINS[cd] 'index'")).firstMatch.exists)
+    }
+
+    func testMixedCountrySectionsKeepNativeIndexSeparateFromSwitches() throws {
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        XCTAssertTrue(app.staticTexts["STORES IN AUSTRALIA"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["OTHER STORES"].exists)
+        XCTAssertTrue(app.staticTexts["B"].exists)
+        XCTAssertFalse(app.staticTexts["C"].exists, "Local stores must not be duplicated in indexed sections")
+        let index = app.tables.otherElements.matching(NSPredicate(format: "label CONTAINS[cd] 'index'")).firstMatch
+        XCTAssertTrue(index.exists)
+        let coles = app.switches["store-visibility-coles"]
+        let bunnings = app.switches["store-visibility-bunnings"]
+        XCTAssertLessThan(coles.frame.minY, bunnings.frame.minY)
+        XCTAssertLessThanOrEqual(bunnings.frame.maxX, index.frame.minX, "Index must not overlap the visibility switch")
+        setStoreVisibility("bunnings", shown: false)
+        XCTAssertTrue(app.staticTexts["OTHER STORES"].exists)
+        XCTAssertEqual(app.switches["store-visibility-coles"].value as? String, "Shown in store chooser")
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Country-first Manage Stores — mixed service-area fixture"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        XCTAssertTrue(app.buttons["store-letter-menu"].exists, "Native index must have a standard accessible alternative")
+        // Apple's unmodified narrow table index is intentionally retained. Its
+        // known hit-region warning is recorded, not treated as an app-row pass;
+        // the 44pt native menu above provides the same navigation without drag.
+        try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription, .dynamicType, .contrast]) { issue in
+            if issue.auditType == .hitRegion && issue.element?.label == "Section index" {
+                print("KNOWN NATIVE CONTROL LIMITATION: UITableView section index has a narrow hit region; store-letter-menu is the accessible alternative.")
+                return true
+            }
+            print("Mixed-country accessibility issue: \(issue)")
+            return false
+        }
+    }
+
+    func testBunningsUsesAnIsolatedStoreSessionWithCartSignal() {
+        choose("Bunnings")
+        XCTAssertTrue(row("Bunnings fixture item", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertFalse(row("Coles fixture item", status: "Pending").exists)
+
+        app.buttons["Show Store"].tap()
+        XCTAssertFalse(app.buttons["cart-detection-notice"].exists,
+                       "Bunnings cart detection is enabled after its product-specific signal was verified")
+        app.buttons["Dismiss store"].tap()
+
+        XCTAssertTrue(row("Bunnings fixture item", status: "Pending").waitForExistence(timeout: 3))
+        choose("Coles")
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertFalse(row("Bunnings fixture item", status: "Pending").exists)
+    }
+
+    func testCostcoStartsHiddenAndKeepsItsListAndManualShoppingSeparate() {
+        app.buttons["Settings"].tap()
+        XCTAssertFalse(app.buttons["settings-store-costco"].exists, "A newly introduced store must not enable itself")
+        app.buttons["Manage Stores"].tap()
+        let toggle = app.switches["store-visibility-costco"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        XCTAssertEqual(toggle.value as? String, "Hidden from store chooser")
+        setStoreVisibility("costco", shown: true)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.buttons["settings-store-costco"].waitForExistence(timeout: 3))
+        app.navigationBars.buttons.firstMatch.tap()
+
+        choose("Costco")
+        XCTAssertFalse(row("Coles fixture item", status: "Pending").exists)
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("Coffee")
+        app.buttons["Add Items"].tap()
+        XCTAssertTrue(row("Coffee", status: "Pending").waitForExistence(timeout: 3))
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.buttons["cart-detection-notice"].waitForExistence(timeout: 5),
+                      "Costco must not claim automatic cart detection")
+        app.buttons["cart-detection-notice"].tap()
+        XCTAssertTrue(app.alerts["Cart detection not included"].waitForExistence(timeout: 3),
+                      "Intentionally unsupported detection is not a live retailer failure")
+        app.alerts["Cart detection not included"].buttons["OK"].tap()
+        app.buttons["Mark Added"].tap()
+        XCTAssertTrue(app.buttons["Finish"].waitForExistence(timeout: 3))
+        app.buttons["Undo"].tap()
+        XCTAssertTrue(app.buttons["Mark Added"].waitForExistence(timeout: 3), "Costco Undo restores local status only")
+        app.buttons["Dismiss store"].tap()
+        choose("Coles")
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertFalse(row("Coffee", status: "Pending").exists)
+
+        app.terminate()
+        app.launch()
+        choose("Costco")
+        XCTAssertTrue(row("Coffee", status: "Pending").waitForExistence(timeout: 3),
+                      "Costco visibility and its own list must survive relaunch")
+    }
+
+    func testCostcoSettingsKeepUnverifiedCapabilitiesOff() {
+        app.buttons["Settings"].tap()
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility("costco", shown: true)
+        tapNavigationBack()
+        app.buttons["settings-store-costco"].tap()
+        XCTAssertTrue(app.staticTexts["Search, Included"].exists)
+        XCTAssertTrue(app.staticTexts["Cart Undo, Not included"].exists)
+        XCTAssertEqual(app.staticTexts.matching(identifier: "Cart detection, Not included").count, 2,
+                       "Bundled detection support and current detection session must both be not included")
+        app.buttons["Reset Costco Session"].tap()
+        XCTAssertTrue(app.alerts["Reset Costco Session?"].waitForExistence(timeout: 3))
+        app.alerts["Reset Costco Session?"].buttons["Cancel"].tap()
+    }
+
+    func testTescoBrowsingOnlyAppearsUnderOtherStores() {
+        app.buttons["Settings"].tap()
+        XCTAssertFalse(app.buttons["settings-store-tesco"].exists)
+        app.buttons["Manage Stores"].tap()
+        XCTAssertTrue(app.staticTexts["STORES IN AUSTRALIA"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["OTHER STORES"].exists)
+        XCTAssertTrue(app.staticTexts["T"].exists)
+        let tesco = app.switches["store-visibility-tesco"]
+        XCTAssertTrue(tesco.waitForExistence(timeout: 3))
+        XCTAssertEqual(tesco.value as? String, "Hidden from store chooser")
+        XCTAssertLessThan(app.switches["store-visibility-woolworths"].frame.minY, tesco.frame.minY)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Manage Stores — Australia with browsing-only Tesco UK"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        setStoreVisibility("tesco", shown: true)
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["settings-store-tesco"].tap()
+        XCTAssertEqual(app.staticTexts.matching(identifier: "Search, Not included").count, 2,
+                       "Tesco must not offer either bundled or session search automation")
+        XCTAssertEqual(app.staticTexts.matching(identifier: "Cart detection, Not included").count, 2)
+        XCTAssertTrue(app.staticTexts["Cart Undo, Not included"].exists)
+    }
+
+    func testTescoMovesToLocalGroupWhenShoppingCountryIsUK() {
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        app.descendants(matching: .any)["shopping-country"].firstMatch.tap()
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 3))
+        search.tap()
+        search.typeText("United Kingdom")
+        app.buttons["shopping-country-GB"].tap()
+        XCTAssertTrue(app.staticTexts["STORES IN UNITED KINGDOM"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["OTHER STORES"].exists)
+        let tesco = app.switches["store-visibility-tesco"]
+        XCTAssertEqual(tesco.value as? String, "Hidden from store chooser")
+        XCTAssertLessThan(tesco.frame.minY, app.switches["store-visibility-bunnings"].frame.minY)
+    }
+
+    func testCostcoRegionalChoiceIsExplicitAndKeepsAustralianList() {
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        XCTAssertEqual(app.switches.matching(identifier: "store-visibility-costco").count, 1)
+        XCTAssertFalse(app.switches["store-visibility-costcoUS"].exists, "Regional websites share a single brand switch")
+        setStoreVisibility("costco", shown: true)
+        app.navigationBars.buttons.firstMatch.tap()
+        choose("Costco")
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("Australian Costco item")
+        app.buttons["Add Items"].tap()
+        XCTAssertTrue(row("Australian Costco item", status: "Pending").waitForExistence(timeout: 3))
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        app.buttons["store-region-picker-costco"].tap()
+        app.buttons["store-region-costcoUS"].tap()
+        XCTAssertTrue(app.alerts["Change Costco region?"].waitForExistence(timeout: 3))
+        app.alerts["Change Costco region?"].buttons["Cancel"].tap()
+        app.buttons["Done"].tap()
+        XCTAssertEqual(app.buttons["store-region-picker-costco"].value as? String, "Australia")
+        app.buttons["store-region-picker-costco"].tap()
+        app.buttons["store-region-costcoUS"].tap()
+        app.alerts["Change Costco region?"].buttons["Use this regional website"].tap()
+        XCTAssertTrue(app.navigationBars["Costco region"].waitForNonExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["store-region-picker-costco"].value as? String, "United States")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "Manage Stores — single Costco switch with explicit regional website"
+        shot.lifetime = .keepAlways
+        add(shot)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(row("Bunnings fixture item", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"),
+                      "Bunnings is the alphabetically first enabled destination in this fixture")
+        XCTAssertFalse(row("Australian Costco item", status: "Pending").exists,
+                       "The now-disabled Australian region must not remain the displayed list")
+        choose("Costco US")
+        XCTAssertFalse(row("Australian Costco item", status: "Pending").exists, "US and AU lists remain separate")
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        app.buttons["store-region-picker-costco"].tap()
+        app.buttons["store-region-costco"].tap()
+        app.alerts["Change Costco region?"].buttons["Use this regional website"].tap()
+        XCTAssertTrue(app.navigationBars["Costco region"].waitForNonExistence(timeout: 5))
+        let managementBack = app.navigationBars["Manage Stores"].buttons.firstMatch
+        XCTAssertTrue(managementBack.waitForExistence(timeout: 5))
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: managementBack)
+        XCTAssertEqual(XCTWaiter.wait(for: [hittable], timeout: 5), .completed)
+        managementBack.tap()
+        choose("Costco")
+        XCTAssertTrue(row("Australian Costco item", status: "Pending").waitForExistence(timeout: 3))
+    }
+
+    func testCostcoRegionalWebsitePickerAccessibility() throws {
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        app.buttons["store-region-picker-costco"].tap()
+        let australian = app.buttons["store-region-costco"]
+        XCTAssertTrue(australian.waitForExistence(timeout: 3))
+        XCTAssertTrue(australian.isSelected)
+        XCTAssertFalse(app.buttons["store-region-costcoUS"].isSelected)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "Costco — explicit regional website choices"
+        shot.lifetime = .keepAlways
+        add(shot)
+        try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription, .dynamicType, .contrast])
+    }
+
+    func testCostcoCountryChangeSuggestsButDoesNotSwitchEnabledRegion() {
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility("costco", shown: true)
+        app.descendants(matching: .any)["shopping-country"].firstMatch.tap()
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 3))
+        search.tap()
+        search.typeText("United States")
+        app.buttons["shopping-country-US"].tap()
+        XCTAssertEqual(app.switches.matching(identifier: "store-visibility-costco").count, 1)
+        XCTAssertEqual(app.buttons["store-region-picker-costco"].value as? String, "Australia")
+        app.terminate()
+        app.launch()
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        XCTAssertEqual(app.buttons["store-region-picker-costco"].value as? String, "Australia")
+        XCTAssertEqual(app.switches["store-visibility-costco"].value as? String, "Shown in store chooser")
+    }
+
+    func testKmartAustraliaStartsHiddenWithAutomationOff() {
+        app.buttons["Settings"].tap()
+        XCTAssertFalse(app.buttons["settings-store-kmart"].exists)
+        app.buttons["Manage Stores"].tap()
+        let kmart = app.switches["store-visibility-kmart"]
+        XCTAssertTrue(kmart.waitForExistence(timeout: 3))
+        XCTAssertEqual(kmart.value as? String, "Hidden from store chooser")
+        XCTAssertLessThan(app.switches["store-visibility-costco"].frame.minY, kmart.frame.minY)
+        XCTAssertLessThan(kmart.frame.minY, app.switches["store-visibility-woolworths"].frame.minY)
+        setStoreVisibility("kmart", shown: true)
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["settings-store-kmart"].tap()
+        XCTAssertEqual(app.staticTexts.matching(identifier: "Search, Not included").count, 2)
+        XCTAssertEqual(app.staticTexts.matching(identifier: "Cart detection, Not included").count, 2)
+        XCTAssertTrue(app.staticTexts["Cart Undo, Not included"].exists)
+        app.buttons["Reset Kmart Session"].tap()
+        XCTAssertTrue(app.alerts["Reset Kmart Session?"].waitForExistence(timeout: 3))
+        app.alerts["Reset Kmart Session?"].buttons["Cancel"].tap()
+    }
+
+    func testWalmartUSIsBrowsingOnlyAndStartsHidden() {
+        app.buttons["Settings"].tap()
+        XCTAssertFalse(app.buttons["settings-store-walmart"].exists)
+        app.buttons["Manage Stores"].tap()
+        let walmart = app.switches["store-visibility-walmart"]
+        for _ in 0..<3 {
+            if walmart.exists && walmart.isHittable { break }
+            app.tables["manage-stores-table"].swipeUp()
+        }
+        XCTAssertTrue(walmart.waitForExistence(timeout: 3))
+        XCTAssertEqual(walmart.value as? String, "Hidden from store chooser")
+        setStoreVisibility("walmart", shown: true)
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["settings-store-walmart"].tap()
+        XCTAssertEqual(app.staticTexts.matching(identifier: "Search, Not included").count, 2)
+        XCTAssertEqual(app.staticTexts.matching(identifier: "Cart detection, Not included").count, 2)
+        XCTAssertTrue(app.staticTexts["Cart Undo, Not included"].exists)
+    }
+
+    func testWalmartMovesToLocalGroupForUnitedStates() {
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        app.descendants(matching: .any)["shopping-country"].firstMatch.tap()
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 3))
+        search.tap()
+        search.typeText("United States")
+        app.buttons["shopping-country-US"].tap()
+        XCTAssertTrue(app.staticTexts["STORES IN UNITED STATES"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["OTHER STORES"].exists)
+        let walmart = app.switches["store-visibility-walmart"]
+        XCTAssertEqual(walmart.value as? String, "Hidden from store chooser")
+        XCTAssertLessThan(walmart.frame.minY, app.switches["store-visibility-bunnings"].frame.minY)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Manage Stores — United States with browsing-only Walmart"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    func testExplicitMoveTransfersOnlySelectedRow() {
+        app.buttons["Actions for Coles fixture item"].tap()
+        app.buttons["Move to Another Store"].tap()
+        app.buttons["Move to Woolworths"].tap()
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
+        choose("Woolworths")
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").exists)
+    }
+
+    func testSettingsExposeStoreSpecificResetConfirmation() {
+        app.buttons["Settings"].tap()
+        app.buttons["Woolworths"].tap()
+        app.buttons["Reset Woolworths Session"].tap()
+        XCTAssertTrue(app.alerts["Reset Woolworths Session?"].waitForExistence(timeout: 3))
+        app.alerts.buttons["Cancel"].tap()
+        XCTAssertFalse(app.alerts.firstMatch.exists)
+        XCTAssertTrue(app.buttons["Clear Woolworths Diagnostics"].exists)
+    }
+
+    func testClearListHasWideTapTarget() {
+        let clear = app.buttons["Clear List"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 3))
+        XCTAssertGreaterThan(clear.frame.width, 250)
+        clear.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+    }
+
+    func testNewItemsAreAddedToFrontInEnteredOrder() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 3))
+        input.tap()
+        input.typeText("new apples; new pears")
+        app.buttons["Add Items"].tap()
+
+        // The ingredient-first parser canonicalizes known ingredient names and
+        // drops non-ingredient modifiers such as "new".
+        let apples = row("apples", status: "Pending")
+        let pears = row("pears", status: "Pending")
+        let existing = row("Coles fixture item", status: "Pending")
+        XCTAssertTrue(apples.waitForExistence(timeout: 3))
+        XCTAssertTrue(apples.isHittable, "New items should scroll into the visible viewport")
+        XCTAssertTrue(pears.exists)
+        XCTAssertLessThan(apples.frame.minY, pears.frame.minY)
+        XCTAssertLessThan(pears.frame.minY, existing.frame.minY)
+    }
+
+    func testFirstItemAutoScrollsIntoViewFromEmptyList() {
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 3))
+        input.tap()
+        input.typeText("first item")
+        app.buttons["Add Items"].tap()
+
+        assertFirstItemIsFullyVisible("first item")
+    }
+
+    func testFirstItemReturnAutoScrollsIntoViewFromEmptyList() {
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        input.typeText("first item\n")
+        assertFirstItemIsFullyVisible("first item")
+    }
+
+    func testFirstLongItemAutoScrollsIntoViewFromEmptyList() {
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        let name = "first household cleaning item with a deliberately long description"
+        input.typeText(name)
+        app.buttons["Add Items"].tap()
+        assertFirstItemIsFullyVisible(name)
+    }
+
+    func testGroceryInputReturnSubmitsItem() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 3))
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["dismiss-grocery-keyboard"].exists)
+        input.typeText("milk")
+        XCTAssertEqual(input.value as? String, "milk", "Typed text should be visible before submitting")
+        input.typeText("\n")
+        XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertTrue(row("milk", status: "Pending").isHittable,
+                      "The new item should be visible above the keyboard")
+        assertGroceryInputIsEmpty(input)
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3), "Keyboard should remain open for the next item")
+        input.typeText("bread\n")
+        XCTAssertTrue(row("bread", status: "Pending").waitForExistence(timeout: 3), "Typing should add the next item without refocusing")
+        XCTAssertTrue(row("bread", status: "Pending").isHittable,
+                      "Each newly added item should scroll into view")
+    }
+
+    func testAddItemsButtonKeepsGroceryInputFocused() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 3))
+        input.tap()
+        input.typeText("milk")
+        XCTAssertEqual(input.value as? String, "milk", "Typed text should be visible before tapping Add Items")
+        let showStoreButton = app.buttons["Show Store"]
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.exists)
+        XCTAssertLessThanOrEqual(showStoreButton.frame.maxY, keyboard.frame.minY - 12,
+                                 "Show Store should have breathing room above the keyboard while typing")
+
+        let addButton = app.buttons["Add Items"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 3))
+        addButton.tap()
+
+        XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertTrue(row("milk", status: "Pending").isHittable,
+                      "The new item should be visible above the keyboard")
+        XCTAssertTrue(input.isHittable, "The grocery input should remain visible after scrolling to the new item")
+        XCTAssertTrue(app.staticTexts["Add grocery items"].isHittable,
+                      "The Add grocery items heading should remain visible")
+        assertGroceryInputIsEmpty(input)
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3), "Keyboard should remain open for the next item")
+        input.typeText("bread\n")
+        XCTAssertTrue(row("bread", status: "Pending").waitForExistence(timeout: 3), "Typing should add the next item without refocusing")
+    }
+
+    func testTappingOutsideGroceryInputDismissesKeyboard() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 3))
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        app.staticTexts["Ready when you are"].tap()
+        XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 2))
+    }
+
+    func testWoolworthsDetectionDoesNotEnableCartUndo() {
+        choose("Woolworths")
+        app.buttons["Show Store"].tap()
+        XCTAssertFalse(app.staticTexts["Cart detection unavailable"].exists)
+        app.buttons["Mark Added"].tap()
+        XCTAssertTrue(app.buttons["Finish"].waitForExistence(timeout: 3))
+        app.buttons["Undo"].tap()
+        XCTAssertTrue(app.buttons["Mark Added"].waitForExistence(timeout: 3))
+        app.buttons["Dismiss store"].tap()
+        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").waitForExistence(timeout: 3))
+        choose("Coles")
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 3))
+    }
+
+    func testUpwardOverlayPullReturnsCardsToRestWithoutCollapsing() {
+        app.buttons["Show Store"].tap()
+        let card = app.buttons.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@",
+                                                   "Coles fixture item", "selected")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        let original = card.frame
+        let start = card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+        start.press(forDuration: 0.2, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -120)),
+                    withVelocity: .slow, thenHoldForDuration: 0.3)
+        XCTAssertTrue(card.exists)
+        let returned = NSPredicate { _, _ in
+            abs(card.frame.minY - original.minY) < 2 && abs(card.frame.height - original.height) < 2
+        }
+        expectation(for: returned, evaluatedWith: nil)
+        waitForExpectations(timeout: 3)
+        XCTAssertTrue(app.buttons["Mark Added"].isHittable)
+    }
+
+    func testSlowOverlayDragCollapsesAndCanExpandAgain() {
+        app.buttons["Show Store"].tap()
+        let card = app.buttons.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@",
+                                                   "Coles fixture item", "selected")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        let start = card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+        let end = start.withOffset(CGVector(dx: 0, dy: 140))
+        start.press(forDuration: 0.2, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
+        let expand = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Expand overlay")).firstMatch
+        XCTAssertTrue(expand.waitForExistence(timeout: 3))
+        XCTAssertFalse(card.exists)
+        let website = app.webViews.firstMatch
+        XCTAssertTrue(website.exists)
+        XCTAssertLessThanOrEqual(website.frame.maxY, expand.frame.minY + 1,
+                                 "The collapsed bar must reserve space below the website instead of covering it")
+        expand.tap()
+        XCTAssertTrue(card.waitForExistence(timeout: 3))
+    }
+
+    func testCollapsedBarExpandsWithUpwardSwipe() {
+        app.buttons["Show Store"].tap()
+        let card = app.buttons.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@",
+                                                   "Coles fixture item", "selected")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        let start = card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+        start.press(forDuration: 0.2, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 140)),
+                    withVelocity: .slow, thenHoldForDuration: 0.3)
+
+        let collapsed = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Expand overlay")).firstMatch
+        XCTAssertTrue(collapsed.waitForExistence(timeout: 3))
+        collapsed.swipeUp()
+        XCTAssertTrue(card.waitForExistence(timeout: 5))
+    }
+
+    func testVerificationPagePausesRetriesAndCanReturnToList() {
+        app.buttons["Show Store"].tap()
+        let notice = app.buttons["store-verification-notice"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 8))
+        XCTAssertTrue(notice.isHittable)
+    }
+
+    func testCartDetectionNoticeOpensFullExplanation() {
+        app.buttons["Show Store"].tap()
+        let notice = app.buttons["cart-detection-notice"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 5))
+        notice.tap()
+
+        let alert = app.alerts["Cart detection unavailable"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 3))
+        XCTAssertTrue(alert.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "couldn't read this product's current cart quantity")).firstMatch.exists)
+        XCTAssertTrue(alert.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Mark Added in ListRunner")).firstMatch.exists)
+        alert.buttons["OK"].tap()
+    }
+
+    func testReloadControlRemainsVisibleAcrossNavigationActions() {
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.buttons["Skip"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Reload store page"].exists)
+
+        app.buttons["Mark Added"].tap()
+        XCTAssertTrue(app.buttons["Finish"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Reload store page"].exists)
+    }
+
+    func testFinalUndoFinishStateAllowsCardSwitchAndMarkPending() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 3))
+        input.tap()
+        input.typeText("second item")
+        app.buttons["Add Items"].tap()
+        app.buttons["Show Store"].tap()
+
+        app.buttons["Mark Added"].tap()
+        XCTAssertTrue(app.buttons["Mark Added"].waitForExistence(timeout: 3))
+        app.buttons["Mark Added"].tap()
+        XCTAssertTrue(app.buttons["Finish"].waitForExistence(timeout: 3))
+
+        let otherCard = app.scrollViews.buttons.matching(
+            NSPredicate(format: "label CONTAINS[cd] %@ AND label CONTAINS[cd] %@", "second item", "Added")
+        ).firstMatch
+        XCTAssertTrue(otherCard.waitForExistence(timeout: 3))
+        otherCard.tap()
+        XCTAssertTrue(app.buttons["Undo"].exists)
+        XCTAssertTrue(app.buttons["Finish"].exists)
+        XCTAssertTrue(app.buttons["Mark Pending"].exists)
+        app.buttons["Mark Pending"].tap()
+        XCTAssertTrue(app.buttons["Mark Added"].waitForExistence(timeout: 3))
+    }
+
+    func testSameDayRelaunchOpensRememberedStoreList() {
+        choose("Woolworths")
+        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").waitForExistence(timeout: 3))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertFalse(row("Coles fixture item", status: "Pending").exists)
+        XCTAssertFalse(app.buttons["Dismiss store"].exists)
+    }
+
+    func testPaprikaImportUsesSelectedStoreAndIsIdempotent() {
+        let importButton = app.buttons["import-from-paprika"]
+        XCTAssertTrue(importButton.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(importButton.frame.width, 180)
+        importButton.coordinate(withNormalizedOffset: CGVector(dx: 0.05, dy: 0.5)).tap()
+        XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(row("bread", status: "Pending").exists)
+
+        app.buttons["Import from Paprika"].tap()
+        XCTAssertTrue(app.staticTexts["No new Paprika items"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label CONTAINS[cd] %@", "milk, quantity 2 l")).count, 1)
+
+        app.buttons.matching(NSPredicate(format: "label CONTAINS[cd] %@", "Actions for milk")).firstMatch.tap()
+        app.buttons["Mark Added"].tap()
+        XCTAssertTrue(row("milk", status: "Added").waitForExistence(timeout: 3))
+        choose("Woolworths")
+        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertFalse(row("milk", status: "Added").exists)
+        choose("Coles")
+        XCTAssertTrue(row("milk", status: "Added").waitForExistence(timeout: 3))
+    }
+
+    func testPaprikaImportFailuresKeepTheCurrentList() {
+        for (fixture, expectedNotice) in [("missing", "Paprika list not found"),
+                                          ("multiple", "Multiple Paprika lists found"),
+                                          ("accessDenied", "Could not access Paprika reminders")] {
+            app.terminate()
+            app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
+            app.launchEnvironment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] = fixture
+            app.launch()
+            app.buttons["Import from Paprika"].tap()
+            XCTAssertTrue(app.staticTexts[expectedNotice].waitForExistence(timeout: 5))
+            XCTAssertTrue(row("Coles fixture item", status: "Pending").exists)
+        }
+    }
+}

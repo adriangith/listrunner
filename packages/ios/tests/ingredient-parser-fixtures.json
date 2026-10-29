@@ -1,0 +1,417 @@
+[
+  {
+    "input": "mint leaves",
+    "expectedName": "Mint",
+    "expectedQuantity": "unspecified",
+    "expectedIngredientID": "mint-leaves"
+  },
+  {
+    "input": "mint leaf",
+    "expectedName": "Mint",
+    "expectedQuantity": "unspecified",
+    "expectedIngredientID": "mint-leaves"
+  },
+  {
+    "input": "mint",
+    "expectedName": "Mint",
+    "expectedQuantity": "unspecified",
+    "expectedIngredientID": "mint-leaves"
+  },
+  {
+    "input": "20 g mint leaves",
+    "expectedName": "Mint",
+    "expectedQuantity": "measure:20:g",
+    "expectedIngredientID": "mint-leaves"
+  },
+  {
+    "input": "2 (15 ounce) cans cannellini beans drained and rinsed",
+    "expectedName": "Cannellini beans",
+    "expectedQuantity": "packages:2:15:oz:can"
+  },
+  {
+    "input": "(15 ounce) cans cannellini beans",
+    "expectedName": "Cannellini beans",
+    "expectedQuantity": "packages:unspecified:15:oz:can"
+  },
+  {
+    "input": "4 (15 ounce) cans cannellini beans",
+    "expectedName": "Cannellini beans",
+    "expectedQuantity": "packages:4:15:oz:can"
+  },
+  {
+    "input": "1 (28 ounce) can diced tomatoes",
+    "expectedName": "Diced tomatoes",
+    "expectedQuantity": "packages:1:28:oz:can"
+  },
+  {
+    "input": "1 tbs lime juice",
+    "expectedName": "Lime juice",
+    "expectedQuantity": "measure:1:tbsp"
+  },
+  {
+    "input": "Tbs lime juice",
+    "expectedName": "Lime juice",
+    "expectedQuantity": "measure:unspecified:tbsp"
+  },
+  {
+    "input": "3 tablespoons butter divided",
+    "expectedName": "Butter",
+    "expectedQuantity": "measure:3:tbsp"
+  },
+  {
+    "input": "2 eggs whisked",
+    "expectedName": "Eggs",
+    "expectedQuantity": "count:2"
+  },
+  {
+    "input": "300 g firm tofu thinly sliced",
+    "expectedName": "Firm tofu",
+    "expectedQuantity": "measure:300:g"
+  },
+  {
+    "input": "1/3 cup freshly grated romano",
+    "expectedName": "Romano cheese",
+    "expectedQuantity": "measure:1/3:cup"
+  },
+  {
+    "input": "3 cups low-sodium vegetable stock",
+    "expectedName": "Low-sodium vegetable stock",
+    "expectedQuantity": "measure:3:cup"
+  },
+  {
+    "input": "milk 2 L",
+    "expectedName": "Milk",
+    "expectedQuantity": "measure:2:l"
+  },
+  {
+    "input": "2 x 400 g cans diced tomatoes",
+    "expectedName": "Diced tomatoes",
+    "expectedQuantity": "packages:2:400:g:can"
+  },
+  {
+    "input": "1.5 cups stock",
+    "expectedName": "Stock",
+    "expectedQuantity": "measure:3/2:cup"
+  },
+  {
+    "input": "7 Up",
+    "expectedName": "7 Up",
+    "expectedQuantity": "unspecified"
+  },
+  {
+    "input": "2% milk",
+    "expectedName": "2% milk",
+    "expectedQuantity": "unspecified"
+  },
+  {
+    "input": "Vitamin B12",
+    "expectedName": "Vitamin B12",
+    "expectedQuantity": "unspecified"
+  },
+  {
+    "input": "Formula stage 2",
+    "expectedName": "Formula stage 2",
+    "expectedQuantity": "unspecified"
+  },
+  {
+    "input": "2 bottles mystery fizz",
+    "expectedName": "mystery fizz",
+    "expectedQuantity": "packages:2:unspecified:unspecified:bottle"
+  },
+  {
+    "input": "4 cups cooked and chilled rice(I prefer short-grain white rice)",
+    "expectedName": "Rice (I prefer short-grain white rice)",
+    "expectedQuantity": "measure:4:cup"
+  },
+  {
+    "input": "¼ cup (40g) roasted salted cashews",
+    "expectedName": "Roasted salted cashews",
+    "expectedQuantity": "measure:1/4:cup"
+  },
+  {
+    "input": "1 bunch asparagus woody ends trimmed, halved lengthways",
+    "expectedName": "Asparagus",
+    "expectedQuantity": "packages:1:unspecified:unspecified:bunch"
+  },
+  {
+    "input": "1 bunch baby broccoli halved lengthways",
+    "expectedName": "Baby broccoli",
+    "expectedQuantity": "packages:1:unspecified:unspecified:bunch"
+  },
+  {
+    "input": "1 bunch baby choy sum ends trimmed",
+    "expectedName": "Baby choy sum",
+    "expectedQuantity": "packages:1:unspecified:unspecified:bunch"
+  },
+  {
+    "input": "3 carrots peeled and sliced",
+    "expectedName": "Carrots",
+    "expectedQuantity": "count:3"
+  },
+  {
+    "input": "1 (6 ounce) bag fresh spinach",
+    "expectedName": "Fresh spinach",
+    "expectedQuantity": "packages:1:6:oz:bag"
+  },
+  {
+    "input": "3 garlic cloves, minced",
+    "expectedName": "Garlic",
+    "expectedQuantity": "count:3"
+  },
+  {
+    "input": "3 cloves garlic, minced",
+    "expectedName": "Garlic",
+    "expectedQuantity": "count:3"
+  },
+  {
+    "input": "3 green onions thinly sliced",
+    "expectedName": "Green onions",
+    "expectedQuantity": "count:3"
+  },
+  {
+    "input": "2 medium carrots peeled and diced",
+    "expectedName": "Medium carrots",
+    "expectedQuantity": "count:2"
+  },
+  {
+    "input": "2 red bell peppers",
+    "expectedName": "Red capsicum",
+    "expectedQuantity": "count:2"
+  },
+  {
+    "input": "1 small white onion diced",
+    "expectedName": "Small white onion",
+    "expectedQuantity": "count:1"
+  },
+  {
+    "input": "500 g chicken breast",
+    "expectedName": "Chicken breast",
+    "expectedQuantity": "measure:500:g"
+  },
+  {
+    "input": "2 cans black beans drained and rinsed",
+    "expectedName": "Black beans",
+    "expectedQuantity": "packages:2:unspecified:unspecified:can"
+  },
+  {
+    "input": "200 ml coconut milk",
+    "expectedName": "Coconut milk",
+    "expectedQuantity": "measure:200:ml"
+  },
+  {
+    "input": "1 tbsp soy sauce",
+    "expectedName": "Soy sauce",
+    "expectedQuantity": "measure:1:tbsp"
+  },
+  {
+    "input": "2 tsp ground cumin",
+    "expectedName": "Cumin",
+    "expectedQuantity": "measure:2:tsp"
+  },
+  {
+    "input": "2 apples",
+    "expectedName": "Apples",
+    "expectedQuantity": "count:2"
+  },
+  {
+    "input": "1 cup brown rice",
+    "expectedName": "Brown rice",
+    "expectedQuantity": "measure:1:cup"
+  },
+  {
+    "input": "1 cup rolled oats",
+    "expectedName": "Rolled oats",
+    "expectedQuantity": "measure:1:cup"
+  },
+  {
+    "input": "500 g minced beef",
+    "expectedName": "Beef mince",
+    "expectedQuantity": "measure:500:g"
+  },
+  {
+    "input": "1 L soy milk",
+    "expectedName": "Soy milk",
+    "expectedQuantity": "measure:1:l"
+  },
+  {
+    "input": "200 ml orange juice",
+    "expectedName": "Orange juice",
+    "expectedQuantity": "measure:200:ml"
+  },
+  {
+    "input": "1 vanilla bean",
+    "expectedName": "Vanilla bean",
+    "expectedQuantity": "count:1"
+  },
+  {
+    "input": "1 cup chicken stock",
+    "expectedName": "Chicken stock",
+    "expectedQuantity": "measure:1:cup"
+  },
+  {
+    "input": "1 kg pork sausages",
+    "expectedName": "Pork sausages",
+    "expectedQuantity": "measure:1:kg"
+  },
+  {
+    "input": "100 g milk chocolate",
+    "expectedName": "Milk chocolate",
+    "expectedQuantity": "measure:100:g"
+  },
+  {
+    "input": "2 tbsp ground ginger",
+    "expectedName": "Ginger",
+    "expectedQuantity": "measure:2:tbsp"
+  },
+  {
+    "input": "3 cloves minced garlic",
+    "expectedName": "Minced garlic",
+    "expectedQuantity": "count:3"
+  },
+  {
+    "input": "1 diced onion",
+    "expectedName": "Diced onion",
+    "expectedQuantity": "count:1"
+  },
+  {
+    "input": "1 bunch finely chopped parsley",
+    "expectedName": "Finely chopped parsley",
+    "expectedQuantity": "packages:1:unspecified:unspecified:bunch"
+  },
+  {
+    "input": "200g frozen edamame or broad beans",
+    "expectedName": "frozen edamame or broad beans",
+    "expectedQuantity": "measure:200:g"
+  },
+  {
+    "input": "200 g frozen edamame",
+    "expectedName": "Frozen edamame",
+    "expectedQuantity": "measure:200:g"
+  },
+  {
+    "input": "200 g broad beans",
+    "expectedName": "Broad beans",
+    "expectedQuantity": "measure:200:g"
+  },
+  {
+    "input": "1 cup pinto beans",
+    "expectedName": "Pinto beans",
+    "expectedQuantity": "measure:1:cup"
+  },
+  {
+    "input": "1 can navy beans",
+    "expectedName": "Navy beans",
+    "expectedQuantity": "packages:1:unspecified:unspecified:can"
+  },
+  {
+    "input": "2 cups black-eyed peas",
+    "expectedName": "Black-eyed peas",
+    "expectedQuantity": "measure:2:cup"
+  },
+  {
+    "input": "1 box (10 ounces) frozen chopped spinach thawed and squeezed dry",
+    "expectedName": "Frozen chopped spinach",
+    "expectedQuantity": "packages:1:10:oz:box",
+    "expectedIngredientID": "spinach",
+    "expectedDisposition": "recognized",
+    "expectedPreparation": ["thawed and squeezed dry"],
+    "expectedUnmatched": [],
+    "expectedGroceryAmount": 1,
+    "expectedGroceryUnit": "10 oz box"
+  },
+  {
+    "input": "2 boxes (10 ounces) frozen chopped spinach, thawed and drained",
+    "expectedName": "Frozen chopped spinach",
+    "expectedQuantity": "packages:2:10:oz:box",
+    "expectedIngredientID": "spinach",
+    "expectedPreparation": ["thawed and drained"],
+    "expectedUnmatched": [],
+    "expectedGroceryAmount": 2,
+    "expectedGroceryUnit": "10 oz boxes"
+  },
+  {
+    "input": "1 (10 ounce) box frozen chopped spinach",
+    "expectedName": "Frozen chopped spinach",
+    "expectedQuantity": "packages:1:10:oz:box",
+    "expectedIngredientID": "spinach"
+  },
+  {
+    "input": "2 x 10 oz boxes chopped frozen spinach, squeezed dry",
+    "expectedName": "Chopped frozen spinach",
+    "expectedQuantity": "packages:2:10:oz:box",
+    "expectedIngredientID": "spinach",
+    "expectedPreparation": ["squeezed dry"]
+  },
+  {
+    "input": "250 g frozen spinach, thawed",
+    "expectedName": "Frozen spinach",
+    "expectedQuantity": "measure:250:g",
+    "expectedIngredientID": "spinach",
+    "expectedPreparation": ["thawed"]
+  },
+  {
+    "input": "1 bag (6 ounces) fresh spinach",
+    "expectedName": "Fresh spinach",
+    "expectedQuantity": "packages:1:6:oz:bag",
+    "expectedIngredientID": "spinach"
+  },
+  {
+    "input": "250 g (9 oz) fresh spinach",
+    "expectedName": "Fresh spinach",
+    "expectedQuantity": "measure:250:g",
+    "expectedIngredientID": "spinach"
+  },
+  {
+    "input": "2 boxes spinach",
+    "expectedName": "Spinach",
+    "expectedQuantity": "packages:2:unspecified:unspecified:box",
+    "expectedIngredientID": "spinach",
+    "expectedGroceryAmount": 2,
+    "expectedGroceryUnit": "boxes"
+  },
+  {
+    "input": "2 boxes mystery greens",
+    "expectedName": "mystery greens",
+    "expectedQuantity": "packages:2:unspecified:unspecified:box",
+    "expectedDisposition": "unknown"
+  },
+  {
+    "input": "2 bunches mystery greens",
+    "expectedName": "mystery greens",
+    "expectedQuantity": "packages:2:unspecified:unspecified:bunch",
+    "expectedDisposition": "unknown"
+  },
+  {
+    "input": "4 cups cherry tomatoes",
+    "expectedName": "Cherry tomatoes",
+    "expectedQuantity": "measure:4:cup",
+    "expectedIngredientID": "tomatoes",
+    "expectedDisposition": "recognized",
+    "expectedPreparation": [],
+    "expectedUnmatched": [],
+    "expectedGroceryAmount": 4,
+    "expectedGroceryUnit": "cups"
+  },
+  {
+    "input": "1 cup cherry tomato",
+    "expectedName": "Cherry tomatoes",
+    "expectedQuantity": "measure:1:cup",
+    "expectedIngredientID": "tomatoes",
+    "expectedDisposition": "recognized"
+  },
+  {
+    "input": "4 cups cherry tomatoes, thinly sliced",
+    "expectedName": "Cherry tomatoes",
+    "expectedQuantity": "measure:4:cup",
+    "expectedIngredientID": "tomatoes",
+    "expectedPreparation": ["thinly sliced"],
+    "expectedUnmatched": []
+  },
+  {
+    "input": "4 cups tomatoes",
+    "expectedName": "Tomatoes",
+    "expectedQuantity": "measure:4:cup",
+    "expectedIngredientID": "tomatoes",
+    "expectedDisposition": "recognized"
+  }
+]

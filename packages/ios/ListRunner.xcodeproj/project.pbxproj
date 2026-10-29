@@ -1,18 +1,62 @@
 // !$*UTF8*$!
 {
 	archiveVersion = 1;
-	classes = {};
+	classes = {
+	};
 	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3C5AC4B2308F4FF70036C9DB /* coles-v2.json in Resources */ = {isa = PBXBuildFile; fileRef = 3C5AC4B1308F4FF70036C9DB /* coles-v2.json */; };
+		3C5AC4B4308F4FF70036C9DB /* woolworths-v2.json in Resources */ = {isa = PBXBuildFile; fileRef = 3C5AC4B3308F4FF70036C9DB /* woolworths-v2.json */; };
+		3C5AC4B6308F4FF70036C9DB /* bunnings-v2.json in Resources */ = {isa = PBXBuildFile; fileRef = 3C5AC4B5308F4FF70036C9DB /* bunnings-v2.json */; };
+		3C5AC4B8309038F20036C9DB /* costco-v2.json in Resources */ = {isa = PBXBuildFile; fileRef = 3C5AC4B7309038F20036C9DB /* costco-v2.json */; };
+		3C5AC4BA309041430036C9DB /* tesco-v2.json in Resources */ = {isa = PBXBuildFile; fileRef = 3C5AC4B9309041430036C9DB /* tesco-v2.json */; };
+		3C5AC4BC309044F10036C9DB /* walmart-v2.json in Resources */ = {isa = PBXBuildFile; fileRef = 3C5AC4BB309044F10036C9DB /* walmart-v2.json */; };
+		3C5AC4BE3090475B0036C9DB /* kmart-v2.json in Resources */ = {isa = PBXBuildFile; fileRef = 3C5AC4BD3090475B0036C9DB /* kmart-v2.json */; };
+		3C5AC4C030904B1C0036C9DB /* costcoUS-v2.json in Resources */ = {isa = PBXBuildFile; fileRef = 3C5AC4BF30904B1C0036C9DB /* costcoUS-v2.json */; };
 		A10000000000000000000001 /* ListRunnerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* ListRunnerApp.swift */; };
 		A10000000000000000000002 /* GroceryListScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* GroceryListScreen.swift */; };
 		A10000000000000000000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* Assets.xcassets */; };
 		A10000000000000000000004 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000004 /* LaunchScreen.storyboard */; };
+		A10000000000000000000008 /* ShoppingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* ShoppingModels.swift */; };
+		A10000000000000000000009 /* StoreShoppingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000009 /* StoreShoppingView.swift */; };
+		A10000000000000000000010 /* RecoverySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000010 /* RecoverySupport.swift */; };
+		A10000000000000000000011 /* AppRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000011 /* AppRecovery.swift */; };
+		A10000000000000000000012 /* RecoveryServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000012 /* RecoveryServices.swift */; };
+		A10000000000000000000013 /* StoreConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* StoreConfiguration.swift */; };
+		A10000000000000000000014 /* ShoppingLists.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* ShoppingLists.swift */; };
+		A10000000000000000000015 /* StoreSessions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* StoreSessions.swift */; };
+		A10000000000000000000016 /* Resources/coles.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* Resources/coles.json */; };
+		A10000000000000000000017 /* Resources/woolworths.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* Resources/woolworths.json */; };
+		A10000000000000000000018 /* PaprikaReminders.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000018 /* PaprikaReminders.swift */; };
+		A10000000000000000000019 /* IngredientQuantity.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000019 /* IngredientQuantity.swift */; };
+		A10000000000000000000020 /* IngredientParseResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000020 /* IngredientParseResult.swift */; };
+		A10000000000000000000021 /* IngredientDictionary.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000021 /* IngredientDictionary.swift */; };
+		A10000000000000000000022 /* IngredientParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000022 /* IngredientParser.swift */; };
+		A10000000000000000000023 /* Resources/ingredients.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000023 /* Resources/ingredients.json */; };
+		A20000000000000000000001 /* StoreSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* StoreSelectionTests.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		E20000000000000000000003 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E10000000000000000000002 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E10000000000000000000001;
+			remoteInfo = ListRunner;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		3C5AC4B1308F4FF70036C9DB /* coles-v2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "coles-v2.json"; sourceTree = "<group>"; };
+		3C5AC4B3308F4FF70036C9DB /* woolworths-v2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "woolworths-v2.json"; sourceTree = "<group>"; };
+		3C5AC4B5308F4FF70036C9DB /* bunnings-v2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "bunnings-v2.json"; sourceTree = "<group>"; };
+		3C5AC4B7309038F20036C9DB /* costco-v2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "costco-v2.json"; sourceTree = "<group>"; };
+		3C5AC4B9309041430036C9DB /* tesco-v2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "tesco-v2.json"; sourceTree = "<group>"; };
+		3C5AC4BB309044F10036C9DB /* walmart-v2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "walmart-v2.json"; sourceTree = "<group>"; };
+		3C5AC4BD3090475B0036C9DB /* kmart-v2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "kmart-v2.json"; sourceTree = "<group>"; };
+		3C5AC4BF30904B1C0036C9DB /* costcoUS-v2.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "costcoUS-v2.json"; sourceTree = "<group>"; };
 		B10000000000000000000001 /* ListRunnerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListRunnerApp.swift; sourceTree = "<group>"; };
 		B10000000000000000000002 /* GroceryListScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceryListScreen.swift; sourceTree = "<group>"; };
 		B10000000000000000000003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -20,67 +64,460 @@
 		B10000000000000000000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B10000000000000000000006 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = "Preview Assets.xcassets"; path = "Preview Content/Preview Assets.xcassets"; sourceTree = "<group>"; };
 		B10000000000000000000007 /* ListRunner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ListRunner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000008 /* ShoppingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingModels.swift; sourceTree = "<group>"; };
+		B10000000000000000000009 /* StoreShoppingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreShoppingView.swift; sourceTree = "<group>"; };
+		B10000000000000000000010 /* RecoverySupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoverySupport.swift; sourceTree = "<group>"; };
+		B10000000000000000000011 /* AppRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRecovery.swift; sourceTree = "<group>"; };
+		B10000000000000000000012 /* RecoveryServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryServices.swift; sourceTree = "<group>"; };
+		B10000000000000000000013 /* StoreConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreConfiguration.swift; sourceTree = "<group>"; };
+		B10000000000000000000014 /* ShoppingLists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingLists.swift; sourceTree = "<group>"; };
+		B10000000000000000000015 /* StoreSessions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreSessions.swift; sourceTree = "<group>"; };
+		B10000000000000000000016 /* Resources/coles.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Resources/coles.json; sourceTree = "<group>"; };
+		B10000000000000000000017 /* Resources/woolworths.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Resources/woolworths.json; sourceTree = "<group>"; };
+		B10000000000000000000018 /* PaprikaReminders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaprikaReminders.swift; sourceTree = "<group>"; };
+		B10000000000000000000019 /* IngredientQuantity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientQuantity.swift; sourceTree = "<group>"; };
+		B10000000000000000000020 /* IngredientParseResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientParseResult.swift; sourceTree = "<group>"; };
+		B10000000000000000000021 /* IngredientDictionary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientDictionary.swift; sourceTree = "<group>"; };
+		B10000000000000000000022 /* IngredientParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientParser.swift; sourceTree = "<group>"; };
+		B10000000000000000000023 /* Resources/ingredients.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Resources/ingredients.json; sourceTree = "<group>"; };
+		B20000000000000000000001 /* StoreSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreSelectionTests.swift; sourceTree = "<group>"; };
+		B20000000000000000000002 /* ListRunnerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ListRunnerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		C10000000000000000000001 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C20000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		D10000000000000000000001 = {isa = PBXGroup; children = (D10000000000000000000002 /* ListRunner */, D10000000000000000000003 /* Products */); sourceTree = "<group>"; };
-		D10000000000000000000002 /* ListRunner */ = {isa = PBXGroup; children = (B10000000000000000000001, B10000000000000000000002, B10000000000000000000003, B10000000000000000000004, B10000000000000000000005, B10000000000000000000006); path = ListRunner; sourceTree = "<group>"; };
-		D10000000000000000000003 /* Products */ = {isa = PBXGroup; children = (B10000000000000000000007 /* ListRunner.app */); name = Products; sourceTree = "<group>"; };
+		3C5AC4AA308F4DA20036C9DB /* Resources 4 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = "Resources 4";
+			sourceTree = "<group>";
+		};
+		3C5AC4AE308F4EB90036C9DB /* Resources 5 */ = {
+			isa = PBXGroup;
+			children = (
+				3C5AC4B1308F4FF70036C9DB /* coles-v2.json */,
+				3C5AC4B3308F4FF70036C9DB /* woolworths-v2.json */,
+				3C5AC4B5308F4FF70036C9DB /* bunnings-v2.json */,
+			);
+			path = "Resources 5";
+			sourceTree = "<group>";
+		};
+		D10000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				D10000000000000000000002 /* ListRunner */,
+				D20000000000000000000001 /* ListRunnerUITests */,
+				D10000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D10000000000000000000002 /* ListRunner */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000001 /* ListRunnerApp.swift */,
+				B10000000000000000000002 /* GroceryListScreen.swift */,
+				B10000000000000000000008 /* ShoppingModels.swift */,
+				B10000000000000000000009 /* StoreShoppingView.swift */,
+				B10000000000000000000010 /* RecoverySupport.swift */,
+				B10000000000000000000011 /* AppRecovery.swift */,
+				B10000000000000000000012 /* RecoveryServices.swift */,
+				B10000000000000000000013 /* StoreConfiguration.swift */,
+				B10000000000000000000014 /* ShoppingLists.swift */,
+				B10000000000000000000015 /* StoreSessions.swift */,
+				B10000000000000000000016 /* Resources/coles.json */,
+				B10000000000000000000017 /* Resources/woolworths.json */,
+				B10000000000000000000018 /* PaprikaReminders.swift */,
+				B10000000000000000000019 /* IngredientQuantity.swift */,
+				B10000000000000000000020 /* IngredientParseResult.swift */,
+				B10000000000000000000021 /* IngredientDictionary.swift */,
+				B10000000000000000000022 /* IngredientParser.swift */,
+				B10000000000000000000023 /* Resources/ingredients.json */,
+				B10000000000000000000003 /* Assets.xcassets */,
+				B10000000000000000000004 /* LaunchScreen.storyboard */,
+				B10000000000000000000005 /* Info.plist */,
+				B10000000000000000000006 /* Preview Assets.xcassets */,
+				3C5AC4AA308F4DA20036C9DB /* Resources 4 */,
+				3C5AC4AE308F4EB90036C9DB /* Resources 5 */,
+				3C5AC4B7309038F20036C9DB /* costco-v2.json */,
+				3C5AC4B9309041430036C9DB /* tesco-v2.json */,
+				3C5AC4BB309044F10036C9DB /* walmart-v2.json */,
+				3C5AC4BD3090475B0036C9DB /* kmart-v2.json */,
+				3C5AC4BF30904B1C0036C9DB /* costcoUS-v2.json */,
+			);
+			path = ListRunner;
+			sourceTree = "<group>";
+		};
+		D10000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000000000000000007 /* ListRunner.app */,
+				B20000000000000000000002 /* ListRunnerUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D20000000000000000000001 /* ListRunnerUITests */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000001 /* StoreSelectionTests.swift */,
+			);
+			path = ListRunnerUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
 		E10000000000000000000001 /* ListRunner */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = F10000000000000000000001 /* Build configuration list for PBXNativeTarget "ListRunner" */;
-			buildPhases = (C10000000000000000000002 /* Sources */, C10000000000000000000001 /* Frameworks */, C10000000000000000000003 /* Resources */);
-			buildRules = ();
-			dependencies = ();
+			buildPhases = (
+				C10000000000000000000002 /* Sources */,
+				C10000000000000000000001 /* Frameworks */,
+				C10000000000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
 			name = ListRunner;
 			productName = ListRunner;
 			productReference = B10000000000000000000007 /* ListRunner.app */;
 			productType = "com.apple.product-type.application";
+		};
+		E20000000000000000000001 /* ListRunnerUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F20000000000000000000001 /* Build configuration list for PBXNativeTarget "ListRunnerUITests" */;
+			buildPhases = (
+				C20000000000000000000002 /* Sources */,
+				C20000000000000000000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E20000000000000000000004 /* PBXTargetDependency */,
+			);
+			name = ListRunnerUITests;
+			productName = ListRunnerUITests;
+			productReference = B20000000000000000000002 /* ListRunnerUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
 		E10000000000000000000002 /* Project object */ = {
 			isa = PBXProject;
-			attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2710; LastUpgradeCheck = 2710; TargetAttributes = {E10000000000000000000001 = {CreatedOnToolsVersion = 27.1;};};};
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2710;
+				LastUpgradeCheck = 2710;
+				TargetAttributes = {
+					E10000000000000000000001 = {
+						CreatedOnToolsVersion = 27.1;
+					};
+				};
+			};
 			buildConfigurationList = F10000000000000000000002 /* Build configuration list for PBXProject "ListRunner" */;
 			compatibilityVersion = "Xcode 15.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
-			knownRegions = (en, Base);
+			knownRegions = (
+				en,
+				Base,
+			);
 			mainGroup = D10000000000000000000001;
 			productRefGroup = D10000000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-			targets = (E10000000000000000000001 /* ListRunner */);
+			targets = (
+				E10000000000000000000001 /* ListRunner */,
+				E20000000000000000000001 /* ListRunnerUITests */,
+			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		C10000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000003, A10000000000000000000004); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3C5AC4B6308F4FF70036C9DB /* bunnings-v2.json in Resources */,
+				A10000000000000000000003 /* Assets.xcassets in Resources */,
+				3C5AC4B8309038F20036C9DB /* costco-v2.json in Resources */,
+				A10000000000000000000004 /* LaunchScreen.storyboard in Resources */,
+				3C5AC4B2308F4FF70036C9DB /* coles-v2.json in Resources */,
+				A10000000000000000000016 /* Resources/coles.json in Resources */,
+				3C5AC4BA309041430036C9DB /* tesco-v2.json in Resources */,
+				A10000000000000000000017 /* Resources/woolworths.json in Resources */,
+				A10000000000000000000023 /* Resources/ingredients.json in Resources */,
+				3C5AC4BE3090475B0036C9DB /* kmart-v2.json in Resources */,
+				3C5AC4C030904B1C0036C9DB /* costcoUS-v2.json in Resources */,
+				3C5AC4BC309044F10036C9DB /* walmart-v2.json in Resources */,
+				3C5AC4B4308F4FF70036C9DB /* woolworths-v2.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		C10000000000000000000002 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* ListRunnerApp.swift in Sources */,
+				A10000000000000000000002 /* GroceryListScreen.swift in Sources */,
+				A10000000000000000000008 /* ShoppingModels.swift in Sources */,
+				A10000000000000000000009 /* StoreShoppingView.swift in Sources */,
+				A10000000000000000000010 /* RecoverySupport.swift in Sources */,
+				A10000000000000000000011 /* AppRecovery.swift in Sources */,
+				A10000000000000000000012 /* RecoveryServices.swift in Sources */,
+				A10000000000000000000013 /* StoreConfiguration.swift in Sources */,
+				A10000000000000000000014 /* ShoppingLists.swift in Sources */,
+				A10000000000000000000015 /* StoreSessions.swift in Sources */,
+				A10000000000000000000018 /* PaprikaReminders.swift in Sources */,
+				A10000000000000000000019 /* IngredientQuantity.swift in Sources */,
+				A10000000000000000000020 /* IngredientParseResult.swift in Sources */,
+				A10000000000000000000021 /* IngredientDictionary.swift in Sources */,
+				A10000000000000000000022 /* IngredientParser.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C20000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000001 /* StoreSelectionTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		E20000000000000000000004 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E10000000000000000000001 /* ListRunner */;
+			targetProxy = E20000000000000000000003 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
-		110000000000000000000001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_ASSET_PATHS = "\"ListRunner/Preview Content\""; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = ListRunner/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.adriangith.ListRunner; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
-		110000000000000000000002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = ListRunner/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = com.adriangith.ListRunner; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SUPPORTS_MACCATALYST = NO; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; VALIDATE_PRODUCT = YES; }; name = Release; };
-		110000000000000000000003 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CLANG_WARN_BOOL_CONVERSION = YES; CLANG_WARN_COMMA = YES; CLANG_WARN_CONSTANT_CONVERSION = YES; CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES; CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR; CLANG_WARN_EMPTY_BODY = YES; CLANG_WARN_ENUM_CONVERSION = YES; CLANG_WARN_INFINITE_RECURSION = YES; CLANG_WARN_INT_CONVERSION = YES; CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES; CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES; CLANG_WARN_OBJC_LITERAL_CONVERSION = YES; CLANG_WARN_RANGE_LOOP_ANALYSIS = YES; CLANG_WARN_STRICT_PROTOTYPES = YES; CLANG_WARN_SUSPICIOUS_MOVE = YES; CLANG_WARN_UNREACHABLE_CODE = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_STRICT_OBJC_MSGSEND = YES; ENABLE_TESTABILITY = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_NO_COMMON_BLOCKS = YES; GCC_OPTIMIZATION_LEVEL = 0; GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)"); GCC_WARN_64_TO_32_BIT_CONVERSION = YES; GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR; GCC_WARN_UNDECLARED_SELECTOR = YES; GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE; GCC_WARN_UNUSED_FUNCTION = YES; GCC_WARN_UNUSED_VARIABLE = YES; MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE; MTL_FAST_MATH = YES; ONLY_ACTIVE_ARCH = YES; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)"; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };
-		110000000000000000000004 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CLANG_WARN_BOOL_CONVERSION = YES; CLANG_WARN_COMMA = YES; CLANG_WARN_CONSTANT_CONVERSION = YES; CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES; CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR; CLANG_WARN_EMPTY_BODY = YES; CLANG_WARN_ENUM_CONVERSION = YES; CLANG_WARN_INFINITE_RECURSION = YES; CLANG_WARN_INT_CONVERSION = YES; CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES; CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES; CLANG_WARN_OBJC_LITERAL_CONVERSION = YES; CLANG_WARN_RANGE_LOOP_ANALYSIS = YES; CLANG_WARN_STRICT_PROTOTYPES = YES; CLANG_WARN_SUSPICIOUS_MOVE = YES; CLANG_WARN_UNREACHABLE_CODE = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; ENABLE_NS_ASSERTIONS = NO; ENABLE_STRICT_OBJC_MSGSEND = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_NO_COMMON_BLOCKS = YES; GCC_WARN_64_TO_32_BIT_CONVERSION = YES; GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR; GCC_WARN_UNDECLARED_SELECTOR = YES; GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE; GCC_WARN_UNUSED_FUNCTION = YES; GCC_WARN_UNUSED_VARIABLE = YES; MTL_ENABLE_DEBUG_INFO = NO; MTL_FAST_MATH = YES; SWIFT_COMPILATION_MODE = wholemodule; VALIDATE_PRODUCT = YES; }; name = Release; };
+		110000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"ListRunner/Preview Content\"";
+				DEVELOPMENT_TEAM = KWV4SPU7LX;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ListRunner/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.AdrianZ.ListRunner;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		110000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KWV4SPU7LX;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ListRunner/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.AdrianZ.ListRunner;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		110000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		110000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		120000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KWV4SPU7LX;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.adriangith.ListRunnerUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = ListRunner;
+			};
+			name = Debug;
+		};
+		120000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KWV4SPU7LX;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.adriangith.ListRunnerUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = ListRunner;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		F10000000000000000000001 /* Build configuration list for PBXNativeTarget "ListRunner" */ = {isa = XCConfigurationList; buildConfigurations = (110000000000000000000001, 110000000000000000000002); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		F10000000000000000000002 /* Build configuration list for PBXProject "ListRunner" */ = {isa = XCConfigurationList; buildConfigurations = (110000000000000000000003, 110000000000000000000004); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		F10000000000000000000001 /* Build configuration list for PBXNativeTarget "ListRunner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				110000000000000000000001 /* Debug */,
+				110000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F10000000000000000000002 /* Build configuration list for PBXProject "ListRunner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				110000000000000000000003 /* Debug */,
+				110000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F20000000000000000000001 /* Build configuration list for PBXNativeTarget "ListRunnerUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				120000000000000000000001 /* Debug */,
+				120000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 	};
 	rootObject = E10000000000000000000002 /* Project object */;
