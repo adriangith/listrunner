@@ -1,5 +1,13 @@
 # Reusable store framework validation
 
+## Migration completion audit and bundle regression — 29 October 2026
+
+Refreshed status, remotes, branches, ignored files and local-only commits for both active checkouts and the retained legacy Mac copy. The pre-sync archives were fully read to verify integrity; the Mac archive includes machine-local Xcode user state. Linux's only non-generated ignored files were `.superpowers` scratch/review files; these were additionally archived and verified as `~/listrunner-backups/20261029T013952Z/linux-ignored-scratch.tar.gz`. Generated dependencies/build outputs were excluded. No secrets were printed or added to Git. The legacy folder's replayed older files remain preserved and were not forcibly reset.
+
+The active Mac path resolves directly to `/Users/adrianzafir/Projects/listrunner`, outside cloud-managed Documents/Desktop, not a symlink. Xcode was opened on its `packages/ios/ListRunner.xcodeproj`; AppleScript readback confirmed that exact active workspace path. The earlier outside-iCloud Release build log identifies the same source checkout. Other sessions' handoff guidance was retained and updated from migration-pending to verified paths.
+
+Actual app-bundle inspection exposed a gap the earlier compile-only checks missed: the canonical Xcode project omitted `bunnings.json` from Copy Bundle Resources while the preserved Mac project supplied its duplicate variant. Added the canonical resource reference and a reusable bundle verifier with six regression tests (matching, missing Bunnings, changed resource, duplicate variant, missing app and empty canonical folder). This supersedes any inference that earlier successful compilation alone established complete resource loading. The canonical store data and automation policies are unchanged. No retailer/cart or device data mutation was performed for this audit.
+
 ## Git reconciliation and preservation — 29 October 2026
 
 Before reconciliation, both worktrees and their Git metadata were archived outside the checkouts under `listrunner-backups/20261029T013952Z` in the corresponding user home directories. Linux holds both archives. All 33 Linux changes were checkpointed in `b12db0e`. The complete Mac source/resource state, including its extra copies and launch asset variant, was checkpointed on `backup/mac-before-sync-20261029` at `bed0e50`; machine-local Finder/Xcode user state is retained in the archive rather than committed.

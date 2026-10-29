@@ -14,6 +14,21 @@ The Mac state before reconciliation is preserved on `backup/mac-before-sync-2026
 
 Keep Xcode Derived Data in its default `~/Library/Developer/Xcode/DerivedData` location, or another build directory outside the checkout and iCloud Drive. A generated compiler-cache file inside `work/DerivedData` previously advertised a 24 GiB logical size and overwhelmed cloud downloads. Git ignore rules prevent generated files from being committed, but **do not stop iCloud from syncing them**. Machine-local Finder/Xcode user state is ignored separately. Git synchronization does not synchronize app lists, cookies or iPhone data.
 
+### Handoff in either direction
+
+One session owns a writable task checkout. For independent simultaneous tasks, use separate task branches/worktrees. The sender reviews the diff, stages explicit files, commits and pushes the task branch, and records its branch, full `git rev-parse HEAD` SHA and validation results. The receiving machine first inspects `git status --short --branch`, `git remote -v` and its current SHA. If dirty, stop and preserve that work. Then `git fetch origin`, check out the agreed task branch, fast-forward only when appropriate, and confirm `git rev-parse HEAD` equals the supplied SHA before building. Divergence requires review, not reset/force-push. A Mac-side fix follows the same commit/push handoff back to Linux before Linux resumes editing that task.
+
+Before significant work or reconciliation, repeat a separate timestamped backup of local commits, uncommitted files and relevant ignored files outside the checkout/cloud. Exclude generated dependencies/build caches, but preserve unique scratch work and local settings privately. The migration archives are verified recovery snapshots, not an automatic ongoing backup service. Never commit secrets, signing credentials or provisioning profiles.
+
+After a Mac build, verify the actual app bundle, not just build success:
+
+```sh
+python3 -B packages/ios/tests/test-bundled-resources.py
+python3 -B packages/ios/tests/verify-bundled-resources.py /absolute/path/to/ListRunner.app
+```
+
+The verifier requires every canonical JSON file (including Bunnings) to be byte-identical in the built app and rejects legacy `*-v2.json` copies. Build output must stay outside the checkout. Run the focused parser/native/DOM checks as appropriate and record the exact committed revision tested. Device installs must preserve existing app data; retailer cart mutations require fresh authorization.
+
 ## Current implementation
 
 - Add one or many items from comma-, newline-, and bullet-separated text.

@@ -8,3 +8,21 @@ work/
 *.xcuserstate
 xcuserdata/
 .DS_Store
+
+# Dependencies, temporary test/build output, and local secrets
+node_modules/
+.build/
+*.xcresult/
+*.xcactivitylog
+coverage/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.p12
+*.pfx
+*.p8
+*.mobileprovision
+*.key
