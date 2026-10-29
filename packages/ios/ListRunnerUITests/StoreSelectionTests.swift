@@ -983,7 +983,7 @@ final class StoreSelectionTests: XCTestCase {
         clear.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertTrue(app.buttons["Clear All"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["Clear Added"].exists)
-        app.buttons["Cancel"].tap()
+        cancelClearListOptions()
     }
 
     private func openClearListOptions() {
@@ -995,6 +995,18 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(clear.isHittable)
         clear.tap()
         XCTAssertTrue(app.buttons["Clear All"].waitForExistence(timeout: 3))
+    }
+
+    private func cancelClearListOptions() {
+        // System popover presentations omit the cancel-role action. Dismiss
+        // outside the button-anchored popup, as a person would, on those OSes.
+        let cancel = app.buttons["Cancel"]
+        if cancel.exists {
+            cancel.tap()
+        } else {
+            app.staticTexts["Your list"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+        XCTAssertTrue(app.buttons["Clear All"].waitForNonExistence(timeout: 3))
     }
 
     func testClearAddedPreservesPendingSkippedAndOtherStores() {
@@ -1015,7 +1027,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("Coffee", status: "Skipped").exists)
         openClearListOptions()
         XCTAssertFalse(app.buttons["Clear Added"].exists, "Clear Added disappears when no Added items remain")
-        app.buttons["Cancel"].tap()
+        cancelClearListOptions()
         choose("Woolworths")
         XCTAssertTrue(row("Woolworths fixture item", status: "Pending").waitForExistence(timeout: 3))
         choose("Coles")
@@ -1033,7 +1045,7 @@ final class StoreSelectionTests: XCTestCase {
         choose("Coles")
         openClearListOptions()
         XCTAssertFalse(app.buttons["Clear Added"].exists, "Another store's Added items must not enable this action")
-        app.buttons["Cancel"].tap()
+        cancelClearListOptions()
         XCTAssertTrue(row("Coles fixture item", status: "Pending").exists)
         openClearListOptions()
         app.buttons["Clear All"].tap()
@@ -1051,7 +1063,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Mark Added"].tap()
         openClearListOptions()
         XCTAssertTrue(app.buttons["Clear Added"].exists)
-        app.buttons["Cancel"].tap()
+        cancelClearListOptions()
         XCTAssertTrue(row("Coles fixture item", status: "Added").exists,
                       "Even a completed list must not clear before a choice is made")
         openClearListOptions()
