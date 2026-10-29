@@ -9,6 +9,9 @@ final class StoreSelectionTests: XCTestCase {
         app = XCUIApplication()
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
+        if name.contains("KeyboardDismissalAnimation") {
+            app.launchEnvironment["LISTRUNNER_ENTRY_ANIMATION_TEST_FIXTURE"] = "enabled"
+        }
         if name.contains("IdleRecovery") {
             app.launchEnvironment["LISTRUNNER_IDLE_RECOVERY_TEST_FIXTURE"] = "enabled"
         }
@@ -1089,6 +1092,36 @@ final class StoreSelectionTests: XCTestCase {
         app.terminate()
         app.launch()
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 5), "Deletion must persist")
+    }
+
+    func testKeyboardDismissalAnimationOnOutsideTap() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("Unsubmitted draft")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        app.staticTexts["Ready when you are"].tap()
+        assertEntryDismissalAllowsSystemAnimation()
+        XCTAssertEqual(input.value as? String, "Unsubmitted draft")
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3), "Defocus must not break refocusing")
+    }
+
+    func testKeyboardDismissalAnimationOnEmptyReturn() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        input.typeText("\n")
+        assertEntryDismissalAllowsSystemAnimation()
+        assertGroceryInputIsEmpty(input)
+    }
+
+    private func assertEntryDismissalAllowsSystemAnimation(file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), file: file, line: line)
+        let status = app.staticTexts["entry-dismissal-animation-status"]
+        let enabled = NSPredicate(format: "label ENDSWITH %@", "resign-animations-enabled")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: status)], timeout: 3),
+                       .completed, "First responder must resign outside SwiftUI's animation-disabled update transaction", file: file, line: line)
+        print("Entry dismissal animation: \(status.label)")
     }
 
     func testShowStoreDeactivatesGroceryInputAndPreservesDraft() {

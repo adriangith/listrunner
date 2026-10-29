@@ -57,6 +57,9 @@ struct GroceryListScreen: View {
     @State private var groceryInputFrame: CGRect = .zero
     @State private var addItemsButtonFrame: CGRect = .zero
     @State private var isListScreenVisible = false
+    #if DEBUG
+    @State private var entryDismissalAnimationStatus = "not-dismissed"
+    #endif
 
     init(storeID: StoreID, sessions: StoreSessions, visibility: StoreVisibilityPreferences, paprikaReminders: PaprikaReminders, rawInput: Binding<String>,
          onSelectStore: @escaping (StoreID) -> Void) {
@@ -363,6 +366,17 @@ struct GroceryListScreen: View {
             }
         }
         .tint(storePrimaryColor)
+        #if DEBUG
+        .overlay(alignment: .topLeading) {
+            if ProcessInfo.processInfo.environment["LISTRUNNER_ENTRY_ANIMATION_TEST_FIXTURE"] == "enabled" {
+                Text(entryDismissalAnimationStatus)
+                    .accessibilityIdentifier("entry-dismissal-animation-status")
+                    .frame(width: 1, height: 1)
+                    .opacity(0.01)
+                    .allowsHitTesting(false)
+            }
+        }
+        #endif
         .simultaneousGesture(
             SpatialTapGesture(coordinateSpace: .global).onEnded { value in
                 guard groceryInputFocused,
@@ -407,6 +421,12 @@ struct GroceryListScreen: View {
             scrollToAddedItem(itemID, using: scrollProxy)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
+            #if DEBUG
+            if let enabled = ProductEntryEditor.EntryTextView.lastResignAnimationsEnabled {
+                let updateEnabled = ProductEntryEditor.EntryTextView.lastFocusUpdateAnimationsEnabled == true
+                entryDismissalAnimationStatus = "update-animations-\(updateEnabled ? "enabled" : "disabled"); resign-animations-\(enabled ? "enabled" : "disabled")"
+            }
+            #endif
             // Return can briefly change the field's focus while UIKit keeps the
             // keyboard open. Only retire the target on an actual dismissal.
             addedItemScrollTask?.cancel()
@@ -814,9 +834,12 @@ private struct ProductEntryEditor: UIViewRepresentable {
         context.coordinator.parent = self
         if view.text != text { view.text = text }
         view.updatePlaceholder()
-        if isFocused && !view.isFirstResponder { view.becomeFirstResponder() }
-        else if !isFocused && view.isFirstResponder { view.resignFirstResponder() }
+        context.coordinator.synchronizeFocus(for: view)
         view.invalidateIntrinsicContentSize()
+    }
+
+    static func dismantleUIView(_ view: EntryTextView, coordinator: Coordinator) {
+        coordinator.isDismantled = true
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: EntryTextView, context: Context) -> CGSize? {
@@ -828,7 +851,30 @@ private struct ProductEntryEditor: UIViewRepresentable {
 
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: ProductEntryEditor
+        var isDismantled = false
+        private var focusUpdateScheduled = false
         init(parent: ProductEntryEditor) { self.parent = parent }
+
+        func synchronizeFocus(for view: EntryTextView) {
+            guard parent.isFocused != view.isFirstResponder, !focusUpdateScheduled else { return }
+            focusUpdateScheduled = true
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["LISTRUNNER_ENTRY_ANIMATION_TEST_FIXTURE"] == "enabled" {
+                EntryTextView.lastFocusUpdateAnimationsEnabled = UIView.areAnimationsEnabled
+            }
+            #endif
+            // SwiftUI can disable UIKit animations during updateUIView. Changing
+            // first responder there also suppresses the system keyboard slide.
+            // Leave that layout transaction, then read the latest binding so a
+            // rapid retap cannot execute an obsolete dismissal/refocus request.
+            DispatchQueue.main.async { [weak self, weak view] in
+                guard let self else { return }
+                self.focusUpdateScheduled = false
+                guard !self.isDismantled, let view, view.window != nil else { return }
+                if self.parent.isFocused && !view.isFirstResponder { view.becomeFirstResponder() }
+                else if !self.parent.isFocused && view.isFirstResponder { view.resignFirstResponder() }
+            }
+        }
 
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
             guard text == "\n", textView.markedTextRange == nil else { return true }
@@ -852,6 +898,19 @@ private struct ProductEntryEditor: UIViewRepresentable {
 
     final class EntryTextView: UITextView {
         let placeholder = UILabel()
+        #if DEBUG
+        static var lastFocusUpdateAnimationsEnabled: Bool?
+        static var lastResignAnimationsEnabled: Bool?
+
+        override func resignFirstResponder() -> Bool {
+            if isFirstResponder,
+               ProcessInfo.processInfo.environment["LISTRUNNER_ENTRY_ANIMATION_TEST_FIXTURE"] == "enabled",
+               ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"].flatMap(UUID.init(uuidString:)) != nil {
+                Self.lastResignAnimationsEnabled = UIView.areAnimationsEnabled
+            }
+            return super.resignFirstResponder()
+        }
+        #endif
 
         override init(frame: CGRect, textContainer: NSTextContainer?) {
             super.init(frame: frame, textContainer: textContainer)

@@ -40,6 +40,7 @@ Each store row opens its complete settings, even when disabled. **Enable store**
 Revision `e5f6d1634f828ba158f9ee4c98b31e90418bd366` passed 287 native checks and a signed Mac/Xcode device build, and was installed in place and launched on the physical iPhone for user review. Automated UI checks and visual/accessibility sign-off remain pending; see `VALIDATION.md`.
 
 - Add one or many items from comma-, newline-, and bullet-separated text.
+- Native product-entry focus changes are coalesced onto the next main-queue turn, outside SwiftUI's layout-update animation suppression, so defocusing permits the system keyboard dismissal animation. Queued focus changes read the latest binding and ignore detached/dismantled editors; no custom duration or forced animation overrides system accessibility preferences. Return interception, empty-Return dismissal, Add Items focus retention and draft preservation remain unchanged.
 - Parse common counts, multipliers, and grocery units; unrecognized entries are retained as names.
 - Merge typed duplicates by normalized name and compatible units; persist one active list locally with SwiftData.
 - Review status totals, edit item name/quantity/unit, delete rows, and choose which list items to clear.
