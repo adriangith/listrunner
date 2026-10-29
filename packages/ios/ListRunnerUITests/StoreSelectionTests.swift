@@ -862,7 +862,7 @@ final class StoreSelectionTests: XCTestCase {
         openStoreSettings("kmart")
         XCTAssertEqual(app.staticTexts.matching(identifier: "Search, Included").count, 1)
         XCTAssertEqual(app.staticTexts.matching(identifier: "Cart detection, Included").count, 1)
-        XCTAssertTrue(app.staticTexts["Cart Undo, Included"].exists)
+        XCTAssertTrue(app.staticTexts["Cart Undo, Not included"].exists)
         app.buttons["Reset Kmart Session"].tap()
         XCTAssertTrue(app.alerts["Reset Kmart Session?"].waitForExistence(timeout: 3))
         app.alerts["Reset Kmart Session?"].buttons["Cancel"].tap()

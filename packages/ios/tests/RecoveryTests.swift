@@ -193,11 +193,11 @@ struct RecoveryTests {
         check(malformedChoice.selectedRegion(for: costcoBrand).id == .costcoUS,
               "malformed regional choice cannot redirect a brand to another retailer")
         check(kmart.isConfigurationValid && kmart.serviceArea.countryCodes == ["AU"]
-               && kmart.capabilities.search && kmart.capabilities.cartDetection && kmart.capabilities.cartUndo
+               && kmart.capabilities.search && kmart.capabilities.cartDetection && !kmart.capabilities.cartUndo
                && kmart.cart?.productURLPattern == "/product/[^/?#]+-(\\d{1,32})(?:[/?#]|$)",
-              "Kmart Australia enables reviewed search, product-scoped detection and one-step cart Undo")
-        check(StoreID.kmart.permitsSearch && StoreID.kmart.permitsCartDetection && StoreID.kmart.permitsCartUndo,
-              "native Kmart policy permits only the reviewed automation capabilities")
+              "Kmart Australia enables search and product-scoped detection but keeps unverified cart Undo disabled")
+        check(StoreID.kmart.permitsSearch && StoreID.kmart.permitsCartDetection && !StoreID.kmart.permitsCartUndo,
+              "native Kmart policy keeps retailer-cart Undo disabled until its bag-page reversal is verified")
         check(bigW.isConfigurationValid && bigW.serviceArea.countryCodes == ["AU"]
               && !bigW.capabilities.search && !bigW.capabilities.cartDetection && !bigW.capabilities.cartUndo && bigW.cart == nil,
               "BIG W is browsing-only with all automation disabled")

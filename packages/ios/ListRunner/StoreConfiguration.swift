@@ -21,7 +21,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         default: nil
         }
     }
-    var permitsCartUndo: Bool { [.coles, .kmart].contains(self) }
+    var permitsCartUndo: Bool { self == .coles }
     var permitsCartDetection: Bool { [.coles, .woolworths, .bunnings, .kmart].contains(self) }
     var displayName: String {
         switch self {

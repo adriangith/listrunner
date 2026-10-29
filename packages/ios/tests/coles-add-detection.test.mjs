@@ -162,7 +162,7 @@ function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = f
     : 'https://www.bunnings.com.au/staple-gun_p0217503';
   const makeCard = (url, quantity) => {
     const tile = new FakeElement('div');
-    const link = tile.append(new FakeElement('a', { href: url }, 'Trojan staples'));
+    const link = tile.append(new FakeElement('a', { href: url }, config.id === 'kmart' ? 'Foldaway PVC Chair' : 'Trojan staples'));
     if (duplicateLinks) tile.append(new FakeElement('a', { href: url }, 'Same product image'));
     if (ambiguous) tile.append(new FakeElement('a', { href: 'https://www.bunnings.com.au/other_p9999999' }, 'Another product'));
     const controls = tile.append(new FakeElement('div'));
@@ -203,6 +203,7 @@ function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = f
     messages,
     click(trusted = true) { click({ isTrusted: trusted, target: selected.inner, composedPath: () => [selected.inner, selected.control, selected.controls, selected.tile] }); },
     setQuantity(value) { setCardQuantity(selected, value); mutation(); },
+    setKmartToast(text) { document.body.innerText = text; mutation(); },
     setOtherQuantity(value) { setCardQuantity(other, value); badge.value = String(value); mutation(); },
     reuseForDifferentProduct() { selected.link.attributes.href = 'https://www.bunnings.com.au/reused_p1234567'; setCardQuantity(selected, 1); mutation(); },
     replaceCard(sameProduct = true) {
@@ -231,26 +232,20 @@ test('Bunnings search grid identifies the tapped card and confirms only its quan
   assert.equal(page.messages.at(-1).resultingQuantity, 1);
 });
 
-test('Kmart search grid confirms a real Add only in its URL-identified product card and reverses only that add', async () => {
+test('Kmart search grid confirms Add only after stable product-specific receipt', () => {
   assert.equal(kmart.capabilities.search, true);
   assert.equal(kmart.capabilities.cartDetection, true);
-  assert.equal(kmart.capabilities.cartUndo, true);
+  assert.equal(kmart.capabilities.cartUndo, false);
   const page = bunningsGridFixture({ config: kmart });
   page.click();
+  assert.equal(page.messages.length, 0, 'tap alone is not confirmed');
+  page.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00 View your bag');
+  page.tick(8);
   assert.equal(page.messages[0].type, 'cartInteractionStarted');
   assert.equal(page.messages[0].productID, '42250333');
-  page.setQuantity(1); page.tick(5);
+  assert.equal(page.messages[0].beforeQuantity, 0);
   assert.equal(page.messages.at(-1).type, 'addDetected');
   assert.equal(page.messages.at(-1).resultingQuantity, 1);
-  const undo = page.undo({
-    ...page.messages.at(-1), storeID: 'kmart', sessionID: 'session', interactionID: 'interaction',
-    itemID: 'item', documentGeneration: 1,
-  });
-  for (let index = 0; index < 3; index++) {
-    await Promise.resolve();
-    page.tick();
-  }
-  assert.equal(await undo, true);
 });
 
 test('Bunnings duplicate image/title links to one product are not ambiguous', () => {

@@ -1112,6 +1112,29 @@ final class StoreBrowser: ObservableObject {
       ]) : 'null';
       const productLinkPattern = new RegExp(rules.productURLPattern, 'i');
       const normalize = value => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const kmart = config.id === 'kmart';
+      const kmartProductName = tile => {
+        const ids = linkedProductIDs(tile);
+        if (ids.size !== 1) return null;
+        const names = deepQueryAll(tile, rules.linkSelector)
+          .filter(link => linkedProductIDs(link).has([...ids][0]))
+          .map(link => normalize(link.textContent)
+            .replace(/^kmart\s+/, '').replace(/\s+\$\s*[\d,.]+.*$/, '').trim())
+          .filter(name => name.split(' ').filter(word => word.length > 1).length >= 2);
+        return names.sort((a, b) => b.length - a.length)[0] || null;
+      };
+      const kmartToast = productName => {
+        const text = normalize(document.body?.innerText || document.body?.textContent);
+        const start = text.lastIndexOf('added to your bag');
+        if (start < 0) return null;
+        const toast = text.slice(start);
+        const qty = toast.match(/\bqty\s+(\d{1,4})\b/);
+        if (!qty) return null;
+        const nameStart = toast.indexOf(productName);
+        if (nameStart < 0) return null;
+        const result = Number(qty[1]);
+        return Number.isInteger(result) && result > 0 ? { text: toast, quantity: result } : null;
+      };
        const usesScopedProductIdentity = config.id === 'bunnings' || config.id === 'kmart';
        const isAddControl = element => {
          if (!usesScopedProductIdentity) {
@@ -1315,6 +1338,32 @@ final class StoreBrowser: ObservableObject {
         setTimeout(() => {
           if (candidate !== checkingCandidate) return;
           if (Date.now() > checkingCandidate.expires) { candidate = null; return; }
+          if (kmart) {
+            const receipt = kmartToast(checkingCandidate.productName);
+            if (receipt && receipt.text !== checkingCandidate.initialToast) {
+              if (checkingCandidate.lastReceipt === receipt.text) checkingCandidate.stableCount++;
+              else { checkingCandidate.lastReceipt = receipt.text; checkingCandidate.stableCount = 1; }
+              if (checkingCandidate.stableCount >= 2) {
+                const before = receipt.quantity - 1;
+                const confirmationID = String(++confirmationSequence);
+                const fields = { confirmationID, productID: checkingCandidate.productID,
+                  beforeQuantity: before, resultingQuantity: receipt.quantity };
+                confirmedAdds.set(confirmationID, { ...fields, context: contextFingerprint(context) });
+                if (confirmedAdds.size > 32) confirmedAdds.delete(confirmedAdds.keys().next().value);
+                post('cartInteractionStarted', { productID: checkingCandidate.productID, beforeQuantity: before,
+                  intent: before === 0 ? 'add' : 'increment' });
+                post('addDetected', fields);
+                candidate = null;
+                return;
+              }
+            } else {
+              checkingCandidate.lastReceipt = null;
+              checkingCandidate.stableCount = 0;
+            }
+            checkingCandidate.checking = false;
+            checkCandidate();
+            return;
+          }
           const tile = checkingCandidate.tile.isConnected && productID(checkingCandidate.tile) === checkingCandidate.productID
             ? checkingCandidate.tile : findProductTile(checkingCandidate.productID);
           const current = quantity(tile);
@@ -1408,6 +1457,21 @@ final class StoreBrowser: ObservableObject {
         if (!control || !isAddControl(control)) return;
         const tile = productTile(control);
         const id = productID(tile);
+        if (kmart) {
+          const name = tile && kmartProductName(tile);
+          if (!id || !name) {
+            post('automationUnavailable', { capability: 'cartDetection', reason: 'productIdUnavailable', scope: 'interaction' });
+            return;
+          }
+          candidate = { tile, productID: id, productName: name, before: null,
+            initialToast: kmartToast(name)?.text || null,
+            expires: Date.now() + 8000, lastReceipt: null, stableCount: 0, checking: false };
+          // Kmart search cards do not expose quantity. Wait for the product-
+          // specific success receipt, then send native the actual before/after
+          // quantities together, without guessing a baseline.
+          setTimeout(checkCandidate, 180);
+          return;
+        }
         const observedBefore = quantity(tile);
         const explicitEmptyStatus = tile && deepQueryAll(tile, rules.emptyStatusSelector)
           .some(status => normalize(status.textContent) === normalize(rules.emptyStatusText));
