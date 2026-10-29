@@ -359,8 +359,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["store-picker-manage-stores"].tap()
         setStoreVisibility("bunnings", shown: true)
         tapNavigationBack()
-        XCTAssertTrue(app.buttons["store-picker"].label.contains("Coles"), "Re-enabling another store must not replace an enabled selection")
-        choose("Bunnings")
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"), "Re-enabling a store makes it active on return")
         XCTAssertTrue(row("Bunnings fixture item", status: "Skipped").waitForExistence(timeout: 5))
         XCTAssertTrue(row("Bunnings saved item", status: "Added").exists)
     }
