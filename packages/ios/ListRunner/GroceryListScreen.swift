@@ -531,6 +531,11 @@ struct GroceryListScreen: View {
     }
 
     private func addItems() {
+        guard !rawInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            rawInput = ""
+            groceryInputFocused = false
+            return
+        }
         addItems(keepingInputFocused: true)
     }
 

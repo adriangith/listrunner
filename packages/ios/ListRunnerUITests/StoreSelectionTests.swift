@@ -1036,6 +1036,26 @@ final class StoreSelectionTests: XCTestCase {
         assertFirstItemIsFullyVisible(name, keyboardExpected: false)
     }
 
+    func testGroceryInputEmptyReturnDismissesKeyboard() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 3))
+        for text in ["\n", "   \n"] {
+            input.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+            input.typeText(text)
+            XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+            assertGroceryInputIsEmpty(input)
+            XCTAssertTrue(row("Coles fixture item", status: "Pending").exists)
+        }
+        input.tap()
+        input.typeText("milk\n")
+        XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertTrue(app.keyboards.firstMatch.exists)
+        input.typeText("\n")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        assertGroceryInputIsEmpty(input)
+    }
+
     func testGroceryInputReturnSubmitsItem() {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 3))
