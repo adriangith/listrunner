@@ -1,5 +1,11 @@
 # Reusable store framework validation
 
+## Defocus product entry on outside taps — 29 October 2026
+
+List-screen simultaneous spatial tap handling compares tap location against the outlined field's global frame, clearing focus only outside it. Padding taps retain focus and native text editing remains intact. Header, section heading and empty-state taps now dismiss the keyboard without losing draft text or consuming normal control actions. Add Items submits with focus disabled, while keyboard Return retains focus for continued entry; this supersedes earlier Add Items focus-retention behavior. A separate submit focus parameter avoids the animated insertion reactivating the editor after a button tap.
+
+At `b83efb246c72df13fca5555820725a40e0b2c4ad`, **6/6 focused iPhone 17 / iOS 27 tests passed** together: outside header/heading taps with draft preservation, empty-state dismissal, both padded corners activating the field, Return submission/continued typing, Add Items submission/dismissal, and long first-item visibility with dismissed keyboard. Initial run exposed refocus during animated Add Items insertion; fixed before the clean rerun. Evidence: Mac `RunSomeTests/Test-ListRunner-2026.10.29_19-28-00-+1100.xcresult`. Tests used isolated lists/nonpersistent fixtures and no retailer actions.
+
 ## Simplified full-field product entry — 29 October 2026
 
 Removed the plus focus button and helper/example line at the user's request. Retained `Tap to add products…`, store-coloured outline and focused styling. The padded field has a rectangular tap region with a simultaneous focus gesture, including the empty space inside its border, without replacing native text editing/selection. Existing submit/parser/draft behavior is unchanged.
