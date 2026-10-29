@@ -101,8 +101,8 @@ struct IngredientParserTests {
             print("FAIL comma separators must not depend on a loaded dictionary")
             failures += 1
         } else { print("PASS dictionary-free product-entry separators") }
-        let mixedProducts = parser.parseProductEntry("milk, toaster, 2 chairs")
-        if mixedProducts.map(\.name) != ["Milk", "toaster", "chairs"] || mixedProducts.last?.amount != 2 {
+        let mixedProducts = parser.parseProductEntry("milk, toaster, 2 eggs")
+        if mixedProducts.map(\.name) != ["Milk", "toaster", "Eggs"] || mixedProducts.last?.amount != 2 {
             print("FAIL mixed known/unknown product entry retains quantities")
             failures += 1
         } else { print("PASS mixed known/unknown product entry retains quantities") }
