@@ -110,7 +110,7 @@ test('Bunnings sticky product-page Add to Cart control uses the same scoped quan
 });
 
 function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = false,
-  href, detailPage = false, config = bunnings } = {}) {
+  href, detailPage = false, config = bunnings, kmartTitle = true } = {}) {
   const messages = [], scheduled = [];
   let click, mutation, now = 0;
   class FakeElement {
@@ -127,6 +127,7 @@ function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = f
         const s = raw.trim();
         return s === '*' || s === 'button' && this.tagName === 'BUTTON' ||
           s === 'h1' && this.tagName === 'H1' ||
+          s === 'p' && this.tagName === 'P' ||
           s === 'a[href]' && this.tagName === 'A' && !!this.attributes.href ||
           s === "a[href*='/product/']" && this.tagName === 'A' && this.attributes.href?.includes('/product/') ||
           s === '#pdp-footer-container' && this.attributes.id === 'pdp-footer-container' ||
@@ -162,11 +163,14 @@ function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = f
     : 'https://www.bunnings.com.au/staple-gun_p0217503';
   const makeCard = (url, quantity) => {
     const tile = new FakeElement('div');
-    const link = tile.append(new FakeElement('a', { href: url }, config.id === 'kmart' ? 'Foldaway PVC Chair' : 'Trojan staples'));
+    const imageContainer = config.id === 'kmart' ? tile.append(new FakeElement('div')) : tile;
+    if (config.id === 'kmart') imageContainer.append(new FakeElement('a', { href: url }, 'Bestseller'));
+    const link = tile.append(new FakeElement('a', { href: url }, config.id === 'kmart' ? 'KmartKmartFoldaway PVC Chair$9' : 'Trojan staples'));
+    if (config.id === 'kmart' && kmartTitle) link.append(new FakeElement('p', {}, 'Foldaway PVC Chair'));
     if (duplicateLinks) tile.append(new FakeElement('a', { href: url }, 'Same product image'));
     if (ambiguous) tile.append(new FakeElement('a', { href: 'https://www.bunnings.com.au/other_p9999999' }, 'Another product'));
-    const controls = tile.append(new FakeElement('div'));
-    const control = controls.append(new FakeElement('button', { 'aria-label': quantity ? 'Increase quantity' : config.id === 'kmart' ? 'Add Foldaway PVC Chair - Black colour to bag' : 'Add to Cart' }, quantity ? '' : 'Add'));
+    const controls = imageContainer.append(new FakeElement('div'));
+    const control = controls.append(new FakeElement('button', config.id === 'kmart' ? {} : { 'aria-label': quantity ? 'Increase quantity' : 'Add to Cart' }, quantity ? '' : config.id === 'kmart' ? 'Add Foldaway PVC Chair - Black colour to bagAdd' : 'Add'));
     const inner = control.append(new FakeElement('span', {}, 'Add'));
     const card = { tile, link, controls, control, inner };
     if (quantity) setCardQuantity(card, quantity);
@@ -258,7 +262,7 @@ test('Kmart named Add labels accept the observed mobile control but not in-progr
   regression.tick(8);
   assert.equal(regression.messages.length, 0, 'old rules silently ignored the live named control');
   for (const label of ['Add', 'Add to bag', 'Add Foldaway PVC Chair - Black colour to bag',
-    'Add Foldaway PVC Chair - Black colour to bag Add']) {
+    'Add Foldaway PVC Chair - Black colour to bag Add', 'Add Foldaway PVC Chair - Black colour to bagAdd']) {
     const page = bunningsGridFixture({ config: kmart });
     page.setAddLabel(label);
     page.click();
@@ -287,6 +291,14 @@ test('Kmart named Add still rejects an unrelated receipt and untrusted taps', ()
   synthetic.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00 View your bag');
   synthetic.tick(8);
   assert.equal(synthetic.messages.length, 0);
+});
+
+test('Kmart image badge and seller/price text cannot substitute for a missing product title', () => {
+  const page = bunningsGridFixture({ config: kmart, kmartTitle: false });
+  page.click();
+  page.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00 View your bag');
+  page.tick(8);
+  assert.equal(page.messages.some(message => message.type === 'addDetected'), false);
 });
 
 test('Bunnings duplicate image/title links to one product are not ambiguous', () => {

@@ -1118,8 +1118,10 @@ final class StoreBrowser: ObservableObject {
         if (ids.size !== 1) return null;
         const names = deepQueryAll(tile, rules.linkSelector)
           .filter(link => linkedProductIDs(link).has([...ids][0]))
-          .map(link => normalize(link.textContent)
-            .replace(/^kmart\s+/, '').replace(/\s+\$\s*[\d,.]+.*$/, '').trim())
+          // Mobile image links contain only a Bestseller badge. The sibling
+          // detail link has the title paragraph plus duplicated seller badges
+          // and price; whole-link text is not the product's receipt name.
+          .flatMap(link => deepQueryAll(link, 'p').map(title => normalize(title.textContent)))
           .filter(name => name.split(' ').filter(word => word.length > 1).length >= 2);
         return names.sort((a, b) => b.length - a.length)[0] || null;
       };
@@ -1204,7 +1206,8 @@ final class StoreBrowser: ObservableObject {
             if (pageID && heading && deepQueryAll(current, 'h1').includes(heading)) break;
             const ids = linkedProductIDs(current);
             if (ids.size > 1) return null;
-            if (ids.size === 1 && deepQueryAll(current, 'button').some(isAddControl)) return current;
+            if (ids.size === 1 && deepQueryAll(current, 'button').some(isAddControl) &&
+                (!kmart || kmartProductName(current))) return current;
           }
           if (!heading || !pageID) return null;
           const stickyProductControls = deepClosest(element, '#pdp-footer-container');
