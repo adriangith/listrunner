@@ -1036,6 +1036,18 @@ final class StoreSelectionTests: XCTestCase {
         assertFirstItemIsFullyVisible(name, keyboardExpected: false)
     }
 
+    func testCommaSeparatedNonGroceryProductsCreateSeparateItems() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 3))
+        input.tap()
+        input.typeText("toaster, chair")
+        app.buttons["Add Items"].tap()
+        XCTAssertTrue(row("toaster", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertTrue(row("chair", status: "Pending").exists)
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "toaster, chair")).firstMatch.exists)
+        assertGroceryInputIsEmpty(input)
+    }
+
     func testGroceryInputEmptyReturnDismissesKeyboard() {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 3))

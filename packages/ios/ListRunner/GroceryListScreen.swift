@@ -174,7 +174,7 @@ struct GroceryListScreen: View {
                                 addItems(keepingInputFocused: false)
                             }
                                 .buttonStyle(.borderedProminent)
-                                .disabled(IngredientParser.application.parseGroceries(rawInput).isEmpty)
+                                .disabled(IngredientParser.application.parseProductEntry(rawInput).isEmpty)
                         }
                     }
 
@@ -540,7 +540,7 @@ struct GroceryListScreen: View {
     }
 
     private func addItems(keepingInputFocused: Bool) {
-        let parsed = IngredientParser.application.parseGroceries(rawInput)
+        let parsed = IngredientParser.application.parseProductEntry(rawInput)
         guard !parsed.isEmpty else { return }
         var newlyAddedIDs = Set<UUID>()
         // Do not animate the empty-state replacement and new bottom inset while

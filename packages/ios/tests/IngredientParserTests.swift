@@ -89,6 +89,32 @@ struct IngredientParserTests {
             failures += 1
         } else { print("PASS comma-separated recognized paste list") }
 
+        for source in ["toaster, chair", "toaster,chair", "toaster,, chair,", "toaster; chair", "toaster\tchair", "toaster\nchair"] {
+            let products = parser.parseProductEntry(source)
+            if products.map(\.name) != ["toaster", "chair"] {
+                print("FAIL explicit product-entry separators: \(source) → \(products.map(\.name))")
+                failures += 1
+            } else { print("PASS explicit product-entry separators: \(source)") }
+        }
+        let noDictionary = IngredientParser(dictionary: nil).parseProductEntry("toaster, chair")
+        if noDictionary.map(\.name) != ["toaster", "chair"] {
+            print("FAIL comma separators must not depend on a loaded dictionary")
+            failures += 1
+        } else { print("PASS dictionary-free product-entry separators") }
+        let mixedProducts = parser.parseProductEntry("milk, toaster, 2 chairs")
+        if mixedProducts.map(\.name) != ["Milk", "toaster", "chairs"] || mixedProducts.last?.amount != 2 {
+            print("FAIL mixed known/unknown product entry retains quantities")
+            failures += 1
+        } else { print("PASS mixed known/unknown product entry retains quantities") }
+        if !parser.parseProductEntry(" , ;\t\n, ").isEmpty {
+            print("FAIL empty product segments must be ignored")
+            failures += 1
+        } else { print("PASS empty product segments are ignored") }
+        if parser.parseGroceries("2 cans beans, drained and rinsed").count != 1 {
+            print("FAIL recipe/import preparation comma handling changed")
+            failures += 1
+        } else { print("PASS recipe/import preparation comma handling preserved") }
+
         let reminder = parser.parseRecord("2 cans beans, drained and rinsed")
         if reminder?.displayName != "Beans" {
             print("FAIL one Reminder remains one ingredient")
