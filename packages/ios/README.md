@@ -56,6 +56,27 @@ On Your list, tap Edit to use native iOS row reordering. The row's three-dot men
 
 ## Ingredient dictionary
 
+### Country-based retailer search names
+
+Settings → **Use local ingredient names** defaults on and uses the existing **Country**, not the retailer's country. The bundled `ingredient-regional-names.json` currently covers five reviewed families across AU/NZ/GB/US: zucchini/courgette, eggplant/aubergine, capsicum/bell pepper, rocket/arugula and beetroot/beet. UK uses **bell pepper**, not ambiguous **pepper**. Searches in other countries, with no country, or with the toggle off use the saved search term unchanged.
+
+`RegionalIngredientSearchResolver.swift` changes only an ingredient span in an app-initiated search. Approved surrounding descriptors (fresh/frozen/organic, colours, sizes, baby, whole and gluten-free) retain their exact spelling and spacing. Unknown brands, composite foods, conjunctions and uncertain ingredient combinations are left alone. Coriander/seed distinctions, yam/sweet-potato and pumpkin/squash substitutions are deliberately not included. There is no AI/network lookup or unit conversion.
+
+Saved names/search terms, quantities, item identity, status, duplicate merging and Reminders are never rewritten. Existing items work immediately without a database migration. Existing parser canonicalisation still applies on input: disabling this feature uses the saved query, not the pre-parser recipe text. Country/toggle changes cancel obsolete queued/preloaded searches but do not navigate the visible page or reset the interaction/cart state. The next explicit search uses the new preferences; stale recovery falls back to the trusted store homepage. Browsing-only stores remain browsing-only.
+
+To extend coverage, add an explicit reviewed source/target family tied to an existing ingredient ID; do not blindly copy every parser alias. Each source must have one owner in the dictionary, and every country target must be one of that family's reviewed sources. Add fixtures for every target, qualifiers, compound protection and ambiguity. Unsupported schema/invalid resources disable only rewriting. The Xcode project must bundle the JSON; the built-app resource verifier checks it automatically.
+
+Focused checks (from the repository root):
+
+```sh
+sh packages/ios/tests/run-regional-search-tests.sh
+sh packages/ios/tests/run-parser-tests.sh
+bash packages/ios/tests/run-recovery-tests.sh  # Mac: SwiftData/WebKit
+python3 -B packages/ios/tests/test-bundled-resources.py
+```
+
+The UI tests `testRegionalSearchBrowserChecks` and `testRegionalSearchTogglePersistsAndLeavesExistingItemUnchanged` use isolated preferences/nonpersistent WebKit and local HTML fixtures only. The browser test checks actual deferred requests, localized preloads/promotion, context cancellation and stale recovery, without retailer access.
+
 The bundled `ListRunner/Resources/ingredients.json` recognises 69 named pasta shapes/varieties as well as generic pasta. Coverage includes long and ribbon pasta, tubes, spirals, bows, shells, small soup pasta, lasagne sheets, filled pasta and gnocchi. Alternate names/spellings resolve consistently, such as orzo → Risoni, bow-tie pasta → Farfalle, and fettuccini → Fettuccine. Specific fillings, egg tagliatelle, and common gluten-free/wholemeal qualifiers stay distinguishable rather than all becoming generic pasta.
 
 The parser checks ingredient identity as well as quantities, so `500 g penne pasta` resolves to Penne rather than an ambiguous Penne + Pasta match. Alternatives such as `penne or rigatoni` remain ambiguous. `tests/pasta-parser-fixtures.json` covers the pasta cases, and the parser runner also checks every name/alias for those fixture ingredients. Dictionary updates affect newly parsed text/imports; they do not rewrite existing saved items or select retailer products.

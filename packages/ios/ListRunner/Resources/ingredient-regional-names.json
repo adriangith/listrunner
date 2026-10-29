@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "ingredientID": "zucchini",
+      "sourceNames": ["zucchini", "zucchinis", "courgette", "courgettes"],
+      "countryNames": {"AU": "zucchini", "NZ": "courgette", "GB": "courgette", "US": "zucchini"}
+    },
+    {
+      "ingredientID": "eggplant",
+      "sourceNames": ["eggplant", "eggplants", "aubergine", "aubergines"],
+      "countryNames": {"AU": "eggplant", "NZ": "eggplant", "GB": "aubergine", "US": "eggplant"}
+    },
+    {
+      "ingredientID": "capsicum",
+      "sourceNames": ["capsicum", "bell pepper", "bell peppers", "sweet pepper", "sweet peppers"],
+      "countryNames": {"AU": "capsicum", "NZ": "capsicum", "GB": "bell pepper", "US": "bell pepper"}
+    },
+    {
+      "ingredientID": "rocket",
+      "sourceNames": ["rocket", "arugula"],
+      "countryNames": {"AU": "rocket", "NZ": "rocket", "GB": "rocket", "US": "arugula"}
+    },
+    {
+      "ingredientID": "beetroot",
+      "sourceNames": ["beetroot", "beet", "beets"],
+      "countryNames": {"AU": "beetroot", "NZ": "beetroot", "GB": "beetroot", "US": "beet"}
+    }
+  ]
+}

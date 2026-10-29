@@ -8,6 +8,11 @@ final class StoreSelectionTests: XCTestCase {
         app = XCUIApplication()
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
+        if name.contains("RegionalSearch") {
+            app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "NZ"
+            app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
+            app.launchEnvironment["LISTRUNNER_REGIONAL_SEARCH_TEST_FIXTURE"] = name.contains("Checks") ? "checks" : "query"
+        }
         if name.contains("Preload") {
             app.launchEnvironment["LISTRUNNER_PRELOAD_TEST_FIXTURE"] = "enabled"
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
@@ -147,6 +152,50 @@ final class StoreSelectionTests: XCTestCase {
             NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@", "preload-debug-status", "Promoting completed preload")
         ).firstMatch
         XCTAssertTrue(promoted.waitForExistence(timeout: 25), app.debugDescription)
+    }
+
+    func testRegionalSearchBrowserChecks() {
+        app.buttons["Settings"].tap()
+        changeCountry("NZ", name: "New Zealand")
+        tapNavigationBack()
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("2 zucchini")
+        app.buttons["Add Items"].tap()
+        app.buttons["Show Store"].tap()
+        let pass = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label BEGINSWITH %@",
+                                                      "regional-search-test-status", "PASS:")).firstMatch
+        XCTAssertTrue(pass.waitForExistence(timeout: 20), app.debugDescription)
+    }
+
+    func testRegionalSearchTogglePersistsAndLeavesExistingItemUnchanged() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("2 zucchini")
+        app.buttons["Add Items"].tap()
+        XCTAssertTrue(row("Zucchini", status: "Pending").exists)
+        app.buttons["Show Store"].tap()
+        let localized = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label CONTAINS %@",
+                                                            "regional-search-test-status", "courgette")).firstMatch
+        XCTAssertTrue(localized.waitForExistence(timeout: 8), app.debugDescription)
+        app.buttons["Dismiss store"].tap()
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 5))
+        app.buttons["Settings"].tap()
+        let toggle = app.switches["use-local-ingredient-names"]
+        XCTAssertEqual(toggle.value as? String, "1")
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertEqual(toggle.value as? String, "0")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(row("Zucchini", status: "Pending").waitForExistence(timeout: 5))
+        app.buttons["Settings"].tap()
+        XCTAssertEqual(app.switches["use-local-ingredient-names"].value as? String, "0")
+        tapNavigationBack()
+        app.buttons["Show Store"].tap()
+        let original = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@",
+                                                           "regional-search-test-status", "zucchini")).firstMatch
+        XCTAssertTrue(original.waitForExistence(timeout: 8), app.debugDescription)
+        XCTAssertFalse(localized.exists)
     }
 
     func testStorePickerKeepsListsAndStatusesSeparate() {

@@ -75,6 +75,14 @@ These newer implementation decisions supersede conflicting presentation and inte
 * Store rows are navigation-only: no switches or region selectors. Tapping any brand, including a disabled one, opens its complete Settings page. Its first section contains Enable store and, for multi-region brands, Region. Included Support, Current Session Status, Store Session, Diagnostics and About follow for the selected regional destination. Confirmed region changes update all these controls to that region's own browser/session.
 * Retain the native right-hand section index and remove the ABC toolbar menu. All store rows remain directly accessible. Country selection lives only on main Settings and is titled Country. Existing local preferences, explicit region confirmations, isolated regional lists/sessions and deferred enabled-list selection remain unchanged.
 
+### Regional ingredient search names (29 October 2026)
+
+* Main Settings includes **Use local ingredient names**, enabled by default. The existing Country preference controls bundled AU/NZ/GB/US naming rules; retailer region does not override it. Missing/unsupported country or a disabled toggle leaves the saved search term unchanged.
+* Adapt only app-initiated retailer queries, at search time, including existing items and Paprika imports. Saved names/search terms, list/overlay wording, quantities, statuses, item identity, merging and Reminders remain unchanged. Existing parser display-name canonicalisation is not changed or reversed.
+* Use reviewed equivalent names only, not substitute ingredients or units. Initial families are zucchini/courgette, eggplant/aubergine, capsicum/bell pepper, rocket/arugula and beetroot/beet. Unknown, ambiguous and unreviewed compound/brand queries remain unchanged; preserve approved qualifiers. GB uses bell pepper rather than the ambiguous pepper.
+* Changing Country or the toggle never immediately navigates the visible retailer page. It invalidates queued/preloaded searches and stale recovery targets; the next explicit search uses current preferences. Existing retailer capability ceilings, exact hosts, pacing, verification and cart/Undo rules remain unchanged.
+* Confirmed Reset Local Data restores the naming default. Diagnostics clearing and retailer-session resets preserve it. No network lookup, location access, database migration or new retailer integration is introduced.
+
 ### Vision
 ListRunner automates the tedious process of having to search for items on grocery websites when you already have the items recorded in your digital grocery list. The unique proposition is that it steps you through your whole list, one item at a time, on the store's real site.
 ListRunner detects user actions but does not choose products, does not checkout, and does not manipulate payment/account details.

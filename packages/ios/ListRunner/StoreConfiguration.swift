@@ -537,6 +537,9 @@ struct StoreBrand: Identifiable {
 final class StoreVisibilityPreferences: ObservableObject {
     @Published private(set) var visibleIDs: Set<StoreID>
     @Published private(set) var shoppingCountryCode: String?
+    @Published private(set) var useLocalIngredientNames: Bool
+    // Published as one atomic value so browsers never see a half-updated pair.
+    @Published private(set) var ingredientSearchContext: IngredientSearchContext = .unchanged
     @Published private(set) var regionalChoices: [String: String]
     private let defaults: UserDefaults
     private let visibleKey = "visibleStoreIDs.v1"
@@ -556,6 +559,8 @@ final class StoreVisibilityPreferences: ObservableObject {
             self.defaults = .standard
         }
         let defaults = self.defaults
+        let localNames = defaults.object(forKey: "useLocalIngredientNames.v1") as? Bool ?? true
+        useLocalIngredientNames = localNames
         regionalChoices = defaults.dictionary(forKey: regionalKey) as? [String: String] ?? [:]
         var suggestion = suggestedCountryCode
         #if DEBUG
@@ -575,6 +580,7 @@ final class StoreVisibilityPreferences: ObservableObject {
             defaults.set(true, forKey: countryInitializedKey)
         }
         // Both legacy sort modes migrate identically, without a location request.
+        ingredientSearchContext = IngredientSearchContext(countryCode: shoppingCountryCode, enabled: localNames)
         defaults.removeObject(forKey: "storeSortMode.v1")
         let current = Set(StoreID.allCases)
         if defaults.array(forKey: knownKey) != nil {
@@ -613,6 +619,13 @@ final class StoreVisibilityPreferences: ObservableObject {
         shoppingCountryCode = ShoppingCountry.validated(code)
         defaults.set(shoppingCountryCode, forKey: countryKey)
         defaults.set(true, forKey: countryInitializedKey)
+        ingredientSearchContext = IngredientSearchContext(countryCode: shoppingCountryCode, enabled: useLocalIngredientNames)
+    }
+
+    func setUseLocalIngredientNames(_ enabled: Bool) {
+        useLocalIngredientNames = enabled
+        defaults.set(enabled, forKey: "useLocalIngredientNames.v1")
+        ingredientSearchContext = IngredientSearchContext(countryCode: shoppingCountryCode, enabled: enabled)
     }
 
     func selectedRegion(for brand: StoreBrand) -> StoreDefinition {

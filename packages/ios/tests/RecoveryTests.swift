@@ -441,6 +441,33 @@ struct RecoveryTests {
          defer { preferenceDefaults.removePersistentDomain(forName: preferenceSuite) }
           preferenceDefaults.set("nearby", forKey: "storeSortMode.v1")
           let migratedPreferences = StoreVisibilityPreferences(defaults: preferenceDefaults, suggestedCountryCode: "au")
+          check(migratedPreferences.useLocalIngredientNames
+                && migratedPreferences.ingredientSearchContext == IngredientSearchContext(countryCode: "AU", enabled: true),
+                "regional names default on using the existing country")
+          migratedPreferences.setUseLocalIngredientNames(false)
+          let restoredNaming = StoreVisibilityPreferences(defaults: preferenceDefaults, suggestedCountryCode: "US")
+          check(!restoredNaming.useLocalIngredientNames && restoredNaming.ingredientSearchContext.countryCode == "AU",
+                "explicit naming opt-out and country persist independently of device region")
+          restoredNaming.setShoppingCountry("NZ")
+          check(restoredNaming.ingredientSearchContext == IngredientSearchContext(countryCode: "NZ", enabled: false),
+                "country changes do not enable naming")
+          restoredNaming.setUseLocalIngredientNames(true)
+          check(restoredNaming.ingredientSearchContext == IngredientSearchContext(countryCode: "NZ", enabled: true),
+                "enabling naming uses current country atomically")
+          restoredNaming.setShoppingCountry("AU")
+          let namingDictionary = try IngredientDictionary(data: Data(contentsOf: resources.appendingPathComponent("ingredients.json")))
+          let namingCatalogue = try RegionalIngredientNames(data: Data(contentsOf: resources.appendingPathComponent("ingredient-regional-names.json")), dictionary: namingDictionary)
+          let namingResolver = RegionalIngredientSearchResolver(dictionary: namingDictionary, catalogue: namingCatalogue)
+          let savedIngredient = GroceryItem(name: "Zucchini", amount: 2, unit: "kg", position: 9, listID: StoreID.coles.listID)
+          savedIngredient.status = .added
+          savedIngredient.paprikaReminderID = "unchanged-reminder"
+          let savedID = savedIngredient.id
+          check(namingResolver.resolve(savedIngredient.searchTerm, context: IngredientSearchContext(countryCode: "NZ", enabled: true)).query == "courgette",
+                "existing saved search terms resolve without an import or migration")
+          check(savedIngredient.id == savedID && savedIngredient.name == "Zucchini" && savedIngredient.searchTerm == "Zucchini"
+                && savedIngredient.quantityAmount == 2 && savedIngredient.quantityUnit == "kg" && savedIngredient.position == 9
+                && savedIngredient.status == .added && savedIngredient.listID == StoreID.coles.listID
+                && savedIngredient.paprikaReminderID == "unchanged-reminder", "regional resolution never mutates saved ingredient fields")
           check(migratedPreferences.visibleIDs == Set([.coles, .woolworths, .bunnings])
                 && !migratedPreferences.visibleIDs.contains(.costco) && !migratedPreferences.visibleIDs.contains(.tesco)
                 && !migratedPreferences.visibleIDs.contains(.walmart) && !migratedPreferences.visibleIDs.contains(.kmart),
@@ -734,9 +761,11 @@ struct RecoveryTests {
          defaults.set("nearby", forKey: "storeSortMode.v1")
          defaults.set("NZ", forKey: "shoppingCountry.v1")
          defaults.set(true, forKey: "shoppingCountryInitialized.v1")
+         defaults.set(false, forKey: "useLocalIngredientNames.v1")
          defaults.set(["costco": "costcoUS"], forKey: "storeRegionalChoices.v1")
          defaults.set(true, forKey: "selectEnabledStoreAfterEmpty.v1")
-         try disk.clear()
+          try disk.clear()
+          check(defaults.object(forKey: "useLocalIngredientNames.v1") as? Bool == false, "diagnostics clearing preserves naming opt-out")
          check(defaults.string(forKey: "shoppingCountry.v1") == "NZ"
                && defaults.array(forKey: "visibleStoreIDs.v1") as? [String] == ["coles"],
                "clearing diagnostics preserves country and visibility preferences")
@@ -766,6 +795,8 @@ struct RecoveryTests {
         check(storage.container != nil, "confirmed local reset opens an empty store")
         let emptyCount = try storage.container!.mainContext.fetchCount(FetchDescriptor<GroceryItem>())
         check(emptyCount == 0, "reset store contains no items")
+        check(defaults.object(forKey: "useLocalIngredientNames.v1") == nil,
+              "local reset removes naming preference")
          check(defaults.string(forKey: "lastOverlaySelectedItemID") == nil, "local reset clears app metadata")
          check(defaults.object(forKey: "visibleStoreIDs.v1") == nil
                && defaults.object(forKey: "knownStoreIDs.v1") == nil
@@ -778,6 +809,8 @@ struct RecoveryTests {
         check(defaults.string(forKey: "unrelated") == "keep", "local reset preserves unrelated preferences")
         check(FileManager.default.fileExists(atPath: unrelatedFile.path), "local reset preserves neighboring files")
         check(disk.entries.isEmpty, "local reset clears diagnostics")
+        check(StoreVisibilityPreferences(defaults: defaults, suggestedCountryCode: "NZ").useLocalIngredientNames,
+              "local reset restores regional naming default on")
         let item = GroceryItem(name: "Test item", position: 0)
         storage.container!.mainContext.insert(item)
         try storage.container!.mainContext.save()

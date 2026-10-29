@@ -103,6 +103,13 @@ struct StoreShoppingView: View {
             }
 
             #if DEBUG
+            if browser.isRegionalSearchTestFixture {
+                Text(browser.regionalSearchTestStatus)
+                    .accessibilityIdentifier("regional-search-test-status")
+                    .frame(width: 1, height: 1)
+                    .opacity(0.01)
+                    .allowsHitTesting(false)
+            }
             if ProcessInfo.processInfo.environment["LISTRUNNER_PRELOAD_TEST_FIXTURE"] == "enabled" {
                 Text(browser.preloadDebugStatus)
                     .accessibilityIdentifier("preload-debug-status")
@@ -195,6 +202,11 @@ struct StoreShoppingView: View {
             #endif
             }
             .task {
+                #if DEBUG
+                if ProcessInfo.processInfo.environment["LISTRUNNER_REGIONAL_SEARCH_TEST_FIXTURE"] == "checks" {
+                    await browser.runRegionalSearchTestChecks()
+                }
+                #endif
                 // Wait until the presentation transition has settled so the
                 // entrance cue reads as an intentional gesture hint.
                 guard !reduceMotion else { return }
@@ -953,12 +965,102 @@ final class StoreBrowser: ObservableObject {
     @Published private(set) var cartUndoWarning = false
     @Published private(set) var siteVerificationRequired = false
     private var navigationPacing = StoreNavigationPacing()
-    private var preloadedSearch: (itemID: UUID, term: String, url: URL, view: WKWebView)?
+    private var preloadedSearch: (itemID: UUID, term: String, effectiveTerm: String, namingGeneration: UUID, url: URL, view: WKWebView)?
     private var preloadedSearchReady = false
     private var preloadedResponseStatus: Int?
     private var scheduledPreload: (itemID: UUID, term: String)?
     private var pendingPreloadTask: Task<Void, Never>?
     private var latestRequestedSearchURL: URL?
+    private var ingredientSearchContext: IngredientSearchContext = .unchanged
+    private var namingGeneration = UUID()
+    // A failed old search must not be replayed by recovery after preferences change.
+    private var intendedSearchNamingGeneration: UUID?
+
+    #if DEBUG
+    var isRegionalSearchTestFixture: Bool {
+        uiTestMode && ProcessInfo.processInfo.environment["LISTRUNNER_REGIONAL_SEARCH_TEST_FIXTURE"] != nil
+    }
+    @Published private(set) var regionalSearchTestStatus = ""
+
+    // Isolated XCTest fixture exercises real browser scheduling/promotion state,
+    // but every WebKit navigation is loadHTMLString with a nonpersistent store.
+    func runRegionalSearchTestChecks() async {
+        guard isRegionalSearchTestFixture else { return }
+        var failures: [String] = []
+        var checks = 0
+        func check(_ condition: Bool, _ name: String) {
+            checks += 1
+            if !condition { failures.append(name) }
+        }
+        let originalContext = ingredientSearchContext
+        let originalSession = sessionID
+        let originalInteraction = interactionID
+        let originalItem = itemID
+        let nz = IngredientSearchContext(countryCode: "NZ", enabled: true)
+        let au = IngredientSearchContext(countryCode: "AU", enabled: true)
+        let off = IngredientSearchContext(countryCode: "NZ", enabled: false)
+        updateIngredientSearchContext(nz)
+        let originalPage = intendedURL
+        search(for: "zucchini")
+        check(latestRequestedSearchURL == store.searchURL(for: "courgette"), "normal localized URL")
+        check(pendingSearchTask != nil, "normal request deferred")
+        updateIngredientSearchContext(off)
+        check(pendingSearchTask == nil && latestRequestedSearchURL == nil, "cancel queued search/recovery URL")
+        try? await Task.sleep(for: .milliseconds(700))
+        check(intendedURL == originalPage, "cancelled query cannot navigate")
+        check(sessionID == originalSession && interactionID == originalInteraction && itemID == originalItem,
+              "preferences preserve interaction and session")
+        check(effectiveSearchTerm("Zucchini") == "Zucchini", "disabled exact source")
+        updateIngredientSearchContext(nz)
+        navigationPacing = StoreNavigationPacing()
+        let next = UUID()
+        preloadSearch(itemID: next, searchTerm: "zucchini")
+        check(preloadedSearch?.url == store.searchURL(for: "courgette")
+              && preloadedSearch?.effectiveTerm == "courgette", "preload localized URL")
+        let oldGeneration = namingGeneration
+        updateIngredientSearchContext(au)
+        updateIngredientSearchContext(nz)
+        check(namingGeneration != oldGeneration && preloadedSearch == nil && preloadWebView == nil,
+              "off/on-equivalent context cannot revive preload")
+        navigationPacing.requested(at: ProcessInfo.processInfo.systemUptime)
+        preloadSearch(itemID: next, searchTerm: "zucchini")
+        check(scheduledPreload != nil && pendingPreloadTask != nil, "preload deferred by pacing")
+        updateIngredientSearchContext(au)
+        check(scheduledPreload == nil && pendingPreloadTask == nil, "deferred preload cancelled")
+        updateIngredientSearchContext(nz)
+        navigationPacing = StoreNavigationPacing()
+        preloadSearch(itemID: next, searchTerm: "zucchini")
+        try? await Task.sleep(for: .seconds(2))
+        check(preloadedSearchReady, "fixture preload completed")
+        let preloadedView = preloadedSearch?.view
+        beginInteraction(itemID: next, searchTerm: "zucchini")
+        check(webView === preloadedView && intendedURL == store.searchURL(for: "courgette"), "localized preload promoted")
+        let promotedPage = intendedURL
+        updateIngredientSearchContext(au)
+        check(intendedURL == promotedPage && preloadedSearch == nil, "context does not replace visible page")
+        enterStoreRecovery(.loadFailed)
+        retryStoreLoad()
+        check(intendedURL == store.homepage, "recovery cannot replay stale search")
+        updateIngredientSearchContext(originalContext)
+        regionalSearchTestStatus = failures.isEmpty ? "PASS: \(checks) browser regional search checks" : "FAIL: " + failures.joined(separator: ", ")
+    }
+    #endif
+
+    func effectiveSearchTerm(_ source: String) -> String {
+        RegionalIngredientSearchResolver.application.resolve(source, context: ingredientSearchContext).query
+    }
+
+    func updateIngredientSearchContext(_ context: IngredientSearchContext) {
+        guard context != ingredientSearchContext else { return }
+        ingredientSearchContext = context
+        namingGeneration = UUID()
+        pendingSearchTask?.cancel()
+        pendingSearchTask = nil
+        searchRequestID = UUID()
+        cancelPreload()
+        latestRequestedSearchURL = nil
+        // Do not navigate, end the current interaction or discard cart/Undo state.
+    }
     private var mainFrameResponseStatus: Int?
     var canRetryAfterVerification: Bool {
         navigationPacing.canRetry(at: ProcessInfo.processInfo.systemUptime)
@@ -1411,11 +1513,16 @@ final class StoreBrowser: ObservableObject {
         cartDetectionIssue = nil
         applyCartDetectionTestFixture()
         updateIsolatedContext()
+        let effectiveTerm = effectiveSearchTerm(searchTerm)
         if let preload = preloadedSearch, preloadedSearchReady,
-           preload.itemID == itemID, preload.term == searchTerm,
-           preload.url == store.searchURL(for: searchTerm),
+            preload.itemID == itemID, preload.term == searchTerm,
+            preload.effectiveTerm == effectiveTerm, preload.namingGeneration == namingGeneration,
+            preload.url == store.searchURL(for: effectiveTerm),
            preload.view.url.map({ store.allows($0) }) == true,
-           preload.view.url?.host?.lowercased() == preload.url.host?.lowercased() {
+            preload.view.url?.host?.lowercased() == preload.url.host?.lowercased() {
+            pendingSearchTask?.cancel()
+            pendingSearchTask = nil
+            searchRequestID = UUID()
             logPreload("Promoting completed preload to visible web view")
             preloadedSearch = nil
             preloadWebView = nil
@@ -1425,6 +1532,7 @@ final class StoreBrowser: ObservableObject {
             documentGeneration += 1
             intendedURL = preload.view.url ?? preload.url
             latestRequestedSearchURL = preload.url
+            intendedSearchNamingGeneration = namingGeneration
             latestNavigation = nil
             activeSearchNavigation = nil
             updateIsolatedContext()
@@ -1446,6 +1554,7 @@ final class StoreBrowser: ObservableObject {
             return
         }
         let pacingDelay = navigationPacing.delay(at: ProcessInfo.processInfo.systemUptime)
+        let generation = namingGeneration
         if pacingDelay > 0 {
             scheduledPreload = (itemID, searchTerm)
             logPreload("Waiting \(String(format: "%.1f", pacingDelay))s for retailer navigation pacing")
@@ -1453,6 +1562,7 @@ final class StoreBrowser: ObservableObject {
                 let nanoseconds = UInt64(max(0.05, pacingDelay) * 1_000_000_000)
                 try? await Task.sleep(nanoseconds: nanoseconds)
                 guard !Task.isCancelled, let self,
+                      self.namingGeneration == generation,
                       self.scheduledPreload?.itemID == itemID,
                       self.scheduledPreload?.term == searchTerm else { return }
                 self.pendingPreloadTask = nil
@@ -1461,12 +1571,13 @@ final class StoreBrowser: ObservableObject {
             }
             return
         }
-        guard let url = store.searchURL(for: searchTerm), store.allows(url) else {
+        let effectiveTerm = effectiveSearchTerm(searchTerm)
+        guard let url = store.searchURL(for: effectiveTerm), store.allows(url) else {
             logPreload("Skipped: search URL is invalid or outside the store allowlist")
             return
         }
         let view = Self.makeWebView(coordinator: coordinator, world: automationWorld, store: store, dataStore: websiteDataStore)
-        preloadedSearch = (itemID, searchTerm, url, view)
+        preloadedSearch = (itemID, searchTerm, effectiveTerm, generation, url, view)
         preloadWebView = view
         preloadedSearchReady = false
         preloadedResponseStatus = nil
@@ -1525,7 +1636,8 @@ final class StoreBrowser: ObservableObject {
             searchUnavailable = true
             return
         }
-        guard let url = store.searchURL(for: term), store.allows(url) else {
+        let effectiveTerm = effectiveSearchTerm(term)
+        guard let url = store.searchURL(for: effectiveTerm), store.allows(url) else {
             searchUnavailable = true
             return
         }
@@ -1535,13 +1647,15 @@ final class StoreBrowser: ObservableObject {
         // Coalesce them so only the final selection starts a request.
         pendingSearchTask?.cancel()
         let requestID = UUID()
+        let generation = namingGeneration
         searchRequestID = requestID
         searchUnavailable = false
         hasLoaded = true
         let delay = max(0.5, navigationPacing.delay(at: ProcessInfo.processInfo.systemUptime))
         pendingSearchTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(delay))
-            guard let self, !Task.isCancelled, self.searchRequestID == requestID else { return }
+            guard let self, !Task.isCancelled, self.searchRequestID == requestID,
+                  self.namingGeneration == generation else { return }
             self.pendingSearchTask = nil
             guard !self.siteVerificationRequired else { return }
             self.loadStoreURL(url)
@@ -1798,6 +1912,13 @@ final class StoreBrowser: ObservableObject {
         mainFrameResponseStatus = nil
         retireCurrentNavigation()
         intendedURL = url
+        intendedSearchNamingGeneration = url == latestRequestedSearchURL ? namingGeneration : nil
+        #if DEBUG
+        if isRegionalSearchTestFixture,
+           ProcessInfo.processInfo.environment["LISTRUNNER_REGIONAL_SEARCH_TEST_FIXTURE"] == "query" {
+            regionalSearchTestStatus = url.absoluteString
+        }
+        #endif
         hasLoaded = true
         let navigation: WKNavigation?
         if uiTestMode {
@@ -1846,7 +1967,8 @@ final class StoreBrowser: ObservableObject {
 
     func retryStoreLoad() {
         guard canPresentStore, let recovery = storeRecovery else { return }
-        let url = intendedURL
+        let staleSearch = intendedSearchNamingGeneration.map { $0 != namingGeneration } ?? false
+        let url = staleSearch ? store.homepage : intendedURL
         if recovery == .processTerminated { rebuildWebView() }
         storeRecovery = nil
         interactionID = UUID().uuidString

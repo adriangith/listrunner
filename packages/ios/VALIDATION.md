@@ -233,3 +233,10 @@ All performed live cart changes were verified back at their starting quantities.
 - [ ] Compare the final native UI against the approved OpenPencil document. The design MCP reported that OpenPencil was not connected; it was not automatically started or retried.
 
 No additional production retailer, remote configuration, arbitrary-site support, automatic product selection or checkout functionality was added. Changes remain uncommitted.
+# Regional ingredient search names — 29 October 2026
+
+Implementation branch: `feature/regional-ingredient-naming`. Search-only AU/NZ/GB/US mappings, default-on Settings toggle and context-generation invalidation are implemented. No saved-data migration, visible-name localisation, retailer capability change or cart operation is part of this feature.
+
+Initial Linux checks: seven bundled-resource verifier regressions passed; JSON parsing and `git diff --check` passed. Swift is not installed on this Linux host. Mac Foundation/native/build/UI verification and built-app JSON readback are pending at this checkpoint; record exact revisions/results below before claiming validation. OpenPencil `List Runner` → `Settings & reset` was inspected: its older consolidated frame still shows store rows, so the newer native hierarchy in `plan.md` takes precedence. The implementation uses native Form/Toggle styling; no mockup fidelity or manual VoiceOver/Dynamic Type/light-dark sign-off is claimed.
+
+Fixtures must stay offline, using isolated UI-test preferences and nonpersistent WebKit. No new live retailer or physical-device install is required/claimed.

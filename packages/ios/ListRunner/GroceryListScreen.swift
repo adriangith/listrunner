@@ -3,13 +3,15 @@ import SwiftUI
 
 struct ShoppingRootScreen: View {
     @StateObject private var sessions: StoreSessions
-    @StateObject private var visibility = StoreVisibilityPreferences()
+    @StateObject private var visibility: StoreVisibilityPreferences
     @StateObject private var paprikaReminders = PaprikaReminders()
     @AppStorage("activeStoreID") private var activeStoreID = StoreID.coles.rawValue
     @State private var drafts: [StoreID: String] = [:]
 
     init(diagnostics: DiagnosticStore) {
-        _sessions = StateObject(wrappedValue: StoreSessions(diagnostics: diagnostics))
+        let preferences = StoreVisibilityPreferences()
+        _visibility = StateObject(wrappedValue: preferences)
+        _sessions = StateObject(wrappedValue: StoreSessions(diagnostics: diagnostics, preferences: preferences))
     }
 
     var body: some View {

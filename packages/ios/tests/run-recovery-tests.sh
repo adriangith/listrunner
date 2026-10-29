@@ -13,6 +13,7 @@ xcrun swiftc -parse-as-library -target "$(uname -m)-apple-macosx14.0" \
   "$base/ListRunner/IngredientParser.swift" \
   "$base/ListRunner/ShoppingLists.swift" \
   "$base/ListRunner/StoreConfiguration.swift" \
+  "$base/ListRunner/RegionalIngredientSearchResolver.swift" \
   "$base/tests/StoreV2Writer.swift" -o "$output/store-v2-writer"
 xcrun swiftc -parse-as-library -target "$(uname -m)-apple-macosx14.0" \
   "$base/ListRunner/ShoppingModels.swift" \
@@ -23,6 +24,7 @@ xcrun swiftc -parse-as-library -target "$(uname -m)-apple-macosx14.0" \
   "$base/ListRunner/IngredientDictionary.swift" \
   "$base/ListRunner/IngredientParser.swift" \
   "$base/ListRunner/StoreConfiguration.swift" \
+  "$base/ListRunner/RegionalIngredientSearchResolver.swift" \
   "$base/ListRunner/RecoverySupport.swift" \
   "$base/ListRunner/RecoveryServices.swift" \
   "$base/tests/RecoveryTests.swift" -framework EventKit -o "$output/recovery-tests"

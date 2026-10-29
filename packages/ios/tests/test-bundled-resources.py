@@ -20,7 +20,7 @@ class BundledResourceTests(unittest.TestCase):
         self.app = self.root / "ListRunner.app"
         self.source.mkdir()
         self.app.mkdir()
-        for name in ["bunnings.json", "ingredients.json"]:
+        for name in ["bunnings.json", "ingredients.json", "ingredient-regional-names.json"]:
             (self.source / name).write_text('{"version":1}')
             (self.app / name).write_text('{"version":1}')
 
@@ -34,6 +34,10 @@ class BundledResourceTests(unittest.TestCase):
     def test_changed_resource_is_reported(self):
         (self.app / "ingredients.json").write_text('{"version":2}')
         self.assertIn("Bundled resource differs from canonical file: ingredients.json", verifier.verify_resources(self.source, self.app))
+
+    def test_missing_regional_names_is_reported(self):
+        (self.app / "ingredient-regional-names.json").unlink()
+        self.assertIn("Missing bundled resource: ingredient-regional-names.json", verifier.verify_resources(self.source, self.app))
 
     def test_duplicate_resource_is_reported(self):
         (self.app / "bunnings-v2.json").write_text('{}')

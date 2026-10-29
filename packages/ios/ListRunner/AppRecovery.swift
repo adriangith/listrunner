@@ -184,6 +184,13 @@ struct SettingsOverviewScreen: View {
                 .accessibilityLabel("Country")
                 .accessibilityValue(visibility.shoppingCountryCode.map { ShoppingCountry.name($0) } ?? "Choose Country")
                 .accessibilityIdentifier("shopping-country")
+                Toggle("Use local ingredient names", isOn: Binding(
+                    get: { visibility.useLocalIngredientNames },
+                    set: { visibility.setUseLocalIngredientNames($0) }
+                ))
+                .accessibilityIdentifier("use-local-ingredient-names")
+            } footer: {
+                Text("Uses the Country setting to adapt ingredient names in retailer searches. Your list and quantities stay unchanged.")
             }
             Section("Diagnostics") {
                 Button("Clear All Diagnostics") {

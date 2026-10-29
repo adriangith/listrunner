@@ -7,10 +7,20 @@ final class StoreSessions: ObservableObject {
     let diagnostics: DiagnosticStore
     let definitions: [StoreDefinition]
     private var browsers: [StoreID: StoreBrowser] = [:]
+    private var searchContext: IngredientSearchContext = .unchanged
+    private var preferenceSubscription: AnyCancellable?
 
-    init(diagnostics: DiagnosticStore) {
+    init(diagnostics: DiagnosticStore, preferences: StoreVisibilityPreferences? = nil) {
         self.diagnostics = diagnostics
         definitions = StoreID.allCases.map { StoreDefinition.load($0) }
+        if let preferences {
+            searchContext = preferences.ingredientSearchContext
+            preferenceSubscription = preferences.$ingredientSearchContext.removeDuplicates().sink { [weak self] context in
+                guard let self else { return }
+                self.searchContext = context
+                for browser in self.browsers.values { browser.updateIngredientSearchContext(context) }
+            }
+        }
     }
 
     func browser(for id: StoreID) -> StoreBrowser {
@@ -29,6 +39,7 @@ final class StoreSessions: ObservableObject {
         dataStore = id == .coles ? .default() : WKWebsiteDataStore(forIdentifier: id.websiteDataID)
         #endif
         let browser = StoreBrowser(store: definition, websiteDataStore: dataStore, diagnostics: diagnostics)
+        browser.updateIngredientSearchContext(searchContext)
         browsers[id] = browser
         return browser
     }
