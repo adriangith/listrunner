@@ -1,5 +1,11 @@
 # Reusable store framework validation
 
+## Simplified full-field product entry — 29 October 2026
+
+Removed the plus focus button and helper/example line at the user's request. Retained `Tap to add products…`, store-coloured outline and focused styling. The padded field has a rectangular tap region with a simultaneous focus gesture, including the empty space inside its border, without replacing native text editing/selection. Existing submit/parser/draft behavior is unchanged.
+
+At `dc625d0ac5039fdfe11068dcfc574c360c2fd5fe`, **4/4 focused iPhone 17 / iOS 27 tests passed**: tapping lower-right and upper-left visual padding opens the keyboard, no plus/helper remains, submission works; Return submission, Show Store keyboard dismissal/draft retention and long first-item scrolling also pass. XCTest exposes the inner 22pt editor rather than the padded 52pt field, so the padding regression taps 10pt outside the native editor bounds, within its 14pt visual padding. Initial test incorrectly measured only the editor; corrected before clean rerun. Evidence: Mac `RunSomeTests/Test-ListRunner-2026.10.29_18-56-38-+1100.xcresult`. Tests use isolated local lists and no retailer actions.
+
 ## List-item swipe deletion and store-launch focus — 29 October 2026
 
 List rows expose a native trailing red Delete action on a left swipe; full-swipe deletion is disabled so a separate tap is required. The action reuses the existing local `delete(item)` handler and never changes retailer carts. Existing menu deletion and edit-mode reordering remain. Both Show Store and item-row store launch now explicitly clear grocery-input focus before presentation without discarding draft text.
