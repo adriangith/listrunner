@@ -50,6 +50,7 @@ struct GroceryListScreen: View {
     @State private var pendingReminderWrites: [UUID: ReminderWriteback] = [:]
     // The native editor owns first-responder focus; mirror it as view state.
     @State private var groceryInputFocused = false
+    @State private var productEntryFocus = ProductEntryFocus()
     @State private var recentlyAddedItemIDs = Set<UUID>()
     @State private var scrollTargetItemID: UUID?
     @State private var addedItemScrollTask: Task<Void, Never>?
@@ -128,6 +129,7 @@ struct GroceryListScreen: View {
                     Section("Add products") {
                         ProductEntryEditor(text: $rawInput,
                                            isFocused: $groceryInputFocused,
+                                           focusControl: productEntryFocus,
                                            onSubmit: addItems)
                             .onChange(of: rawInput) { _, value in
                                 // Multiline paste is parsed in a single edit.
@@ -296,8 +298,7 @@ struct GroceryListScreen: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if !visibility.visibleIDs.isEmpty && !items.isEmpty {
                     Button {
-                        groceryInputFocused = false
-                        showingStore = true
+                        presentStore()
                     } label: {
                         Label("Show Store", systemImage: "cart.fill")
                             .font(.headline)
@@ -476,8 +477,7 @@ struct GroceryListScreen: View {
                     guard browser.canPresentStore, visibility.visibleIDs.contains(storeID) else { return }
                     selectedList?.selectedItemID = item.id
                     saveChanges()
-                    groceryInputFocused = false
-                    showingStore = true
+                    presentStore()
                 } label: {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 3) {
@@ -678,7 +678,17 @@ struct GroceryListScreen: View {
 
     private func clearList() {
         groceryInputFocused = false
+        productEntryFocus.resignFirstResponder()
         showingClearConfirmation = true
+    }
+
+    private func presentStore() {
+        groceryInputFocused = false
+        // This action runs outside updateUIView, so UIKit can animate. Resign
+        // before presenting: otherwise the sheet can remember the old responder
+        // and restore the keyboard when it is dismissed, ahead of the queued blur.
+        productEntryFocus.resignFirstResponder()
+        showingStore = true
     }
 
     private func clearItems(addedOnly: Bool) {
@@ -803,17 +813,30 @@ struct GroceryListScreen: View {
     }
 }
 
+// Weak, editor-scoped access for explicit presentation actions. Never resign
+// another scene's first responder through a global UIApplication action.
+@MainActor
+private final class ProductEntryFocus {
+    weak var view: UITextView?
+
+    func resignFirstResponder() {
+        if let view, view.isFirstResponder { view.resignFirstResponder() }
+    }
+}
+
 // A vertical SwiftUI TextField inserts Return before onSubmit/onChange. Use the
 // native editing delegate to reject that edit before UIKit lays out a new line.
 private struct ProductEntryEditor: UIViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
+    let focusControl: ProductEntryFocus
     let onSubmit: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
     func makeUIView(context: Context) -> EntryTextView {
         let view = EntryTextView()
+        focusControl.view = view
         view.delegate = context.coordinator
         view.backgroundColor = .clear
         view.textColor = .label

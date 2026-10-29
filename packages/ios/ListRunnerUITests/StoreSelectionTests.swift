@@ -1134,6 +1134,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["Dismiss store"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
         app.buttons["Dismiss store"].tap()
+        XCTAssertTrue(app.buttons["Dismiss store"].waitForNonExistence(timeout: 5), "The store sheet must actually close before testing focus")
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         XCTAssertEqual(input.value as? String, "Unsubmitted item")
         XCTAssertFalse(app.keyboards.firstMatch.exists, "Returning must not reactivate the input")
