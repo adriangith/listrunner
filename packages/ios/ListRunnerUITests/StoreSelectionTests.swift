@@ -175,6 +175,20 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(pass.waitForExistence(timeout: 20), app.debugDescription)
     }
 
+    private func openRegionalSearchStore() {
+        // Returning from Settings restores the grocery field's keyboard focus.
+        // A footer AX element can exist while XCTest computes no tappable point.
+        if app.keyboards.firstMatch.exists {
+            app.staticTexts["Ready when you are"].tap()
+            let hidden = NSPredicate(format: "exists == false")
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hidden, object: app.keyboards.firstMatch)], timeout: 5), .completed)
+        }
+        let button = app.buttons["Show Store"]
+        let hittable = NSPredicate(format: "hittable == true")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hittable, object: button)], timeout: 5), .completed)
+        button.tap()
+    }
+
     func testRegionalSearchTogglePersistsAndLeavesExistingItemUnchanged() {
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
@@ -193,7 +207,7 @@ final class StoreSelectionTests: XCTestCase {
         toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertEqual(toggle.value as? String, "0")
         tapNavigationBack()
-        app.buttons["Show Store"].tap()
+        openRegionalSearchStore()
         let original = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@",
                                                            "regional-search-test-status", "zucchini")).firstMatch
         XCTAssertTrue(original.waitForExistence(timeout: 8), "Cached browser must use the changed toggle without a relaunch")
@@ -205,7 +219,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Settings"].tap()
         XCTAssertEqual(app.switches["use-local-ingredient-names"].value as? String, "0")
         tapNavigationBack()
-        app.buttons["Show Store"].tap()
+        openRegionalSearchStore()
         XCTAssertTrue(original.waitForExistence(timeout: 8), app.debugDescription)
         XCTAssertFalse(localized.exists)
     }
@@ -225,7 +239,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(app.switches["use-local-ingredient-names"].value as? String, "1")
         tapNavigationBack()
         XCTAssertTrue(row("Zucchini", status: "Pending").exists)
-        app.buttons["Show Store"].tap()
+        openRegionalSearchStore()
         let australian = app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@",
                                                              "regional-search-test-status", "zucchini")).firstMatch
         XCTAssertTrue(australian.waitForExistence(timeout: 8), app.debugDescription)
