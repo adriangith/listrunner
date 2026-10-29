@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 2,
+  "id": "walmart",
+  "displayName": "Walmart",
+  "serviceArea": {"countryCodes": ["US"]},
+  "homepage": "https://www.walmart.com",
+  "allowedHosts": ["www.walmart.com", "walmart.com"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.walmart.com/search?q={query}"},
+  "addedColor": {"red": 0, "green": 113, "blue": 206},
+  "brandColors": {
+    "primary": {"red": 0, "green": 113, "blue": 206},
+    "highlight": {"red": 255, "green": 194, "blue": 32}
+  },
+  "capabilities": {"search": false, "cartDetection": false, "cartUndo": false},
+  "cart": null
+}

@@ -1,7 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "woolworths",
   "displayName": "Woolworths",
+  "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.woolworths.com.au",
   "allowedHosts": ["www.woolworths.com.au", "woolworths.com.au"],
   "search": {"strategy": "urlTemplate", "template": "https://www.woolworths.com.au/shop/search/products?searchTerm={query}"},

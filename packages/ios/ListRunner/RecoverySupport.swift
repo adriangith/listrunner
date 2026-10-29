@@ -65,6 +65,11 @@ struct DiagnosticEntry: Codable, Equatable {
         case www = "www.coles.com.au", bare = "coles.com.au"
         case woolworths = "www.woolworths.com.au", woolworthsBare = "woolworths.com.au"
         case bunnings = "www.bunnings.com.au", bunningsBare = "bunnings.com.au"
+        case costco = "www.costco.com.au", costcoBare = "costco.com.au"
+        case costcoUS = "www.costco.com", costcoUSBare = "costco.com"
+        case tesco = "www.tesco.com", tescoBare = "tesco.com"
+        case walmart = "www.walmart.com", walmartBare = "walmart.com"
+        case kmart = "www.kmart.com.au", kmartBare = "kmart.com.au"
     }
     let timestamp: Date
     let sequence: UInt64

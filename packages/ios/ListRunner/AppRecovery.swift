@@ -29,11 +29,45 @@ struct SettingsScreen: View {
     @State private var confirmingReset = false
     @State private var diagnosticsNotice: String?
 
+    private var configurationValid: Bool { browser.store.isConfigurationValid }
+
+    private func supportState(_ included: Bool) -> String {
+        guard configurationValid else { return "Unavailable — configuration invalid" }
+        return included ? "Included" : "Not included"
+    }
+
+    private func sessionState(included: Bool, unavailable: Bool) -> String {
+        guard configurationValid else { return "Unavailable" }
+        guard included else { return "Not included" }
+        return unavailable ? "Unavailable in this session" : "Available in this session"
+    }
+
     var body: some View {
         Form {
-            Section("Shopping") {
+            if !configurationValid {
+                Section("Store Configuration") {
+                    Label("Store configuration is invalid", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text("An app update is required to fix this configuration. Automatic shopping assistance is unavailable, but you can browse the store and update your ListRunner list manually.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            Section("Included Support") {
+                LabeledContent("Search", value: supportState(browser.store.capabilities.search))
+                LabeledContent("Cart detection", value: supportState(browser.store.capabilities.cartDetection))
+                LabeledContent("Cart Undo", value: supportState(browser.store.capabilities.cartUndo))
+            }
+            Section("Current Session Status") {
+                LabeledContent("Search", value: sessionState(included: browser.store.capabilities.search, unavailable: browser.searchUnavailable))
+                LabeledContent("Cart detection", value: sessionState(included: browser.store.capabilities.cartDetection, unavailable: browser.cartDetectionUnavailable))
+            }
+            Section("Store Session") {
                 Button("Reset \(browser.store.displayName) Session", role: .destructive) { confirmingReset = true }
                     .disabled(browser.resetPhase != .ready)
+                Text("Clears this store's local browser data. It does not repair an invalid store configuration.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section("Diagnostics") {
                 Button("Clear \(browser.store.displayName) Diagnostics") {
                     do { try browser.diagnostics.clear(storeID: browser.store.id); diagnosticsNotice = "Diagnostics cleared" }
                     catch { diagnosticsNotice = "Could not clear diagnostics" }
@@ -96,13 +130,22 @@ struct SettingsScreen: View {
 
 struct SettingsOverviewScreen: View {
     @ObservedObject var sessions: StoreSessions
+    @ObservedObject var visibility: StoreVisibilityPreferences
     @State private var notice: String?
 
     var body: some View {
         Form {
-            Section("Stores") {
-                ForEach(StoreID.allCases) { store in
-                    NavigationLink(store.displayName) { SettingsScreen(browser: sessions.browser(for: store)) }
+            Section {
+                NavigationLink("Manage Stores") {
+                    StoreVisibilityScreen(sessions: sessions, visibility: visibility)
+                }
+            }
+            if !visibility.visibleIDs.isEmpty {
+                Section("Stores") {
+                    ForEach(StoreID.allCases.filter { visibility.visibleIDs.contains($0) }) { store in
+                        NavigationLink(store.displayName) { SettingsScreen(browser: sessions.browser(for: store)) }
+                            .accessibilityIdentifier("settings-store-\(store.rawValue)")
+                    }
                 }
             }
             Section("Diagnostics") {
@@ -127,6 +170,351 @@ struct SettingsOverviewScreen: View {
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct StoreVisibilityScreen: View {
+    @ObservedObject var sessions: StoreSessions
+    @ObservedObject var visibility: StoreVisibilityPreferences
+    @State private var searchText = ""
+    @State private var choosingCountry = false
+    @State private var jumpRequest: StoreLetterJump?
+    @State private var choosingBrand: StoreBrand?
+
+    private var catalogueDefinitions: [StoreDefinition] {
+        #if DEBUG
+        // Presentation-only fixture: no registry, browser or production metadata
+        // changes. It exercises mixed sections without shipping another retailer.
+        let environment = ProcessInfo.processInfo.environment
+        if environment["LISTRUNNER_UI_TEST_SESSION"].flatMap(UUID.init(uuidString:)) != nil,
+           environment["LISTRUNNER_COUNTRY_TEST_CATALOGUE"] == "mixed" {
+            return sessions.definitions.map { definition in
+                guard definition.id == .bunnings else { return definition }
+                return StoreDefinition(schemaVersion: definition.schemaVersion, id: definition.id,
+                    displayName: definition.displayName, serviceArea: .init(countryCodes: ["NZ"]),
+                    homepage: definition.homepage, allowedHosts: definition.allowedHosts, search: definition.search,
+                    addedColor: definition.addedColor, brandColors: definition.brandColors,
+                    capabilities: definition.capabilities, cart: definition.cart)
+            }
+        }
+        #endif
+        return sessions.definitions
+    }
+
+    var body: some View {
+        let sections = StoreBrand.sections(catalogueDefinitions, countryCode: visibility.shoppingCountryCode,
+                                               search: searchText)
+        Group {
+            if sections.isEmpty && !searchText.isEmpty {
+                VStack {
+                    ContentUnavailableView("No stores found", systemImage: "magnifyingglass",
+                                           description: Text("Try a different store name."))
+                    Button("Clear Search") { searchText = "" }
+                        .frame(minHeight: 44)
+                }
+            } else {
+                StoreManagementTable(sections: sections, visibility: visibility, searching: !searchText.isEmpty,
+                                     jumpRequest: jumpRequest,
+                                     chooseRegion: { choosingBrand = $0 },
+                                     chooseCountry: { choosingCountry = true })
+            }
+        }
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search stores")
+        .navigationTitle("Manage Stores")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            if searchText.isEmpty && sections.contains(where: { $0.indexTitle != nil }) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        ForEach(sections.compactMap(\.indexTitle), id: \.self) { letter in
+                            Button("Stores beginning with \(letter)") {
+                                jumpRequest = StoreLetterJump(letter: letter)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "textformat.abc").frame(minWidth: 44, minHeight: 44)
+                    }
+                    .accessibilityLabel("Jump to store letter")
+                    .accessibilityIdentifier("store-letter-menu")
+                }
+            }
+        }
+        .navigationDestination(isPresented: $choosingCountry) {
+            ShoppingCountryScreen(visibility: visibility)
+        }
+        .sheet(item: $choosingBrand) { brand in
+            NavigationStack { StoreRegionScreen(brand: brand, visibility: visibility) }
+        }
+    }
+}
+
+private struct StoreRegionScreen: View {
+    let brand: StoreBrand
+    @ObservedObject var visibility: StoreVisibilityPreferences
+    @Environment(\.dismiss) private var dismiss
+    @State private var pendingRegion: StoreID?
+
+    var body: some View {
+        List {
+            Section {
+                Text("Regional lists and logins are kept separate. Shopping country never switches an enabled store. If your active region is disabled, returning to your list selects an enabled store.")
+                    .font(.footnote)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Section {
+                Text("Regional website").font(.headline).accessibilityAddTraits(.isHeader)
+                ForEach(brand.regions, id: \.id) { region in
+                    Button {
+                        if region.id == visibility.selectedRegion(for: brand).id { dismiss() }
+                        else { pendingRegion = region.id }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(region.id.regionalCountryCode.map { ShoppingCountry.name($0) } ?? region.displayName)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if region.id == visibility.selectedRegion(for: brand).id {
+                                    Image(systemName: "checkmark").accessibilityHidden(true)
+                                }
+                            }
+                            Text(region.homepage.host ?? "").font(.footnote).foregroundStyle(.primary)
+                            if !region.capabilities.search { Text("Browsing only — no store automation").font(.footnote).foregroundStyle(.primary) }
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .accessibilityIdentifier("store-region-\(region.id.rawValue)")
+                    .accessibilityAddTraits(region.id == visibility.selectedRegion(for: brand).id ? .isSelected : [])
+                    .accessibilityHint("Selecting a different regional website asks for confirmation and keeps existing lists and sessions.")
+                }
+            }
+        }
+        .navigationTitle("\(brand.name) region")
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom) {
+            Button("Done") { dismiss() }
+                .font(.body).frame(maxWidth: .infinity, minHeight: 44)
+                .buttonStyle(.borderedProminent).padding()
+                .background(Color(uiColor: .systemGroupedBackground))
+        }
+        .alert("Change \(brand.name) region?", isPresented: Binding(get: { pendingRegion != nil }, set: { if !$0 { pendingRegion = nil } })) {
+            Button("Use this regional website") {
+                if let id = pendingRegion { visibility.chooseRegion(id, for: brand) }
+                pendingRegion = nil
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) { pendingRegion = nil }
+        } message: {
+            Text("Your old region's list and website session are kept. If this brand is enabled, the new region replaces it in the chooser. If your active region is disabled, returning to your list selects an enabled store. No store website is opened automatically.")
+        }
+    }
+}
+
+private struct ShoppingCountryScreen: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var visibility: StoreVisibilityPreferences
+    @State private var searchText = ""
+
+    private var codes: [String] {
+        ShoppingCountry.codes.filter {
+            searchText.isEmpty || ShoppingCountry.name($0).localizedCaseInsensitiveContains(searchText)
+                || $0.localizedCaseInsensitiveContains(searchText)
+        }.sorted { ShoppingCountry.name($0).localizedStandardCompare(ShoppingCountry.name($1)) == .orderedAscending }
+    }
+
+    var body: some View {
+        List {
+            Section {
+                Text("Choose where you shop, not necessarily where you are. The initial suggestion comes from your device region, not your location. This choice stays on your device and does not restrict which stores you can enable.")
+                    .font(.footnote).foregroundStyle(.primary)
+            }
+            Section {
+                ForEach(codes, id: \.self) { code in
+                    Button {
+                        visibility.setShoppingCountry(code)
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Text(ShoppingCountry.name(code)).foregroundStyle(.primary)
+                            Spacer()
+                            if code == visibility.shoppingCountryCode {
+                                Image(systemName: "checkmark").accessibilityHidden(true)
+                            }
+                        }
+                    }
+                    .accessibilityIdentifier("shopping-country-\(code)")
+                    .accessibilityAddTraits(code == visibility.shoppingCountryCode ? .isSelected : [])
+                }
+            }
+            if codes.isEmpty { Text("No countries found. Try another name or country code.") }
+        }
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search countries")
+        .navigationTitle("Shopping country")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// UITableView supplies the actual native section index, including accessibility,
+// tap/drag navigation and index/toggle separation on every supported iOS (17+).
+// SwiftUI's sectionIndexLabel is only available from iOS 26.
+private struct StoreLetterJump {
+    let id = UUID()
+    let letter: String
+}
+
+private struct StoreManagementTable: UIViewControllerRepresentable {
+    let sections: [StoreBrand.Section]
+    let visibility: StoreVisibilityPreferences
+    let searching: Bool
+    let jumpRequest: StoreLetterJump?
+    let chooseRegion: (StoreBrand) -> Void
+    let chooseCountry: () -> Void
+
+    func makeUIViewController(context: Context) -> Controller {
+        Controller(model: self)
+    }
+
+    func updateUIViewController(_ controller: Controller, context: Context) {
+        controller.model = self
+        controller.tableView.reloadData()
+        controller.performPendingJump()
+    }
+
+    final class Controller: UITableViewController {
+        var model: StoreManagementTable
+        private var completedJumpID: UUID?
+
+        init(model: StoreManagementTable) {
+            self.model = model
+            super.init(style: .insetGrouped)
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+        override func viewDidLoad() {
+            super.viewDidLoad()
+            tableView.accessibilityIdentifier = "manage-stores-table"
+            tableView.rowHeight = UITableView.automaticDimension
+            tableView.estimatedRowHeight = 54
+            tableView.estimatedSectionHeaderHeight = 40
+            tableView.sectionIndexColor = .systemBlue
+            tableView.sectionIndexBackgroundColor = .clear
+            tableView.sectionIndexMinimumDisplayRowCount = 0
+            tableView.keyboardDismissMode = .interactive
+        }
+
+        private var offset: Int { model.searching ? 0 : 1 }
+
+        func performPendingJump() {
+            guard !model.searching, let request = model.jumpRequest, request.id != completedJumpID,
+                  let section = model.sections.firstIndex(where: { $0.indexTitle == request.letter }) else { return }
+            completedJumpID = request.id
+            tableView.layoutIfNeeded()
+            tableView.scrollToRow(at: IndexPath(row: 0, section: section + offset), at: .top,
+                                  animated: !UIAccessibility.isReduceMotionEnabled)
+            UIAccessibility.post(notification: .announcement, argument: "Stores beginning with \(request.letter)")
+        }
+
+        override func numberOfSections(in tableView: UITableView) -> Int { model.sections.count + offset }
+
+        override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+            section < offset ? 1 : model.sections[section - offset].brands.count
+        }
+
+        override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+            if indexPath.section < offset {
+                let cell = UITableViewCell(style: .value1, reuseIdentifier: nil)
+                cell.textLabel?.text = "Shopping country"
+                cell.detailTextLabel?.text = model.visibility.shoppingCountryCode.map { ShoppingCountry.name($0) } ?? "Choose Country"
+                for label in [cell.textLabel, cell.detailTextLabel] {
+                    label?.font = .preferredFont(forTextStyle: .body)
+                    label?.adjustsFontForContentSizeCategory = true
+                    label?.numberOfLines = 0
+                }
+                cell.detailTextLabel?.textColor = .systemBlue
+                cell.accessoryType = .disclosureIndicator
+                cell.isAccessibilityElement = true
+                cell.accessibilityLabel = "Shopping country"
+                cell.accessibilityValue = cell.detailTextLabel?.text
+                cell.accessibilityTraits = .button
+                cell.accessibilityIdentifier = "shopping-country"
+                return cell
+            }
+            let brand = model.sections[indexPath.section - offset].brands[indexPath.row]
+            let visibility = model.visibility
+            let definition = visibility.selectedRegion(for: brand)
+            let store = definition.id
+            let cell = UITableViewCell(style: .default, reuseIdentifier: nil)
+            cell.selectionStyle = .none
+            cell.contentConfiguration = UIHostingConfiguration {
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle(brand.name, isOn: Binding(
+                        get: { brand.regions.contains { visibility.visibleIDs.contains($0.id) } },
+                        set: { visibility.setBrandVisible($0, brand: brand) }
+                    ))
+                    .tint(Color(red: 224 / 255, green: 26 / 255, blue: 34 / 255))
+                    .accessibilityIdentifier("store-visibility-\(brand.id)")
+                    .accessibilityLabel(brand.name)
+                    .accessibilityValue(brand.regions.contains { visibility.visibleIDs.contains($0.id) } ? "Shown in store chooser" : "Hidden from store chooser")
+                    if brand.isRegional {
+                        Button { self.model.chooseRegion(brand) } label: {
+                            HStack {
+                                Text("Website: \(store.regionalCountryCode.map { ShoppingCountry.name($0) } ?? definition.displayName)")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                            }
+                            .font(.subheadline).frame(minHeight: 44)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Choose \(brand.name) regional website")
+                        .accessibilityValue(store.regionalCountryCode.map { ShoppingCountry.name($0) } ?? definition.displayName)
+                        .accessibilityIdentifier("store-region-picker-\(brand.id)")
+                    }
+                }
+            }
+            .margins(.vertical, 12)
+            .minSize(height: 54)
+            return cell
+        }
+
+        override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+            tableView.deselectRow(at: indexPath, animated: false)
+            if indexPath.section < offset { model.chooseCountry() }
+        }
+
+        override func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+            guard section >= offset else { return nil }
+            let group = model.sections[section - offset]
+            let header = UITableViewHeaderFooterView(reuseIdentifier: nil)
+            header.contentConfiguration = UIHostingConfiguration {
+                VStack(alignment: .leading, spacing: 12) {
+                    if group.beginsOtherStores {
+                        if model.sections.contains(where: { $0.indexTitle == nil && $0.title.hasPrefix("Stores in ") }) {
+                            Divider().padding(.top, 8)
+                        } else {
+                            Text("No supported stores for this country yet.")
+                                .font(.footnote).foregroundStyle(Color(uiColor: .label))
+                        }
+                        Text("OTHER STORES").font(.footnote).foregroundStyle(Color(uiColor: .label))
+                    }
+                    Text(group.title.uppercased()).font(.footnote).foregroundStyle(Color(uiColor: .label))
+                        .accessibilityAddTraits(.isHeader)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .margins(.horizontal, 16)
+            .margins(.vertical, 10)
+            header.backgroundConfiguration = .clear()
+            return header
+        }
+
+        override func sectionIndexTitles(for tableView: UITableView) -> [String]? {
+            let titles = model.sections.compactMap(\.indexTitle)
+            return model.searching || titles.isEmpty ? nil : titles
+        }
+
+        override func tableView(_ tableView: UITableView, sectionForSectionIndexTitle title: String, at index: Int) -> Int {
+            (model.sections.firstIndex { $0.indexTitle == title } ?? 0) + offset
+        }
     }
 }
 

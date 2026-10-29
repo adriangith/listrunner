@@ -108,6 +108,196 @@ test('Bunnings sticky product-page Add to Cart control uses the same scoped quan
   assert.equal(page.messages.at(-1).resultingQuantity, 1);
 });
 
+function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = false,
+  href = 'https://www.bunnings.com.au/trojan-staples_p0217507', detailPage = false } = {}) {
+  const messages = [], scheduled = [];
+  let click, mutation, now = 0;
+  class FakeElement {
+    constructor(tagName, attributes = {}, textContent = '') {
+      this.tagName = tagName.toUpperCase(); this.attributes = attributes; this.textContent = textContent;
+      this.children = []; this.parentElement = null; this.isConnected = true; this.value = '';
+    }
+    get href() { return this.attributes.href; }
+    append(child) { child.parentElement = this; this.children.push(child); return child; }
+    getAttribute(name) { return this.attributes[name] ?? null; }
+    getRootNode() { return document; }
+    matches(selector) {
+      return selector.split(',').some(raw => {
+        const s = raw.trim();
+        return s === '*' || s === 'button' && this.tagName === 'BUTTON' ||
+          s === 'h1' && this.tagName === 'H1' ||
+          s === 'a[href]' && this.tagName === 'A' && !!this.attributes.href ||
+          s === '#pdp-footer-container' && this.attributes.id === 'pdp-footer-container' ||
+          s === 'input[aria-label="Quantity"]' && this.tagName === 'INPUT' && this.attributes['aria-label'] === 'Quantity' ||
+          s === 'input[name="quantity"]' && this.tagName === 'INPUT' && this.attributes.name === 'quantity' ||
+          s === 'input[type="number"]' && this.tagName === 'INPUT' && this.attributes.type === 'number' ||
+          s === '[role="spinbutton"]' && this.attributes.role === 'spinbutton' ||
+          s === '[role="status"]' && this.attributes.role === 'status';
+      });
+    }
+    querySelectorAll(selector) {
+      const result = [];
+      const visit = parent => { for (const child of parent.children) { if (child.matches(selector)) result.push(child); visit(child); } };
+      visit(this); return result;
+    }
+  }
+  const document = {
+    visibilityState: 'visible',
+    addEventListener(type, callback) { if (type === 'click') click = callback; },
+    querySelectorAll(selector) { return this.documentElement.querySelectorAll(selector); },
+  };
+  document.documentElement = new FakeElement('html');
+  document.body = document.documentElement.append(new FakeElement('body'));
+  const badge = document.body.append(new FakeElement('input', { 'aria-label': 'Quantity' }));
+  badge.value = '0';
+  const main = document.body.append(new FakeElement('main'));
+  main.append(new FakeElement('h1', {}, detailPage ? 'Different detail-page product' : 'Staples'));
+  const makeCard = (url, quantity) => {
+    const tile = new FakeElement('div');
+    const link = tile.append(new FakeElement('a', { href: url }, 'Trojan staples'));
+    if (duplicateLinks) tile.append(new FakeElement('a', { href: url }, 'Same product image'));
+    if (ambiguous) tile.append(new FakeElement('a', { href: 'https://www.bunnings.com.au/other_p9999999' }, 'Another product'));
+    const controls = tile.append(new FakeElement('div'));
+    const control = controls.append(new FakeElement('button', { 'aria-label': quantity ? 'Increase quantity' : 'Add to Cart' }, quantity ? '' : 'Add'));
+    const inner = control.append(new FakeElement('span', {}, 'Add'));
+    const card = { tile, link, controls, control, inner };
+    if (quantity) setCardQuantity(card, quantity);
+    return card;
+  };
+  function setCardQuantity(card, quantity) {
+    const input = card.controls.children.find(child => child.tagName === 'INPUT') ||
+      card.controls.append(new FakeElement('input', { 'aria-label': 'Quantity', type: 'number' }));
+    input.value = String(quantity);
+    card.control.attributes['aria-label'] = 'Increase quantity';
+    card.control.textContent = '';
+  }
+  let selected = makeCard(href, before);
+  main.append(selected.tile);
+  const other = makeCard('https://www.bunnings.com.au/staple-gun_p0217503', 0);
+  main.append(other.tile);
+  const pathname = detailPage ? '/different-product_p0123456' : '/search/products';
+  const context = vm.createContext({
+    URL, Element: FakeElement, Date: { now: () => now }, document,
+    location: { protocol: 'https:', hostname: 'www.bunnings.com.au', pathname, href: 'https://www.bunnings.com.au' + pathname },
+    window: { __listRunnerStoreConfig: bunnings, webkit: { messageHandlers: { listRunner: {
+      postMessage: raw => { if (raw !== 'automationReady') messages.push(JSON.parse(raw)); },
+    } } } },
+    setTimeout(callback, delay) { scheduled.push(() => { now += delay; callback(); }); },
+    MutationObserver: class { constructor(callback) { mutation = callback; } observe() {} },
+  });
+  vm.runInContext(source, context);
+  context.window.__listRunnerSetContext({ sessionID: 'session', interactionID: 'interaction', itemID: 'item', documentGeneration: 1 });
+  return {
+    messages,
+    click(trusted = true) { click({ isTrusted: trusted, target: selected.inner, composedPath: () => [selected.inner, selected.control, selected.controls, selected.tile] }); },
+    setQuantity(value) { setCardQuantity(selected, value); mutation(); },
+    setOtherQuantity(value) { setCardQuantity(other, value); badge.value = String(value); mutation(); },
+    reuseForDifferentProduct() { selected.link.attributes.href = 'https://www.bunnings.com.au/reused_p1234567'; setCardQuantity(selected, 1); mutation(); },
+    replaceCard(sameProduct = true) {
+      selected.tile.isConnected = false;
+      main.children = main.children.filter(child => child !== selected.tile);
+      selected = makeCard(sameProduct ? href : 'https://www.bunnings.com.au/replacement_p1234567', 1);
+      main.append(selected.tile); mutation();
+    },
+    clearContext() { context.window.__listRunnerSetContext(null); },
+    advanceTime(value) { now += value; },
+    tick(count = 1) { for (let i = 0; i < count; i++) scheduled.shift()?.(); },
+  };
+}
+
+test('Bunnings search grid identifies the tapped card and confirms only its quantity', () => {
+  const page = bunningsGridFixture();
+  page.click();
+  assert.equal(page.messages[0].type, 'cartInteractionStarted');
+  assert.equal(page.messages[0].productID, '0217507');
+  assert.equal(page.messages[0].beforeQuantity, 0);
+  page.setQuantity(1); page.tick(5);
+  assert.equal(page.messages.at(-1).type, 'addDetected');
+  assert.equal(page.messages.at(-1).resultingQuantity, 1);
+});
+
+test('Bunnings duplicate image/title links to one product are not ambiguous', () => {
+  const page = bunningsGridFixture({ duplicateLinks: true });
+  page.click(); page.setQuantity(1); page.tick(5);
+  assert.equal(page.messages.at(-1).type, 'addDetected');
+  assert.equal(page.messages.at(-1).productID, '0217507');
+});
+
+test('Bunnings grid increment retains the existing product-specific quantity baseline', () => {
+  const page = bunningsGridFixture({ before: 2 });
+  page.click();
+  assert.equal(page.messages[0].beforeQuantity, 2);
+  page.setQuantity(3); page.tick(5);
+  assert.equal(page.messages.at(-1).resultingQuantity, 3);
+});
+
+test('Bunnings another card or page-wide cart badge cannot confirm the tapped product', () => {
+  const page = bunningsGridFixture();
+  page.click(); page.setOtherQuantity(3); page.tick(10);
+  assert.equal(page.messages.filter(message => message.type === 'addDetected').length, 0);
+});
+
+test('Bunnings missing, foreign, insecure and deceptive product links cannot arm grid detection', () => {
+  for (const href of ['', 'https://other.example/staples_p0217507',
+    'http://www.bunnings.com.au/staples_p0217507', 'https://user:secret@www.bunnings.com.au/staples_p0217507',
+    'https://www.bunnings.com.au:444/staples_p0217507', 'https://www.bunnings.com.au.attacker.example/staples_p0217507']) {
+    const page = bunningsGridFixture({ href });
+    page.click(); page.setQuantity(1); page.tick(5);
+    assert.equal(page.messages[0].type, 'automationUnavailable', href);
+    assert.equal(page.messages[0].reason, 'productIdUnavailable', href);
+    assert.equal(page.messages.some(message => message.type === 'addDetected'), false, href);
+  }
+});
+
+test('Bunnings cards containing two product identities fail closed', () => {
+  const page = bunningsGridFixture({ ambiguous: true });
+  page.click(); page.setQuantity(1); page.tick(5);
+  assert.equal(page.messages[0].reason, 'productIdUnavailable');
+  assert.equal(page.messages.some(message => message.type === 'cartInteractionStarted'), false);
+});
+
+test('Bunnings grid synthetic clicks and passive changes never confirm an add', () => {
+  const page = bunningsGridFixture();
+  page.click(false); page.setQuantity(1); page.tick(5);
+  assert.equal(page.messages.length, 0);
+});
+
+test('Bunnings same-product card replacement retains product-specific confirmation', () => {
+  const page = bunningsGridFixture();
+  page.click(); page.replaceCard(); page.tick(5);
+  assert.equal(page.messages.at(-1).type, 'addDetected');
+  assert.equal(page.messages.at(-1).productID, '0217507');
+});
+
+test('Bunnings replaced or recycled cards for a different product never confirm the old product', () => {
+  for (const replace of [true, false]) {
+    const page = bunningsGridFixture();
+    page.click();
+    if (replace) page.replaceCard(false); else page.reuseForDifferentProduct();
+    page.tick(7);
+    assert.equal(page.messages.some(message => message.type === 'addDetected'), false);
+  }
+});
+
+test('Bunnings unchanged quantities, expired windows and ended interactions cannot confirm', () => {
+  const unchanged = bunningsGridFixture({ before: 1 });
+  unchanged.click(); unchanged.setQuantity(1); unchanged.tick(7);
+  assert.equal(unchanged.messages.some(message => message.type === 'addDetected'), false);
+  const expired = bunningsGridFixture();
+  expired.click(); expired.advanceTime(4000); expired.setQuantity(1); expired.tick(5);
+  assert.equal(expired.messages.some(message => message.type === 'addDetected'), false);
+  const ended = bunningsGridFixture();
+  ended.click(); ended.clearContext(); ended.setQuantity(1); ended.tick(5);
+  assert.equal(ended.messages.some(message => message.type === 'addDetected'), false);
+});
+
+test('Bunnings recommendation cards use their own ID instead of the detail-page URL', () => {
+  const page = bunningsGridFixture({ detailPage: true });
+  page.click(); page.setQuantity(1); page.tick(5);
+  assert.equal(page.messages[0].productID, '0217507');
+  assert.equal(page.messages.at(-1).type, 'addDetected');
+});
+
 function fixture({ host = 'www.coles.com.au', config = coles, empty = true, testID = true, deliverContext = true, decrement = true, disabled = false, applyDecrement = true } = {}) {
   const messages = [];
   const installationMessages = [];

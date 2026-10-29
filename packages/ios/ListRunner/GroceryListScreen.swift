@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ShoppingRootScreen: View {
     @StateObject private var sessions: StoreSessions
+    @StateObject private var visibility = StoreVisibilityPreferences()
     @StateObject private var paprikaReminders = PaprikaReminders()
     @AppStorage("activeStoreID") private var activeStoreID = StoreID.coles.rawValue
     @State private var drafts: [StoreID: String] = [:]
@@ -13,7 +14,7 @@ struct ShoppingRootScreen: View {
 
     var body: some View {
         let storeID = StoreID(rawValue: activeStoreID) ?? .coles
-        GroceryListScreen(storeID: storeID, sessions: sessions, paprikaReminders: paprikaReminders,
+        GroceryListScreen(storeID: storeID, sessions: sessions, visibility: visibility, paprikaReminders: paprikaReminders,
                            rawInput: Binding(get: { drafts[storeID] ?? "" }, set: { drafts[storeID] = $0 }),
                            onSelectStore: { id in
                               sessions.endAllInteractions()
@@ -29,6 +30,7 @@ struct GroceryListScreen: View {
     @Query(sort: \GroceryItem.position) private var allItems: [GroceryItem]
     @Query private var lists: [GroceryList]
     @StateObject private var browser: StoreBrowser
+    @ObservedObject var visibility: StoreVisibilityPreferences
     @ObservedObject var paprikaReminders: PaprikaReminders
     let storeID: StoreID
     let sessions: StoreSessions
@@ -38,6 +40,7 @@ struct GroceryListScreen: View {
     @State private var itemToMove: GroceryItem?
     @State private var editingItem: GroceryItem?
     @State private var showingStore = false
+    @State private var showingStoreManagement = false
     @State private var showingClearConfirmation = false
     @State private var notice: String?
     @State private var saveFailed = false
@@ -45,10 +48,13 @@ struct GroceryListScreen: View {
     @FocusState private var groceryInputFocused: Bool
     @State private var recentlyAddedItemIDs = Set<UUID>()
     @State private var scrollTargetItemID: UUID?
+    @State private var addedItemScrollTask: Task<Void, Never>?
+    @State private var listViewportFrame: CGRect = .zero
 
-    init(storeID: StoreID, sessions: StoreSessions, paprikaReminders: PaprikaReminders, rawInput: Binding<String>,
+    init(storeID: StoreID, sessions: StoreSessions, visibility: StoreVisibilityPreferences, paprikaReminders: PaprikaReminders, rawInput: Binding<String>,
          onSelectStore: @escaping (StoreID) -> Void) {
         self.storeID = storeID; self.sessions = sessions
+        self.visibility = visibility
         self.paprikaReminders = paprikaReminders
         self.onSelectStore = onSelectStore; self._rawInput = rawInput
         _browser = StateObject(wrappedValue: sessions.browser(for: storeID))
@@ -63,12 +69,14 @@ struct GroceryListScreen: View {
     // The storefront configuration is the single source of truth for the
     // selected store's visual identity, including all list-screen accents.
     private var storePrimaryColor: Color {
+        guard !visibility.visibleIDs.isEmpty else { return .primary }
         let color = browser.store.brandColors?.primary ?? browser.store.addedColor
         return Color(red: Double(color.red) / 255,
                      green: Double(color.green) / 255,
                      blue: Double(color.blue) / 255)
     }
     private var storeHighlightColor: Color {
+        guard !visibility.visibleIDs.isEmpty else { return .primary }
         guard let color = browser.store.brandColors?.highlight else { return storePrimaryColor }
         return Color(red: Double(color.red) / 255,
                      green: Double(color.green) / 255,
@@ -79,6 +87,18 @@ struct GroceryListScreen: View {
         ScrollViewReader { scrollProxy in
         NavigationStack {
             List {
+                if visibility.visibleIDs.isEmpty {
+                    ContentUnavailableView {
+                        Label("No stores enabled", systemImage: "basket")
+                    } description: {
+                        Text("Enable a store to see its grocery list. Your saved lists and logins are kept.")
+                    } actions: {
+                        Button("Manage Stores") { showingStoreManagement = true }
+                            .buttonStyle(.bordered)
+                            .accessibilityIdentifier("no-stores-manage")
+                    }
+                    .listRowBackground(Color.clear)
+                } else {
                     Section {
                         summary
                             // Keep the native separator farther below the totals;
@@ -109,6 +129,9 @@ struct GroceryListScreen: View {
                                 // into multiple items by IngredientParser.
                                 if value.contains(where: { $0.isNewline }) {
                                     addItems()
+                                } else if !value.isEmpty {
+                                    addedItemScrollTask?.cancel()
+                                    scrollTargetItemID = nil
                                 }
                             }
                             .accessibilityLabel("Type or paste groceries")
@@ -143,7 +166,7 @@ struct GroceryListScreen: View {
                                                    description: Text("Add groceries here, then shop through them with ListRunner."))
                                 .padding(.vertical, 12)
                         } else {
-                            groceryList
+                            groceryList(using: scrollProxy)
                             Button(action: clearList) {
                                 HStack(spacing: 8) {
                                     Spacer(minLength: 0)
@@ -168,45 +191,76 @@ struct GroceryListScreen: View {
                     } header: {
                         if !items.isEmpty { Text("Groceries") }
                     }
+                }
+            }
+            .onAppear {
+                if let selected = visibility.selectionForList(current: storeID, definitions: sessions.definitions),
+                   selected != storeID {
+                    onSelectStore(selected)
+                }
             }
             .listStyle(.insetGrouped)
             .contentMargins(.top, 0, for: .scrollContent)
             .listSectionSpacing(.compact)
             .scrollDismissesKeyboard(.interactively)
+            .simultaneousGesture(DragGesture(minimumDistance: 10).onChanged { _ in
+                // A deliberate manual scroll takes precedence over positioning
+                // the most recently submitted item.
+                addedItemScrollTask?.cancel()
+                scrollTargetItemID = nil
+            })
+            .onGeometryChange(for: CGRect.self) { geometry in
+                let frame = geometry.frame(in: .global)
+                let insets = geometry.safeAreaInsets
+                return CGRect(x: frame.minX + insets.leading, y: frame.minY + insets.top,
+                              width: max(0, frame.width - insets.leading - insets.trailing),
+                              height: max(0, frame.height - insets.top - insets.bottom))
+            } action: { frame in
+                listViewportFrame = frame
+                // The first item also introduces the bottom action inset. Scroll
+                // against the resulting viewport, not the old empty-list size.
+                guard let itemID = scrollTargetItemID else { return }
+                scrollToAddedItem(itemID, using: scrollProxy)
+            }
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack(alignment: .center) {
                     Text("Your list")
                         .font(.largeTitle.weight(.bold))
                         .foregroundStyle(.primary)
                     Spacer(minLength: 8)
-                    Menu {
-                        ForEach(StoreID.allCases) { store in
-                            Button(store.displayName) { onSelectStore(store) }
+                    if !visibility.visibleIDs.isEmpty {
+                        Menu {
+                            ForEach(StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
+                                                           enabledIDs: visibility.visibleIDs), id: \.id) { store in
+                                Button(store.displayName) { onSelectStore(store.id) }
+                            }
+                            Divider()
+                            Button("Manage Stores") { showingStoreManagement = true }
+                                .accessibilityIdentifier("store-picker-manage-stores")
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(storeID.displayName)
+                                    .font(.system(.title3, design: .default, weight: .heavy))
+                                    .lineLimit(1)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.caption2.weight(.black))
+                            }
+                            .foregroundStyle(storePrimaryColor)
+                            .contentShape(Rectangle())
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 9)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
                         }
-                    } label: {
-                                HStack(spacing: 6) {
-                                    Text(storeID.displayName)
-                                        .font(.system(.title3, design: .default, weight: .heavy))
-                                .lineLimit(1)
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.caption2.weight(.black))
-                        }
-                        .foregroundStyle(storePrimaryColor)
-                        .contentShape(Rectangle())
-                        .padding(.horizontal, 13)
-                        .padding(.vertical, 9)
-                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
+                        .accessibilityIdentifier("store-picker")
+                        .accessibilityHint("Each store has its own grocery list and basket")
                     }
-                    .accessibilityIdentifier("store-picker")
-                    .disabled(!browser.canPresentStore)
-                    .accessibilityHint("Each store has its own grocery list and basket")
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 10)
                 .background(Color(uiColor: .systemGroupedBackground))
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if !items.isEmpty {
+                if !visibility.visibleIDs.isEmpty && !items.isEmpty {
                     Button {
                         showingStore = true
                     } label: {
@@ -215,7 +269,7 @@ struct GroceryListScreen: View {
                             .frame(maxWidth: .infinity, minHeight: 52)
                     }
                     .modifier(StoreLaunchButtonStyle(tint: storePrimaryColor))
-                    .disabled(!browser.canPresentStore)
+                     .disabled(!browser.canPresentStore || !visibility.visibleIDs.contains(storeID))
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
                     // Keep the action inside the adjusted safe area so it stays
@@ -225,13 +279,16 @@ struct GroceryListScreen: View {
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(isPresented: $showingStoreManagement) {
+                StoreVisibilityScreen(sessions: sessions, visibility: visibility)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if !items.isEmpty { EditButton() }
+                    if !visibility.visibleIDs.isEmpty && !items.isEmpty { EditButton() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
-                        SettingsOverviewScreen(sessions: sessions)
+                         SettingsOverviewScreen(sessions: sessions, visibility: visibility)
                     } label: {
                         Image(systemName: "gearshape")
                     }
@@ -281,6 +338,11 @@ struct GroceryListScreen: View {
             selectedList?.lastActiveDay = today
             saveChanges()
         }
+        .onChange(of: visibility.visibleIDs) { _, visibleIDs in
+            guard !visibleIDs.contains(storeID) else { return }
+            browser.endInteraction()
+            showingStore = false
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 browser.diagnostics.purge()
@@ -299,6 +361,16 @@ struct GroceryListScreen: View {
             // Retry after the query reflects the inserted row.
             guard let itemID = scrollTargetItemID, itemIDs.contains(itemID) else { return }
             scrollToAddedItem(itemID, using: scrollProxy)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
+            // Return can briefly change the field's focus while UIKit keeps the
+            // keyboard open. Only retire the target on an actual dismissal.
+            addedItemScrollTask?.cancel()
+            scrollTargetItemID = nil
+        }
+        .onDisappear {
+            addedItemScrollTask?.cancel()
+            scrollTargetItemID = nil
         }
         }
     }
@@ -333,11 +405,11 @@ struct GroceryListScreen: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var groceryList: some View {
+    private func groceryList(using scrollProxy: ScrollViewProxy) -> some View {
         ForEach(items) { item in
             HStack(spacing: 12) {
                 Button {
-                    guard browser.canPresentStore else { return }
+                    guard browser.canPresentStore, visibility.visibleIDs.contains(storeID) else { return }
                     selectedList?.selectedItemID = item.id
                     saveChanges()
                     showingStore = true
@@ -378,6 +450,22 @@ struct GroceryListScreen: View {
             }
             .frame(minHeight: 48)
             .id(item.id)
+            .onGeometryChange(for: CGRect.self) { geometry in
+                geometry.frame(in: .global)
+            } action: { frame in
+                guard scrollTargetItemID == item.id, listViewportFrame.height > 0,
+                      frame.maxY > listViewportFrame.maxY - 16 else { return }
+                // UIKit may restore the field's scroll position after Return.
+                // Correct a clipped row after that layout, with room for insets.
+                scrollToAddedItem(item.id, using: scrollProxy, animated: false)
+            }
+            .onAppear {
+                // List registers a new row lazily. The query/target can change
+                // before ScrollViewReader can resolve that row, especially when
+                // replacing the empty-state cell.
+                guard scrollTargetItemID == item.id else { return }
+                scrollToAddedItem(item.id, using: scrollProxy)
+            }
             .onTapGesture { groceryInputFocused = false }
             .transition(.asymmetric(
                 insertion: .move(edge: .top).combined(with: .opacity),
@@ -416,7 +504,10 @@ struct GroceryListScreen: View {
         let parsed = IngredientParser.application.parseGroceries(rawInput)
         guard !parsed.isEmpty else { return }
         var newlyAddedIDs = Set<UUID>()
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+        // Do not animate the empty-state replacement and new bottom inset while
+        // trying to position the first row. Later additions keep their animation;
+        // the first row still gets the added-item highlight and animated scroll.
+        withAnimation(items.isEmpty ? nil : .spring(response: 0.42, dampingFraction: 0.82)) {
             var stagedItems = items
             var promotedItems: [GroceryItem] = []
             for entry in parsed {
@@ -467,12 +558,13 @@ struct GroceryListScreen: View {
         }
     }
 
-    private func scrollToAddedItem(_ itemID: UUID, using proxy: ScrollViewProxy) {
-        Task { @MainActor in
+    private func scrollToAddedItem(_ itemID: UUID, using proxy: ScrollViewProxy, animated: Bool = true) {
+        addedItemScrollTask?.cancel()
+        addedItemScrollTask = Task { @MainActor in
             await Task.yield()
-            try? await Task.sleep(for: .milliseconds(100))
-            guard scrollTargetItemID == itemID, items.contains(where: { $0.id == itemID }) else { return }
-            withAnimation(.easeInOut(duration: 0.35)) {
+            guard !Task.isCancelled, scrollTargetItemID == itemID,
+                  items.contains(where: { $0.id == itemID }) else { return }
+            withAnimation(animated ? .easeInOut(duration: 0.35) : nil) {
                 proxy.scrollTo(itemID, anchor: .bottom)
             }
         }

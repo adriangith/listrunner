@@ -75,7 +75,12 @@ final class LocalDataController: ObservableObject {
             for path in [url, URL(fileURLWithPath: url.path + "-wal"), URL(fileURLWithPath: url.path + "-shm")] {
                 if FileManager.default.fileExists(atPath: path.path) { try FileManager.default.removeItem(at: path) }
             }
-            for key in ["lastOverlaySelectedItemID", "lastActiveLocalDate", "activeStoreID"] { defaults.removeObject(forKey: key) }
+            for key in ["lastOverlaySelectedItemID", "lastActiveLocalDate", "activeStoreID",
+                        "visibleStoreIDs.v1", "knownStoreIDs.v1", "storeSortMode.v1",
+                        "shoppingCountry.v1", "shoppingCountryInitialized.v1", "storeRegionalChoices.v1",
+                        "selectEnabledStoreAfterEmpty.v1"] {
+                defaults.removeObject(forKey: key)
+            }
             try diagnostics.clear()
             open()
         } catch {

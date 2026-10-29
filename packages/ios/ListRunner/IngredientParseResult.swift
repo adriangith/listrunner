@@ -18,6 +18,8 @@ struct IngredientParseResult: Codable, Equatable {
     let quantity: GroceryQuantity
     let omittedPreparation: [String]
     let unmatchedText: [String]
+    let parserVersion: Int
+    let dictionaryVersion: Int?
     let disposition: Disposition
     let explanation: [String]
 
@@ -42,7 +44,8 @@ struct IngredientParseResult: Codable, Equatable {
                 return [formatted, sizeUnit].compactMap { $0 }.joined(separator: " ")
             }
             let displayedContainer = container.map { value in
-                numericCount.map { $0 > 1 } == true && !value.hasSuffix("s") ? value + "s" : value
+                if value == "box", (numericCount ?? 0) > 1 { return "boxes" }
+                return numericCount.map { $0 > 1 } == true && !value.hasSuffix("s") ? value + "s" : value
             }
             let packageDescription = [sizeDescription, displayedContainer].compactMap { $0 }.joined(separator: " ")
             let unit = packageDescription.isEmpty ? nil : packageDescription

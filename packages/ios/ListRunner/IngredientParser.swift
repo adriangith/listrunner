@@ -7,7 +7,7 @@ struct IngredientParser {
     static let application = IngredientParser(dictionary: {
         guard let url = Bundle.main.url(forResource: "ingredients", withExtension: "json"),
               let data = try? Data(contentsOf: url) else { return nil }
-        return try? IngredientDictionary(data: data)
+        return IngredientDictionary.loadOrNil(data)
     }())
 
     private struct Match { let entry: IngredientDictionary.Entry; let range: Range<String.Index>; let term: String }
@@ -17,12 +17,13 @@ struct IngredientParser {
         "oz":"oz", "ounce":"oz", "ounces":"oz", "lb":"lb", "lbs":"lb", "cup":"cup", "cups":"cup",
         "tbsp":"tbsp", "tbs":"tbsp", "tablespoon":"tbsp", "tablespoons":"tbsp", "tsp":"tsp", "teaspoon":"tsp", "teaspoons":"tsp"
     ]
-    private let containers: Set<String> = ["can", "cans", "tin", "tins", "bottle", "bottles", "jar", "jars", "pack", "packs", "packet", "packets", "carton", "cartons", "bag", "bags", "bunch", "bunches"]
+    private let containers: Set<String> = ["can", "cans", "tin", "tins", "bottle", "bottles", "jar", "jars", "pack", "packs", "packet", "packets", "carton", "cartons", "bag", "bags", "bunch", "bunches", "box", "boxes"]
     private let countedUnits: Set<String> = ["clove", "cloves", "spear", "spears", "stalk", "stalks", "piece", "pieces", "sprig", "sprigs"]
     private let preparations = [
         "woody ends trimmed", "halved lengthways", "ends trimmed", "stems removed and cut into thirds",
         "peeled and diced", "peeled and sliced", "thinly sliced", "finely chopped", "roughly chopped",
         "drained and rinsed", "rinsed and drained", "whisked", "beaten", "divided", "melted", "softened",
+        "thawed and squeezed dry", "thawed and drained", "squeezed dry", "thawed",
         "at room temperature", "to taste", "minced", "diced"
     ]
 
@@ -30,6 +31,7 @@ struct IngredientParser {
         let original = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !original.isEmpty else { return nil }
         var clean = original.replacingOccurrences(of: #"^[\s•·\-–—]+"#, with: "", options: .regularExpression)
+        guard !clean.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         var removed: [String] = []
         let betweenQuantityAndNamePreparation = try! NSRegularExpression(pattern: #"(?i)\bcooked\s+and\s+chilled\b"#)
         let preparationRange = NSRange(clean.startIndex..., in: clean)
@@ -73,7 +75,8 @@ struct IngredientParser {
         return IngredientParseResult(originalText: original, ingredientID: matchResult?.entry.id,
             ingredientRange: matchResult.map { .init(location: clean.distance(from: clean.startIndex, to: $0.range.lowerBound), length: $0.term.count) },
             displayName: name, searchTerm: name, quantity: quantity, omittedPreparation: removed,
-            unmatchedText: unmatched, disposition: isAmbiguous ? .ambiguous : (matchResult == nil ? .unknown : (unmatched.isEmpty ? .recognized : .partial)),
+            unmatchedText: unmatched, parserVersion: Self.version, dictionaryVersion: dictionary?.version,
+            disposition: isAmbiguous ? .ambiguous : (matchResult == nil ? .unknown : (unmatched.isEmpty ? .recognized : .partial)),
             explanation: matchResult.map { ["matched \($0.term) → \($0.entry.name)"] } ?? ["no dictionary match; preserved source wording"])
     }
 
@@ -170,11 +173,15 @@ struct IngredientParser {
     private func quantityPattern(_ source: String) -> GroceryQuantity? {
         let text = source.replacingOccurrences(of: #"[(),]"#, with: " ", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression).trimmingCharacters(in: .whitespaces)
-        if let package = captures(text, #"^(\d+)\s*[x×]\s*(\d+(?:\.\d+)?|\d+\s*/\s*\d+)\s*(oz|ounce|ounces|g|kg|ml|l)\s*(can|cans|tin|tins|bottle|bottles|jar|jars|pack|packs|packet|packets|carton|cartons|bag|bags|bunch|bunches)$"#),
+        if let package = captures(text, #"^(\d+)\s*[x×]\s*(\d+(?:\.\d+)?|\d+\s*/\s*\d+)\s*(oz|ounce|ounces|g|kg|ml|l)\s*(can|cans|tin|tins|bottle|bottles|jar|jars|pack|packs|packet|packets|carton|cartons|bag|bags|bunch|bunches|box|boxes)$"#),
            let unit = units[package[2].lowercased()] {
             return .packages(count: rational(package[0]), size: rational(package[1]), sizeUnit: unit, container: singularContainer(package[3]))
         }
-        if let package = captures(text, #"^(?:(\d+)\s+)?(?:(\d+(?:\.\d+)?|\d+\s*/\s*\d+)\s*(oz|ounce|ounces|g|kg|ml|l))?\s*(can|cans|tin|tins|bottle|bottles|jar|jars|pack|packs|packet|packets|carton|cartons|bag|bags|bunch|bunches)$"#),
+        if let package = captures(text, #"^(\d+)\s+(can|cans|tin|tins|bottle|bottles|jar|jars|pack|packs|packet|packets|carton|cartons|bag|bags|bunch|bunches|box|boxes)\s+(\d+(?:\.\d+)?|\d+\s*/\s*\d+)\s*(oz|ounce|ounces|g|kg|ml|l)$"#),
+           let unit = units[package[3].lowercased()] {
+            return .packages(count: rational(package[0]), size: rational(package[2]), sizeUnit: unit, container: singularContainer(package[1]))
+        }
+        if let package = captures(text, #"^(?:(\d+)\s+)?(?:(\d+(?:\.\d+)?|\d+\s*/\s*\d+)\s*(oz|ounce|ounces|g|kg|ml|l))?\s*(can|cans|tin|tins|bottle|bottles|jar|jars|pack|packs|packet|packets|carton|cartons|bag|bags|bunch|bunches|box|boxes)$"#),
            let container = package[3].isEmpty ? nil : package[3].lowercased() {
             return .packages(count: package[0].isEmpty ? nil : rational(package[0]), size: package[1].isEmpty ? nil : rational(package[1]), sizeUnit: package[2].isEmpty ? nil : units[package[2].lowercased()], container: singularContainer(container))
         }
@@ -204,17 +211,19 @@ struct IngredientParser {
             guard let range = Range(match.range, in: result),
                   let originalRange = Range(match.range, in: source) else { continue }
             let contents = String(source[originalRange].dropFirst().dropLast()).trimmingCharacters(in: .whitespaces)
+            let preceding = String(source[..<originalRange.lowerBound]).trimmingCharacters(in: .whitespaces)
             let trailing = String(source[originalRange.upperBound...]).trimmingCharacters(in: .whitespaces)
-            let isPackageSize = captures(trailing, #"^(can|cans|tin|tins|bottle|bottles|jar|jars|pack|packs|packet|packets|carton|cartons|bag|bags|bunch|bunches)\b"#) != nil
+            let isPackageSize = captures(trailing, #"^(can|cans|tin|tins|bottle|bottles|jar|jars|pack|packs|packet|packets|carton|cartons|bag|bags|bunch|bunches|box|boxes)\b"#) != nil
+                || captures(preceding, #"\b(can|cans|tin|tins|bottle|bottles|jar|jars|pack|packs|packet|packets|carton|cartons|bag|bags|bunch|bunches|box|boxes)$"#) != nil
             if !isPackageSize && quantityPattern(contents) != nil { result.replaceSubrange(range, with: " ") }
         }
         return result
     }
 
     private func parseUnknown(_ source: String) -> UnknownParse? {
-        let packagePattern = #"^(\d+)\s+(can|cans|tin|tins|bottle|bottles|jar|jars|pack|packs|packet|packets|carton|cartons|bag|bags|bunch|bunches)\s+(.+)$"#
+        let packagePattern = #"^(\d+)\s+(can|cans|tin|tins|bottle|bottles|jar|jars|pack|packs|packet|packets|carton|cartons|bag|bags|bunch|bunches|box|boxes)\s+(.+)$"#
         if let c = captures(source, packagePattern), let count = rational(c[0]) {
-            return UnknownParse(name: cleanUnknown(c[2]), quantity: .packages(count: count, size: nil, sizeUnit: nil, container: c[1].lowercased().hasSuffix("s") ? String(c[1].dropLast()) : c[1].lowercased()))
+            return UnknownParse(name: cleanUnknown(c[2]), quantity: .packages(count: count, size: nil, sizeUnit: nil, container: singularContainer(c[1])))
         }
         let number = #"(?:\d+\s+)?\d+\s*/\s*\d+|\d*[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]|\d+(?:\.\d+)?"#
         let unitPattern = #"^("# + number + #")\s*(g|grams?|kg|ml|l|litres?|oz|ounces?|lb|lbs|cups?|tbsp|tbs|tablespoons?|tsp|teaspoons?)\s+(.+)$"#
@@ -268,7 +277,7 @@ struct IngredientParser {
 
     private func singularContainer(_ source: String) -> String {
         let value = source.lowercased()
-        let plurals = ["cans":"can", "tins":"tin", "bottles":"bottle", "jars":"jar", "packs":"pack", "packets":"packet", "cartons":"carton", "bags":"bag", "bunches":"bunch"]
+        let plurals = ["cans":"can", "tins":"tin", "bottles":"bottle", "jars":"jar", "packs":"pack", "packets":"packet", "cartons":"carton", "bags":"bag", "bunches":"bunch", "boxes":"box"]
         return plurals[value] ?? value
     }
 

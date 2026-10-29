@@ -1,14 +1,15 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "bunnings",
   "displayName": "Bunnings",
+  "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.bunnings.com.au",
   "allowedHosts": ["www.bunnings.com.au", "bunnings.com.au"],
   "search": {"strategy": "urlTemplate", "template": "https://www.bunnings.com.au/search/products?q={query}"},
   "addedColor": {"red": 218, "green": 41, "blue": 28},
   "brandColors": {
     "primary": {"red": 13, "green": 82, "blue": 87},
-    "highlight": {"red": 218, "green": 41, "blue": 28}
+    "highlight": {"red": 255, "green": 171, "blue": 0}
   },
   "capabilities": {"search": true, "cartDetection": true, "cartUndo": false},
   "cart": {

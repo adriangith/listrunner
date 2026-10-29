@@ -9,4 +9,6 @@ swiftc \
   "$ROOT/ListRunner/IngredientParser.swift" \
   "$(dirname -- "$0")/IngredientParserTests.swift" \
   -o "$OUT"
-"$OUT" "$ROOT/ListRunner/Resources/ingredients.json" "$(dirname -- "$0")/ingredient-parser-fixtures.json"
+"$OUT" "$ROOT/ListRunner/Resources/ingredients.json" \
+  "$(dirname -- "$0")/ingredient-parser-fixtures.json" \
+  "$(dirname -- "$0")/pasta-parser-fixtures.json"

@@ -1,7 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "coles",
   "displayName": "Coles",
+  "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.coles.com.au",
   "allowedHosts": ["www.coles.com.au", "coles.com.au"],
   "search": {"strategy": "urlTemplate", "template": "https://www.coles.com.au/search?q={query}"},

@@ -22,7 +22,7 @@ enum PaprikaImportError: Error {
 }
 
 enum PaprikaImportPlanner {
-    static func stage(reminders: [PaprikaReminderSnapshot], existingIDs: Set<String>) -> [StagedPaprikaItem] {
+    static func stage(reminders: [PaprikaReminderSnapshot], existingIDs: Set<String>, parser: IngredientParser = .application) -> [StagedPaprikaItem] {
         let ordered = reminders.sorted { lhs, rhs in
             switch (lhs.creationDate, rhs.creationDate) {
             case let (left?, right?) where left != right: return left < right
@@ -36,7 +36,7 @@ enum PaprikaImportPlanner {
         var staged: [StagedPaprikaItem] = []
         for reminder in ordered {
             guard !reminder.id.isEmpty, seen.insert(reminder.id).inserted else { continue }
-            let parsed = IngredientParser.application.parseGroceries(reminder.title)
+            let parsed = parser.parseGroceries(reminder.title)
             guard !parsed.isEmpty else { continue }
             // Paprika normally exports one grocery per reminder. If a title uses
             // ListRunner's comma syntax, preserve every parsed grocery while

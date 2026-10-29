@@ -24,6 +24,7 @@ struct StoreShoppingView: View {
     @State private var entranceNudge: CGFloat = 0
     @State private var pressedCardID: UUID?
     @State private var secondsRemaining = 0
+    @State private var didRunPreloadTestFixture = false
     @State private var undoRecord: (id: UUID, previous: GroceryStatus, cartAdd: StoreBrowser.CartAddRecord?)?
     @State private var task: Task<Void, Never>?
     @State private var manuallyPaused = false
@@ -101,6 +102,16 @@ struct StoreShoppingView: View {
                     .accessibilityHidden(true)
             }
 
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["LISTRUNNER_PRELOAD_TEST_FIXTURE"] == "enabled" {
+                Text(browser.preloadDebugStatus)
+                    .accessibilityIdentifier("preload-debug-status")
+                    .frame(width: 1, height: 1)
+                    .opacity(0.01)
+                    .allowsHitTesting(false)
+            }
+            #endif
+
             StoreWebView(browser: browser, bottomOverlayInset: 0)
                 .id(ObjectIdentifier(browser.webView))
                 .ignoresSafeArea(edges: .top)
@@ -158,7 +169,7 @@ struct StoreShoppingView: View {
             } message: {
                 Text("The store is checking this browser. Searches are paused. Complete any verification shown on the page, or wait before retrying. Repeated refreshes may extend the block.")
             }
-            .alert("Cart detection unavailable", isPresented: $showingCartDetectionDetails) {
+            .alert(browser.cartDetectionTitle, isPresented: $showingCartDetectionDetails) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(browser.cartDetectionExplanation + " You can still add the product on the store page, then use Mark Added in ListRunner. This changes ListRunner's status only; it does not change the store cart.")
@@ -170,6 +181,18 @@ struct StoreShoppingView: View {
             } else {
                 browser.loadIfNeeded()
             }
+            #if DEBUG
+            if !didRunPreloadTestFixture,
+               ProcessInfo.processInfo.environment["LISTRUNNER_PRELOAD_TEST_FIXTURE"] == "enabled",
+               let item = selected {
+                didRunPreloadTestFixture = true
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(900))
+                    guard selectedID == item.id, item.status == .pending else { return }
+                    confirmAutomaticAdd(item)
+                }
+            }
+            #endif
             }
             .task {
                 // Wait until the presentation transition has settled so the
@@ -373,8 +396,8 @@ struct StoreShoppingView: View {
                 if browser.cartDetectionUnavailable {
                     Button { showingCartDetectionDetails = true } label: {
                         VStack(spacing: 3) {
-                            Label(browser.searchUnavailable ? "Automation unavailable" : "Cart detection unavailable",
-                                  systemImage: "exclamationmark.triangle")
+                            Label(browser.searchUnavailable && !browser.searchNotIncluded ? "Automation unavailable" : browser.cartDetectionTitle,
+                                   systemImage: browser.cartDetectionNotIncluded ? "info.circle" : "exclamationmark.triangle")
                             Text("Tap for details").font(.caption2)
                         }
                         .font(.caption.weight(.semibold))
@@ -385,7 +408,7 @@ struct StoreShoppingView: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("cart-detection-notice")
-                    .accessibilityHint("Explains why automatic cart detection is unavailable and how to continue manually")
+                    .accessibilityHint("Explains automatic cart detection support and how to continue manually")
                 } else {
                 VStack(spacing: 3) {
                     if isFinalConfirmation { Text("Final item") }
@@ -891,6 +914,9 @@ final class StoreBrowser: ObservableObject {
 
     @Published private(set) var webView: WKWebView
     @Published private(set) var preloadWebView: WKWebView?
+    #if DEBUG
+    @Published private(set) var preloadDebugStatus = ""
+    #endif
     @Published private(set) var resetPhase: SessionResetPhase = .ready
     @Published private(set) var storeRecovery: StoreRecovery?
     let diagnostics: DiagnosticStore
@@ -902,18 +928,24 @@ final class StoreBrowser: ObservableObject {
     private var interactionEnabled = false
     private var retiredNavigations: Set<WKNavigation> = []
     @Published private(set) var searchUnavailable = false
+    var searchNotIncluded: Bool { store.isConfigurationValid && !store.capabilities.search }
     @Published private(set) var cartDetectionUnavailable = false
     @Published private(set) var cartDetectionIssue: CartDetectionIssue?
+    var cartDetectionNotIncluded: Bool { store.isConfigurationValid && !store.capabilities.cartDetection }
+    var cartDetectionTitle: String { cartDetectionNotIncluded ? "Cart detection not included" : "Cart detection unavailable" }
     var cartDetectionExplanation: String {
+        if cartDetectionNotIncluded {
+            return "Automatic cart detection isn't included for \(store.displayName) in this app version."
+        }
         switch cartDetectionIssue {
         case .productIDUnavailable:
-            "ListRunner couldn't identify which store product was tapped, so it couldn't safely match a cart update to this item."
+            return "ListRunner couldn't identify which store product was tapped, so it couldn't safely match a cart update to this item."
         case .quantityUnavailable:
-            "ListRunner couldn't read this product's current cart quantity, so it couldn't verify whether the add succeeded."
+            return "ListRunner couldn't read this product's current cart quantity, so it couldn't verify whether the add succeeded."
         case .confirmationTimedOut:
-            "The store page didn't show a stable quantity increase before the detection window expired. The add may still have succeeded."
+            return "The store page didn't show a stable quantity increase before the detection window expired. The add may still have succeeded."
         case .none:
-            "This store page didn't provide a reliable product-specific cart quantity for ListRunner to verify."
+            return "This store page didn't provide a reliable product-specific cart quantity for ListRunner to verify."
         }
     }
     @Published private(set) var detectedAddSequence = 0
@@ -1007,16 +1039,47 @@ final class StoreBrowser: ObservableObject {
         }
         return null;
       };
+      const linkedProductIDs = root => {
+        const ids = new Set();
+        const links = deepQueryAll(root, rules.linkSelector);
+        if (root.matches?.(rules.linkSelector)) links.unshift(root);
+        for (const link of links) {
+          try {
+            const url = new URL(link.href || link.getAttribute('href'), location.href);
+            if (url.protocol !== 'https:' || !config.allowedHosts.includes(url.hostname.toLowerCase()) ||
+                (url.port && url.port !== '443') || url.username || url.password) continue;
+            const match = url.pathname.match(productLinkPattern);
+            if (match && /^\d{1,32}$/.test(match[1])) ids.add(match[1]);
+          } catch (_) {}
+        }
+        return ids;
+      };
+      const bunningsPageProductID = () => {
+        const match = location.pathname.match(productLinkPattern);
+        return match && /^\d{1,32}$/.test(match[1]) ? match[1] : null;
+      };
+      const isPageBoundary = element => element === document.body || element === document.documentElement ||
+        String(element.tagName || '').toLowerCase() === 'main';
       const productTile = element => {
         if (config.id === 'bunnings') {
-          // Bunnings' product detail page uses its current numeric product URL
-          // as identity rather than a product-tile link. Scope detection to the
-          // smallest shared container for the page heading and trusted control;
-          // recommendation cards therefore cannot inherit the current product ID.
           const heading = deepQueryAll(document, 'h1')[0];
-          if (!heading || !location.pathname.match(productLinkPattern)) return null;
+          const pageID = bunningsPageProductID();
+          // Grid/recommendation controls belong to their own smallest container
+          // with an exact product link and Add/increment control. Never use the
+          // search term, a page-wide link, or another card's quantity as identity.
+          for (let current = element; current && !isPageBoundary(current);
+               current = current.parentElement || current.getRootNode?.().host || null) {
+            if (pageID && heading && deepQueryAll(current, 'h1').includes(heading)) break;
+            const ids = linkedProductIDs(current);
+            if (ids.size > 1) return null;
+            if (ids.size === 1 && deepQueryAll(current, 'button').some(isAddControl)) return current;
+          }
+          if (!heading || !pageID) return null;
           const stickyProductControls = deepClosest(element, '#pdp-footer-container');
-          if (stickyProductControls) return stickyProductControls;
+          if (stickyProductControls) {
+            const ids = linkedProductIDs(stickyProductControls);
+            return [...ids].every(id => id === pageID) ? stickyProductControls : null;
+          }
           const headingAncestors = [];
           for (let current = heading; current; current = current.parentElement || current.getRootNode?.().host || null) {
             headingAncestors.push(current);
@@ -1024,8 +1087,7 @@ final class StoreBrowser: ObservableObject {
           for (let current = element; current; current = current.parentElement || current.getRootNode?.().host || null) {
             const shared = headingAncestors.find(ancestor => ancestor === current);
             if (!shared) continue;
-            if (shared !== document.body && shared !== document.documentElement &&
-                String(shared.tagName || '').toLowerCase() !== 'main') return shared;
+            if (!isPageBoundary(shared) && [...linkedProductIDs(shared)].every(id => id === pageID)) return shared;
             return null;
           }
           return null;
@@ -1037,19 +1099,6 @@ final class StoreBrowser: ObservableObject {
         const semanticTile = element.closest?.(rules.tileSelector) || deepClosest(element, rules.tileSelector);
         if (semanticTile) return semanticTile;
         if (config.id !== 'woolworths') return null;
-        const linkedProductIDs = root => {
-          const ids = new Set();
-          for (const link of deepQueryAll(root, rules.linkSelector)) {
-            try {
-              const url = new URL(link.href || link.getAttribute('href'), location.href);
-              if (url.protocol !== 'https:' || !config.allowedHosts.includes(url.hostname.toLowerCase()) ||
-                  (url.port && url.port !== '443') || url.username || url.password) continue;
-              const match = url.pathname.match(productLinkPattern);
-              if (match && /^\d{1,32}$/.test(match[1])) ids.add(match[1]);
-            } catch (_) {}
-          }
-          return ids;
-        };
         let current = element;
         while (current) {
           if (linkedProductIDs(current).size === 1) return current;
@@ -1060,10 +1109,15 @@ final class StoreBrowser: ObservableObject {
       const productID = tile => {
         if (!tile) return null;
         if (config.id === 'bunnings') {
-          try {
-            const match = new URL(location.href).pathname.match(productLinkPattern);
-            return match && /^\d{1,32}$/.test(match[1]) ? match[1] : null;
-          } catch (_) { return null; }
+          if (isPageBoundary(tile)) return null;
+          const ids = linkedProductIDs(tile);
+          const heading = deepQueryAll(document, 'h1')[0];
+          if (bunningsPageProductID() && heading &&
+              (tile.matches?.('#pdp-footer-container') || deepQueryAll(tile, 'h1').includes(heading))) {
+            const pageID = bunningsPageProductID();
+            return [...ids].every(id => id === pageID) ? pageID : null;
+          }
+          return ids.size === 1 ? [...ids][0] : null;
         }
         // Woolworths progressively hydrates its product cards. On some physical
         // devices the trusted Add tap can arrive before the product link has
@@ -1095,13 +1149,18 @@ final class StoreBrowser: ObservableObject {
       };
       const findProductTile = id => {
         if (config.id === 'bunnings') {
-          if (productID(document.documentElement) !== id) return null;
+          // Reacquire only a card for the same product after a React replacement.
+          for (const link of deepQueryAll(document, rules.linkSelector)) {
+            if (!linkedProductIDs(link).has(id)) continue;
+            const tile = productTile(link);
+            if (tile && productID(tile) === id && deepQueryAll(tile, rules.quantitySelector).length) return tile;
+          }
+          if (bunningsPageProductID() !== id) return null;
           const heading = deepQueryAll(document, 'h1')[0];
           if (!heading) return null;
           for (let current = heading; current; current = current.parentElement || current.getRootNode?.().host || null) {
-            if (deepQueryAll(current, rules.quantitySelector).length) return current;
-            if (current === document.body || current === document.documentElement ||
-                String(current.tagName || '').toLowerCase() === 'main') break;
+            if (isPageBoundary(current)) break;
+            if (productID(current) === id && deepQueryAll(current, rules.quantitySelector).length) return current;
           }
           return null;
         }
@@ -1361,6 +1420,7 @@ final class StoreBrowser: ObservableObject {
             preloadedSearch = nil
             preloadWebView = nil
             preloadedSearchReady = false
+            preloadedResponseStatus = nil
             webView = preload.view
             documentGeneration += 1
             intendedURL = preload.view.url ?? preload.url
@@ -1412,10 +1472,19 @@ final class StoreBrowser: ObservableObject {
         preloadedResponseStatus = nil
         navigationPacing.requested(at: ProcessInfo.processInfo.systemUptime)
         logPreload("Starting background navigation to \(url.host ?? "store")")
-        _ = view.load(URLRequest(url: url))
+        if uiTestMode {
+            // Hidden navigation must use local fixtures too: automatic UI tests
+            // must never contact a retailer, even for a background preload.
+            _ = view.loadHTMLString("<html><head><title>Search fixture</title></head><body><h1>Search fixture</h1></body></html>", baseURL: url)
+        } else {
+            _ = view.load(URLRequest(url: url))
+        }
     }
 
     fileprivate func logPreload(_ message: String) {
+        #if DEBUG
+        preloadDebugStatus = message
+        #endif
         automationLog("Preload: \(message)")
     }
 
@@ -2075,6 +2144,10 @@ final class StoreBrowser: ObservableObject {
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             if let browser, browser.preloadedSearch?.view === webView {
+                if browser.uiTestMode && navigationAction.request.url?.absoluteString == "about:blank" {
+                    decisionHandler(.allow)
+                    return
+                }
                 decisionHandler(navigationAction.request.url.map(browser.store.allowsNavigation) == true ? .allow : .cancel)
                 return
             }

@@ -1,5 +1,29 @@
 [
   {
+    "input": "mint leaves",
+    "expectedName": "Mint",
+    "expectedQuantity": "unspecified",
+    "expectedIngredientID": "mint-leaves"
+  },
+  {
+    "input": "mint leaf",
+    "expectedName": "Mint",
+    "expectedQuantity": "unspecified",
+    "expectedIngredientID": "mint-leaves"
+  },
+  {
+    "input": "mint",
+    "expectedName": "Mint",
+    "expectedQuantity": "unspecified",
+    "expectedIngredientID": "mint-leaves"
+  },
+  {
+    "input": "20 g mint leaves",
+    "expectedName": "Mint",
+    "expectedQuantity": "measure:20:g",
+    "expectedIngredientID": "mint-leaves"
+  },
+  {
     "input": "2 (15 ounce) cans cannellini beans drained and rinsed",
     "expectedName": "Cannellini beans",
     "expectedQuantity": "packages:2:15:oz:can"
@@ -283,5 +307,111 @@
     "input": "2 cups black-eyed peas",
     "expectedName": "Black-eyed peas",
     "expectedQuantity": "measure:2:cup"
+  },
+  {
+    "input": "1 box (10 ounces) frozen chopped spinach thawed and squeezed dry",
+    "expectedName": "Frozen chopped spinach",
+    "expectedQuantity": "packages:1:10:oz:box",
+    "expectedIngredientID": "spinach",
+    "expectedDisposition": "recognized",
+    "expectedPreparation": ["thawed and squeezed dry"],
+    "expectedUnmatched": [],
+    "expectedGroceryAmount": 1,
+    "expectedGroceryUnit": "10 oz box"
+  },
+  {
+    "input": "2 boxes (10 ounces) frozen chopped spinach, thawed and drained",
+    "expectedName": "Frozen chopped spinach",
+    "expectedQuantity": "packages:2:10:oz:box",
+    "expectedIngredientID": "spinach",
+    "expectedPreparation": ["thawed and drained"],
+    "expectedUnmatched": [],
+    "expectedGroceryAmount": 2,
+    "expectedGroceryUnit": "10 oz boxes"
+  },
+  {
+    "input": "1 (10 ounce) box frozen chopped spinach",
+    "expectedName": "Frozen chopped spinach",
+    "expectedQuantity": "packages:1:10:oz:box",
+    "expectedIngredientID": "spinach"
+  },
+  {
+    "input": "2 x 10 oz boxes chopped frozen spinach, squeezed dry",
+    "expectedName": "Chopped frozen spinach",
+    "expectedQuantity": "packages:2:10:oz:box",
+    "expectedIngredientID": "spinach",
+    "expectedPreparation": ["squeezed dry"]
+  },
+  {
+    "input": "250 g frozen spinach, thawed",
+    "expectedName": "Frozen spinach",
+    "expectedQuantity": "measure:250:g",
+    "expectedIngredientID": "spinach",
+    "expectedPreparation": ["thawed"]
+  },
+  {
+    "input": "1 bag (6 ounces) fresh spinach",
+    "expectedName": "Fresh spinach",
+    "expectedQuantity": "packages:1:6:oz:bag",
+    "expectedIngredientID": "spinach"
+  },
+  {
+    "input": "250 g (9 oz) fresh spinach",
+    "expectedName": "Fresh spinach",
+    "expectedQuantity": "measure:250:g",
+    "expectedIngredientID": "spinach"
+  },
+  {
+    "input": "2 boxes spinach",
+    "expectedName": "Spinach",
+    "expectedQuantity": "packages:2:unspecified:unspecified:box",
+    "expectedIngredientID": "spinach",
+    "expectedGroceryAmount": 2,
+    "expectedGroceryUnit": "boxes"
+  },
+  {
+    "input": "2 boxes mystery greens",
+    "expectedName": "mystery greens",
+    "expectedQuantity": "packages:2:unspecified:unspecified:box",
+    "expectedDisposition": "unknown"
+  },
+  {
+    "input": "2 bunches mystery greens",
+    "expectedName": "mystery greens",
+    "expectedQuantity": "packages:2:unspecified:unspecified:bunch",
+    "expectedDisposition": "unknown"
+  },
+  {
+    "input": "4 cups cherry tomatoes",
+    "expectedName": "Cherry tomatoes",
+    "expectedQuantity": "measure:4:cup",
+    "expectedIngredientID": "tomatoes",
+    "expectedDisposition": "recognized",
+    "expectedPreparation": [],
+    "expectedUnmatched": [],
+    "expectedGroceryAmount": 4,
+    "expectedGroceryUnit": "cups"
+  },
+  {
+    "input": "1 cup cherry tomato",
+    "expectedName": "Cherry tomatoes",
+    "expectedQuantity": "measure:1:cup",
+    "expectedIngredientID": "tomatoes",
+    "expectedDisposition": "recognized"
+  },
+  {
+    "input": "4 cups cherry tomatoes, thinly sliced",
+    "expectedName": "Cherry tomatoes",
+    "expectedQuantity": "measure:4:cup",
+    "expectedIngredientID": "tomatoes",
+    "expectedPreparation": ["thinly sliced"],
+    "expectedUnmatched": []
+  },
+  {
+    "input": "4 cups tomatoes",
+    "expectedName": "Tomatoes",
+    "expectedQuantity": "measure:4:cup",
+    "expectedIngredientID": "tomatoes",
+    "expectedDisposition": "recognized"
   }
 ]
