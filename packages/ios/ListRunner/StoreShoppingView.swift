@@ -1112,12 +1112,13 @@ final class StoreBrowser: ObservableObject {
       ]) : 'null';
       const productLinkPattern = new RegExp(rules.productURLPattern, 'i');
       const normalize = value => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-      const isAddControl = element => {
-        if (config.id !== 'bunnings') {
+       const usesScopedProductIdentity = config.id === 'bunnings' || config.id === 'kmart';
+       const isAddControl = element => {
+         if (!usesScopedProductIdentity) {
           return element.matches(rules.addSelector) || rules.addLabelPatterns.some(pattern =>
             new RegExp(pattern).test(normalize(element.getAttribute('aria-label'))));
         }
-        const label = normalize(element.getAttribute('aria-label') || element.textContent);
+         const label = normalize(element.getAttribute('aria-label') || element.textContent);
         return element.matches(rules.addSelector) && rules.addLabelPatterns.some(pattern =>
           new RegExp(pattern).test(label));
       };
@@ -1169,7 +1170,7 @@ final class StoreBrowser: ObservableObject {
       const isPageBoundary = element => element === document.body || element === document.documentElement ||
         String(element.tagName || '').toLowerCase() === 'main';
       const productTile = element => {
-        if (config.id === 'bunnings') {
+         if (usesScopedProductIdentity) {
           const heading = deepQueryAll(document, 'h1')[0];
           const pageID = bunningsPageProductID();
           // Grid/recommendation controls belong to their own smallest container
@@ -1216,7 +1217,7 @@ final class StoreBrowser: ObservableObject {
       };
       const productID = tile => {
         if (!tile) return null;
-        if (config.id === 'bunnings') {
+         if (usesScopedProductIdentity) {
           if (isPageBoundary(tile)) return null;
           const ids = linkedProductIDs(tile);
           const heading = deepQueryAll(document, 'h1')[0];
@@ -1256,7 +1257,7 @@ final class StoreBrowser: ObservableObject {
         return null;
       };
       const findProductTile = id => {
-        if (config.id === 'bunnings') {
+         if (usesScopedProductIdentity) {
           // Reacquire only a card for the same product after a React replacement.
           for (const link of deepQueryAll(document, rules.linkSelector)) {
             if (!linkedProductIDs(link).has(id)) continue;
@@ -1415,7 +1416,7 @@ final class StoreBrowser: ObservableObject {
         // even when the mobile button's visible text differs from its accessible
         // label (or is rendered inside another shadow root).
         const notInTrolley = explicitEmptyStatus || (config.id === 'woolworths' && isAddControl(control)) ||
-          (config.id === 'bunnings' && isAddControl(control));
+           (usesScopedProductIdentity && isAddControl(control));
         const before = observedBefore === null && notInTrolley ? 0 : observedBefore;
         if (!id || before === null) {
           post('automationUnavailable', { capability: 'cartDetection', reason: !id ? 'productIdUnavailable' : 'quantityUnavailable', scope: 'interaction' });

@@ -5,12 +5,24 @@
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.kmart.com.au",
   "allowedHosts": ["www.kmart.com.au", "kmart.com.au"],
-  "search": {"strategy": "urlTemplate", "template": "https://www.kmart.com.au/?q={query}"},
+  "search": {"strategy": "urlTemplate", "template": "https://www.kmart.com.au/search/?searchTerm={query}"},
   "addedColor": {"red": 0, "green": 91, "blue": 172},
   "brandColors": {
     "primary": {"red": 0, "green": 91, "blue": 172},
     "highlight": {"red": 227, "green": 24, "blue": 55}
   },
-  "capabilities": {"search": false, "cartDetection": false, "cartUndo": false},
-  "cart": null
+  "capabilities": {"search": true, "cartDetection": true, "cartUndo": true},
+  "cart": {
+    "strategy": "trustedTileQuantity",
+    "identityStrategy": "numericURLSuffix",
+    "tileSelector": "li",
+    "linkSelector": "a[href*='/product/']",
+    "productURLPattern": "/product/[^/?#]+-(\\d{1,32})(?:[/?#]|$)",
+    "addSelector": "button",
+    "addLabelPatterns": ["^add$", "^add to bag$", "^increase quantity$"],
+    "quantitySelector": "input[aria-label=\"Quantity\"],input[name=\"quantity\"]",
+    "emptyStatusSelector": "button",
+    "emptyStatusText": "Add",
+    "decrementLabelPattern": "^decrease quantity$"
+  }
 }

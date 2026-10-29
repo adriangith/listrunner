@@ -10,7 +10,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
     #endif
     var id: String { rawValue }
     // Reviewed native ceilings: bundled data cannot enable unreviewed store automation.
-    var permitsSearch: Bool { ![.tesco, .walmart, .kmart, .costcoUS, .bigW].contains(self) }
+    var permitsSearch: Bool { ![.tesco, .walmart, .costcoUS, .bigW].contains(self) }
     // Brand grouping is reviewed native identity, never inferred from a name or host.
     var brandID: String { self == .costcoUS ? StoreID.costco.rawValue : rawValue }
     var brandName: String { self == .costcoUS ? "Costco" : displayName }
@@ -21,8 +21,8 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         default: nil
         }
     }
-    var permitsCartUndo: Bool { self == .coles }
-    var permitsCartDetection: Bool { [.coles, .woolworths, .bunnings].contains(self) }
+    var permitsCartUndo: Bool { [.coles, .kmart].contains(self) }
+    var permitsCartDetection: Bool { [.coles, .woolworths, .bunnings, .kmart].contains(self) }
     var displayName: String {
         switch self {
         case .coles: "Coles"

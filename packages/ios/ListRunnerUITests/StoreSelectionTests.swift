@@ -850,7 +850,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(app.switches["store-visibility-costco"].value as? String, "1")
     }
 
-    func testKmartAustraliaStartsHiddenWithAutomationOff() {
+    func testKmartAustraliaStartsHiddenWithReviewedAutomation() {
         app.buttons["Settings"].tap()
         XCTAssertFalse(app.buttons["settings-store-kmart"].exists)
         app.buttons["Manage Stores"].tap()
@@ -860,9 +860,9 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertLessThan(manageRow("woolworths").frame.minY, kmart.frame.minY)
         setStoreVisibility("kmart", shown: true)
         openStoreSettings("kmart")
-        XCTAssertEqual(app.staticTexts.matching(identifier: "Search, Not included").count, 2)
-        XCTAssertEqual(app.staticTexts.matching(identifier: "Cart detection, Not included").count, 2)
-        XCTAssertTrue(app.staticTexts["Cart Undo, Not included"].exists)
+        XCTAssertEqual(app.staticTexts.matching(identifier: "Search, Included").count, 1)
+        XCTAssertEqual(app.staticTexts.matching(identifier: "Cart detection, Included").count, 1)
+        XCTAssertTrue(app.staticTexts["Cart Undo, Included"].exists)
         app.buttons["Reset Kmart Session"].tap()
         XCTAssertTrue(app.alerts["Reset Kmart Session?"].waitForExistence(timeout: 3))
         app.alerts["Reset Kmart Session?"].buttons["Cancel"].tap()

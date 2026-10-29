@@ -193,10 +193,11 @@ struct RecoveryTests {
         check(malformedChoice.selectedRegion(for: costcoBrand).id == .costcoUS,
               "malformed regional choice cannot redirect a brand to another retailer")
         check(kmart.isConfigurationValid && kmart.serviceArea.countryCodes == ["AU"]
-              && !kmart.capabilities.search && !kmart.capabilities.cartDetection && !kmart.capabilities.cartUndo && kmart.cart == nil,
-              "Kmart Australia is browsing-only with all automation disabled")
-        check(!StoreID.kmart.permitsSearch && !StoreID.kmart.permitsCartDetection && !StoreID.kmart.permitsCartUndo,
-              "native Kmart policy prohibits unreviewed automation")
+               && kmart.capabilities.search && kmart.capabilities.cartDetection && kmart.capabilities.cartUndo
+               && kmart.cart?.productURLPattern == "/product/[^/?#]+-(\\d{1,32})(?:[/?#]|$)",
+              "Kmart Australia enables reviewed search, product-scoped detection and one-step cart Undo")
+        check(StoreID.kmart.permitsSearch && StoreID.kmart.permitsCartDetection && StoreID.kmart.permitsCartUndo,
+              "native Kmart policy permits only the reviewed automation capabilities")
         check(bigW.isConfigurationValid && bigW.serviceArea.countryCodes == ["AU"]
               && !bigW.capabilities.search && !bigW.capabilities.cartDetection && !bigW.capabilities.cartUndo && bigW.cart == nil,
               "BIG W is browsing-only with all automation disabled")
@@ -205,9 +206,9 @@ struct RecoveryTests {
         check(bigW.allows(bigW.homepage) && bigW.allows(URL(string: "https://bigw.com.au")!)
               && !bigW.allows(URL(string: "https://www.bigw.co.nz")!)
               && !bigW.allows(URL(string: "https://www.bigw.com.au.evil.test")!), "BIG W hosts are exact and Australia-only")
-        var widenedKmart = kmart
-        widenedKmart.capabilities.search = true
-        check(!widenedKmart.isConfigurationValid, "JSON cannot enable Kmart automatic search")
+        var invalidKmart = kmart
+        invalidKmart.capabilities.cartDetection = false
+        check(!invalidKmart.isConfigurationValid, "Kmart cart Undo requires reviewed cart detection")
         check(kmart.allows(kmart.homepage) && kmart.allows(URL(string: "https://kmart.com.au")!)
               && !kmart.allows(URL(string: "https://www.kmart.co.nz")!)
               && !kmart.allows(URL(string: "https://www.kmart.com.au.evil.test")!)
