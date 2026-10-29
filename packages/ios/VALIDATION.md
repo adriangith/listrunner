@@ -1,5 +1,11 @@
 # Reusable store framework validation
 
+## List-item swipe deletion and store-launch focus — 29 October 2026
+
+List rows expose a native trailing red Delete action on a left swipe; full-swipe deletion is disabled so a separate tap is required. The action reuses the existing local `delete(item)` handler and never changes retailer carts. Existing menu deletion and edit-mode reordering remain. Both Show Store and item-row store launch now explicitly clear grocery-input focus before presentation without discarding draft text.
+
+At `8e52f9df517c8ebb05752a48c5824d9cd7ec01e1`, **2/2 focused iPhone 17 / iOS 27 UI tests passed** together: swipe reveal/separate delete tap/empty-state/store isolation/deletion persistence across relaunch, and Show Store keyboard dismissal/draft retention/no refocus after return. Store-launch focus previously also passed alongside Add Items keyboard-retention regression at `00b8196`. All test lists/sessions use isolated fixtures; no user list or retailer-cart mutations were performed by these tests. Evidence: Mac `RunSomeTests/Test-ListRunner-2026.10.29_18-43-49-+1100.xcresult`.
+
 ## Prominent inline product entry — 29 October 2026
 
 User approved the inline-entry proposal: Add products heading, store-coloured outline/plus icon, `Tap to add products…` placeholder, and examples in a helper line below. Input remains one-to-four lines, using the existing parser/submit/paste behavior; import and Add Items remain separate. Plus is a 44pt keyboard-focus button, not a submit action. Focus strengthens the outline/background. Existing accessibility input identifier/label retained. OpenPencil inspection was attempted but timed out; implementation follows the user's approved inline mockup and current native/store colour tokens.
