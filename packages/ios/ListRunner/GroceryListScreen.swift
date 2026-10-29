@@ -53,6 +53,7 @@ struct GroceryListScreen: View {
     @State private var addedItemScrollTask: Task<Void, Never>?
     @State private var listViewportFrame: CGRect = .zero
     @State private var groceryInputFrame: CGRect = .zero
+    @State private var isListScreenVisible = false
 
     init(storeID: StoreID, sessions: StoreSessions, visibility: StoreVisibilityPreferences, paprikaReminders: PaprikaReminders, rawInput: Binding<String>,
          onSelectStore: @escaping (StoreID) -> Void) {
@@ -212,10 +213,15 @@ struct GroceryListScreen: View {
                 }
             }
             .onAppear {
+                isListScreenVisible = true
                 if let selected = visibility.selectionForList(current: storeID, definitions: sessions.definitions),
                    selected != storeID {
                     onSelectStore(selected)
                 }
+            }
+            .onDisappear {
+                groceryInputFocused = false
+                isListScreenVisible = false
             }
             .listStyle(.insetGrouped)
             .contentMargins(.top, 0, for: .scrollContent)
@@ -354,7 +360,11 @@ struct GroceryListScreen: View {
             SpatialTapGesture(coordinateSpace: .global).onEnded { value in
                 guard groceryInputFocused, !groceryInputFrame.contains(value.location) else { return }
                 groceryInputFocused = false
-            }
+            },
+            // An inactive recognizer can still interfere with UIKit table-row
+            // selection on pushed screens. Remove it from gesture arbitration,
+            // rather than merely returning early from its callback.
+            including: groceryInputFocused && isListScreenVisible ? .all : .subviews
         )
         .onAppear {
             guard !routedLaunch else { return }

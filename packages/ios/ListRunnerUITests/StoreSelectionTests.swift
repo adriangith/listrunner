@@ -1117,6 +1117,30 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("bread", status: "Pending").waitForExistence(timeout: 3))
     }
 
+    func testManageStoreRowsRespondAfterLeavingFocusedInput() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        for startsFocused in [false, true] {
+            if startsFocused {
+                input.tap()
+                input.typeText("Draft item")
+                XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+            }
+            app.buttons["Settings"].tap()
+            XCTAssertTrue(app.buttons["Manage Stores"].waitForExistence(timeout: 5))
+            app.buttons["Manage Stores"].tap()
+            for store in ["coles", "woolworths", "kmart", "coles"] {
+                openStoreSettings(store)
+                tapNavigationBack()
+                XCTAssertTrue(app.navigationBars["Manage Stores"].waitForExistence(timeout: 3))
+            }
+            tapNavigationBack()
+            tapNavigationBack()
+            XCTAssertTrue(input.waitForExistence(timeout: 5))
+            XCTAssertFalse(app.keyboards.firstMatch.exists, "Returning from Settings must not reactivate the field")
+            if startsFocused { XCTAssertEqual(input.value as? String, "Draft item") }
+        }
+    }
+
     func testTappingOutsideGroceryInputDismissesKeyboard() {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 3))
