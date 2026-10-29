@@ -1,5 +1,11 @@
 # Reusable store framework validation
 
+## Manage Stores gesture isolation — 29 October 2026
+
+The list-screen keyboard-dismiss spatial gesture now participates only while the product field is focused and its source list is visible (`GestureMask.all`); otherwise `.subviews` removes the parent recognizer from arbitration while retaining child gestures. List disappearance clears focus/visibility. This addresses the suspected interference with UIKit Manage Stores row selection; callback early-return alone had left a navigation-container recognizer active. No store-row size, store preferences, list contents or retailer sessions are changed.
+
+At `af81d47a82b2c56706bdae9d5c8f4e078c59029f`, **4/4 focused iPhone 17 / iOS 27 tests passed**. New regression enters Settings/Manage Stores from both unfocused and focused list states, opens Coles/Woolworths/Kmart/Coles via single row taps (eight successful openings total), and verifies returning preserves draft without keyboard reactivation. Outside-header/heading dismissal, full padded-field activation/submission, and Show Store dismissal/draft retention also pass. Evidence: Mac `RunSomeTests/Test-ListRunner-2026.10.29_20-19-50-+1100.xcresult`. Tests used isolated local data and did not toggle stores or touch retailer carts. This verifies the changed interaction path on simulator, not yet user sign-off for the physical-device symptom.
+
 ## Comma-separated non-grocery entry — 29 October 2026
 
 Direct item entry now uses `IngredientParser.parseProductEntry`, treating comma/newline/semicolon/tab as explicit separators regardless of ingredient-dictionary recognition. Previously `toaster, chair` remained one unknown ingredient because recipe-oriented `parseList` only split commas when every segment matched the dictionary. Existing per-segment parsing, quantities, ordering/merging and empty-segment rejection remain; Paprika/recipe parsing retains its original preparation-comma behavior. Add Items enablement and submission use the same entry parser.
