@@ -106,6 +106,10 @@ struct IngredientParserTests {
             print("FAIL mixed known/unknown product entry retains quantities")
             failures += 1
         } else { print("PASS mixed known/unknown product entry retains quantities") }
+        let lemonProducts = parser.parseProductEntry("lemon, Lemon tree, 2 lemon trees")
+        check(lemonProducts.map(\.name) == ["Lemon", "Lemon Tree", "Lemon Tree"]
+              && lemonProducts.last?.amount == 2,
+              "product entry keeps Lemon Tree distinct from Lemon and retains tree quantities")
         if !parser.parseProductEntry(" , ;\t\n, ").isEmpty {
             print("FAIL empty product segments must be ignored")
             failures += 1

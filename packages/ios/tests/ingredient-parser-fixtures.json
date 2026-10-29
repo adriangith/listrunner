@@ -1,5 +1,43 @@
 [
   {
+    "input": "Lemon tree",
+    "expectedName": "Lemon Tree",
+    "expectedQuantity": "unspecified",
+    "expectedIngredientID": "lemon-tree",
+    "expectedDisposition": "recognized"
+  },
+  {
+    "input": "lemon tree",
+    "expectedName": "Lemon Tree",
+    "expectedQuantity": "unspecified",
+    "expectedIngredientID": "lemon-tree"
+  },
+  {
+    "input": "LEMON TREE",
+    "expectedName": "Lemon Tree",
+    "expectedQuantity": "unspecified",
+    "expectedIngredientID": "lemon-tree"
+  },
+  {
+    "input": "2 lemon trees",
+    "expectedName": "Lemon Tree",
+    "expectedQuantity": "count:2",
+    "expectedIngredientID": "lemon-tree",
+    "expectedGroceryAmount": 2
+  },
+  {
+    "input": "lemon",
+    "expectedName": "Lemon",
+    "expectedQuantity": "unspecified",
+    "expectedIngredientID": "lemon"
+  },
+  {
+    "input": "lemon juice",
+    "expectedName": "Lemon juice",
+    "expectedQuantity": "unspecified",
+    "expectedIngredientID": "lemon-juice"
+  },
+  {
     "input": "mint leaves",
     "expectedName": "Mint",
     "expectedQuantity": "unspecified",

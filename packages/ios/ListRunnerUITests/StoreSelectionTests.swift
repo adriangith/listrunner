@@ -1094,6 +1094,21 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 5), "Deletion must persist")
     }
 
+    func testLemonTreeRemainsDistinctFromLemon() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("lemon, Lemon tree")
+        app.buttons["Add Items"].tap()
+        app.staticTexts["Ready when you are"].tap()
+        XCTAssertTrue(app.buttons["Actions for Lemon"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Actions for Lemon Tree"].exists,
+                      "Lemon Tree must retain its full name rather than merging with Lemon")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["Actions for Lemon"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Actions for Lemon Tree"].exists)
+    }
+
     func testKeyboardDismissalAnimationOnOutsideTap() {
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()

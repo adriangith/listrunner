@@ -8,6 +8,7 @@
     {"id":"lime-juice","name":"Lime juice","aliases":["lime juice"],"modifiers":[]},
     {"id":"lime","name":"Lime","aliases":[],"modifiers":[]},
     {"id":"lemon-juice","name":"Lemon juice","aliases":[],"modifiers":[]},
+    {"id":"lemon-tree","name":"Lemon Tree","aliases":["lemon trees"],"modifiers":[]},
     {"id":"lemon","name":"Lemon","aliases":[],"modifiers":[]},
     {"id":"vegetable-stock","name":"Vegetable stock","aliases":["veggie stock"],"modifiers":["low-sodium","low-salt"]},
     {"id":"stock","name":"Stock","aliases":[],"modifiers":[]},

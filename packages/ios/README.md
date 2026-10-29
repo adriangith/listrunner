@@ -59,6 +59,8 @@ On Your list, tap Edit to use native iOS row reordering. The row's three-dot men
 
 ## Ingredient dictionary
 
+`Lemon Tree` is a distinct dictionary entry (including `lemon trees`), so the longer product name wins over the nested `Lemon` match. New typed/imported entries retain `Lemon Tree` in both the saved name and search term, with quantities preserved, and do not merge into ordinary Lemon rows. Already-saved names are not rewritten: the app cannot infer which old Lemon rows originally meant trees.
+
 ### Country-based retailer search names
 
 Settings → **Use local ingredient names** defaults on and uses the existing **Country**, not the retailer's country. The bundled `ingredient-regional-names.json` currently covers five reviewed families across AU/NZ/GB/US: zucchini/courgette, eggplant/aubergine, capsicum/bell pepper, rocket/arugula and beetroot/beet. UK uses **bell pepper**, not ambiguous **pepper**. Searches in other countries, with no country, or with the toggle off use the saved search term unchanged.
