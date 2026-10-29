@@ -60,7 +60,7 @@ struct RecoveryTests {
         check(!costcoUS.allows(costco.homepage) && !costco.allows(costcoUS.homepage)
               && costcoUS.id.listID != costco.id.listID && costcoUS.id.websiteDataID != costco.id.websiteDataID,
               "Costco regions cannot share hosts, lists or website-data identities")
-        let brandDefinitions = [coles, woolworths, bunnings, costco, costcoUS, tesco, walmart, kmart]
+        let brandDefinitions = [coles, woolworths, bunnings, costco, costcoUS, tesco, walmart, kmart, bigW]
         let emptySuite = "ListRunner.EmptyStoreTests.\(UUID().uuidString)"
         let emptyDefaults = UserDefaults(suiteName: emptySuite)!
         defer { emptyDefaults.removePersistentDomain(forName: emptySuite) }
