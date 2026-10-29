@@ -780,7 +780,7 @@ struct RecoveryTests {
         let failureRecords = DiagnosticStore(fileURL: nil, clock: { now })
         for code in [NSURLErrorTimedOut, NSURLErrorNotConnectedToInternet] {
             failureRecords.record(.store, .load, reason: .network, outcome: .failed, host: .bunnings,
-                                  failureDomain: .url, failureCode: code, browsingActive: false)
+                                  failureDomain: .url, failureCode: DiagnosticEntry.FailureCode(rawValue: code), browsingActive: false)
         }
         failureRecords.record(.store, .load, reason: .httpResponse, outcome: .failed, host: .bunnings,
                               httpStatus: 503, browsingActive: true)
@@ -794,6 +794,8 @@ struct RecoveryTests {
                                         "failureDomain", "failureCode", "httpStatus", "browsingActive"]
         check(failurePayloads.allSatisfy { Set($0.keys).isSubset(of: failureKeys) },
               "failure diagnostics contain only closed metadata, no descriptions or URLs")
+        check(DiagnosticEntry.FailureCode(rawValue: 987654) == nil,
+              "unreviewed numeric error codes cannot enter persistent diagnostics")
 
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("ListRunnerRecoveryTests-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

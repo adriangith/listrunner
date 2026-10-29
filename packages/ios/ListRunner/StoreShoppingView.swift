@@ -1091,7 +1091,7 @@ final class StoreBrowser: ObservableObject {
             subject.beginInteraction(itemID: item, searchTerm: "milk")
             check(subject.storeRecovery == .loadFailed && !subject.needsIdleBrowserRebuild,
                   "\(id) timeout never silently retried")
-            check(records.entries.last?.reason == .timedOut && records.entries.last?.failureCode == NSURLErrorTimedOut,
+            check(records.entries.last?.reason == .timedOut && records.entries.last?.failureCode == .timedOut,
                   "\(id) timeout retains safe numeric diagnosis")
             subject.leaveStoreRecovery()
             subject.enterStoreRecovery(.loadFailed, httpStatus: 503)
@@ -2347,7 +2347,8 @@ final class StoreBrowser: ObservableObject {
         else { reason = .network }
         let event: DiagnosticEntry.Event = recovery == .processTerminated ? .processExit : .load
         diagnostics.record(.store, event, reason: reason, outcome: .failed, host: diagnosticHost,
-                           failureDomain: domain, failureCode: nsError?.code,
+                           failureDomain: domain,
+                           failureCode: (domain == .url || domain == .webKit) ? nsError.flatMap { DiagnosticEntry.FailureCode(rawValue: $0.code) } : nil,
                            httpStatus: httpStatus, browsingActive: browsingActive)
         // Only enum values/numbers reach the console; never log a request URL,
         // search term, NSError description, cookies or userInfo.

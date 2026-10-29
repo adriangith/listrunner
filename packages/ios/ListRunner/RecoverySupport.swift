@@ -61,6 +61,15 @@ struct DiagnosticEntry: Codable, Equatable {
     enum Event: String, Codable { case load, processExit, browserRecovery, sessionReset, localOpen, localReset, localSave, cartDetection, cartUndo }
     enum Reason: String, Codable { case none, network, timedOut, httpResponse, webKit, verificationFailed, unavailable, staleContext, unsupported, storageFailure }
     enum FailureDomain: String, Codable { case url, webKit, other }
+    enum FailureCode: Int, Codable {
+        case timedOut = -1001, cannotFindHost = -1003, cannotConnectToHost = -1004
+        case connectionLost = -1005, dnsLookupFailed = -1006, tooManyRedirects = -1007
+        case offline = -1009, badServerResponse = -1011
+        case secureConnectionFailed = -1200, certificateExpired = -1201, certificateUntrusted = -1202
+        case certificateUnknownRoot = -1203, certificateNotYetValid = -1204
+        case clientCertificateRejected = -1205, clientCertificateRequired = -1206
+        case webKitUnknown = 1, webContentProcessTerminated = 2, webViewInvalidated = 3
+    }
     enum Outcome: String, Codable { case succeeded, failed, cancelled, ignored }
     enum Host: String, Codable {
         case www = "www.coles.com.au", bare = "coles.com.au"
@@ -83,7 +92,7 @@ struct DiagnosticEntry: Codable, Equatable {
     // Optional, bounded metadata keeps older diagnostic files readable. Never
     // persist NSError descriptions/userInfo or failing URLs (which may contain queries).
     let failureDomain: FailureDomain?
-    let failureCode: Int?
+    let failureCode: FailureCode?
     let httpStatus: Int?
     let browsingActive: Bool?
 }
@@ -121,7 +130,7 @@ final class DiagnosticStore {
     func record(_ category: DiagnosticEntry.Category, _ event: DiagnosticEntry.Event,
                 reason: DiagnosticEntry.Reason = .none, outcome: DiagnosticEntry.Outcome,
                 host: DiagnosticEntry.Host? = nil,
-                failureDomain: DiagnosticEntry.FailureDomain? = nil, failureCode: Int? = nil,
+                failureDomain: DiagnosticEntry.FailureDomain? = nil, failureCode: DiagnosticEntry.FailureCode? = nil,
                 httpStatus: Int? = nil, browsingActive: Bool? = nil) {
         let now = clock()
         purgeExpired(now)
