@@ -264,6 +264,21 @@ struct RecoveryTests {
         check(bigW.cart?.profiles?.count == 2 && bigW.cart?.profiles?.allSatisfy({
             $0.confirmation == .quantityIncrease && $0.emptyStatusText == "Add to cart" && $0.undo != nil
         }) == true, "BIG W card/detail profiles require explicit empty-state and decrement provenance")
+        check(bigW.cart?.profiles?.allSatisfy({ $0.setupPrompt?.maximumWaitMS == 300_000 }) == true,
+              "BIG W first-use postcode/store setup has a bounded human-interaction window")
+        for field in ["maximumWaitMS", "selector", "textPattern", "unexpected"] {
+            var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(bigW)) as! [String: Any]
+            var cart = object["cart"] as! [String: Any]
+            var profiles = cart["profiles"] as! [[String: Any]]
+            var setup = profiles[0]["setupPrompt"] as! [String: Any]
+            if field == "maximumWaitMS" { setup[field] = 900_000 }
+            else { setup[field] = field == "textPattern" ? "[" : "" }
+            profiles[0]["setupPrompt"] = setup
+            cart["profiles"] = profiles; object["cart"] = cart
+            let malformed = try JSONSerialization.data(withJSONObject: object)
+            check((try? StoreDefinition.decodeConfiguration(from: malformed)) == nil,
+                  "invalid setup-prompt contract rejected: \(field)")
+        }
         let bigWSearch = URLComponents(url: bigW.searchURL(for: "toaster & kettle")!, resolvingAgainstBaseURL: false)!
         check(bigWSearch.path == "/search" && bigWSearch.queryItems?.first?.name == "text"
               && bigWSearch.queryItems?.first?.value == "toaster & kettle", "BIG W search uses its verified encoded text route")

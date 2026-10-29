@@ -50,6 +50,8 @@ function fixture({ detail = false, sticky = false, before = 0, foreign = false }
   document.documentElement = new Element('html');
   document.body = document.documentElement.append(new Element('body'));
   const main = document.body.append(new Element('main'));
+  const setupDialog = document.body.append(new Element('div', { role: 'dialog' }, 'Enter your postcode for delivery and availability'));
+  setupDialog.hidden = true;
   const heading = main.append(new Element('h1', { id: detail ? 'product-title' : 'search-title' }, detail ? 'Contempo 2 Slice Toaster - White' : 'toaster'));
   const name = 'Contempo 2 Slice Toaster - White';
   function makeTile(id, page, hidden = false) {
@@ -123,6 +125,9 @@ function fixture({ detail = false, sticky = false, before = 0, foreign = false }
     navigate() { location.href = 'https://www.bigw.com.au/cart'; location.pathname = '/cart'; },
     tick(count = 1) { for (let i = 0; i < count; i++) timers.shift()?.(); },
     expire() { now += 8100; },
+    showSetup(text = 'Enter your postcode for delivery and availability') { setupDialog.textContent = text; setupDialog.hidden = false; mutation(); },
+    hideSetup() { setupDialog.hidden = true; mutation(); },
+    wait(ms) { now += ms; mutation(); },
     get clicks() { return decrementClicks; },
     record() { const result = messages.findLast(message => message.type === 'addDetected'); return { ...result }; },
     undo(record) { return context.window.__listRunnerUndoAdd(record); },
@@ -140,10 +145,11 @@ for (const options of [{}, { detail: true }, { detail: true, sticky: true }]) {
   test(`BIG W confirms a trusted product quantity increase after control replacement ${JSON.stringify(options)}`, () => {
     const page = fixture(options);
     page.click();
-    assert.equal(page.messages[0].type, 'cartInteractionStarted');
-    assert.equal(page.messages[0].beforeQuantity, 0);
+    assert.equal(page.messages.length, 0, 'native timer is not armed before human setup');
     assert.equal(page.messages.some(message => message.type === 'addDetected'), false);
     page.setQuantity(1); page.tick(8);
+    assert.equal(page.messages[0].type, 'cartInteractionStarted');
+    assert.equal(page.messages[0].beforeQuantity, 0);
     assert.equal(page.record().productID, '6060359');
     assert.equal(page.record().resultingQuantity, 1);
   });
@@ -154,6 +160,53 @@ test('BIG W confirms existing-quantity increment without assuming zero', () => {
   page.click(); page.setQuantity(3); page.tick(8);
   assert.equal(page.record().beforeQuantity, 2);
   assert.equal(page.record().resultingQuantity, 3);
+});
+
+for (const detail of [false, true]) {
+  test(`BIG W preserves the trusted add through a slow first-use prompt (detail=${detail})`, async () => {
+    const page = fixture({ detail });
+    page.click(); page.showSetup();
+    for (let i = 0; i < 12; i++) { page.wait(5000); page.tick(2); }
+    assert.equal(page.messages.length, 0, 'one minute of user setup is not a cart failure or success');
+    page.showSetup('Choose your store'); page.wait(5000); page.tick(2);
+    page.hideSetup(); page.setQuantity(1); page.tick(8);
+    assert.equal(page.record().productID, '6060359');
+    assert.equal(page.record().beforeQuantity, 0);
+    assert.equal(page.messages[0].type, 'cartInteractionStarted');
+    assert.equal(page.messages[1].type, 'addDetected');
+    assert.equal(await page.settle(page.undo(page.record())), true);
+    assert.equal(page.clicks, 1);
+  });
+}
+
+test('BIG W setup cancellation times out without fabricating an add', () => {
+  const page = fixture(); page.click(); page.showSetup(); page.wait(30000); page.tick(2);
+  page.hideSetup(); page.wait(8100); page.tick(8);
+  assert.equal(page.record().productID, undefined);
+  assert.equal(page.messages.at(-1)?.reason, 'confirmationTimedOut');
+});
+
+test('BIG W setup wait is bounded and cannot revive expired or navigated interactions', () => {
+  const bounded = fixture(); bounded.click(); bounded.showSetup();
+  for (let i = 0; i < 64; i++) { bounded.wait(5000); bounded.tick(2); }
+  bounded.hideSetup(); bounded.setQuantity(1); bounded.tick(8);
+  assert.equal(bounded.record().productID, undefined);
+  assert.equal(bounded.messages.at(-1)?.reason, 'confirmationTimedOut');
+  for (const cancel of ['navigate', 'clearContext']) {
+    const page = fixture(); page.click(); page.showSetup(); page.wait(10000); page.tick(2);
+    page[cancel](); page.hideSetup(); page.setQuantity(1); page.tick(8);
+    assert.equal(page.record().productID, undefined, cancel);
+  }
+});
+
+test('BIG W unrelated dialogs and hidden setup prompts do not extend confirmation', () => {
+  for (const visible of [true, false]) {
+    const page = fixture(); page.click();
+    if (visible) page.showSetup('Subscribe to our newsletter');
+    page.expire(); page.tick(8);
+    assert.equal(page.messages.at(-1)?.reason, 'confirmationTimedOut');
+    assert.equal(page.record().productID, undefined);
+  }
 });
 
 test('BIG W recommendation on a detail page retains its own ID', () => {

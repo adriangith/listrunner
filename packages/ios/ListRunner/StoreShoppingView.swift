@@ -1431,16 +1431,38 @@ final class StoreBrowser: ObservableObject {
           documentGeneration: context.documentGeneration, pageURL: location.href, ...fields
         }));
       };
+      const candidateIsValid = value => {
+        if (value.profile && (value.pageURL !== location.href || document.visibilityState === 'hidden')) {
+          candidate = null;
+          return false;
+        }
+        const setup = value.profile?.setupPrompt;
+        if (setup) {
+          const promptVisible = deepQueryAll(document, setup.selector).some(element =>
+            element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden' &&
+            new RegExp(setup.textPattern, 'i').test(normalize(element.innerText || element.textContent)));
+          if (promptVisible && Date.now() <= value.setupDeadline) {
+            // The user's availability choice is not a cart failure. Preserve the
+            // original trusted product/baseline, never infer a new baseline here.
+            value.expires = Math.min(value.setupDeadline + value.profile.confirmationWindowMS,
+              Date.now() + value.profile.confirmationWindowMS);
+          }
+        }
+        if (Date.now() > value.expires) {
+          if (setup) post('automationUnavailable', { capability: 'cartDetection', reason: 'confirmationTimedOut', scope: 'interaction' });
+          candidate = null;
+          return false;
+        }
+        return true;
+      };
       const checkCandidate = () => {
         if (!candidate || candidate.reported || candidate.checking) return;
         const checkingCandidate = candidate;
-        if (checkingCandidate.profile && checkingCandidate.pageURL !== location.href) { candidate = null; return; }
-        if (Date.now() > checkingCandidate.expires) { candidate = null; return; }
+        if (!candidateIsValid(checkingCandidate)) return;
         checkingCandidate.checking = true;
         setTimeout(() => {
           if (candidate !== checkingCandidate) return;
-          if (checkingCandidate.profile && checkingCandidate.pageURL !== location.href) { candidate = null; return; }
-          if (Date.now() > checkingCandidate.expires) { candidate = null; return; }
+          if (!candidateIsValid(checkingCandidate)) return;
           if (checkingCandidate.profile?.confirmation === 'productReceipt') {
             const receipt = profileReceipt(checkingCandidate.profile, checkingCandidate.productName);
             if (receipt && receipt.text !== checkingCandidate.initialToast) {
@@ -1483,6 +1505,12 @@ final class StoreBrowser: ObservableObject {
               confirmedAdds.set(confirmationID, { ...fields, profileID: checkingCandidate.profile?.id,
                 pageURL: location.href, context: contextFingerprint(context) });
               if (confirmedAdds.size > 32) confirmedAdds.delete(confirmedAdds.keys().next().value);
+              if (checkingCandidate.profile?.setupPrompt) {
+                // Native's short confirmation deadline begins only when the
+                // product-scoped evidence settles, not before a human setup flow.
+                post('cartInteractionStarted', { productID: checkingCandidate.productID, beforeQuantity: checkingCandidate.before,
+                  intent: checkingCandidate.before === 0 ? 'add' : 'increment' });
+              }
               post('addDetected', fields);
               candidate = null;
               return;
@@ -1577,8 +1605,9 @@ final class StoreBrowser: ObservableObject {
           if (profile.confirmation === 'quantityIncrease' && before === null) return;
           candidate = { ...resolved, control, before, pageURL: location.href,
             initialToast: profile.confirmation === 'productReceipt' ? profileReceipt(profile, name)?.text || null : null,
-            expires: Date.now() + profile.confirmationWindowMS, stableCount: 0, checking: false };
-          if (before !== null) post('cartInteractionStarted', { productID: id, beforeQuantity: before, intent: before === 0 ? 'add' : 'increment' });
+            expires: Date.now() + profile.confirmationWindowMS,
+            setupDeadline: Date.now() + (profile.setupPrompt?.maximumWaitMS || 0), stableCount: 0, checking: false };
+          if (before !== null && !profile.setupPrompt) post('cartInteractionStarted', { productID: id, beforeQuantity: before, intent: before === 0 ? 'add' : 'increment' });
           setTimeout(checkCandidate, 180);
           return;
         }
@@ -2345,7 +2374,7 @@ final class StoreBrowser: ObservableObject {
             candidateTimeoutTask?.cancel()
             candidateTimeoutTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(timeout))
-                guard let self, self.interactionID == candidateInteraction,
+                guard !Task.isCancelled, let self, self.interactionID == candidateInteraction,
                       self.activeCandidate?.productID == productID else { return }
                 self.activeCandidate = nil
                 self.cartDetectionUnavailable = true
@@ -2357,12 +2386,15 @@ final class StoreBrowser: ObservableObject {
         }
         if type == "automationUnavailable" {
             guard Set(object.keys) == commonKeys.union(["capability", "reason", "scope"]),
-                  ["productIdUnavailable", "quantityUnavailable"].contains(object["reason"] as? String ?? ""),
+                  ["productIdUnavailable", "quantityUnavailable", "confirmationTimedOut"].contains(object["reason"] as? String ?? ""),
                   object["capability"] as? String == "cartDetection",
                   object["scope"] as? String == "interaction" else { return }
             cartDetectionUnavailable = true
-            cartDetectionIssue = (object["reason"] as? String) == "productIdUnavailable"
-                ? .productIDUnavailable : .quantityUnavailable
+            switch object["reason"] as? String {
+            case "productIdUnavailable": cartDetectionIssue = .productIDUnavailable
+            case "confirmationTimedOut": cartDetectionIssue = .confirmationTimedOut
+            default: cartDetectionIssue = .quantityUnavailable
+            }
             automationLog("Cart tap unsupported: \(object["reason"] as? String ?? "unknown")")
             return
         }

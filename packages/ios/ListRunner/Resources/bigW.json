@@ -31,6 +31,7 @@
         "addLabelPatterns": ["^add to cart$", "^increase quantity by 1$"],
         "confirmation": "quantityIncrease",
         "confirmationWindowMS": 8000,
+        "setupPrompt": {"selector": "[role=\"dialog\"]", "textPattern": "postcode|choose.*store|select.*store", "maximumWaitMS": 300000},
         "quantitySelector": "input[aria-label=\"update quantity\"]",
         "emptyStatusText": "Add to cart",
         "undo": {"decrementSelector": "button[data-optly-decrease-quantity-button=\"true\"]", "decrementLabelPattern": "^decrease quantity by 1$"}
@@ -45,6 +46,7 @@
         "addLabelPatterns": ["^add to cart$", "^increase quantity by 1$"],
         "confirmation": "quantityIncrease",
         "confirmationWindowMS": 8000,
+        "setupPrompt": {"selector": "[role=\"dialog\"]", "textPattern": "postcode|choose.*store|select.*store", "maximumWaitMS": 300000},
         "quantitySelector": "input[aria-label=\"update quantity\"]",
         "emptyStatusText": "Add to cart",
         "undo": {"decrementSelector": "button[data-optly-decrease-quantity-button=\"true\"]", "decrementLabelPattern": "^decrease quantity by 1$"}

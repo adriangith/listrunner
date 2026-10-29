@@ -152,6 +152,11 @@ struct StoreDefinition: Codable {
                 let decrementSelector: String
                 let decrementLabelPattern: String
             }
+            struct SetupPrompt: Codable {
+                let selector: String
+                let textPattern: String
+                let maximumWaitMS: Int
+            }
             let id: String
             let scope: Scope
             let identity: Identity
@@ -165,6 +170,7 @@ struct StoreDefinition: Codable {
             let receipt: Receipt?
             var emptyStatusText: String? = nil
             var undo: Undo? = nil
+            var setupPrompt: SetupPrompt? = nil
         }
         let strategy: Strategy
         let identityStrategy: IdentityStrategy
@@ -311,6 +317,13 @@ struct StoreDefinition: Codable {
                     if capabilities.cartUndo {
                         guard profile.confirmation == .quantityIncrease, profile.undo != nil, profile.emptyStatusText != nil else { throw ConfigurationError.invalid }
                     }
+                    if let setup = profile.setupPrompt {
+                        guard profile.confirmation == .quantityIncrease,
+                              !setup.selector.isEmpty, setup.selector.utf8.count <= 1_024,
+                              !setup.textPattern.isEmpty, setup.textPattern.utf8.count <= 512,
+                              (1_000...300_000).contains(setup.maximumWaitMS) else { throw ConfigurationError.invalid }
+                        _ = try NSRegularExpression(pattern: setup.textPattern)
+                    }
                 }
             }
         } else if schemaVersion == 3 {
@@ -412,13 +425,15 @@ struct StoreDefinition: Codable {
             guard let profiles = rawProfiles as? [[String: Any]] else { throw ConfigurationError.invalid }
             for profile in profiles {
                 guard hasOnlyKeys(profile, ["id", "scope", "identity", "containerSelector", "titleSelector", "addSelector",
-                                           "addLabelPatterns", "confirmation", "confirmationWindowMS", "quantitySelector", "receipt", "emptyStatusText", "undo"]) else {
+                                           "addLabelPatterns", "confirmation", "confirmationWindowMS", "quantitySelector", "receipt", "emptyStatusText", "undo", "setupPrompt"]) else {
                     throw ConfigurationError.invalid
                 }
                 if let receipt = profile["receipt"], !(receipt is NSNull),
                    !hasOnlyKeys(receipt as? [String: Any], ["selector", "successText", "quantityPattern"]) { throw ConfigurationError.invalid }
                 if let undo = profile["undo"], !(undo is NSNull),
                    !hasOnlyKeys(undo as? [String: Any], ["decrementSelector", "decrementLabelPattern"]) { throw ConfigurationError.invalid }
+                if let setup = profile["setupPrompt"], !(setup is NSNull),
+                   !hasOnlyKeys(setup as? [String: Any], ["selector", "textPattern", "maximumWaitMS"]) { throw ConfigurationError.invalid }
             }
         }
         let value = try JSONDecoder().decode(Self.self, from: data)
@@ -799,7 +814,7 @@ enum StoreBridge {
         case "automationUnavailable":
             guard Set(object.keys) == common.union(["capability", "scope", "reason"]),
                   object["capability"] as? String == "cartDetection", object["scope"] as? String == "interaction",
-                  ["productIdUnavailable", "quantityUnavailable"].contains(object["reason"] as? String ?? "") else { return nil }
+                  ["productIdUnavailable", "quantityUnavailable", "confirmationTimedOut"].contains(object["reason"] as? String ?? "") else { return nil }
         default: return nil
         }
         return object
