@@ -1,3 +1,10 @@
 
 # Superpowers SDD scratch
 .superpowers/
+
+# Generated Xcode builds and machine-local Finder/editor state
+DerivedData/
+work/
+*.xcuserstate
+xcuserdata/
+.DS_Store

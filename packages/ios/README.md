@@ -4,6 +4,14 @@ Native SwiftUI app targeting iPhone on iOS 17 or later.
 
 Open `ListRunner.xcodeproj` in Xcode, choose an iPhone simulator, and run the `ListRunner` scheme. This is a native SwiftUI/SwiftData iOS 17 app, not the removed Capacitor app.
 
+## Keeping the Linux and Mac checkouts aligned
+
+Use Git commits and `git pull --ff-only` to transfer changes, not whole-folder overwrites. Both working checkouts should use `main` at the same commit before further work; commit or otherwise preserve local edits before pulling. The canonical store JSON files are under `ListRunner/Resources`, and the shared Xcode project references these directly. Do not recreate the old duplicate `Resources 2`–`Resources 5` or `*-v2.json` copies. The signing team and app bundle ID remain in the shared project; certificates, provisioning profiles and Xcode user state remain machine-local.
+
+The Mac state before reconciliation is preserved on `backup/mac-before-sync-20261029`, including its extra source/resource copies, project layout and launch asset variant. Pre-sync archives were also saved outside each checkout under `listrunner-backups/20261029T013952Z` in the corresponding user's home directory; the Linux backup directory contains both archives.
+
+Keep Xcode Derived Data in its default `~/Library/Developer/Xcode/DerivedData` location, or another build directory outside the checkout and iCloud Drive. A generated compiler-cache file inside `work/DerivedData` previously advertised a 24 GiB logical size and overwhelmed cloud downloads. Git ignore rules prevent generated files from being committed, but **do not stop iCloud from syncing them**. Machine-local Finder/Xcode user state is ignored separately. Git synchronization does not synchronize app lists, cookies or iPhone data.
+
 ## Current implementation
 
 - Add one or many items from comma-, newline-, and bullet-separated text.
