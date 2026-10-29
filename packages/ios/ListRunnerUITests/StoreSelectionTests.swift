@@ -1036,8 +1036,8 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("milk", status: "Pending").isHittable,
                       "The new item should be visible above the keyboard")
         XCTAssertTrue(input.isHittable, "The grocery input should remain visible after scrolling to the new item")
-        XCTAssertTrue(app.staticTexts["Add grocery items"].isHittable,
-                      "The Add grocery items heading should remain visible")
+        XCTAssertTrue(app.staticTexts["Add products"].isHittable,
+                      "The Add products heading should remain visible")
         assertGroceryInputIsEmpty(input)
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3), "Keyboard should remain open for the next item")
         input.typeText("bread\n")
