@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 final class StoreSelectionTests: XCTestCase {
     private var app: XCUIApplication!
@@ -1086,6 +1087,25 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("chair", status: "Pending").exists)
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "toaster, chair")).firstMatch.exists)
         assertGroceryInputIsEmpty(input)
+    }
+
+    func testMultilineProductPasteCreatesSeparateItems() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 3))
+        UIPasteboard.general.string = "toaster\nchair"
+        input.tap()
+        input.press(forDuration: 1)
+        let paste = app.menuItems["Paste"].firstMatch
+        if paste.waitForExistence(timeout: 2) { paste.tap() }
+        else {
+            let pasteButton = app.buttons["Paste"].firstMatch
+            XCTAssertTrue(pasteButton.waitForExistence(timeout: 3))
+            pasteButton.tap()
+        }
+        XCTAssertTrue(row("toaster", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(row("chair", status: "Pending").exists)
+        assertGroceryInputIsEmpty(input)
+        XCTAssertTrue(app.keyboards.firstMatch.exists)
     }
 
     func testReturnSubmissionKeepsProductEntryAtOneLine() {
