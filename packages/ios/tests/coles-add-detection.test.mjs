@@ -110,7 +110,8 @@ test('Bunnings sticky product-page Add to Cart control uses the same scoped quan
 });
 
 function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = false,
-  href, detailPage = false, config = bunnings, kmartTitle = true } = {}) {
+  href, detailPage = false, config = bunnings, kmartTitle = true, kmartDetail = false,
+  duplicateHeading = false, conflictingHeading = false } = {}) {
   const messages = [], scheduled = [];
   let click, mutation, now = 0;
   class FakeElement {
@@ -125,9 +126,14 @@ function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = f
     matches(selector) {
       return selector.split(',').some(raw => {
         const s = raw.trim();
-        return s === '*' || s === 'button' && this.tagName === 'BUTTON' ||
+        return s === '*' || s === 'div' && this.tagName === 'DIV' || s === 'body' && this.tagName === 'BODY' ||
+          s === 'button' && this.tagName === 'BUTTON' ||
           s === 'h1' && this.tagName === 'H1' ||
           s === 'p' && this.tagName === 'P' ||
+          s === '.product-button-container' && this.attributes.class === 'product-button-container' ||
+          s === 'button[data-testid="quick-product-button"]' && this.tagName === 'BUTTON' && this.attributes['data-testid'] === 'quick-product-button' ||
+          s === 'button[data-testid="product-button"]' && this.tagName === 'BUTTON' && this.attributes['data-testid'] === 'product-button' ||
+          s === 'h1[data-testid="product-title"]' && this.tagName === 'H1' && this.attributes['data-testid'] === 'product-title' ||
           s === 'a[href]' && this.tagName === 'A' && !!this.attributes.href ||
           s === "a[href*='/product/']" && this.tagName === 'A' && this.attributes.href?.includes('/product/') ||
           s === '#pdp-footer-container' && this.attributes.id === 'pdp-footer-container' ||
@@ -154,7 +160,12 @@ function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = f
   const badge = document.body.append(new FakeElement('input', { 'aria-label': 'Quantity' }));
   badge.value = '0';
   const main = document.body.append(new FakeElement('main'));
-  main.append(new FakeElement('h1', {}, detailPage ? 'Different detail-page product' : 'Staples'));
+  main.append(new FakeElement('h1', kmartDetail ? { 'data-testid': 'product-title' } : {},
+    kmartDetail ? 'Foldaway PVC Chair' : detailPage ? 'Different detail-page product' : 'Staples'));
+  if (duplicateHeading || conflictingHeading) main.append(new FakeElement('h1', { 'data-testid': 'product-title' },
+    conflictingHeading ? 'A different chair' : 'Foldaway PVC Chair'));
+  const detailTile = main.append(new FakeElement('div', { class: 'product-button-container' }));
+  const detailControl = detailTile.append(new FakeElement('button', { 'data-testid': 'product-button' }, 'Add to bag'));
   const selectedHref = href === undefined ? (config.id === 'kmart'
     ? 'https://www.kmart.com.au/product/foldaway-pvc-chair-42250333/'
     : 'https://www.bunnings.com.au/trojan-staples_p0217507') : href;
@@ -170,7 +181,7 @@ function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = f
     if (duplicateLinks) tile.append(new FakeElement('a', { href: url }, 'Same product image'));
     if (ambiguous) tile.append(new FakeElement('a', { href: 'https://www.bunnings.com.au/other_p9999999' }, 'Another product'));
     const controls = imageContainer.append(new FakeElement('div'));
-    const control = controls.append(new FakeElement('button', config.id === 'kmart' ? {} : { 'aria-label': quantity ? 'Increase quantity' : 'Add to Cart' }, quantity ? '' : config.id === 'kmart' ? 'Add Foldaway PVC Chair - Black colour to bagAdd' : 'Add'));
+    const control = controls.append(new FakeElement('button', config.id === 'kmart' ? { 'data-testid': 'quick-product-button' } : { 'aria-label': quantity ? 'Increase quantity' : 'Add to Cart' }, quantity ? '' : config.id === 'kmart' ? 'Add Foldaway PVC Chair - Black colour to bagAdd' : 'Add'));
     const inner = control.append(new FakeElement('span', {}, 'Add'));
     const card = { tile, link, controls, control, inner };
     if (quantity) setCardQuantity(card, quantity);
@@ -190,7 +201,7 @@ function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = f
   main.append(selected.tile);
   const other = makeCard(otherHref, 0);
   main.append(other.tile);
-  const pathname = detailPage ? '/different-product_p0123456' : config.id === 'kmart' ? '/search/?searchTerm=chair' : '/search/products';
+  const pathname = kmartDetail ? '/product/foldaway-pvc-chair-42250333/' : detailPage ? '/different-product_p0123456' : config.id === 'kmart' ? '/search/?searchTerm=chair' : '/search/products';
   const host = config.allowedHosts[0];
   const context = vm.createContext({
     URL, Element: FakeElement, Date: { now: () => now }, document,
@@ -206,6 +217,12 @@ function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = f
   return {
     messages,
     click(trusted = true) { click({ isTrusted: trusted, target: selected.inner, composedPath: () => [selected.inner, selected.control, selected.controls, selected.tile] }); },
+    clickDetail(trusted = true) { click({ isTrusted: trusted, target: detailControl, composedPath: () => [detailControl, detailTile] }); },
+    setDetailQuantity(value) {
+      const input = detailTile.children.find(child => child.tagName === 'INPUT') || detailTile.append(new FakeElement('input', { 'aria-label': 'Quantity' }));
+      input.value = String(value); mutation();
+    },
+    setPagePath(path) { context.location.pathname = path; context.location.href = 'https://' + host + path; },
     setQuantity(value) { setCardQuantity(selected, value); mutation(); },
     setKmartToast(text) { document.body.innerText = text; mutation(); },
     setAddLabel(label) { selected.control.attributes['aria-label'] = label; },
@@ -255,7 +272,7 @@ test('Kmart search grid confirms Add only after stable product-specific receipt'
 
 test('Kmart named Add labels accept the observed mobile control but not in-progress controls', () => {
   const oldRules = { ...kmart, cart: { ...kmart.cart,
-    addLabelPatterns: ['^add$', '^add to bag$', '^increase quantity$'] } };
+    profiles: kmart.cart.profiles.map(profile => ({ ...profile, addLabelPatterns: ['^add$', '^add to bag$', '^increase quantity$'] })) } };
   const regression = bunningsGridFixture({ config: oldRules });
   regression.click();
   regression.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00 View your bag');
@@ -299,6 +316,85 @@ test('Kmart image badge and seller/price text cannot substitute for a missing pr
   page.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00 View your bag');
   page.tick(8);
   assert.equal(page.messages.some(message => message.type === 'addDetected'), false);
+});
+
+test('Kmart product page confirms its URL-identified Add using the same receipt engine', () => {
+  const page = bunningsGridFixture({ config: kmart, kmartDetail: true, duplicateHeading: true });
+  page.clickDetail();
+  assert.equal(page.messages.length, 0, 'detail tap alone cannot confirm');
+  page.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00 View your bag');
+  page.tick(8);
+  assert.equal(page.messages.at(-1)?.type, 'addDetected');
+  assert.equal(page.messages.at(-1)?.productID, '42250333');
+});
+
+test('Kmart recommendation card on a product page keeps its own link identity', () => {
+  const page = bunningsGridFixture({ config: kmart, kmartDetail: true,
+    href: 'https://www.kmart.com.au/product/another-foldaway-chair-42299999/' });
+  page.click();
+  page.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00 View your bag');
+  page.tick(8);
+  assert.equal(page.messages.at(-1)?.productID, '42299999', 'must not inherit detail-page ID 42250333');
+});
+
+test('Kmart detail requires page identity, an unambiguous title and a trusted tap', () => {
+  for (const options of [{}, { kmartDetail: true, conflictingHeading: true }]) {
+    const page = bunningsGridFixture({ config: kmart, ...options });
+    page.clickDetail();
+    page.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00');
+    page.tick(8);
+    assert.equal(page.messages.length, 0);
+  }
+  const page = bunningsGridFixture({ config: kmart, kmartDetail: true });
+  page.clickDetail(false);
+  page.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00');
+  page.tick(8);
+  assert.equal(page.messages.length, 0);
+});
+
+test('Kmart detail rejects unrelated, unchanged, expired and navigated receipts', () => {
+  for (const scenario of ['unrelated', 'unchanged', 'expired', 'navigation', 'context']) {
+    const page = bunningsGridFixture({ config: kmart, kmartDetail: true });
+    const receipt = 'Added to your bag Foldaway PVC Chair Qty 1 $9.00';
+    if (scenario === 'unchanged') page.setKmartToast(receipt);
+    page.clickDetail();
+    if (scenario === 'expired') page.advanceTime(8100);
+    if (scenario === 'navigation') page.setPagePath('/product/other-chair-42299999/');
+    if (scenario === 'context') page.clearContext();
+    page.setKmartToast(scenario === 'unrelated' ? 'Added to your bag Basic Camp Chair Qty 1 $6.00' : receipt);
+    page.tick(8);
+    assert.equal(page.messages.length, 0, scenario);
+  }
+});
+
+test('overlapping page profiles fail closed instead of choosing by array order', () => {
+  const config = structuredClone(kmart);
+  config.cart.profiles.push({ ...config.cart.profiles[1], id: 'overlapping-page' });
+  const page = bunningsGridFixture({ config, kmartDetail: true });
+  page.clickDetail();
+  page.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00');
+  page.tick(8);
+  assert.equal(page.messages.length, 0);
+});
+
+test('a quantity profile uses observed product-scoped quantities, never a guessed baseline', () => {
+  const config = structuredClone(kmart);
+  const profile = config.cart.profiles[1];
+  profile.confirmation = 'quantityIncrease';
+  profile.quantitySelector = 'input[aria-label="Quantity"]';
+  delete profile.receipt;
+  const missing = bunningsGridFixture({ config, kmartDetail: true });
+  missing.clickDetail(); missing.setDetailQuantity(1); missing.tick(8);
+  assert.equal(missing.messages.length, 0);
+  const page = bunningsGridFixture({ config, kmartDetail: true });
+  page.setDetailQuantity(2); page.clickDetail();
+  assert.equal(page.messages[0].beforeQuantity, 2);
+  page.setOtherQuantity(9); page.tick(3);
+  assert.equal(page.messages.length, 1);
+  page.setDetailQuantity(3); page.tick(8);
+  assert.equal(page.messages.at(-1)?.type, 'addDetected');
+  assert.equal(page.messages.at(-1)?.beforeQuantity, 2);
+  assert.equal(page.messages.at(-1)?.resultingQuantity, 3);
 });
 
 test('Bunnings duplicate image/title links to one product are not ambiguous', () => {

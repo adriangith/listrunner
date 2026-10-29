@@ -197,7 +197,48 @@ struct RecoveryTests {
                && kmart.cart?.productURLPattern == "/product/[^/?#]+-(\\d{1,32})(?:[/?#]|$)",
               "Kmart Australia enables search and product-scoped detection but keeps unverified cart Undo disabled")
         check(StoreID.kmart.permitsSearch && StoreID.kmart.permitsCartDetection && !StoreID.kmart.permitsCartUndo,
-              "native Kmart policy keeps retailer-cart Undo disabled until its bag-page reversal is verified")
+               "native Kmart policy keeps retailer-cart Undo disabled until its bag-page reversal is verified")
+        check(kmart.schemaVersion == 3 && kmart.cart?.strategy == .profiled
+              && kmart.cart?.profiles?.map(\.scope) == [.productCard, .productPage]
+              && kmart.cart?.profiles?.map(\.identity) == [.cardLink, .pageURL]
+              && kmart.cart?.profiles?.allSatisfy({ $0.confirmation == .productReceipt }) == true,
+              "Kmart declares independent grid/detail identities using a shared receipt engine")
+        check(coles.schemaVersion == 2 && coles.cart?.profiles == nil
+              && woolworths.cart?.profiles == nil && bunnings.cart?.profiles == nil,
+              "legacy version-2 stores keep their existing detector rules")
+        func rejectsProfile(_ mutate: (inout [String: Any]) -> Void) -> Bool {
+            var object = try! JSONSerialization.jsonObject(with: JSONEncoder().encode(kmart)) as! [String: Any]
+            var cart = object["cart"] as! [String: Any]
+            mutate(&cart)
+            object["cart"] = cart
+            do {
+                _ = try StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: object))
+                return false
+            } catch { return true }
+        }
+        check(rejectsProfile { $0.removeValue(forKey: "profiles") }, "profile strategy cannot silently fall back to legacy rules")
+        check(rejectsProfile { $0["profiles"] = [] }, "profile strategy requires at least one profile")
+        for (key, value) in [("identity", "pageURL" as Any), ("confirmation", "executeScript" as Any),
+                             ("confirmationWindowMS", 60_000 as Any), ("containerSelector", "" as Any),
+                             ("executableScript", "unexpected" as Any)] {
+            check(rejectsProfile { cart in
+                var profiles = cart["profiles"] as! [[String: Any]]
+                profiles[0][key] = value
+                cart["profiles"] = profiles
+            }, "invalid or unknown profile field rejected: \(key)")
+        }
+        check(rejectsProfile { cart in
+            var profiles = cart["profiles"] as! [[String: Any]]
+            profiles[1]["id"] = profiles[0]["id"]
+            cart["profiles"] = profiles
+        }, "duplicate profile IDs rejected")
+        check(rejectsProfile { cart in
+            var profiles = cart["profiles"] as! [[String: Any]]
+            var receipt = profiles[0]["receipt"] as! [String: Any]
+            receipt["quantityPattern"] = "(qty) ([0-9]+)"
+            profiles[0]["receipt"] = receipt
+            cart["profiles"] = profiles
+        }, "receipt quantity regex requires exactly one capture")
         check(bigW.isConfigurationValid && bigW.serviceArea.countryCodes == ["AU"]
               && !bigW.capabilities.search && !bigW.capabilities.cartDetection && !bigW.capabilities.cartUndo && bigW.cart == nil,
               "BIG W is browsing-only with all automation disabled")
@@ -207,8 +248,8 @@ struct RecoveryTests {
               && !bigW.allows(URL(string: "https://www.bigw.co.nz")!)
               && !bigW.allows(URL(string: "https://www.bigw.com.au.evil.test")!), "BIG W hosts are exact and Australia-only")
         var invalidKmart = kmart
-        invalidKmart.capabilities.cartDetection = false
-        check(!invalidKmart.isConfigurationValid, "Kmart cart Undo requires reviewed cart detection")
+        invalidKmart.capabilities.cartUndo = true
+        check(!invalidKmart.isConfigurationValid, "Kmart cart Undo remains prohibited for profiled detection")
         check(kmart.allows(kmart.homepage) && kmart.allows(URL(string: "https://kmart.com.au")!)
               && !kmart.allows(URL(string: "https://www.kmart.co.nz")!)
               && !kmart.allows(URL(string: "https://www.kmart.com.au.evil.test")!)

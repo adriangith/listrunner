@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "kmart",
   "displayName": "Kmart",
   "serviceArea": {"countryCodes": ["AU"]},
@@ -13,7 +13,7 @@
   },
   "capabilities": {"search": true, "cartDetection": true, "cartUndo": false},
   "cart": {
-    "strategy": "trustedTileQuantity",
+    "strategy": "profiled",
     "identityStrategy": "numericURLSuffix",
     "tileSelector": "li",
     "linkSelector": "a[href*='/product/']",
@@ -23,6 +23,32 @@
     "quantitySelector": "input[aria-label=\"Quantity\"],input[name=\"quantity\"]",
     "emptyStatusSelector": "button",
     "emptyStatusText": "Add",
-    "decrementLabelPattern": "^decrease quantity$"
+    "decrementLabelPattern": "^decrease quantity$",
+    "profiles": [
+      {
+        "id": "product-card",
+        "scope": "productCard",
+        "identity": "cardLink",
+        "containerSelector": "div",
+        "titleSelector": "p",
+        "addSelector": "button[data-testid=\"quick-product-button\"]",
+        "addLabelPatterns": ["^add$", "^add to bag$", "^add .+ to bag(?:\\s*add)?$"],
+        "confirmation": "productReceipt",
+        "confirmationWindowMS": 8000,
+        "receipt": {"selector": "body", "successText": "Added to your bag", "quantityPattern": "\\bqty\\s+(\\d{1,4})\\b"}
+      },
+      {
+        "id": "product-page",
+        "scope": "productPage",
+        "identity": "pageURL",
+        "containerSelector": ".product-button-container",
+        "titleSelector": "h1[data-testid=\"product-title\"]",
+        "addSelector": "button[data-testid=\"product-button\"]",
+        "addLabelPatterns": ["^add to bag$"],
+        "confirmation": "productReceipt",
+        "confirmationWindowMS": 8000,
+        "receipt": {"selector": "body", "successText": "Added to your bag", "quantityPattern": "\\bqty\\s+(\\d{1,4})\\b"}
+      }
+    ]
   }
 }

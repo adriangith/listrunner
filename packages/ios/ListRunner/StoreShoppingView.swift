@@ -1089,7 +1089,10 @@ final class StoreBrowser: ObservableObject {
     private var activeSearchNavigation: WKNavigation?
     private let automationWorld: WKContentWorld
     private var cartConfirmationTimeout: TimeInterval {
-        store.id == .woolworths ? 8 : 3
+        if let profiles = store.cart?.profiles, let window = profiles.map(\.confirmationWindowMS).max() {
+            return Double(window) / 1_000
+        }
+        return store.id == .woolworths ? 8 : 3
     }
 
     private static let automationScript = #"""
@@ -1112,31 +1115,7 @@ final class StoreBrowser: ObservableObject {
       ]) : 'null';
       const productLinkPattern = new RegExp(rules.productURLPattern, 'i');
       const normalize = value => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
-      const kmart = config.id === 'kmart';
-      const kmartProductName = tile => {
-        const ids = linkedProductIDs(tile);
-        if (ids.size !== 1) return null;
-        const names = deepQueryAll(tile, rules.linkSelector)
-          .filter(link => linkedProductIDs(link).has([...ids][0]))
-          // Mobile image links contain only a Bestseller badge. The sibling
-          // detail link has the title paragraph plus duplicated seller badges
-          // and price; whole-link text is not the product's receipt name.
-          .flatMap(link => deepQueryAll(link, 'p').map(title => normalize(title.textContent)))
-          .filter(name => name.split(' ').filter(word => word.length > 1).length >= 2);
-        return names.sort((a, b) => b.length - a.length)[0] || null;
-      };
-      const kmartToast = productName => {
-        const text = normalize(document.body?.innerText || document.body?.textContent);
-        const start = text.lastIndexOf('added to your bag');
-        if (start < 0) return null;
-        const toast = text.slice(start);
-        const qty = toast.match(/\bqty\s+(\d{1,4})\b/);
-        if (!qty) return null;
-        const nameStart = toast.indexOf(productName);
-        if (nameStart < 0) return null;
-        const result = Number(qty[1]);
-        return Number.isInteger(result) && result > 0 ? { text: toast, quantity: result } : null;
-      };
+      const profiles = rules.strategy === 'profiled' ? rules.profiles : null;
        const usesScopedProductIdentity = config.id === 'bunnings' || config.id === 'kmart';
        const isAddControl = element => {
          if (!usesScopedProductIdentity) {
@@ -1206,8 +1185,7 @@ final class StoreBrowser: ObservableObject {
             if (pageID && heading && deepQueryAll(current, 'h1').includes(heading)) break;
             const ids = linkedProductIDs(current);
             if (ids.size > 1) return null;
-            if (ids.size === 1 && deepQueryAll(current, 'button').some(isAddControl) &&
-                (!kmart || kmartProductName(current))) return current;
+            if (ids.size === 1 && deepQueryAll(current, 'button').some(isAddControl)) return current;
           }
           if (!heading || !pageID) return null;
           const stickyProductControls = deepClosest(element, '#pdp-footer-container');
@@ -1325,6 +1303,69 @@ final class StoreBrowser: ObservableObject {
           .some(status => normalize(status.textContent) === normalize(rules.emptyStatusText));
         return empty ? 0 : null;
       };
+      const profileControlMatches = (control, profile) => control.matches(profile.addSelector) &&
+        profile.addLabelPatterns.some(pattern => new RegExp(pattern).test(
+          normalize(control.getAttribute('aria-label') || control.textContent)));
+      const profileName = (root, profile) => {
+        // Responsive pages may duplicate the same heading. Different names are
+        // ambiguous; never choose an arbitrary page title or seller badge.
+        const names = new Set(deepQueryAll(root, profile.titleSelector)
+          .map(title => normalize(title.textContent)).filter(Boolean));
+        return names.size === 1 ? [...names][0] : null;
+      };
+      const resolveProfile = control => {
+        const matches = [];
+        for (const profile of profiles || []) {
+          if (!profileControlMatches(control, profile)) continue;
+          if (profile.identity === 'cardLink') {
+            for (let tile = control; tile && !isPageBoundary(tile);
+                 tile = tile.parentElement || tile.getRootNode?.().host || null) {
+              const ids = linkedProductIDs(tile);
+              if (ids.size > 1) break;
+              if (!tile.matches(profile.containerSelector) || ids.size !== 1) continue;
+              const links = deepQueryAll(tile, rules.linkSelector);
+              const names = new Set(links.map(link => profileName(link, profile)).filter(Boolean));
+              if (names.size !== 1) continue;
+              matches.push({ profile, tile, productID: [...ids][0], productName: [...names][0] });
+              break;
+            }
+          } else if (profile.identity === 'pageURL') {
+            const id = bunningsPageProductID();
+            const tile = deepClosest(control, profile.containerSelector);
+            const name = profileName(document, profile);
+            // Page identity is permitted only for an explicitly scoped detail
+            // control, never for a recommendation with its own product links.
+            if (id && tile && !isPageBoundary(tile) && name && linkedProductIDs(tile).size === 0) {
+              matches.push({ profile, tile, productID: id, productName: name });
+            }
+          }
+        }
+        // Overlapping profile rules fail closed rather than guessing precedence.
+        return matches.length === 1 ? matches[0] : null;
+      };
+      const profileReceipt = (profile, name) => {
+        for (const root of deepQueryAll(document, profile.receipt.selector)) {
+          const text = normalize(root.innerText || root.textContent);
+          const start = text.lastIndexOf(normalize(profile.receipt.successText));
+          if (start < 0) continue;
+          const receipt = text.slice(start);
+          const qty = receipt.match(new RegExp(profile.receipt.quantityPattern));
+          if (!qty || !receipt.includes(name)) continue;
+          const value = Number(qty[1]);
+          if (Number.isInteger(value) && value > 0 && value <= 9999) return { text: receipt, quantity: value };
+        }
+        return null;
+      };
+      const profileQuantity = (tile, profile) => {
+        if (!tile?.isConnected) return null;
+        for (const input of deepQueryAll(tile, profile.quantitySelector)) {
+          const raw = input.value || input.getAttribute('aria-valuenow');
+          if (raw === null || raw === '') continue;
+          const value = Number(raw);
+          if (Number.isInteger(value) && value >= 0 && value <= 9999) return value;
+        }
+        return null;
+      };
       const post = (type, fields) => {
         if (!context) return;
         bridge.postMessage(JSON.stringify({
@@ -1336,13 +1377,15 @@ final class StoreBrowser: ObservableObject {
       const checkCandidate = () => {
         if (!candidate || candidate.reported || candidate.checking) return;
         const checkingCandidate = candidate;
+        if (checkingCandidate.profile && checkingCandidate.pageURL !== location.href) { candidate = null; return; }
         if (Date.now() > checkingCandidate.expires) { candidate = null; return; }
         checkingCandidate.checking = true;
         setTimeout(() => {
           if (candidate !== checkingCandidate) return;
+          if (checkingCandidate.profile && checkingCandidate.pageURL !== location.href) { candidate = null; return; }
           if (Date.now() > checkingCandidate.expires) { candidate = null; return; }
-          if (kmart) {
-            const receipt = kmartToast(checkingCandidate.productName);
+          if (checkingCandidate.profile?.confirmation === 'productReceipt') {
+            const receipt = profileReceipt(checkingCandidate.profile, checkingCandidate.productName);
             if (receipt && receipt.text !== checkingCandidate.initialToast) {
               if (checkingCandidate.lastReceipt === receipt.text) checkingCandidate.stableCount++;
               else { checkingCandidate.lastReceipt = receipt.text; checkingCandidate.stableCount = 1; }
@@ -1367,9 +1410,14 @@ final class StoreBrowser: ObservableObject {
             checkCandidate();
             return;
           }
-          const tile = checkingCandidate.tile.isConnected && productID(checkingCandidate.tile) === checkingCandidate.productID
+          const tile = checkingCandidate.tile.isConnected && (checkingCandidate.profile || productID(checkingCandidate.tile) === checkingCandidate.productID)
             ? checkingCandidate.tile : findProductTile(checkingCandidate.productID);
-          const current = quantity(tile);
+          const resolved = checkingCandidate.profile && tile
+            ? resolveProfile(checkingCandidate.control) : null;
+          const current = checkingCandidate.profile
+            ? (resolved?.productID === checkingCandidate.productID && resolved.profile.id === checkingCandidate.profile.id
+              ? profileQuantity(resolved.tile, resolved.profile) : null)
+            : quantity(tile);
           if (current !== null && current > checkingCandidate.before) {
             if (checkingCandidate.lastValue === current) checkingCandidate.stableCount++;
             else { checkingCandidate.lastValue = current; checkingCandidate.stableCount = 1; }
@@ -1457,24 +1505,25 @@ final class StoreBrowser: ObservableObject {
         const origin = event.composedPath?.().find(node => node instanceof Element) || event.target;
         const control = origin instanceof Element
           ? deepClosest(origin, 'button,[role="button"],input[type="button"],input[type="submit"]') : null;
-        if (!control || !isAddControl(control)) return;
-        const tile = productTile(control);
-        const id = productID(tile);
-        if (kmart) {
-          const name = tile && kmartProductName(tile);
-          if (!id || !name) {
-            post('automationUnavailable', { capability: 'cartDetection', reason: 'productIdUnavailable', scope: 'interaction' });
-            return;
-          }
-          candidate = { tile, productID: id, productName: name, before: null,
-            initialToast: kmartToast(name)?.text || null,
-            expires: Date.now() + 8000, lastReceipt: null, stableCount: 0, checking: false };
-          // Kmart search cards do not expose quantity. Wait for the product-
-          // specific success receipt, then send native the actual before/after
-          // quantities together, without guessing a baseline.
+        if (!control) return;
+        if (profiles) {
+          const resolved = resolveProfile(control);
+          if (!resolved) return;
+          const { profile, tile, productID: id, productName: name } = resolved;
+          const before = profile.confirmation === 'quantityIncrease' ? profileQuantity(tile, profile) : null;
+          // A quantity profile must observe its baseline; no page-wide count or
+          // guessed zero is allowed. Receipt profiles defer both bridge messages.
+          if (profile.confirmation === 'quantityIncrease' && before === null) return;
+          candidate = { ...resolved, control, before, pageURL: location.href,
+            initialToast: profile.confirmation === 'productReceipt' ? profileReceipt(profile, name)?.text || null : null,
+            expires: Date.now() + profile.confirmationWindowMS, stableCount: 0, checking: false };
+          if (before !== null) post('cartInteractionStarted', { productID: id, beforeQuantity: before, intent: before === 0 ? 'add' : 'increment' });
           setTimeout(checkCandidate, 180);
           return;
         }
+        if (!isAddControl(control)) return;
+        const tile = productTile(control);
+        const id = productID(tile);
         const observedBefore = quantity(tile);
         const explicitEmptyStatus = tile && deepQueryAll(tile, rules.emptyStatusSelector)
           .some(status => normalize(status.textContent) === normalize(rules.emptyStatusText));
