@@ -289,6 +289,7 @@ struct GroceryListScreen: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if !visibility.visibleIDs.isEmpty && !items.isEmpty {
                     Button {
+                        groceryInputFocused = false
                         showingStore = true
                     } label: {
                         Label("Show Store", systemImage: "cart.fill")
@@ -439,6 +440,7 @@ struct GroceryListScreen: View {
                     guard browser.canPresentStore, visibility.visibleIDs.contains(storeID) else { return }
                     selectedList?.selectedItemID = item.id
                     saveChanges()
+                    groceryInputFocused = false
                     showingStore = true
                 } label: {
                     HStack(spacing: 12) {

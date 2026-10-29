@@ -929,6 +929,21 @@ final class StoreSelectionTests: XCTestCase {
         clear.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
     }
 
+    func testShowStoreDeactivatesGroceryInputAndPreservesDraft() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap()
+        input.typeText("Unsubmitted item")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.buttons["Dismiss store"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        app.buttons["Dismiss store"].tap()
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        XCTAssertEqual(input.value as? String, "Unsubmitted item")
+        XCTAssertFalse(app.keyboards.firstMatch.exists, "Returning must not reactivate the input")
+    }
+
     func testAddProductsEntryOpensKeyboardAndSubmitsFromEmptyList() {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 5))
