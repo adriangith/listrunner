@@ -1,5 +1,11 @@
 # Reusable store framework validation
 
+## Alternate Settings UI execution — 29 October 2026
+
+On the iPhone 17 Pro simulator running iOS 26.5, revision `ad95e58b06d206e6c77e32a07e152c038964a0c3` passed **291 native checks** and **47 of 48 UI tests**. The Walmart settings test failed; a focused unchanged rerun reproduced it. The exported XCTest hierarchy showed Walmart's 52-point row at y=834.7 while the table ended at y=840: XCTest considered the clipped sliver hittable, but tapping did not open settings. Revision `db5ee0a34c3d3a20d39e0a8ede69afc72063147e` changes only the UI helper to require the complete row inside the table before tapping. The focused Walmart test then **passed (1/1, 28.354 seconds)**. This is 47 passing tests in the full run plus the remaining test passing after a helper fix, **not a single clean 48/48 run on the final revision**. Manual VoiceOver, Switch Control, text-size, light/dark and iOS 17 runtime review remain separate release gates.
+
+Evidence on Mac: `/tmp/listrunner-uitest-run3.log` and `.xcresult` (full run); `/tmp/listrunner-walmart-recheck.log` and `.xcresult` (reproduced failure); `/tmp/listrunner-walmart-all/` (exported hierarchy); `/tmp/listrunner-walmart-visible.log` and `.xcresult` (passing focused rerun). Earlier Button-only test queries were corrected in `f68c977`; BIG W grouping-fixture integration was corrected through `ad95e58`. No retailer interactions or physical-device changes were performed during these simulator runs.
+
 ## Alternate Settings hierarchy — 29 October 2026 (installed for device review)
 
 Main Settings no longer lists stores; Country moves there from Manage Stores. Management now has enabled-first, nonduplicated brand grouping and navigation-only store rows. Full per-store settings contain the enable switch and optional region control before support/session/reset/diagnostics/About. The ABC menu is removed while UIKit's native section index remains. The index retains its known narrow-hit-region limitation; the former toolbar menu alternative is no longer present by design, and ordinary store rows remain directly accessible.
