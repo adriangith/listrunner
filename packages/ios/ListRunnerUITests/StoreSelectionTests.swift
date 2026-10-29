@@ -929,6 +929,26 @@ final class StoreSelectionTests: XCTestCase {
         clear.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
     }
 
+    func testSwipeLeftRevealsDeleteAndRemovesOnlyThatItem() {
+        let item = row("Coles fixture item", status: "Pending")
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        item.swipeLeft()
+        let delete = app.buttons["Delete"].firstMatch
+        XCTAssertTrue(delete.waitForExistence(timeout: 3))
+        XCTAssertTrue(item.exists, "Swiping must reveal Delete, not immediately remove the row")
+        delete.tap()
+        XCTAssertTrue(item.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
+        choose("Woolworths")
+        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").waitForExistence(timeout: 3),
+                      "Deleting a row must not change another store's list")
+        choose("Coles")
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 5), "Deletion must persist")
+    }
+
     func testShowStoreDeactivatesGroceryInputAndPreservesDraft() {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 5))

@@ -478,6 +478,10 @@ struct GroceryListScreen: View {
                 .accessibilityLabel("Actions for \(item.name)")
             }
             .frame(minHeight: 48)
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button("Delete", systemImage: "trash", role: .destructive) { delete(item) }
+                    .accessibilityHint("Removes this item from ListRunner only, not the store cart")
+            }
             .id(item.id)
             .onGeometryChange(for: CGRect.self) { geometry in
                 geometry.frame(in: .global)
