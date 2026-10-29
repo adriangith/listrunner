@@ -75,7 +75,7 @@ bash packages/ios/tests/run-recovery-tests.sh  # Mac: SwiftData/WebKit
 python3 -B packages/ios/tests/test-bundled-resources.py
 ```
 
-The UI tests `testRegionalSearchBrowserChecks` and `testRegionalSearchTogglePersistsAndLeavesExistingItemUnchanged` use isolated preferences/nonpersistent WebKit and local HTML fixtures only. The browser test checks actual deferred requests, localized preloads/promotion, context cancellation and stale recovery, without retailer access.
+The UI tests `testRegionalSearchBrowserChecks`, `testRegionalSearchTogglePersistsAndLeavesExistingItemUnchanged` and `testRegionalSearchCountryChangeUpdatesCachedBrowser` use isolated preferences/nonpersistent WebKit and local HTML fixtures only. The browser test checks actual deferred requests, localized preloads/promotion, context cancellation, stale recovery and browsing-only capability gates, without retailer access. The UI flows verify the same cached browser uses changed Country/toggle preferences without restarting, and that the toggle persists across relaunch.
 
 The bundled `ListRunner/Resources/ingredients.json` recognises 69 named pasta shapes/varieties as well as generic pasta. Coverage includes long and ribbon pasta, tubes, spirals, bows, shells, small soup pasta, lasagne sheets, filled pasta and gnocchi. Alternate names/spellings resolve consistently, such as orzo → Risoni, bow-tie pasta → Farfalle, and fettuccini → Fettuccine. Specific fillings, egg tagliatelle, and common gluten-free/wholemeal qualifiers stay distinguishable rather than all becoming generic pasta.
 
