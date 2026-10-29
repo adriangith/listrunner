@@ -60,7 +60,7 @@ struct RecoveryTests {
         check(!costcoUS.allows(costco.homepage) && !costco.allows(costcoUS.homepage)
               && costcoUS.id.listID != costco.id.listID && costcoUS.id.websiteDataID != costco.id.websiteDataID,
               "Costco regions cannot share hosts, lists or website-data identities")
-        let brandDefinitions = [coles, woolworths, bunnings, costco, costcoUS, tesco, walmart, kmart]
+        let brandDefinitions = [coles, woolworths, bunnings, costco, costcoUS, tesco, walmart, kmart, bigW]
         let emptySuite = "ListRunner.EmptyStoreTests.\(UUID().uuidString)"
         let emptyDefaults = UserDefaults(suiteName: emptySuite)!
         defer { emptyDefaults.removePersistentDomain(forName: emptySuite) }
@@ -113,7 +113,7 @@ struct RecoveryTests {
               "country changes never switch an active store that remains enabled")
         let costcoBrand = StoreBrand.catalogue(brandDefinitions).first { $0.id == "costco" }!
         check(costcoBrand.regions.map(\.id) == [.costco, .costcoUS], "reviewed Costco regions share one brand entry")
-        check(StoreBrand.catalogue(brandDefinitions).count == 7, "eight regional stores have seven brand rows")
+        check(StoreBrand.catalogue(brandDefinitions).count == 8, "nine regional stores have eight brand rows")
         for country in ["AU", "US", "GB", "NZ", nil] as [String?] {
             let enabled: Set<StoreID> = [.coles, .costcoUS, .tesco]
             let groups = StoreBrand.sections(brandDefinitions, countryCode: country, search: "", enabledIDs: enabled)
@@ -123,7 +123,7 @@ struct RecoveryTests {
             check(groups.dropFirst().flatMap(\.brands).allSatisfy { brand in
                 !brand.regions.contains { enabled.contains($0.id) }
             }, "enabled brands never appear in local or other stores")
-            check(groups.flatMap(\.brands).count == 7,
+            check(groups.flatMap(\.brands).count == 8,
                   "enabled-first grouping preserves every brand exactly once")
             check(groups.compactMap(\.indexTitle).allSatisfy { letter in
                 groups.contains { $0.indexTitle == letter && !$0.brands.isEmpty }
