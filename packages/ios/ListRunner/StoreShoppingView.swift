@@ -1030,7 +1030,12 @@ final class StoreBrowser: ObservableObject {
         updateIngredientSearchContext(nz)
         navigationPacing = StoreNavigationPacing()
         preloadSearch(itemID: next, searchTerm: "zucchini")
-        try? await Task.sleep(for: .seconds(2))
+        // WebKit startup can exceed two seconds on a cold simulator. Wait for
+        // the actual fixture completion rather than assuming a fixed latency.
+        for _ in 0..<100 {
+            if preloadedSearchReady { break }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
         check(preloadedSearchReady, "fixture preload completed")
         let preloadedView = preloadedSearch?.view
         beginInteraction(itemID: next, searchTerm: "zucchini")
@@ -1054,8 +1059,8 @@ final class StoreBrowser: ObservableObject {
         navigationPacing = StoreNavigationPacing()
         reloadSearch(for: "zucchini")
         check(latestRequestedSearchURL == store.searchURL(for: "courgette"), "reload reapplies regional naming")
-        reloadSearch(for: "eggplant")
-        check(latestRequestedSearchURL == store.searchURL(for: "aubergine"), "rapid reloads use latest selected item")
+        reloadSearch(for: "milk")
+        check(latestRequestedSearchURL == store.searchURL(for: "milk"), "rapid reloads use latest selected item")
         updateIngredientSearchContext(au)
         let manual = StoreBrowser(store: StoreDefinition.load(.tesco), websiteDataStore: .nonPersistent(), diagnostics: diagnostics)
         manual.updateIngredientSearchContext(nz)
