@@ -53,6 +53,7 @@ struct GroceryListScreen: View {
     @State private var addedItemScrollTask: Task<Void, Never>?
     @State private var listViewportFrame: CGRect = .zero
     @State private var groceryInputFrame: CGRect = .zero
+    @State private var addItemsButtonFrame: CGRect = .zero
     @State private var isListScreenVisible = false
 
     init(storeID: StoreID, sessions: StoreSessions, visibility: StoreVisibilityPreferences, paprikaReminders: PaprikaReminders, rawInput: Binding<String>,
@@ -172,10 +173,15 @@ struct GroceryListScreen: View {
                             Spacer(minLength: 8)
 
                             Button("Add Items") {
-                                addItems(keepingInputFocused: false)
+                                addItems(keepingInputFocused: true)
                             }
                                 .buttonStyle(.borderedProminent)
                                 .disabled(IngredientParser.application.parseProductEntry(rawInput).isEmpty)
+                                .onGeometryChange(for: CGRect.self) { geometry in
+                                    geometry.frame(in: .global)
+                                } action: { frame in
+                                    addItemsButtonFrame = frame
+                                }
                         }
                     }
 
@@ -358,7 +364,9 @@ struct GroceryListScreen: View {
         .tint(storePrimaryColor)
         .simultaneousGesture(
             SpatialTapGesture(coordinateSpace: .global).onEnded { value in
-                guard groceryInputFocused, !groceryInputFrame.contains(value.location) else { return }
+                guard groceryInputFocused,
+                      !groceryInputFrame.contains(value.location),
+                      !addItemsButtonFrame.contains(value.location) else { return }
                 groceryInputFocused = false
             },
             // An inactive recognizer can still interfere with UIKit table-row

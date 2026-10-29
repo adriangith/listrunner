@@ -1054,7 +1054,7 @@ final class StoreSelectionTests: XCTestCase {
         input.typeText("first item")
         app.buttons["Add Items"].tap()
 
-        assertFirstItemIsFullyVisible("first item", keyboardExpected: false)
+        assertFirstItemIsFullyVisible("first item")
     }
 
     func testFirstItemReturnAutoScrollsIntoViewFromEmptyList() {
@@ -1073,7 +1073,7 @@ final class StoreSelectionTests: XCTestCase {
         let name = "first household cleaning item with a deliberately long description"
         input.typeText(name)
         app.buttons["Add Items"].tap()
-        assertFirstItemIsFullyVisible(name, keyboardExpected: false)
+        assertFirstItemIsFullyVisible(name)
     }
 
     func testCommaSeparatedNonGroceryProductsCreateSeparateItems() {
@@ -1128,7 +1128,7 @@ final class StoreSelectionTests: XCTestCase {
                       "Each newly added item should scroll into view")
     }
 
-    func testAddItemsButtonSubmitsAndDismissesKeyboard() {
+    func testAddItemsButtonSubmitsAndKeepsInputFocused() {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 3))
         input.tap()
@@ -1151,10 +1151,13 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Add products"].isHittable,
                       "The Add products heading should remain visible")
         assertGroceryInputIsEmpty(input)
-        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3), "Add Items is outside the field and should dismiss the keyboard")
-        input.tap()
-        input.typeText("bread\n")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3), "Add Items is an exception to outside-tap dismissal")
+        input.typeText("bread")
+        addButton.tap()
         XCTAssertTrue(row("bread", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertTrue(app.keyboards.firstMatch.exists)
+        input.typeText("eggs\n")
+        XCTAssertTrue(row("eggs", status: "Pending").waitForExistence(timeout: 3), "Continue typing without refocusing after repeated Add Items taps")
     }
 
     func testManageStoreRowsRespondAfterLeavingFocusedInput() {
