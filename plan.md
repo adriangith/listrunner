@@ -90,6 +90,10 @@ These newer implementation decisions supersede conflicting presentation and inte
 * Extend the on-device diagnostic allowlist with an optional closed error-domain category, reviewed native error-code enum, numeric HTTP status and browsing-active flag. Distinguish idle process exit from browser rebuilding and timeouts from HTTP errors. Log safe failure metadata to the Xcode console too; never log URLs, queries, error descriptions/userInfo, cookies or account/item content. Existing expiry, byte/count limits, clearing and rolling duplicate throttling still apply, including the new metadata in duplicate comparison.
 * Test deterministic idle delegate callbacks for dismissal/reopen and background/resume, data-store/cookie retention, safe destination selection, stale callback rejection, browsing-only stores, active-failure Retry and verification protection. These fixtures do not prove the precise cause of an intermittent live-retailer failure.
 
+### Clear List options (30 October 2026)
+
+* Clear List always opens its existing button-anchored native confirmation dialog, even when there are no Pending items. Offer **Clear Added** only if the current store has Added items, **Clear All**, and Cancel. Clear Added deletes only Added rows, retaining Pending/Skipped rows, relative order and any surviving selected item; if selection was removed, prefer a remaining Pending item. Clear All empties only the current store's list. Both options cancel queued writeback for deleted rows without changing Apple Reminders, retailer carts or other store lists. This supersedes older immediate-clearing/completed-list and pending-only confirmation rules.
+
 ### Vision
 ListRunner automates the tedious process of having to search for items on grocery websites when you already have the items recorded in your digital grocery list. The unique proposition is that it steps you through your whole list, one item at a time, on the store's real site.
 ListRunner detects user actions but does not choose products, does not checkout, and does not manipulate payment/account details.

@@ -981,6 +981,82 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(clear.waitForExistence(timeout: 3))
         XCTAssertGreaterThan(clear.frame.width, 250)
         clear.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["Clear All"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["Clear Added"].exists)
+        app.buttons["Cancel"].tap()
+    }
+
+    private func openClearListOptions() {
+        let clear = app.buttons["Clear List"]
+        for _ in 0..<3 {
+            if clear.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(clear.isHittable)
+        clear.tap()
+        XCTAssertTrue(app.buttons["Clear All"].waitForExistence(timeout: 3))
+    }
+
+    func testClearAddedPreservesPendingSkippedAndOtherStores() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("Coffee; Apples")
+        app.buttons["Add Items"].tap()
+        app.staticTexts["Ready when you are"].tap()
+        app.buttons["Actions for Coles fixture item"].tap()
+        app.buttons["Mark Added"].tap()
+        app.buttons["Actions for Coffee"].tap()
+        app.buttons["Mark Skipped"].tap()
+        openClearListOptions()
+        XCTAssertTrue(app.buttons["Clear Added"].exists)
+        app.buttons["Clear Added"].tap()
+        XCTAssertTrue(app.buttons["Actions for Coles fixture item"].waitForNonExistence(timeout: 3))
+        XCTAssertTrue(row("Apples", status: "Pending").exists)
+        XCTAssertTrue(row("Coffee", status: "Skipped").exists)
+        openClearListOptions()
+        XCTAssertFalse(app.buttons["Clear Added"].exists, "Clear Added disappears when no Added items remain")
+        app.buttons["Cancel"].tap()
+        choose("Woolworths")
+        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").waitForExistence(timeout: 3))
+        choose("Coles")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(row("Apples", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(row("Coffee", status: "Skipped").exists)
+        XCTAssertFalse(app.buttons["Actions for Coles fixture item"].exists)
+    }
+
+    func testClearAllWithoutAddedItemsAndCancel() {
+        choose("Woolworths")
+        app.buttons["Actions for Woolworths fixture item"].tap()
+        app.buttons["Mark Added"].tap()
+        choose("Coles")
+        openClearListOptions()
+        XCTAssertFalse(app.buttons["Clear Added"].exists, "Another store's Added items must not enable this action")
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").exists)
+        openClearListOptions()
+        app.buttons["Clear All"].tap()
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
+        choose("Woolworths")
+        XCTAssertTrue(row("Woolworths fixture item", status: "Added").waitForExistence(timeout: 3))
+        choose("Coles")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 5))
+    }
+
+    func testClearAddedOnlyListStillOffersBothOptions() {
+        app.buttons["Actions for Coles fixture item"].tap()
+        app.buttons["Mark Added"].tap()
+        openClearListOptions()
+        XCTAssertTrue(app.buttons["Clear Added"].exists)
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(row("Coles fixture item", status: "Added").exists,
+                      "Even a completed list must not clear before a choice is made")
+        openClearListOptions()
+        app.buttons["Clear Added"].tap()
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
     }
 
     func testSwipeLeftRevealsDeleteAndRemovesOnlyThatItem() {

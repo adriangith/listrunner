@@ -42,7 +42,8 @@ Revision `e5f6d1634f828ba158f9ee4c98b31e90418bd366` passed 287 native checks and
 - Add one or many items from comma-, newline-, and bullet-separated text.
 - Parse common counts, multipliers, and grocery units; unrecognized entries are retained as names.
 - Merge typed duplicates by normalized name and compatible units; persist one active list locally with SwiftData.
-- Review status totals, edit item name/quantity/unit, delete rows, and clear a list with pending-item confirmation.
+- Review status totals, edit item name/quantity/unit, delete rows, and choose which list items to clear.
+- Clear List always presents the native action dialog: **Clear Added** removes only Added rows (hidden when the current store has none), **Clear All** removes every row, and Cancel preserves the list. Pending/Skipped rows and their relative order survive Clear Added; a surviving selection is retained or replaced with a remaining Pending item. Neither option changes another store's list, retailer carts or Apple Reminders.
 - Select independent Coles, Woolworths, Bunnings, Costco Australia, browsing-only Tesco UK and browsing-only Walmart US lists using the native Store picker; selected store and per-list selected items survive relaunch. Visibility and Shopping country are app-local settings. Newly introduced stores start hidden until enabled in Manage Stores.
 - Open the selected retailer in a persistent-data WKWebView sheet with native item cards and manual Mark Added, Skip, Next, Pause, Undo, and Finish controls.
 - The overlay's reload button returns to the selected item's original product search instead of refreshing the current product/cart page. It uses the saved search term with current regional naming, retains navigation pacing/verification protections, and does not change local item status. Browsing-only stores return to their trusted homepage rather than enabling unsupported search.

@@ -203,9 +203,12 @@ struct GroceryListScreen: View {
                             }
                             .buttonStyle(.plain)
                             .contentShape(Rectangle())
-                            .confirmationDialog("Clear your list?", isPresented: $showingClearConfirmation,
-                                                titleVisibility: .visible) {
-                                Button("Clear List", role: .destructive) { deleteAllItems() }
+                             .confirmationDialog("Clear your list?", isPresented: $showingClearConfirmation,
+                                                 titleVisibility: .visible) {
+                                if addedCount > 0 {
+                                    Button("Clear Added", role: .destructive) { clearItems(addedOnly: true) }
+                                }
+                                Button("Clear All", role: .destructive) { clearItems(addedOnly: false) }
                                 Button("Cancel", role: .cancel) { }
                             } message: {
                                 Text("This clears only your \(storeID.displayName) list in ListRunner. It does not change any store cart or Apple Reminders.")
@@ -654,16 +657,32 @@ struct GroceryListScreen: View {
     }
 
     private func clearList() {
-        if pendingCount > 0 { showingClearConfirmation = true }
-        else { deleteAllItems() }
+        groceryInputFocused = false
+        showingClearConfirmation = true
     }
 
-    private func deleteAllItems() {
-        for item in items { paprikaReminders.cancelQueuedWriteback(for: item) }
-        pendingReminderWrites.removeAll()
-        for item in items { modelContext.delete(item) }
+    private func clearItems(addedOnly: Bool) {
+        let removed = items.filter { !addedOnly || $0.status == .added }
+        let removedIDs = Set(removed.map(\.id))
+        let remaining = items.filter { !removedIDs.contains($0.id) }
+        browser.endInteraction()
+        for item in removed {
+            pendingReminderWrites.removeValue(forKey: item.id)
+            paprikaReminders.cancelQueuedWriteback(for: item)
+        }
+        if remaining.isEmpty {
+            selectedList?.selectedItemID = nil
+        } else if let selectedID = selectedList?.selectedItemID, removedIDs.contains(selectedID) {
+            selectedList?.selectedItemID = remaining.first { $0.status == .pending }?.id ?? remaining.first?.id
+        }
+        recentlyAddedItemIDs.subtract(removedIDs)
+        if let target = scrollTargetItemID, removedIDs.contains(target) {
+            addedItemScrollTask?.cancel()
+            scrollTargetItemID = nil
+        }
+        for item in removed { modelContext.delete(item) }
+        for (position, item) in remaining.enumerated() { item.position = position }
         notice = nil
-        selectedList?.selectedItemID = nil
         saveChanges()
     }
 
