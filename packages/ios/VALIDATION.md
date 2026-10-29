@@ -1,5 +1,11 @@
 # Reusable store framework validation
 
+## Comma-separated non-grocery entry — 29 October 2026
+
+Direct item entry now uses `IngredientParser.parseProductEntry`, treating comma/newline/semicolon/tab as explicit separators regardless of ingredient-dictionary recognition. Previously `toaster, chair` remained one unknown ingredient because recipe-oriented `parseList` only split commas when every segment matched the dictionary. Existing per-segment parsing, quantities, ordering/merging and empty-segment rejection remain; Paprika/recipe parsing retains its original preparation-comma behavior. Add Items enablement and submission use the same entry parser.
+
+At `e80759d17fb8520e575977fb3a7f922445428a4c`, all parser fixtures passed (runner reports 439 existing fixture/alias checks, plus added explicit-entry regressions covering unknowns, absent dictionary, mixed known/unknown entries, quantities, whitespace and separators). Linux lacks swiftc; executed on the clean exact-revision Mac checkout. **3/3 focused iPhone 17 / iOS 27 tests passed**: `toaster, chair` produces two independent rows, existing new-item ordering remains, and empty/whitespace Return dismisses focus without inserting a line. Empty Return had also passed alongside nonempty Return at `5625048`. Evidence: `/tmp/opencode/comma-mac-parser-tests.log`; Mac `RunSomeTests/Test-ListRunner-2026.10.29_19-48-55-+1100.xcresult`. Isolated UI fixtures only; no existing user row was silently split or renamed.
+
 ## Defocus product entry on outside taps — 29 October 2026
 
 List-screen simultaneous spatial tap handling compares tap location against the outlined field's global frame, clearing focus only outside it. Padding taps retain focus and native text editing remains intact. Header, section heading and empty-state taps now dismiss the keyboard without losing draft text or consuming normal control actions. Add Items submits with focus disabled, while keyboard Return retains focus for continued entry; this supersedes earlier Add Items focus-retention behavior. A separate submit focus parameter avoids the animated insertion reactivating the editor after a button tap.
