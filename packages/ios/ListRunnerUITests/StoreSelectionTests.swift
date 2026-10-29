@@ -970,13 +970,15 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(input.placeholderValue, "Tap to add products…")
         XCTAssertFalse(app.staticTexts["Type or paste a list, e.g. milk, bread, eggs"].exists)
         XCTAssertFalse(app.buttons["Add products"].exists, "No separate plus button should remain")
-        XCTAssertGreaterThanOrEqual(input.frame.height, 51.99)
-        // Tap the padding, not the text, to verify the entire outline is active.
-        input.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.9)).tap()
+        // XCTest exposes the inner editor, excluding its 14pt visual padding.
+        // Tap outside that editor but inside the outline to test the whole field.
+        input.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 1))
+            .withOffset(CGVector(dx: 10, dy: 10)).tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
         app.staticTexts["Ready when you are"].tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
-        input.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.1)).tap()
+        input.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: -10, dy: -10)).tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
         input.typeText("Milk")
         XCTAssertTrue(app.buttons["Add Items"].isEnabled)
