@@ -1,5 +1,13 @@
 # Reusable store framework validation
 
+## Product Return intercepted before layout — 29 October 2026
+
+Replaced the vertical SwiftUI TextField with a small native UITextView wrapper retaining the outlined entry, placeholder, one-to-four-line wrapping/overflow scrolling, accessibility input identity and paste behavior. Its editing delegate returns false for a single keyboard newline and submits before UIKit inserts/layouts it, eliminating the prior insert-then-onChange-submit flash. IME marked text is not intercepted; multiline paste remains a normal edit and uses existing parsing. Native first-responder state is mirrored via a binding; Add Items/Return retain focus, empty Return dismisses, outside taps/Show Store still defocus with draft retention. Initial wrapper run revealed FocusState had no SwiftUI focus target, causing focus loss; changed that local flag to native-backed State before passing checks.
+
+At `df07cd310387de5eb0a13054ff059768c2db1643`, **6/6 focused iPhone 17 / iOS 27 UI tests passed**: stable one-line geometry after Return, empty/whitespace Return dismissal, continued Return entry, repeated Add Items retention, long-item wrapping/visibility and full-field padded activation. At `c9003bfc93cb845150d2cbbc4b728a1bebf0b1d9` (same implementation, extra tests), **3/3 additional UI tests passed**: real clipboard multiline paste via native Paste creates toaster/chair rows, outside dismissal/draft preservation, and Show Store defocus. Test pasteboard payload is isolated simulator test data. Evidence: Mac `RunSomeTests/Test-ListRunner-2026.10.29_23-45-15-+1100.xcresult` and `Test-ListRunner-2026.10.29_23-48-09-+1100.xcresult`.
+
+Normal-app simulator verification PID40305 used actual software Return on temporary Entry verification row: input cleared, exactly one Pending row, keyboard retained, editor remained310×22pt; empty Return then dismissed. Local row deleted, initial empty BIG W list restored; no retailer/cart/settings interactions. Evidence `/tmp/opencode/return-editor-before.png`, `return-editor-after-settled.png`, `return-editor-cleanup.png` and accompanying hierarchies. Interaction session ended.
+
 ## Add Items focus exception — 29 October 2026
 
 At the user's request, Add Items is now explicitly exempt from outside-tap keyboard dismissal. The list tracks the button's global bounds alongside the outlined editor, excludes both from spatial-tap defocus, and submits with `keepingInputFocused: true`. This supersedes earlier button-submit/dismiss behavior, without changing outside-header/heading dismissal, Show Store defocus or empty/whitespace Return dismissal. Return with products still submits and retains focus.
