@@ -52,6 +52,7 @@ struct GroceryListScreen: View {
     @State private var scrollTargetItemID: UUID?
     @State private var addedItemScrollTask: Task<Void, Never>?
     @State private var listViewportFrame: CGRect = .zero
+    @State private var groceryInputFrame: CGRect = .zero
 
     init(storeID: StoreID, sessions: StoreSessions, visibility: StoreVisibilityPreferences, paprikaReminders: PaprikaReminders, rawInput: Binding<String>,
          onSelectStore: @escaping (StoreID) -> Void) {
@@ -143,6 +144,11 @@ struct GroceryListScreen: View {
                             }
                             .contentShape(Rectangle())
                             .simultaneousGesture(TapGesture().onEnded { groceryInputFocused = true })
+                            .onGeometryChange(for: CGRect.self) { geometry in
+                                geometry.frame(in: .global)
+                            } action: { frame in
+                                groceryInputFrame = frame
+                            }
                             .accessibilityLabel("Type or paste groceries")
                             .accessibilityIdentifier("grocery-input")
                             .padding(.vertical, 4)
@@ -164,7 +170,10 @@ struct GroceryListScreen: View {
 
                             Spacer(minLength: 8)
 
-                            Button("Add Items", action: addItems)
+                            Button("Add Items") {
+                                addItems()
+                                groceryInputFocused = false
+                            }
                                 .buttonStyle(.borderedProminent)
                                 .disabled(IngredientParser.application.parseGroceries(rawInput).isEmpty)
                         }
@@ -342,6 +351,12 @@ struct GroceryListScreen: View {
             }
         }
         .tint(storePrimaryColor)
+        .simultaneousGesture(
+            SpatialTapGesture(coordinateSpace: .global).onEnded { value in
+                guard groceryInputFocused, !groceryInputFrame.contains(value.location) else { return }
+                groceryInputFocused = false
+            }
+        )
         .onAppear {
             guard !routedLaunch else { return }
             routedLaunch = true

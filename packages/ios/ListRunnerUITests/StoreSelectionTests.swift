@@ -71,7 +71,7 @@ final class StoreSelectionTests: XCTestCase {
                       "Submitting should clear the grocery field, not leave typed text", file: file, line: line)
     }
 
-    private func assertFirstItemIsFullyVisible(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
+    private func assertFirstItemIsFullyVisible(_ name: String, keyboardExpected: Bool = true, file: StaticString = #filePath, line: UInt = #line) {
         let app = self.app!
         let item = row(name, status: "Pending")
         XCTAssertTrue(item.waitForExistence(timeout: 5), file: file, line: line)
@@ -80,12 +80,12 @@ final class StoreSelectionTests: XCTestCase {
         let showStore = app.buttons["Show Store"]
         let keyboard = app.keyboards.firstMatch
         let visible = NSPredicate { _, _ in
-            guard cell.exists, input.exists, showStore.exists, keyboard.exists else { return false }
+            guard cell.exists, input.exists, showStore.exists, keyboard.exists == keyboardExpected else { return false }
             let frame = cell.frame
             return frame.height > 0
                 && frame.minY >= app.collectionViews.firstMatch.frame.minY
                 && frame.maxY <= showStore.frame.minY
-                && showStore.frame.maxY <= keyboard.frame.minY
+                && showStore.frame.maxY <= (keyboardExpected ? keyboard.frame.minY : app.frame.maxY)
                 && input.isHittable && item.isHittable
         }
         let result = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: app)], timeout: 5)
@@ -1014,7 +1014,7 @@ final class StoreSelectionTests: XCTestCase {
         input.typeText("first item")
         app.buttons["Add Items"].tap()
 
-        assertFirstItemIsFullyVisible("first item")
+        assertFirstItemIsFullyVisible("first item", keyboardExpected: false)
     }
 
     func testFirstItemReturnAutoScrollsIntoViewFromEmptyList() {
@@ -1033,7 +1033,7 @@ final class StoreSelectionTests: XCTestCase {
         let name = "first household cleaning item with a deliberately long description"
         input.typeText(name)
         app.buttons["Add Items"].tap()
-        assertFirstItemIsFullyVisible(name)
+        assertFirstItemIsFullyVisible(name, keyboardExpected: false)
     }
 
     func testGroceryInputReturnSubmitsItem() {
@@ -1056,7 +1056,7 @@ final class StoreSelectionTests: XCTestCase {
                       "Each newly added item should scroll into view")
     }
 
-    func testAddItemsButtonKeepsGroceryInputFocused() {
+    func testAddItemsButtonSubmitsAndDismissesKeyboard() {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 3))
         input.tap()
@@ -1079,18 +1079,38 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Add products"].isHittable,
                       "The Add products heading should remain visible")
         assertGroceryInputIsEmpty(input)
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3), "Keyboard should remain open for the next item")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3), "Add Items is outside the field and should dismiss the keyboard")
+        input.tap()
         input.typeText("bread\n")
-        XCTAssertTrue(row("bread", status: "Pending").waitForExistence(timeout: 3), "Typing should add the next item without refocusing")
+        XCTAssertTrue(row("bread", status: "Pending").waitForExistence(timeout: 3))
     }
 
     func testTappingOutsideGroceryInputDismissesKeyboard() {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 3))
         input.tap()
+        input.typeText("Draft item")
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
-        app.staticTexts["Ready when you are"].tap()
-        XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 2))
+        app.navigationBars.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        XCTAssertEqual(input.value as? String, "Draft item")
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        app.staticTexts["Add products"].tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        XCTAssertEqual(input.value as? String, "Draft item")
+    }
+
+    func testEmptyListOutsideEntryDismissesKeyboard() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("Draft item")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        let empty = app.staticTexts["Your list is empty"]
+        if !empty.isHittable { app.swipeUp() }
+        empty.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        XCTAssertEqual(input.value as? String, "Draft item")
     }
 
     func testWoolworthsDetectionDoesNotEnableCartUndo() {
