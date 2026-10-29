@@ -486,7 +486,8 @@ struct StoreBrand: Identifiable {
         var beginsOtherStores = false
     }
 
-    static func sections(_ definitions: [StoreDefinition], countryCode: String?, search: String) -> [Section] {
+    static func sections(_ definitions: [StoreDefinition], countryCode: String?, search: String,
+                         enabledIDs: Set<StoreID> = []) -> [Section] {
         let brands = catalogue(definitions).filter { brand in
             search.isEmpty || brand.name.localizedCaseInsensitiveContains(search)
                 || brand.regions.contains { region in
@@ -499,11 +500,16 @@ struct StoreBrand: Identifiable {
         if !search.isEmpty {
             return brands.isEmpty ? [] : [Section(title: "Matching stores", indexTitle: nil, brands: brands)]
         }
-        let valid = brands.filter { $0.regions.contains(where: \.isConfigurationValid) }
-        let invalid = brands.filter { !$0.regions.contains(where: \.isConfigurationValid) }
+        let enabled = brands.filter { $0.regions.contains { enabledIDs.contains($0.id) } }
+        let disabled = brands.filter { brand in !enabled.contains { $0.id == brand.id } }
+        let valid = disabled.filter { $0.regions.contains(where: \.isConfigurationValid) }
+        let invalid = disabled.filter { !$0.regions.contains(where: \.isConfigurationValid) }
         let local = valid.filter { $0.matches(countryCode) }
         let other = valid.filter { !$0.matches(countryCode) }
         var result: [Section] = []
+        if !enabled.isEmpty {
+            result.append(Section(title: "Enabled stores", indexTitle: nil, brands: enabled))
+        }
         if let countryCode, !local.isEmpty {
             result.append(Section(title: "Stores in \(ShoppingCountry.name(countryCode))", indexTitle: nil, brands: local))
         }

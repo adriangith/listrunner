@@ -113,6 +113,28 @@ struct RecoveryTests {
         let costcoBrand = StoreBrand.catalogue(brandDefinitions).first { $0.id == "costco" }!
         check(costcoBrand.regions.map(\.id) == [.costco, .costcoUS], "reviewed Costco regions share one brand entry")
         check(StoreBrand.catalogue(brandDefinitions).count == 7, "eight regional stores have seven brand rows")
+        for country in ["AU", "US", "GB", "NZ", nil] as [String?] {
+            let enabled: Set<StoreID> = [.coles, .costcoUS, .tesco]
+            let groups = StoreBrand.sections(brandDefinitions, countryCode: country, search: "", enabledIDs: enabled)
+            check(groups.first?.title == "Enabled stores"
+                  && groups.first?.brands.map(\.id) == ["coles", "costco", "tesco"],
+                  "enabled brands are first and alphabetical regardless of country")
+            check(groups.dropFirst().flatMap(\.brands).allSatisfy { brand in
+                !brand.regions.contains { enabled.contains($0.id) }
+            }, "enabled brands never appear in local or other stores")
+            check(groups.flatMap(\.brands).count == 7,
+                  "enabled-first grouping preserves every brand exactly once")
+            check(groups.compactMap(\.indexTitle).allSatisfy { letter in
+                groups.contains { $0.indexTitle == letter && !$0.brands.isEmpty }
+            }, "enabled-first grouping has no empty index entries")
+        }
+        let enabledSearch = StoreBrand.sections(brandDefinitions, countryCode: "AU", search: "Costco US", enabledIDs: [.costcoUS])
+        check(enabledSearch.count == 1 && enabledSearch.first?.title == "Matching stores"
+              && enabledSearch.first?.brands.map(\.id) == ["costco"] && enabledSearch.first?.indexTitle == nil,
+              "search finds enabled regional brands once without section index")
+        let allEnabled = StoreBrand.sections(brandDefinitions, countryCode: "AU", search: "", enabledIDs: Set(brandDefinitions.map(\.id)))
+        check(allEnabled.count == 1 && allEnabled.first?.title == "Enabled stores",
+              "all enabled hides empty country and other groups")
         for country in ["AU", "US"] {
             let groups = StoreBrand.sections(brandDefinitions, countryCode: country, search: "")
             check(groups.first?.brands.contains { $0.id == "costco" } == true

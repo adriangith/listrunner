@@ -31,6 +31,14 @@ The verifier requires every canonical JSON file (including Bunnings) to be byte-
 
 ## Current implementation
 
+### Alternate Settings navigation (29 October 2026)
+
+Main Settings now contains Manage Stores and **Country**, with no individual store rows. Manage Stores lists enabled brands first, followed by disabled brands matching the country and other disabled brands. Enabled brands are never repeated in the discovery groups. Empty groups disappear; search still finds every brand and regional name. The native right-hand letter index remains; the ABC toolbar menu is removed.
+
+Each store row opens its complete settings, even when disabled. **Enable store** and (where applicable) **Region** appear first, followed by the selected region's included support, session status, session reset, diagnostics and About. Changing region retains explicit confirmation and refreshes the settings to that region's isolated session; country changes do not switch an enabled region. Earlier descriptions below of inline management switches, a country row in Manage Stores, or enabled-store rows on main Settings are superseded by this alternate hierarchy.
+
+Native build and UI-test validation for this revision still require the Mac/Xcode checkout; prior validation records do not certify this revision.
+
 - Add one or many items from comma-, newline-, and bullet-separated text.
 - Parse common counts, multipliers, and grocery units; unrecognized entries are retained as names.
 - Merge typed duplicates by normalized name and compatible units; persist one active list locally with SwiftData.

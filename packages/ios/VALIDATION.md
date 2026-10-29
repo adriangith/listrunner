@@ -1,5 +1,11 @@
 # Reusable store framework validation
 
+## Alternate Settings hierarchy — 29 October 2026 (Mac validation pending)
+
+Main Settings no longer lists stores; Country moves there from Manage Stores. Management now has enabled-first, nonduplicated brand grouping and navigation-only store rows. Full per-store settings contain the enable switch and optional region control before support/session/reset/diagnostics/About. The ABC menu is removed while UIKit's native section index remains. The index retains its known narrow-hit-region limitation; the former toolbar menu alternative is no longer present by design, and ordinary store rows remain directly accessible.
+
+Linux validation: **6 bundle-verifier regression tests**, **51 DOM fixtures**, and `git diff --check` pass. Added native grouping assertions across AU/US/GB/NZ/unset countries, all-enabled and search cases; revised UI tests for the new navigation, regrouping, disabled-store settings and regional settings refresh. These Swift/native/UI tests have **not been run for this revision**: this Linux host has no Swift or Xcode. A Mac build, native/UI checks and visual review are still required before this version is validated for use. OpenPencil document inspection was attempted but its connection timed out; the implementation retains the existing native Settings visual style. No Mac checkout, app data or retailer session was changed.
+
 ## Migration completion audit and bundle regression — 29 October 2026
 
 Refreshed status, remotes, branches, ignored files and local-only commits for both active checkouts and the retained legacy Mac copy. The pre-sync archives were fully read to verify integrity; the Mac archive includes machine-local Xcode user state. Linux's only non-generated ignored files were `.superpowers` scratch/review files; these were additionally archived and verified as `~/listrunner-backups/20261029T013952Z/linux-ignored-scratch.tar.gz`. Generated dependencies/build outputs were excluded. No secrets were printed or added to Git. The legacy folder's replayed older files remain preserved and were not forcibly reset.
