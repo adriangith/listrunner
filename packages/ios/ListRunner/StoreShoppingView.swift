@@ -471,7 +471,7 @@ struct StoreShoppingView: View {
                 // it remains correctly placed as Skip changes to Next, Finish,
                 // or the checkout message without moving those controls.
                 if navigationRightActionEdge > 0, (!pending.isEmpty || isFinalConfirmation) {
-                    Button(action: browser.reloadCurrentPage) {
+                    Button { browser.reloadSearch(for: selected?.searchTerm) } label: {
                         Image(systemName: "arrow.clockwise")
                             .font(.subheadline.weight(.semibold))
                             .frame(width: 44, height: 44)
@@ -479,8 +479,8 @@ struct StoreShoppingView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel("Reload store page")
-                    .accessibilityHint("Reloads the current \(browser.store.displayName) page without changing this ListRunner item")
+                    .accessibilityLabel("Reload product search")
+                    .accessibilityHint("Returns to this item's original \(browser.store.displayName) search without changing its ListRunner status")
                     // Optical centring needs a small left correction because the
                     // trailing edge has more visual weight than the glyph.
                     .position(x: max(22, (navigationRightActionEdge + proxy.size.width) / 2 - 10),
@@ -1041,10 +1041,27 @@ final class StoreBrowser: ObservableObject {
         enterStoreRecovery(.loadFailed)
         retryStoreLoad()
         check(intendedURL == store.homepage, "recovery cannot replay stale search")
+        navigationPacing = StoreNavigationPacing()
+        intendedURL = store.homepage.appendingPathComponent("product/fixture")
+        let reloadInteraction = interactionID
+        let reloadItem = itemID
+        reloadSearch(for: "zucchini")
+        check(latestRequestedSearchURL == store.searchURL(for: "zucchini"), "reload uses selected item with current naming preferences")
+        try? await Task.sleep(for: .seconds(2))
+        check(intendedURL == store.searchURL(for: "zucchini"), "reload leaves product page for original search")
+        check(interactionID == reloadInteraction && itemID == reloadItem, "reload preserves selected interaction")
+        updateIngredientSearchContext(nz)
+        navigationPacing = StoreNavigationPacing()
+        reloadSearch(for: "zucchini")
+        check(latestRequestedSearchURL == store.searchURL(for: "courgette"), "reload reapplies regional naming")
+        reloadSearch(for: "eggplant")
+        check(latestRequestedSearchURL == store.searchURL(for: "aubergine"), "rapid reloads use latest selected item")
+        updateIngredientSearchContext(au)
         let manual = StoreBrowser(store: StoreDefinition.load(.tesco), websiteDataStore: .nonPersistent(), diagnostics: diagnostics)
         manual.updateIngredientSearchContext(nz)
         manual.search(for: "zucchini")
         manual.preloadSearch(itemID: next, searchTerm: "zucchini")
+        manual.reloadSearch(for: "zucchini")
         check(manual.searchUnavailable && manual.latestRequestedSearchURL == nil && manual.preloadedSearch == nil
               && manual.intendedURL == manual.store.homepage, "naming never enables browsing-only search")
         updateIngredientSearchContext(originalContext)
@@ -1606,8 +1623,21 @@ final class StoreBrowser: ObservableObject {
         }
     }
 
-    func reloadCurrentPage() {
+    func reloadSearch(for searchTerm: String?) {
         guard canPresentStore, storeRecovery == nil else { return }
+        if store.capabilities.search, let searchTerm,
+           !searchTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            cancelCartUndo()
+            cancelPreload()
+            // Rebuild from the selected item's saved query, not webView.url or
+            // intendedURL, which may now point at a product or retailer cart.
+            // search(for:) retains regional naming, coalescing and pacing.
+            search(for: searchTerm)
+            if siteVerificationRequired { retryAfterVerification() }
+            return
+        }
+        // Browsing-only stores have no supported automatic search. Return to
+        // their trusted homepage rather than inventing one or refreshing a cart.
         if siteVerificationRequired { retryAfterVerification(); return }
         guard navigationPacing.delay(at: ProcessInfo.processInfo.systemUptime) == 0 else { return }
         pendingSearchTask?.cancel()
@@ -1615,12 +1645,7 @@ final class StoreBrowser: ObservableObject {
         searchRequestID = UUID()
         cancelCartUndo()
         retireCurrentNavigation()
-        if let navigation = webView.reload() {
-            navigationPacing.requested(at: ProcessInfo.processInfo.systemUptime)
-            latestNavigation = navigation
-        } else {
-            loadStoreURL(intendedURL)
-        }
+        loadStoreURL(store.homepage)
     }
 
     func beginInteraction(itemID: UUID, searchTerm: String) {

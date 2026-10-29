@@ -1124,11 +1124,11 @@ final class StoreSelectionTests: XCTestCase {
     func testReloadControlRemainsVisibleAcrossNavigationActions() {
         app.buttons["Show Store"].tap()
         XCTAssertTrue(app.buttons["Skip"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Reload store page"].exists)
+        XCTAssertTrue(app.buttons["Reload product search"].exists)
 
         app.buttons["Mark Added"].tap()
         XCTAssertTrue(app.buttons["Finish"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["Reload store page"].exists)
+        XCTAssertTrue(app.buttons["Reload product search"].exists)
     }
 
     func testFinalUndoFinishStateAllowsCardSwitchAndMarkPending() {
