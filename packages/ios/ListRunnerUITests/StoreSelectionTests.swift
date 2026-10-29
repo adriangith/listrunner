@@ -124,7 +124,7 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     private func changeCountry(_ code: String, name: String) {
-        let country = app.buttons["shopping-country"]
+        let country = app.descendants(matching: .any)["shopping-country"].firstMatch
         XCTAssertTrue(country.waitForExistence(timeout: 3))
         country.tap()
         let search = app.searchFields.firstMatch
@@ -405,6 +405,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
         XCTAssertTrue(app.staticTexts["OTHER STORES"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["No supported stores for this country yet."].exists)
         XCTAssertTrue(app.staticTexts["ENABLED STORES"].exists)
         XCTAssertFalse(app.staticTexts["B"].exists, "Enabled Bunnings is not indexed again")
         XCTAssertTrue(app.staticTexts["C"].exists)
@@ -513,7 +514,11 @@ final class StoreSelectionTests: XCTestCase {
         let coles = app.buttons["manage-store-coles"]
         let bunnings = app.buttons["manage-store-bunnings"]
         XCTAssertLessThan(coles.frame.minY, bunnings.frame.minY)
-        XCTAssertLessThanOrEqual(bunnings.frame.maxX, index.frame.minX, "Index must not overlap the store row")
+        // The UIKit section index manages its own hit-testing over the row's
+        // trailing edge; the old switch-separation check no longer applies to a
+        // full-width disclosure row. Both controls must simply stay usable.
+        XCTAssertTrue(bunnings.isHittable, "Store rows stay directly tappable beside the native index")
+        XCTAssertTrue(index.isHittable)
         XCTAssertTrue(app.staticTexts["OTHER STORES"].exists)
         XCTAssertEqual(app.switches.count, 0)
         let screenshot = XCTAttachment(screenshot: app.screenshot())

@@ -501,7 +501,7 @@ struct StoreBrand: Identifiable {
             return brands.isEmpty ? [] : [Section(title: "Matching stores", indexTitle: nil, brands: brands)]
         }
         let enabled = brands.filter { $0.regions.contains { enabledIDs.contains($0.id) } }
-        let disabled = brands.filter { brand in !enabled.contains { $0.id == brand.id } }
+        let disabled = brands.filter { brand in !brand.regions.contains { enabledIDs.contains($0.id) } }
         let valid = disabled.filter { $0.regions.contains(where: \.isConfigurationValid) }
         let invalid = disabled.filter { !$0.regions.contains(where: \.isConfigurationValid) }
         let local = valid.filter { $0.matches(countryCode) }

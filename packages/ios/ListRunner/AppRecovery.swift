@@ -52,6 +52,7 @@ struct SettingsScreen: View {
                     get: { brand.regions.contains { visibility.visibleIDs.contains($0.id) } },
                     set: { visibility.setBrandVisible($0, brand: brand) }
                 ))
+                .accessibilityLabel("Enable \(brand.name)")
                 .accessibilityIdentifier("store-visibility-\(brand.id)")
                 .disabled(browser.resetPhase != .ready)
                 if brand.isRegional {
@@ -438,7 +439,12 @@ private struct StoreManagementTable: UIViewControllerRepresentable {
             header.contentConfiguration = UIHostingConfiguration {
                 VStack(alignment: .leading, spacing: 12) {
                     if group.beginsOtherStores {
-                        Divider().padding(.top, 8)
+                        if model.sections.contains(where: { $0.indexTitle == nil && $0.title.hasPrefix("Stores in ") }) {
+                            Divider().padding(.top, 8)
+                        } else {
+                            Text("No supported stores for this country yet.")
+                                .font(.footnote).foregroundStyle(Color(uiColor: .label))
+                        }
                         Text("OTHER STORES").font(.footnote).foregroundStyle(Color(uiColor: .label))
                     }
                     Text(group.title.uppercased()).font(.footnote).foregroundStyle(Color(uiColor: .label))
