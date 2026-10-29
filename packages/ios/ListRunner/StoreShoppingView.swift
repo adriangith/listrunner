@@ -545,35 +545,45 @@ struct StoreShoppingView: View {
         let current = item.id == selectedID
         let position = (items.firstIndex(where: { $0.id == item.id }) ?? 0) + 1
         return VStack(alignment: .leading, spacing: 5) {
-            Button { select(item) } label: {
-                VStack(alignment: .leading, spacing: 10) {
-                    ZStack(alignment: .topLeading) {
-                        Text(item.status.rawValue.uppercased())
-                            .font(.system(size: current ? 10 : 11, weight: .bold))
-                            .opacity(current ? 0.85 : 1)
-                        if current {
+            HStack(spacing: 4) {
+                Text(item.status.rawValue.uppercased())
+                    .font(.system(size: current ? 10 : 11, weight: .bold))
+                    .opacity(current ? 0.85 : 1)
+                if current {
+                    Spacer(minLength: 0)
+                    Button(action: collapse) {
+                        HStack(spacing: 4) {
                             Text("\(position) / \(items.count)")
                                 .font(.system(size: 12))
-                                .frame(maxWidth: .infinity, alignment: .topTrailing)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .semibold))
                         }
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                     }
-                    .frame(height: current ? 15 : 13)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(sentenceCase(item.name))
-                            .font(.system(size: current ? 26 : 17, weight: current ? .bold : .semibold))
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
-                        QuantityMarquee(
-                            text: "Quantity · \(item.displayQuantity)",
-                            shouldScroll: current && !reduceMotion,
-                            fontSize: current ? 15 : 13,
-                            color: UIColor(cardForeground(item.status, active: current).opacity(current ? 0.9 : 0.78))
-                        )
-                            .frame(width: current ? 128 : 117, height: 19, alignment: .leading)
-                    }
-                    .frame(height: current ? 86 : 62, alignment: .top)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Collapse overlay")
+                    .accessibilityValue("Item \(position) of \(items.count)")
+                    .accessibilityHint("Hides shopping controls and shows the compact bar")
                 }
+            }
+            .frame(height: current ? 15 : 13)
+            .padding(.bottom, 5)
+            Button { select(item) } label: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(sentenceCase(item.name))
+                        .font(.system(size: current ? 26 : 17, weight: current ? .bold : .semibold))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    QuantityMarquee(
+                        text: "Quantity · \(item.displayQuantity)",
+                        shouldScroll: current && !reduceMotion,
+                        fontSize: current ? 15 : 13,
+                        color: UIColor(cardForeground(item.status, active: current).opacity(current ? 0.9 : 0.78))
+                    )
+                    .frame(width: current ? 128 : 117, height: 19, alignment: .leading)
+                }
+                .frame(height: current ? 86 : 62, alignment: .top)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)

@@ -1067,6 +1067,29 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["Mark Added"].isHittable)
     }
 
+    func testProgressChevronCollapsesOverlayAndPreservesStatus() {
+        app.buttons["Show Store"].tap()
+        let collapse = app.buttons["Collapse overlay"]
+        XCTAssertTrue(collapse.waitForExistence(timeout: 5))
+        XCTAssertTrue(collapse.isHittable)
+        XCTAssertEqual(collapse.value as? String, "Item 1 of 1")
+        XCTAssertGreaterThanOrEqual(collapse.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(collapse.frame.height, 44)
+        collapse.tap()
+        let expand = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Expand overlay")).firstMatch
+        XCTAssertTrue(expand.waitForExistence(timeout: 3))
+        XCTAssertFalse(collapse.exists)
+        expand.tap()
+        XCTAssertTrue(collapse.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Mark Added"].exists, "Collapse must not mark the item added")
+        app.buttons["Mark Added"].tap()
+        XCTAssertTrue(app.buttons["Mark Pending"].waitForExistence(timeout: 3))
+        collapse.tap()
+        XCTAssertTrue(expand.waitForExistence(timeout: 3))
+        expand.tap()
+        XCTAssertTrue(app.buttons["Mark Pending"].waitForExistence(timeout: 3), "Collapse must preserve Added status too")
+    }
+
     func testSlowOverlayDragCollapsesAndCanExpandAgain() {
         app.buttons["Show Store"].tap()
         let card = app.buttons.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@",
