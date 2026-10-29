@@ -1390,13 +1390,38 @@ final class StoreBrowser: ObservableObject {
       };
       const profileQuantity = (tile, profile) => {
         if (!tile?.isConnected) return null;
-        for (const input of deepQueryAll(tile, profile.quantitySelector)) {
+        const inputs = deepQueryAll(tile, profile.quantitySelector);
+        const values = new Set();
+        for (const input of inputs) {
           const raw = input.value || input.getAttribute('aria-valuenow');
-          if (raw === null || raw === '') continue;
+          if (raw === null || raw === '') return null;
           const value = Number(raw);
-          if (Number.isInteger(value) && value >= 0 && value <= 9999) return value;
+          if (!Number.isInteger(value) || value < 0 || value > 9999) return null;
+          values.add(value);
         }
+        if (values.size === 1) return [...values][0];
+        // A reviewed dedicated Add state is explicit zero evidence. Do not use
+        // it if a present quantity input is invalid or disagrees with another.
+        if (!inputs.length && profile.emptyStatusText && deepQueryAll(tile, profile.addSelector)
+            .some(control => profileControlMatches(control, profile) &&
+              normalize(control.getAttribute('aria-label') || control.textContent) === normalize(profile.emptyStatusText))) return 0;
         return null;
+      };
+      const findProfileState = (id, profile) => {
+        const states = [];
+        const seen = new Set();
+        for (const control of deepQueryAll(document, profile.addSelector)) {
+          const resolved = resolveProfile(control);
+          if (!resolved || resolved.profile.id !== profile.id || resolved.productID !== id || seen.has(resolved.tile)) continue;
+          seen.add(resolved.tile);
+          states.push({ ...resolved, quantity: profileQuantity(resolved.tile, profile) });
+        }
+        if (!states.length || states.some(state => state.quantity === null) ||
+            new Set(states.map(state => state.quantity)).size !== 1) return null;
+        // Detail pages can have main/sticky duplicates. Require consistent
+        // values but only ever click a visible product control during Undo.
+        return states.find(state => state.tile.getClientRects().length &&
+          getComputedStyle(state.tile).visibility !== 'hidden') || null;
       };
       const post = (type, fields) => {
         if (!context) return;
@@ -1444,11 +1469,10 @@ final class StoreBrowser: ObservableObject {
           }
           const tile = checkingCandidate.tile.isConnected && (checkingCandidate.profile || productID(checkingCandidate.tile) === checkingCandidate.productID)
             ? checkingCandidate.tile : findProductTile(checkingCandidate.productID);
-          const resolved = checkingCandidate.profile && tile
-            ? resolveProfile(checkingCandidate.control) : null;
+          const resolved = checkingCandidate.profile
+            ? findProfileState(checkingCandidate.productID, checkingCandidate.profile) : null;
           const current = checkingCandidate.profile
-            ? (resolved?.productID === checkingCandidate.productID && resolved.profile.id === checkingCandidate.profile.id
-              ? profileQuantity(resolved.tile, resolved.profile) : null)
+            ? resolved?.quantity ?? null
             : quantity(tile);
           if (current !== null && current > checkingCandidate.before) {
             if (checkingCandidate.lastValue === current) checkingCandidate.stableCount++;
@@ -1456,7 +1480,8 @@ final class StoreBrowser: ObservableObject {
             if (checkingCandidate.stableCount >= 2) {
               const confirmationID = String(++confirmationSequence);
               const fields = { confirmationID, productID: checkingCandidate.productID, beforeQuantity: checkingCandidate.before, resultingQuantity: current };
-              confirmedAdds.set(confirmationID, { ...fields, context: contextFingerprint(context) });
+              confirmedAdds.set(confirmationID, { ...fields, profileID: checkingCandidate.profile?.id,
+                pageURL: location.href, context: contextFingerprint(context) });
               if (confirmedAdds.size > 32) confirmedAdds.delete(confirmedAdds.keys().next().value);
               post('addDetected', fields);
               candidate = null;
@@ -1482,29 +1507,33 @@ final class StoreBrowser: ObservableObject {
       window.__listRunnerCancelUndo = () => { reversal = null; };
       window.__listRunnerUndoAdd = async record => {
         const saved = confirmedAdds.get(record.confirmationID);
+        const profile = saved?.profileID ? profiles?.find(value => value.id === saved.profileID) : null;
         const contextKey = contextFingerprint(context);
         if (!config.capabilities.cartUndo || record.storeID !== config.id || !saved || reversal || candidate || !context || saved.context !== contextKey ||
             record.sessionID !== context.sessionID || record.interactionID !== context.interactionID ||
             record.itemID !== context.itemID || record.documentGeneration !== context.documentGeneration ||
             saved.productID !== record.productID || saved.beforeQuantity !== record.beforeQuantity ||
-            saved.resultingQuantity !== record.resultingQuantity) return false;
+            saved.resultingQuantity !== record.resultingQuantity || (profiles && (!profile?.undo || saved.pageURL !== location.href))) return false;
         // Consume provenance once, even if a control is unsupported or confirmation fails.
         confirmedAdds.delete(record.confirmationID);
         const operation = {};
         reversal = operation;
         const deadline = Date.now() + 3000;
         const valid = () => reversal === operation && contextFingerprint(context) === contextKey &&
+          (!profile || location.href === saved.pageURL) &&
           document.visibilityState !== 'hidden' && Date.now() <= deadline;
         const pause = () => new Promise(resolve => setTimeout(resolve, 120));
-        const locate = () => findProductTile(record.productID);
+        const locate = () => profile ? findProfileState(record.productID, profile)?.tile : findProductTile(record.productID);
+        const currentQuantity = () => profile ? findProfileState(record.productID, profile)?.quantity ?? null : quantity(locate());
         try {
           let expected = record.resultingQuantity;
           while (expected > record.beforeQuantity) {
             if (!valid()) return false;
             const tile = locate();
-            if (!tile || productID(tile) !== record.productID || quantity(tile) !== expected) return false;
-            const buttons = Array.from(tile.querySelectorAll('button')).filter(button =>
-              new RegExp(rules.decrementLabelPattern).test(normalize(button.getAttribute('aria-label'))));
+            if (!tile || (!profile && productID(tile) !== record.productID) || currentQuantity() !== expected) return false;
+            const buttons = deepQueryAll(tile, profile?.undo.decrementSelector || 'button').filter(button =>
+              new RegExp(profile?.undo.decrementLabelPattern || rules.decrementLabelPattern)
+                .test(normalize(button.getAttribute('aria-label'))));
             if (buttons.length !== 1 || buttons[0].disabled || buttons[0].getAttribute('aria-disabled') === 'true') return false;
             // One decrement per confirmed step; never use a remove-all control.
             buttons[0].click();
@@ -1512,14 +1541,14 @@ final class StoreBrowser: ObservableObject {
             while (stable < 2) {
               await pause();
               if (!valid()) return false;
-              const current = quantity(locate());
+              const current = currentQuantity();
               if (current === expected - 1) stable++;
               else if (current === expected || current === null) stable = 0;
               else return false;
             }
             expected--;
           }
-          return valid() && quantity(locate()) === record.beforeQuantity;
+          return valid() && currentQuantity() === record.beforeQuantity;
         } catch (_) {
           return false;
         } finally {

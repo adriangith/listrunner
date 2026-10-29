@@ -240,10 +240,29 @@ struct RecoveryTests {
             cart["profiles"] = profiles
         }, "receipt quantity regex requires exactly one capture")
         check(bigW.isConfigurationValid && bigW.serviceArea.countryCodes == ["AU"]
-              && !bigW.capabilities.search && !bigW.capabilities.cartDetection && !bigW.capabilities.cartUndo && bigW.cart == nil,
-              "BIG W is browsing-only with all automation disabled")
-        check(!StoreID.bigW.permitsSearch && !StoreID.bigW.permitsCartDetection && !StoreID.bigW.permitsCartUndo,
-              "native BIG W policy prohibits unreviewed automation")
+              && bigW.capabilities.search && bigW.capabilities.cartDetection && bigW.capabilities.cartUndo
+              && bigW.cart?.strategy == .profiled,
+              "BIG W enables reviewed profile-based search/detection and scoped quantity Undo")
+        check(StoreID.bigW.permitsSearch && StoreID.bigW.permitsCartDetection && StoreID.bigW.permitsCartUndo,
+              "native BIG W policy permits reviewed automation")
+        check(bigW.cart?.profiles?.count == 2 && bigW.cart?.profiles?.allSatisfy({
+            $0.confirmation == .quantityIncrease && $0.emptyStatusText == "Add to cart" && $0.undo != nil
+        }) == true, "BIG W card/detail profiles require explicit empty-state and decrement provenance")
+        let bigWSearch = URLComponents(url: bigW.searchURL(for: "toaster & kettle")!, resolvingAgainstBaseURL: false)!
+        check(bigWSearch.path == "/search" && bigWSearch.queryItems?.first?.name == "text"
+              && bigWSearch.queryItems?.first?.value == "toaster & kettle", "BIG W search uses its verified encoded text route")
+        for (field, value) in [("undo", NSNull() as Any), ("emptyStatusText", "" as Any),
+                               ("confirmation", "productReceipt" as Any)] {
+            var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(bigW)) as! [String: Any]
+            var cart = object["cart"] as! [String: Any]
+            var profiles = cart["profiles"] as! [[String: Any]]
+            profiles[0][field] = value
+            cart["profiles"] = profiles
+            object["cart"] = cart
+            let malformed = try JSONSerialization.data(withJSONObject: object)
+            check((try? StoreDefinition.decodeConfiguration(from: malformed)) == nil,
+                  "profiled Undo rejects unsafe confirmation/control contracts: \(field)")
+        }
         check(bigW.allows(bigW.homepage) && bigW.allows(URL(string: "https://bigw.com.au")!)
               && !bigW.allows(URL(string: "https://www.bigw.co.nz")!)
               && !bigW.allows(URL(string: "https://www.bigw.com.au.evil.test")!), "BIG W hosts are exact and Australia-only")

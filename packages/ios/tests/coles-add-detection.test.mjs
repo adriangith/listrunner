@@ -120,6 +120,7 @@ function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = f
       this.children = []; this.parentElement = null; this.isConnected = true; this.value = '';
     }
     get href() { return this.attributes.href; }
+    getClientRects() { return [{}]; }
     append(child) { child.parentElement = this; this.children.push(child); return child; }
     getAttribute(name) { return this.attributes[name] ?? null; }
     getRootNode() { return document; }
@@ -205,6 +206,7 @@ function bunningsGridFixture({ before = 0, duplicateLinks = false, ambiguous = f
   const host = config.allowedHosts[0];
   const context = vm.createContext({
     URL, Element: FakeElement, Date: { now: () => now }, document,
+    getComputedStyle: () => ({ visibility: 'visible' }),
     location: { protocol: 'https:', hostname: host, pathname, href: 'https://' + host + pathname },
     window: { __listRunnerStoreConfig: config, webkit: { messageHandlers: { listRunner: {
       postMessage: raw => { if (raw !== 'automationReady') messages.push(JSON.parse(raw)); },

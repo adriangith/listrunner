@@ -850,6 +850,20 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(app.switches["store-visibility-costco"].value as? String, "1")
     }
 
+    func testBigWAustraliaStartsHiddenWithReviewedAutomation() {
+        app.buttons["Settings"].tap()
+        app.buttons["Manage Stores"].tap()
+        openStoreSettings("bigW")
+        XCTAssertEqual(app.switches["store-visibility-bigW"].value as? String, "0")
+        app.switches["store-visibility-bigW"].tap()
+        XCTAssertTrue(app.staticTexts["Search, Included"].exists)
+        XCTAssertTrue(app.staticTexts["Cart detection, Included"].exists)
+        XCTAssertTrue(app.staticTexts["Cart Undo, Included"].exists)
+        app.buttons["Reset BIG W Session"].tap()
+        XCTAssertTrue(app.alerts["Reset BIG W Session?"].waitForExistence(timeout: 3))
+        app.alerts["Reset BIG W Session?"].buttons["Cancel"].tap()
+    }
+
     func testKmartAustraliaStartsHiddenWithReviewedAutomation() {
         app.buttons["Settings"].tap()
         XCTAssertFalse(app.buttons["settings-store-kmart"].exists)

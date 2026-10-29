@@ -10,7 +10,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
     #endif
     var id: String { rawValue }
     // Reviewed native ceilings: bundled data cannot enable unreviewed store automation.
-    var permitsSearch: Bool { ![.tesco, .walmart, .costcoUS, .bigW].contains(self) }
+    var permitsSearch: Bool { ![.tesco, .walmart, .costcoUS].contains(self) }
     // Brand grouping is reviewed native identity, never inferred from a name or host.
     var brandID: String { self == .costcoUS ? StoreID.costco.rawValue : rawValue }
     var brandName: String { self == .costcoUS ? "Costco" : displayName }
@@ -21,8 +21,8 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         default: nil
         }
     }
-    var permitsCartUndo: Bool { self == .coles }
-    var permitsCartDetection: Bool { [.coles, .woolworths, .bunnings, .kmart].contains(self) }
+    var permitsCartUndo: Bool { [.coles, .bigW].contains(self) }
+    var permitsCartDetection: Bool { [.coles, .woolworths, .bunnings, .kmart, .bigW].contains(self) }
     var displayName: String {
         switch self {
         case .coles: "Coles"
@@ -148,6 +148,10 @@ struct StoreDefinition: Codable {
                 let successText: String
                 let quantityPattern: String
             }
+            struct Undo: Codable {
+                let decrementSelector: String
+                let decrementLabelPattern: String
+            }
             let id: String
             let scope: Scope
             let identity: Identity
@@ -159,6 +163,8 @@ struct StoreDefinition: Codable {
             let confirmationWindowMS: Int
             let quantitySelector: String?
             let receipt: Receipt?
+            var emptyStatusText: String? = nil
+            var undo: Undo? = nil
         }
         let strategy: Strategy
         let identityStrategy: IdentityStrategy
@@ -257,8 +263,7 @@ struct StoreDefinition: Codable {
               !capabilities.cartDetection || cart != nil else { throw ConfigurationError.invalid }
         if let cart {
             guard (schemaVersion == 2 && cart.strategy == .trustedTileQuantity && cart.profiles == nil)
-                || (schemaVersion == 3 && cart.strategy == .profiled && cart.profiles?.isEmpty == false),
-                  cart.strategy != .profiled || !capabilities.cartUndo else { throw ConfigurationError.invalid }
+                || (schemaVersion == 3 && cart.strategy == .profiled && cart.profiles?.isEmpty == false) else { throw ConfigurationError.invalid }
             for selector in [cart.tileSelector, cart.linkSelector, cart.addSelector, cart.quantitySelector, cart.emptyStatusSelector] {
                 guard !selector.isEmpty, selector.utf8.count <= 1_024 else { throw ConfigurationError.invalid }
             }
@@ -287,13 +292,24 @@ struct StoreDefinition: Codable {
                     }
                     switch profile.confirmation {
                     case .productReceipt:
-                        guard let receipt = profile.receipt, profile.quantitySelector == nil,
+                        guard let receipt = profile.receipt, profile.quantitySelector == nil, profile.emptyStatusText == nil, profile.undo == nil,
                               !receipt.successText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                               receipt.successText.utf8.count <= 256,
                               receipt.quantityPattern.utf8.count <= 512,
                               try NSRegularExpression(pattern: receipt.quantityPattern).numberOfCaptureGroups == 1 else { throw ConfigurationError.invalid }
                     case .quantityIncrease:
                         guard profile.quantitySelector != nil, profile.receipt == nil else { throw ConfigurationError.invalid }
+                    }
+                    if let empty = profile.emptyStatusText {
+                        guard !empty.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, empty.utf8.count <= 256 else { throw ConfigurationError.invalid }
+                    }
+                    if let undo = profile.undo {
+                        guard !undo.decrementSelector.isEmpty, undo.decrementSelector.utf8.count <= 1_024,
+                              !undo.decrementLabelPattern.isEmpty, undo.decrementLabelPattern.utf8.count <= 512 else { throw ConfigurationError.invalid }
+                        _ = try NSRegularExpression(pattern: undo.decrementLabelPattern)
+                    }
+                    if capabilities.cartUndo {
+                        guard profile.confirmation == .quantityIncrease, profile.undo != nil, profile.emptyStatusText != nil else { throw ConfigurationError.invalid }
                     }
                 }
             }
@@ -396,11 +412,13 @@ struct StoreDefinition: Codable {
             guard let profiles = rawProfiles as? [[String: Any]] else { throw ConfigurationError.invalid }
             for profile in profiles {
                 guard hasOnlyKeys(profile, ["id", "scope", "identity", "containerSelector", "titleSelector", "addSelector",
-                                           "addLabelPatterns", "confirmation", "confirmationWindowMS", "quantitySelector", "receipt"]) else {
+                                           "addLabelPatterns", "confirmation", "confirmationWindowMS", "quantitySelector", "receipt", "emptyStatusText", "undo"]) else {
                     throw ConfigurationError.invalid
                 }
                 if let receipt = profile["receipt"], !(receipt is NSNull),
                    !hasOnlyKeys(receipt as? [String: Any], ["selector", "successText", "quantityPattern"]) { throw ConfigurationError.invalid }
+                if let undo = profile["undo"], !(undo is NSNull),
+                   !hasOnlyKeys(undo as? [String: Any], ["decrementSelector", "decrementLabelPattern"]) { throw ConfigurationError.invalid }
             }
         }
         let value = try JSONDecoder().decode(Self.self, from: data)
