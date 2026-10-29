@@ -117,15 +117,24 @@ final class StoreSelectionTests: XCTestCase {
 
     private func openStoreSettings(_ store: String) {
         let entry = manageRow(store)
-        for _ in 0..<5 {
-            if entry.exists && entry.isHittable { break }
-            app.tables["manage-stores-table"].swipeUp()
+        let table = app.tables["manage-stores-table"]
+        // XCTest considers even a sliver of a clipped cell hittable. Require
+        // the whole row inside the table before tapping its centre.
+        func fullyVisible() -> Bool {
+            entry.exists && entry.isHittable && entry.frame.height > 0
+                && entry.frame.minY >= table.frame.minY
+                && entry.frame.maxY <= table.frame.maxY
         }
         for _ in 0..<5 {
-            if entry.exists && entry.isHittable { break }
-            app.tables["manage-stores-table"].swipeDown()
+            if fullyVisible() { break }
+            table.swipeUp()
+        }
+        for _ in 0..<5 {
+            if fullyVisible() { break }
+            table.swipeDown()
         }
         XCTAssertTrue(entry.waitForExistence(timeout: 3))
+        XCTAssertTrue(fullyVisible(), "Store row must be fully visible before tapping: \(store)")
         entry.tap()
         XCTAssertTrue(app.switches["store-visibility-\(store)"].waitForExistence(timeout: 3))
     }
