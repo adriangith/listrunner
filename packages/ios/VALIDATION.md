@@ -1,5 +1,11 @@
 # Reusable store framework validation
 
+## Add Items focus exception — 29 October 2026
+
+At the user's request, Add Items is now explicitly exempt from outside-tap keyboard dismissal. The list tracks the button's global bounds alongside the outlined editor, excludes both from spatial-tap defocus, and submits with `keepingInputFocused: true`. This supersedes earlier button-submit/dismiss behavior, without changing outside-header/heading dismissal, Show Store defocus or empty/whitespace Return dismissal. Return with products still submits and retains focus.
+
+At `c1e1fd61ab287e8cd3bcb2d487ffc01f3a32b826`, **5/5 focused iPhone 17 / iOS 27 UI tests passed** together: repeated Add Items taps followed by continued typing without refocus, outside dismissal/draft preservation, empty Return dismissal, long-item visibility above the retained keyboard, and Show Store defocus/draft preservation. Evidence: Mac `RunSomeTests/Test-ListRunner-2026.10.29_23-29-14-+1100.xcresult`. Isolated local UI fixtures only; no retailer/cart changes.
+
 ## BIG W first-use availability timeout — 29 October 2026
 
 User reported a real add after postcode/store setup while ListRunner timed out and showed detection unavailable. Both previous script/native eight-second deadlines started at Add, so human setup outlasted them. Revision `822356923747960c03ea997c4b4ec4cddfd554d4` introduces optional validated quantity-profile `setupPrompt` (selector, text regex, max wait); BIG W matches visible postcode/store dialogs with a 300000ms maximum. Matching setup extends the original candidate without rebaselining or treating setup completion as success. Native start/confirmation messages are deferred until the same product's stable quantity increase is observed. Nonmatching dialogs do not extend observation; cancellation/expiry produces a typed confirmation timeout, while page/context/background changes cancel without a false success. Native cancelled timeout tasks also now check cancellation before touching state.
