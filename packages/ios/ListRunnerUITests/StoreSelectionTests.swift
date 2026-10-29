@@ -1007,7 +1007,7 @@ final class StoreSelectionTests: XCTestCase {
     func testAddProductsEntryOpensKeyboardAndSubmitsFromEmptyList() {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 5))
-        XCTAssertEqual(input.placeholderValue, "Tap to add products…")
+        assertGroceryInputIsEmpty(input)
         XCTAssertFalse(app.staticTexts["Type or paste a list, e.g. milk, bread, eggs"].exists)
         XCTAssertFalse(app.buttons["Add products"].exists, "No separate plus button should remain")
         // XCTest exposes the inner editor, excluding its 14pt visual padding.
@@ -1086,6 +1086,20 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("chair", status: "Pending").exists)
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "toaster, chair")).firstMatch.exists)
         assertGroceryInputIsEmpty(input)
+    }
+
+    func testReturnSubmissionKeepsProductEntryAtOneLine() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        let originalHeight = input.frame.height
+        input.typeText("toaster")
+        XCTAssertEqual(input.frame.height, originalHeight, accuracy: 1)
+        input.typeText("\n")
+        XCTAssertTrue(row("toaster", status: "Pending").waitForExistence(timeout: 3))
+        assertGroceryInputIsEmpty(input)
+        XCTAssertEqual(input.frame.height, originalHeight, accuracy: 1)
+        XCTAssertTrue(app.keyboards.firstMatch.exists)
     }
 
     func testGroceryInputEmptyReturnDismissesKeyboard() {

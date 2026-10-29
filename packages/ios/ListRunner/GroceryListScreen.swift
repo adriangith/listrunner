@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct ShoppingRootScreen: View {
     @StateObject private var sessions: StoreSessions
@@ -121,14 +122,12 @@ struct GroceryListScreen: View {
                     .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 0, trailing: 20))
 
                     Section("Add products") {
-                        TextField("Tap to add products…", text: $rawInput, axis: .vertical)
-                            .lineLimit(1...4)
-                            .focused($groceryInputFocused)
-                            .submitLabel(.continue)
-                            .onSubmit(addItems)
+                        ProductEntryEditor(text: $rawInput,
+                                           isFocused: Binding(get: { groceryInputFocused }, set: { groceryInputFocused = $0 }),
+                                           onSubmit: addItems)
                             .onChange(of: rawInput) { _, value in
-                                // Return submits; multiline paste is parsed
-                                // into multiple items in a single edit.
+                                // Multiline paste is parsed in a single edit.
+                                // Keyboard Return is intercepted before insertion.
                                 if value.contains(where: { $0.isNewline }) {
                                     addItems()
                                 } else if !value.isEmpty {
@@ -151,8 +150,6 @@ struct GroceryListScreen: View {
                             } action: { frame in
                                 groceryInputFrame = frame
                             }
-                            .accessibilityLabel("Type or paste groceries")
-                            .accessibilityIdentifier("grocery-input")
                             .padding(.vertical, 4)
 
                         HStack {
@@ -763,6 +760,102 @@ struct GroceryListScreen: View {
         format.timeZone = .current
         format.dateFormat = "yyyy-MM-dd"
         return format.string(from: Date())
+    }
+}
+
+// A vertical SwiftUI TextField inserts Return before onSubmit/onChange. Use the
+// native editing delegate to reject that edit before UIKit lays out a new line.
+private struct ProductEntryEditor: UIViewRepresentable {
+    @Binding var text: String
+    @Binding var isFocused: Bool
+    let onSubmit: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    func makeUIView(context: Context) -> EntryTextView {
+        let view = EntryTextView()
+        view.delegate = context.coordinator
+        view.backgroundColor = .clear
+        view.textColor = .label
+        view.font = .preferredFont(forTextStyle: .body)
+        view.adjustsFontForContentSizeCategory = true
+        view.textContainerInset = .zero
+        view.textContainer.lineFragmentPadding = 0
+        view.isScrollEnabled = false
+        view.returnKeyType = .continue
+        view.accessibilityIdentifier = "grocery-input"
+        view.accessibilityLabel = String(localized: "Type or paste groceries")
+        view.placeholder.text = String(localized: "Tap to add products…")
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return view
+    }
+
+    func updateUIView(_ view: EntryTextView, context: Context) {
+        context.coordinator.parent = self
+        if view.text != text { view.text = text }
+        view.updatePlaceholder()
+        if isFocused && !view.isFirstResponder { view.becomeFirstResponder() }
+        else if !isFocused && view.isFirstResponder { view.resignFirstResponder() }
+        view.invalidateIntrinsicContentSize()
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: EntryTextView, context: Context) -> CGSize? {
+        guard let width = proposal.width, width > 0 else { return nil }
+        let lineHeight = uiView.font?.lineHeight ?? 22
+        let fullHeight = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
+        return CGSize(width: width, height: min(max(lineHeight, fullHeight), lineHeight * 4))
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: ProductEntryEditor
+        init(parent: ProductEntryEditor) { self.parent = parent }
+
+        func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+            guard text == "\n", textView.markedTextRange == nil else { return true }
+            parent.onSubmit()
+            return false
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            parent.text = textView.text
+            (textView as? EntryTextView)?.updatePlaceholder()
+            textView.invalidateIntrinsicContentSize()
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            if !parent.isFocused { parent.isFocused = true }
+        }
+        func textViewDidEndEditing(_ textView: UITextView) {
+            if parent.isFocused { parent.isFocused = false }
+        }
+    }
+
+    final class EntryTextView: UITextView {
+        let placeholder = UILabel()
+
+        override init(frame: CGRect, textContainer: NSTextContainer?) {
+            super.init(frame: frame, textContainer: textContainer)
+            placeholder.textColor = .placeholderText
+            placeholder.isUserInteractionEnabled = false
+            placeholder.isAccessibilityElement = false
+            addSubview(placeholder)
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+        func updatePlaceholder() {
+            placeholder.isHidden = !text.isEmpty
+            placeholder.font = font
+            setNeedsLayout()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            placeholder.font = font
+            placeholder.frame = CGRect(x: 0, y: 0, width: bounds.width, height: font?.lineHeight ?? 22)
+            let needsScrolling = contentSize.height > bounds.height + 1
+            if isScrollEnabled != needsScrolling { isScrollEnabled = needsScrolling }
+        }
     }
 }
 
