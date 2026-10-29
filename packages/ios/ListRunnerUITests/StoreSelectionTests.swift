@@ -929,6 +929,24 @@ final class StoreSelectionTests: XCTestCase {
         clear.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
     }
 
+    func testAddProductsEntryOpensKeyboardAndSubmitsFromEmptyList() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        XCTAssertEqual(input.placeholderValue, "Tap to add products…")
+        XCTAssertTrue(app.staticTexts["Type or paste a list, e.g. milk, bread, eggs"].exists)
+        let addProducts = app.buttons["Add products"]
+        XCTAssertTrue(addProducts.isHittable)
+        XCTAssertGreaterThanOrEqual(addProducts.frame.width, 43.99)
+        XCTAssertGreaterThanOrEqual(addProducts.frame.height, 43.99)
+        addProducts.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        input.typeText("Milk")
+        XCTAssertTrue(app.buttons["Add Items"].isEnabled)
+        app.buttons["Add Items"].tap()
+        XCTAssertTrue(row("Milk", status: "Pending").waitForExistence(timeout: 5))
+        assertGroceryInputIsEmpty(input)
+    }
+
     func testNewItemsAreAddedToFrontInEnteredOrder() {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 3))

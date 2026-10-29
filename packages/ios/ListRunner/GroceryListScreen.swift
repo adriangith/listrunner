@@ -117,27 +117,52 @@ struct GroceryListScreen: View {
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 0, trailing: 20))
 
-                    Section("Add grocery items") {
-                        TextField("Milk, bread, eggs", text: $rawInput, axis: .vertical)
-                            .lineLimit(1...4)
-                            .focused($groceryInputFocused)
-                            .submitLabel(.continue)
-                            .onSubmit(addItems)
-                            .onChange(of: rawInput) { _, value in
-                                // In a vertically-growing TextField, Return can
-                                // arrive as a newline rather than a submit event.
-                                // Treat that newline as submission; a multiline
-                                // paste still enters in one edit and is parsed
-                                // into multiple items by IngredientParser.
-                                if value.contains(where: { $0.isNewline }) {
-                                    addItems()
-                                } else if !value.isEmpty {
-                                    addedItemScrollTask?.cancel()
-                                    scrollTargetItemID = nil
+                    Section("Add products") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .top, spacing: 10) {
+                                Button { groceryInputFocused = true } label: {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .frame(width: 26, height: 26)
+                                        .background(storePrimaryColor, in: Circle())
+                                        .frame(width: 44, height: 44)
+                                        .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Add products")
+                                .accessibilityHint("Opens the keyboard to type or paste products")
+                                TextField("Tap to add products…", text: $rawInput, axis: .vertical)
+                                    .lineLimit(1...4)
+                                    .focused($groceryInputFocused)
+                                    .submitLabel(.continue)
+                                    .onSubmit(addItems)
+                                    .onChange(of: rawInput) { _, value in
+                                        // Return submits; multiline paste is parsed
+                                        // into multiple items in a single edit.
+                                        if value.contains(where: { $0.isNewline }) {
+                                            addItems()
+                                        } else if !value.isEmpty {
+                                            addedItemScrollTask?.cancel()
+                                            scrollTargetItemID = nil
+                                        }
+                                    }
+                                    .accessibilityLabel("Type or paste groceries")
+                                    .accessibilityIdentifier("grocery-input")
+                                    .padding(.vertical, 11)
                             }
-                            .accessibilityLabel("Type or paste groceries")
-                            .accessibilityIdentifier("grocery-input")
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(storePrimaryColor.opacity(groceryInputFocused ? 0.06 : 0.02), in: RoundedRectangle(cornerRadius: 12))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .strokeBorder(storePrimaryColor.opacity(groceryInputFocused ? 1 : 0.7), lineWidth: groceryInputFocused ? 2.5 : 1.5)
+                            }
+                            Text("Type or paste a list, e.g. milk, bread, eggs")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 4)
 
                         HStack {
                             Button(action: importPaprika) {
