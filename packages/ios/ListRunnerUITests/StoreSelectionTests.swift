@@ -1073,8 +1073,9 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(collapse.waitForExistence(timeout: 5))
         XCTAssertTrue(collapse.isHittable)
         XCTAssertEqual(collapse.value as? String, "Item 1 of 1")
-        XCTAssertGreaterThanOrEqual(collapse.frame.width, 44)
-        XCTAssertGreaterThanOrEqual(collapse.frame.height, 44)
+        // Accessibility coordinates can round a 44pt frame to 43.9999999999.
+        XCTAssertGreaterThanOrEqual(collapse.frame.width, 44 - 0.01)
+        XCTAssertGreaterThanOrEqual(collapse.frame.height, 44 - 0.01)
         collapse.tap()
         let expand = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Expand overlay")).firstMatch
         XCTAssertTrue(expand.waitForExistence(timeout: 3))
