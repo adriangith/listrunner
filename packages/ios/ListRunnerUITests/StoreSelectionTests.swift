@@ -414,7 +414,9 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["OTHER STORES"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["No supported stores for this country yet."].exists)
         XCTAssertTrue(app.staticTexts["ENABLED STORES"].exists)
-        XCTAssertFalse(app.staticTexts["B"].exists, "Enabled Bunnings is not indexed again")
+        XCTAssertTrue(app.staticTexts["B"].exists, "Disabled BIG W keeps its own index group")
+        XCTAssertLessThan(manageRow("bunnings").frame.minY, manageRow("bigW").frame.minY,
+                          "Enabled Bunnings is not duplicated in the index groups")
         XCTAssertTrue(app.staticTexts["C"].exists)
         let index = app.tables["manage-stores-table"].otherElements.matching(NSPredicate(format: "label CONTAINS[cd] 'index'")).firstMatch
         XCTAssertTrue(index.waitForExistence(timeout: 3), app.debugDescription)
