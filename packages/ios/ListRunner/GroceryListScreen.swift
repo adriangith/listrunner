@@ -165,7 +165,7 @@ struct GroceryListScreen: View {
                     Section {
                         if items.isEmpty {
                             ContentUnavailableView("Your list is empty", systemImage: "basket",
-                                                   description: Text("Add groceries here, then shop through them with ListRunner."))
+                                                   description: Text("Add products above, then shop though them with ListRunner"))
                                 .padding(.vertical, 12)
                         } else {
                             groceryList(using: scrollProxy)
