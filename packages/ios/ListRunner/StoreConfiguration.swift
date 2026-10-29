@@ -3,14 +3,14 @@ import CoreFoundation
 import Combine
 
 enum StoreID: String, Codable, CaseIterable, Identifiable {
-    case coles, woolworths, bunnings, costco, tesco, walmart, kmart, costcoUS
+    case coles, woolworths, bunnings, costco, tesco, walmart, kmart, costcoUS, bigW
     #if STORE_REGISTRY_PROOF
     // Only compiled by the standalone extensibility proof, never the app.
     case synthetic
     #endif
     var id: String { rawValue }
     // Reviewed native ceilings: bundled data cannot enable unreviewed store automation.
-    var permitsSearch: Bool { ![.tesco, .walmart, .kmart, .costcoUS].contains(self) }
+    var permitsSearch: Bool { ![.tesco, .walmart, .kmart, .costcoUS, .bigW].contains(self) }
     // Brand grouping is reviewed native identity, never inferred from a name or host.
     var brandID: String { self == .costcoUS ? StoreID.costco.rawValue : rawValue }
     var brandName: String { self == .costcoUS ? "Costco" : displayName }
@@ -33,6 +33,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .walmart: "Walmart"
         case .kmart: "Kmart"
         case .costcoUS: "Costco US"
+        case .bigW: "BIG W"
         #if STORE_REGISTRY_PROOF
         case .synthetic: "Example Hardware"
         #endif
@@ -48,6 +49,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .walmart: ["www.walmart.com", "walmart.com"]
         case .kmart: ["www.kmart.com.au", "kmart.com.au"]
         case .costcoUS: ["www.costco.com", "costco.com"]
+        case .bigW: ["www.bigw.com.au", "bigw.com.au"]
         #if STORE_REGISTRY_PROOF
         case .synthetic: ["www.store.example"]
         #endif
@@ -63,6 +65,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .walmart: "walmart.com"
         case .kmart: "kmart.com.au"
         case .costcoUS: "costco.com"
+        case .bigW: "bigw.com.au"
         #if STORE_REGISTRY_PROOF
         case .synthetic: "store.example"
         #endif
@@ -80,6 +83,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .walmart: value = "10000000-0000-4000-8000-000000000006"
         case .kmart: value = "10000000-0000-4000-8000-000000000007"
         case .costcoUS: value = "10000000-0000-4000-8000-000000000008"
+        case .bigW: value = "10000000-0000-4000-8000-000000000009"
         #if STORE_REGISTRY_PROOF
         case .synthetic: value = "10000000-0000-4000-8000-000000000099"
         #endif
@@ -97,6 +101,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .walmart: value = "20000000-0000-4000-8000-000000000006"
         case .kmart: value = "20000000-0000-4000-8000-000000000007"
         case .costcoUS: value = "20000000-0000-4000-8000-000000000008"
+        case .bigW: value = "20000000-0000-4000-8000-000000000009"
         #if STORE_REGISTRY_PROOF
         case .synthetic: value = "20000000-0000-4000-8000-000000000099"
         #endif
@@ -295,6 +300,7 @@ struct StoreDefinition: Codable {
                                         case .walmart: AddedColor(red: 0, green: 113, blue: 206)
                                         case .kmart: AddedColor(red: 0, green: 91, blue: 172)
                                         case .costcoUS: AddedColor(red: 0, green: 93, blue: 170)
+                                        case .bigW: AddedColor(red: 0, green: 107, blue: 182)
                                         #if STORE_REGISTRY_PROOF
                                         case .synthetic: AddedColor(red: 64, green: 64, blue: 64)
                                         #endif
