@@ -1098,9 +1098,9 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testProductEntryActionsRowIsCompact() {
-        let importButton = app.buttons["import-from-paprika"]
+        let importButton = app.buttons["set-import-source"]
         XCTAssertTrue(importButton.waitForExistence(timeout: 3))
-        let actionsRow = app.collectionViews.cells.containing(.button, identifier: "import-from-paprika").firstMatch
+        let actionsRow = app.collectionViews.cells.containing(.button, identifier: "set-import-source").firstMatch
         XCTAssertTrue(actionsRow.exists)
         XCTAssertLessThanOrEqual(actionsRow.frame.height, 56, "Remove spare padding, not button hit areas")
         XCTAssertGreaterThanOrEqual(importButton.frame.height, 44)
@@ -1626,7 +1626,71 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.buttons["Dismiss store"].exists)
     }
 
+    private func selectPaprikaSource() {
+        app.buttons["set-import-source"].tap()
+        XCTAssertTrue(app.navigationBars["Set import source"].waitForExistence(timeout: 5))
+        app.buttons["import-source-paprika"].tap()
+        XCTAssertTrue(app.buttons["use-paprika"].waitForExistence(timeout: 5))
+        app.buttons["use-paprika"].tap()
+        XCTAssertTrue(app.buttons["import-from-paprika"].waitForExistence(timeout: 5))
+    }
+
+    func testPaprikaSourceSetupReturnsWithoutImportingAndPersists() {
+        selectPaprikaSource()
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").exists)
+        XCTAssertFalse(row("milk", status: "Pending").exists, "Choosing a source must not import")
+        XCTAssertFalse(app.buttons["use-paprika"].exists)
+        choose("Woolworths")
+        XCTAssertTrue(app.buttons["import-from-paprika"].exists, "Import source is app-wide")
+        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").exists)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["import-from-paprika"].waitForExistence(timeout: 5))
+        XCTAssertFalse(row("milk", status: "Pending").exists)
+        app.buttons["import-from-paprika"].tap()
+        XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 5))
+        choose("Coles")
+        XCTAssertFalse(row("milk", status: "Pending").exists, "Import targets only the selected store")
+    }
+
+    func testPaprikaSourceSetupCanBeCancelledAndReopenedFromSettings() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("Draft groceries")
+        app.buttons["set-import-source"].tap()
+        app.buttons["import-source-paprika"].tap()
+        tapNavigationBack()
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["set-import-source"].waitForExistence(timeout: 5))
+        XCTAssertEqual(input.value as? String, "Draft groceries")
+        XCTAssertFalse(row("milk", status: "Pending").exists)
+
+        app.buttons["Settings"].tap()
+        app.buttons["import-source-setting"].tap()
+        app.buttons["import-source-paprika"].tap()
+        XCTAssertTrue(app.staticTexts["2. Export them to Apple Reminders."].exists)
+        app.buttons["use-paprika"].tap()
+        XCTAssertTrue(app.buttons["import-from-paprika"].waitForExistence(timeout: 5), "Settings setup returns all the way to the list")
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").exists)
+        XCTAssertFalse(row("milk", status: "Pending").exists)
+        XCTAssertEqual(input.value as? String, "Draft groceries")
+
+        app.buttons["Settings"].tap()
+        app.buttons["import-source-setting"].tap()
+        app.buttons["import-source-paprika"].tap()
+        XCTAssertTrue(app.buttons["use-paprika"].exists, "Instructions remain available after setup")
+    }
+
+    func testPaprikaSourceSetupFromEmptyList() {
+        selectPaprikaSource()
+        XCTAssertTrue(app.staticTexts["Your list is empty"].exists)
+        XCTAssertFalse(app.buttons["Show Store"].exists)
+        app.buttons["import-from-paprika"].tap()
+        XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 5))
+    }
+
     func testPaprikaImportUsesSelectedStoreAndIsIdempotent() {
+        selectPaprikaSource()
         let importButton = app.buttons["import-from-paprika"]
         XCTAssertTrue(importButton.waitForExistence(timeout: 5))
         XCTAssertGreaterThan(importButton.frame.width, 180)
@@ -1656,6 +1720,7 @@ final class StoreSelectionTests: XCTestCase {
             app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
             app.launchEnvironment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] = fixture
             app.launch()
+            selectPaprikaSource()
             app.buttons["Import from Paprika"].tap()
             XCTAssertTrue(app.staticTexts[expectedNotice].waitForExistence(timeout: 5))
             XCTAssertTrue(row("Coles fixture item", status: "Pending").exists)

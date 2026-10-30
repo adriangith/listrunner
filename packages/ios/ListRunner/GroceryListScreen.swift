@@ -44,6 +44,9 @@ struct GroceryListScreen: View {
     @State private var editingItem: GroceryItem?
     @State private var showingStore = false
     @State private var showingStoreManagement = false
+    @State private var showingImportSetup = false
+    @State private var showingSettings = false
+    @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
     @State private var showingClearConfirmation = false
     @State private var notice: String?
     @State private var saveFailed = false
@@ -161,8 +164,16 @@ struct GroceryListScreen: View {
                             .padding(.vertical, 4)
 
                         HStack {
-                            Button(action: importPaprika) {
-                                Label(paprikaReminders.importing ? "Importing…" : "Import from Paprika",
+                            Button {
+                                groceryInputFocused = false
+                                if GroceryImportSource(rawValue: importSourceID) == .paprika {
+                                    importPaprika()
+                                } else {
+                                    showingImportSetup = true
+                                }
+                            } label: {
+                                Label(paprikaReminders.importing ? "Importing…" :
+                                        GroceryImportSource(rawValue: importSourceID) == .paprika ? "Import from Paprika" : "Import",
                                       systemImage: paprikaReminders.importing ? "hourglass" : "checklist")
                                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                                     .contentShape(Rectangle())
@@ -172,8 +183,9 @@ struct GroceryListScreen: View {
                             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                             .contentShape(Rectangle())
                             .disabled(paprikaReminders.importing)
-                            .accessibilityIdentifier("import-from-paprika")
-                            .accessibilityHint("Imports incomplete reminders from the Paprika list in Apple Reminders")
+                            .accessibilityIdentifier(GroceryImportSource(rawValue: importSourceID) == .paprika ? "import-from-paprika" : "set-import-source")
+                            .accessibilityHint(GroceryImportSource(rawValue: importSourceID) == .paprika ?
+                                "Imports incomplete reminders from the Paprika list in Apple Reminders" : "Choose your grocery import source")
 
                             Spacer(minLength: 8)
 
@@ -322,13 +334,26 @@ struct GroceryListScreen: View {
             .navigationDestination(isPresented: $showingStoreManagement) {
                 StoreVisibilityScreen(sessions: sessions, visibility: visibility)
             }
+            .navigationDestination(isPresented: $showingImportSetup) {
+                ImportSourceSelectionScreen(selectedSourceID: importSourceID) { source in
+                    importSourceID = source.rawValue
+                    showingImportSetup = false
+                }
+            }
+            .navigationDestination(isPresented: $showingSettings) {
+                SettingsOverviewScreen(sessions: sessions, visibility: visibility,
+                                       importInProgress: paprikaReminders.importing) {
+                    showingSettings = false
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if !visibility.visibleIDs.isEmpty && !items.isEmpty { EditButton() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink {
-                         SettingsOverviewScreen(sessions: sessions, visibility: visibility)
+                    Button {
+                        groceryInputFocused = false
+                        showingSettings = true
                     } label: {
                         Image(systemName: "gearshape")
                     }

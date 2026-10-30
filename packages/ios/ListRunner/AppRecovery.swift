@@ -168,6 +168,9 @@ struct SettingsOverviewScreen: View {
     @ObservedObject var sessions: StoreSessions
     @ObservedObject var visibility: StoreVisibilityPreferences
     @State private var notice: String?
+    @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
+    let importInProgress: Bool
+    let onImportSourceSelected: () -> Void
 
     var body: some View {
         Form {
@@ -192,6 +195,18 @@ struct SettingsOverviewScreen: View {
             } footer: {
                 Text("Uses the Country setting to adapt ingredient names in retailer searches. Your list and quantities stay unchanged.")
             }
+            Section("Importing") {
+                NavigationLink {
+                    ImportSourceSelectionScreen(selectedSourceID: importSourceID) { source in
+                        importSourceID = source.rawValue
+                        onImportSourceSelected()
+                    }
+                } label: {
+                    LabeledContent("Import source", value: GroceryImportSource(rawValue: importSourceID) == .paprika ? "Paprika" : "Not set")
+                }
+                .accessibilityIdentifier("import-source-setting")
+                .disabled(importInProgress)
+            }
             Section("Diagnostics") {
                 Button("Clear All Diagnostics") {
                     do { try sessions.diagnostics.clear(); notice = "Diagnostics cleared" }
@@ -214,6 +229,83 @@ struct SettingsOverviewScreen: View {
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct ImportSourceSelectionScreen: View {
+    let selectedSourceID: String
+    let onUseSource: (GroceryImportSource) -> Void
+
+    var body: some View {
+        List {
+            Section {
+                Text("Choose the app your groceries come from. You can have one source active at a time. You can change this later in Settings.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Section("Sources") {
+                NavigationLink {
+                    PaprikaImportInstructionsScreen {
+                        onUseSource(.paprika)
+                    }
+                } label: {
+                    HStack {
+                        Label("Paprika", systemImage: "checklist")
+                        Spacer()
+                        if GroceryImportSource(rawValue: selectedSourceID) == .paprika {
+                            Image(systemName: "checkmark").accessibilityHidden(true)
+                        }
+                    }
+                    .frame(minHeight: 44)
+                }
+                .accessibilityIdentifier("import-source-paprika")
+                .accessibilityValue(GroceryImportSource(rawValue: selectedSourceID) == .paprika ? "Active" : "Not selected")
+            }
+        }
+        .navigationTitle("Set import source")
+        .navigationBarTitleDisplayMode(.large)
+    }
+}
+
+struct PaprikaImportInstructionsScreen: View {
+    let onUse: () -> Void
+
+    var body: some View {
+        List {
+            Section("How to import") {
+                PaprikaImportInstructions()
+            }
+            Section {
+                Button(action: onUse) {
+                    Text("Use Paprika")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .accessibilityIdentifier("use-paprika")
+                .accessibilityHint("Sets Paprika as your import source and returns to your list. Does not import items yet.")
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
+        }
+        .navigationTitle("Import from Paprika")
+        .navigationBarTitleDisplayMode(.large)
+    }
+}
+
+private struct PaprikaImportInstructions: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("1. Open your groceries in Paprika.")
+            Text("2. Export them to Apple Reminders.")
+            Text("3. Tap Import from Paprika when adding items to your grocery list.")
+            Text("We read incomplete items from the Reminders list named ‘Paprika’.")
+                .padding(.top, 8)
+        }
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 

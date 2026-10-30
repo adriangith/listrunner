@@ -1,5 +1,13 @@
 import Foundation
 
+// Source selection is app-wide; imported rows and reminder links remain owned
+// by their store list. Unknown values deliberately return to setup.
+enum GroceryImportSource: String {
+    case paprika
+
+    static let preferenceKey = "groceryImportSource.v1"
+}
+
 enum SessionResetPhase: Equatable { case ready, resetting, failed }
 enum StoreRecovery: Equatable { case loadFailed, processTerminated }
 enum CartDetectionIssue { case productIDUnavailable, quantityUnavailable, confirmationTimedOut }

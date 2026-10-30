@@ -31,6 +31,14 @@ The verifier requires every canonical JSON file (including Bunnings) to be byte-
 
 ## Current implementation
 
+### Import source setup (30 October 2026)
+
+The list initially offers **Import**, which opens **Set import source**. Paprika is the only available source. Its instruction screen explains exporting groceries from Paprika to the Apple Reminders list named exactly `Paprika`. **Use Paprika** saves an app-wide source preference and returns directly to Your list, including when opened through Settings. It neither imports groceries nor requests Reminders permission.
+
+Once configured, **Import from Paprika** invokes the existing immediate, store-scoped EventKit import: no preview, selection step or automatic store presentation. The choice persists across relaunch/store changes. Settings → **Import source** shows the current source and reopens its instructions; backing out without pressing Use Paprika leaves the choice unchanged. No other sources or speculative integrations are offered.
+
+Existing grocery rows, statuses, quantities, drafts, reminder links and retailer sessions are unaffected by source setup. There is no database migration: existing installations show setup once unless this new preference is already saved. Unknown source values return to setup rather than silently importing Paprika. Confirmed Reset Local Data clears the source preference; diagnostics clearing, list clearing and retailer session resets do not. Reminders permission and transactional import/deduplication/writeback behaviour remain unchanged.
+
 ### Alternate Settings navigation (29 October 2026)
 
 Main Settings now contains Manage Stores and **Country**, with no individual store rows. Manage Stores lists enabled brands first, followed by disabled brands matching the country and other disabled brands. Enabled brands are never repeated in the discovery groups. Empty groups disappear; search still finds every brand and regional name. The native right-hand letter index remains; the ABC toolbar menu is removed.

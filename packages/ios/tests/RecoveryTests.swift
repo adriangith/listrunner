@@ -870,6 +870,13 @@ struct RecoveryTests {
         let suiteName = "ListRunnerRecoveryTests." + UUID().uuidString
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
+        check(GroceryImportSource(rawValue: defaults.string(forKey: GroceryImportSource.preferenceKey) ?? "") == nil,
+              "unset import source requires explicit setup")
+        check(GroceryImportSource(rawValue: "future-source") == nil,
+              "unknown import source returns to setup rather than importing Paprika")
+        defaults.set(GroceryImportSource.paprika.rawValue, forKey: GroceryImportSource.preferenceKey)
+        check(GroceryImportSource(rawValue: UserDefaults(suiteName: suiteName)!.string(forKey: GroceryImportSource.preferenceKey)!) == .paprika,
+              "explicit Paprika selection survives preferences reload")
          defaults.set("saved-selection", forKey: "lastOverlaySelectedItemID")
          defaults.set(["coles"], forKey: "visibleStoreIDs.v1")
          defaults.set(["coles", "woolworths", "bunnings"], forKey: "knownStoreIDs.v1")
@@ -879,7 +886,9 @@ struct RecoveryTests {
          defaults.set(false, forKey: "useLocalIngredientNames.v1")
          defaults.set(["costco": "costcoUS"], forKey: "storeRegionalChoices.v1")
          defaults.set(true, forKey: "selectEnabledStoreAfterEmpty.v1")
-          try disk.clear()
+           try disk.clear()
+          check(defaults.string(forKey: GroceryImportSource.preferenceKey) == "paprika",
+                "diagnostics clearing preserves import source")
           check(defaults.object(forKey: "useLocalIngredientNames.v1") as? Bool == false, "diagnostics clearing preserves naming opt-out")
          check(defaults.string(forKey: "shoppingCountry.v1") == "NZ"
                && defaults.array(forKey: "visibleStoreIDs.v1") as? [String] == ["coles"],
@@ -911,6 +920,8 @@ struct RecoveryTests {
         check(storage.container != nil, "confirmed local reset opens an empty store")
         let emptyCount = try storage.container!.mainContext.fetchCount(FetchDescriptor<GroceryItem>())
         check(emptyCount == 0, "reset store contains no items")
+        check(defaults.object(forKey: GroceryImportSource.preferenceKey) == nil,
+              "confirmed local reset clears import source and restores setup")
         check(defaults.object(forKey: "useLocalIngredientNames.v1") == nil,
               "local reset removes naming preference")
          check(defaults.string(forKey: "lastOverlaySelectedItemID") == nil, "local reset clears app metadata")
