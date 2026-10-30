@@ -679,14 +679,20 @@ final class StoreVisibilityPreferences: ObservableObject {
             defaults.set(true, forKey: countryInitializedKey)
         }
         // Both legacy sort modes migrate identically, without a location request.
+        // Their presence identifies an install that predates store visibility;
+        // preserve its original default stores while fresh installs start with
+        // no stores enabled.
+        let hasLegacyStorePreferences = defaults.object(forKey: "storeSortMode.v1") != nil
         defaults.removeObject(forKey: "storeSortMode.v1")
         let current = Set(StoreID.allCases)
         if defaults.array(forKey: knownKey) != nil {
             let stored = Set((defaults.array(forKey: visibleKey) as? [String] ?? []).compactMap(StoreID.init(rawValue:)))
             visibleIDs = stored.intersection(current)
-        } else {
+        } else if hasLegacyStorePreferences {
             // These are the stores present before visibility preferences existed.
             visibleIDs = Set([StoreID.coles, .woolworths, .bunnings]).intersection(current)
+        } else {
+            visibleIDs = []
         }
         defaults.set(current.map(\.rawValue).sorted(), forKey: knownKey)
         defaults.set(visibleIDs.map(\.rawValue).sorted(), forKey: visibleKey)

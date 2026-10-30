@@ -66,8 +66,9 @@ struct RecoveryTests {
         defer { emptyDefaults.removePersistentDomain(forName: emptySuite) }
         emptyDefaults.set("bunnings", forKey: "activeStoreID")
         let emptyPreferences = StoreVisibilityPreferences(defaults: emptyDefaults)
-        check(emptyPreferences.selectionForList(current: .bunnings, definitions: brandDefinitions) == .bunnings,
-              "ordinary store management does not change the active store")
+        check(emptyPreferences.visibleIDs.isEmpty
+              && emptyPreferences.selectionForList(current: .bunnings, definitions: brandDefinitions) == nil,
+              "fresh installs start with every store disabled and no enabled destination")
         for id in StoreID.allCases { emptyPreferences.setVisible(false, for: id) }
         check(emptyPreferences.selectionForList(current: .bunnings, definitions: brandDefinitions) == nil,
               "all-disabled state has no enabled destination")
