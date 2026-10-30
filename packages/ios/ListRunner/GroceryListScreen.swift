@@ -10,6 +10,7 @@ struct ShoppingRootScreen: View {
     @AppStorage("activeStoreID") private var activeStoreID = StoreID.coles.rawValue
     @State private var drafts: [StoreID: String] = [:]
     @State private var welcomeCompletion = 0
+    @State private var welcomeTransition = WelcomeCompletionTransition()
     @State private var previewingStoreWelcome: Bool = {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("--preview-store-welcome")
@@ -33,9 +34,10 @@ struct ShoppingRootScreen: View {
                            onWelcomeStoreEnabled: { id in
                                sessions.endAllInteractions()
                                _ = visibility.selectionForList(current: id, definitions: sessions.definitions)
-                               // Replace the welcome navigation stack rather than
-                               // animating a pop through its intermediate screens.
-                               withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+                               // Lay out the new navigation stack without animating
+                               // its safe areas/header. Fade the captured outgoing
+                               // screen instead of interpolating live stack layout.
+                               welcomeTransition.perform(reduceMotion: reduceMotion) {
                                    previewingStoreWelcome = false
                                    activeStoreID = id.rawValue
                                    welcomeCompletion += 1
@@ -45,8 +47,8 @@ struct ShoppingRootScreen: View {
                               activeStoreID = id.rawValue
                           })
             .id("\(storeID.rawValue)-\(welcomeCompletion)")
-            .transition(.opacity)
         }
+            .background(WelcomeTransitionAnchor(transition: welcomeTransition))
             .sensoryFeedback(.success, trigger: welcomeCompletion)
             .onChange(of: visibility.visibleIDs) { previous, current in
                 // Opening management is not a choice. Keep the one-run welcome
@@ -55,6 +57,58 @@ struct ShoppingRootScreen: View {
                     previewingStoreWelcome = false
                 }
             }
+    }
+}
+
+@MainActor
+private final class WelcomeCompletionTransition {
+    weak var anchor: UIView?
+    private var overlay: UIView?
+
+    func perform(reduceMotion: Bool, updates: () -> Void) {
+        overlay?.removeFromSuperview()
+        // Use this scene's window, never UIApplication's global window list.
+        let window = anchor?.window
+        let snapshot = reduceMotion ? nil : window?.snapshotView(afterScreenUpdates: false)
+        if let window, let snapshot {
+            snapshot.frame = window.bounds
+            snapshot.isAccessibilityElement = false
+            snapshot.accessibilityElementsHidden = true
+            snapshot.isUserInteractionEnabled = true
+            window.addSubview(snapshot)
+            overlay = snapshot
+        }
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction, updates)
+        guard let snapshot else { return }
+        // Give SwiftUI one update turn to build the selected store underneath.
+        DispatchQueue.main.async { [weak self, weak snapshot, weak window] in
+            guard let snapshot else { return }
+            window?.layoutIfNeeded()
+            UIView.animate(withDuration: 0.3, delay: 0,
+                           options: [.curveEaseInOut, .beginFromCurrentState]) {
+                snapshot.alpha = 0
+            } completion: { _ in
+                snapshot.removeFromSuperview()
+                if self?.overlay === snapshot { self?.overlay = nil }
+            }
+        }
+    }
+}
+
+private struct WelcomeTransitionAnchor: UIViewRepresentable {
+    let transition: WelcomeCompletionTransition
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        transition.anchor = view
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        transition.anchor = view
     }
 }
 
