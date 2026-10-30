@@ -32,6 +32,13 @@ struct ShoppingRootScreen: View {
                               activeStoreID = id.rawValue
                           })
             .id(storeID)
+            .onChange(of: visibility.visibleIDs) { previous, current in
+                // Opening management is not a choice. Keep the one-run welcome
+                // preview when backing out, and finish only on an enable action.
+                if !current.subtracting(previous).isEmpty {
+                    previewingStoreWelcome = false
+                }
+            }
     }
 }
 
@@ -128,9 +135,6 @@ struct GroceryListScreen: View {
             List {
                 if showingStoreWelcome {
                     StoreWelcomeContent {
-                        #if DEBUG
-                        previewingStoreWelcome = false
-                        #endif
                         showingStoreManagement = true
                     }
                     .listRowBackground(Color.clear)

@@ -87,6 +87,26 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["No stores enabled"].waitForExistence(timeout: 10))
     }
 
+    func testFirstStoreWelcomePreviewReturnsAfterCancelledChoice() {
+        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
+        app.buttons["welcome-choose-store"].tap()
+        setStoreVisibility("coles", shown: true)
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launchArguments = ["--preview-store-welcome"]
+        app.launch()
+        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
+        app.buttons["welcome-choose-store"].tap()
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 5))
+        app.buttons["welcome-choose-store"].tap()
+        setStoreVisibility("bunnings", shown: true)
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["welcome-choose-store"].exists)
+    }
+
     private func choose(_ name: String) {
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         app.buttons["store-picker"].tap()

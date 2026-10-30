@@ -4,7 +4,7 @@
 
 * Fresh installs start with every store disabled. Show a neutral ListRunner welcome with `Choose your first store`, a brief purpose statement, three steps (choose a store, add/import a list, shop through items), and a prominent `Choose a Store` action opening Manage Stores. No permission requests or store websites open automatically.
 * Keep the welcome across relaunches and cancelled store selection until a store is enabled. After that, disabling all stores shows `No stores enabled`, `Enable a store to see its grocery list.` and `Manage Stores`, not first-time onboarding. Existing installs retain their enabled stores and use the returning-user empty state. Confirmed Reset Local Data clears welcome completion.
-* Debug builds accept `--preview-store-welcome` to display the welcome for one launch without clearing or changing lists, logins or store preferences. Choosing a Store exits the temporary preview and opens ordinary management.
+* Debug builds accept `--preview-store-welcome` to display the welcome for one launch without clearing or changing lists, logins or store preferences. Choose a Store opens ordinary management; backing out without enabling a store returns to the welcome. An explicit store-enable action exits the temporary preview.
 
 ### Simplified import-source setup (30 October 2026)
 
