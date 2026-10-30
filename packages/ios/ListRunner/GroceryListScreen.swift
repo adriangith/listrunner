@@ -186,6 +186,9 @@ struct GroceryListScreen: View {
                                     addItemsButtonFrame = frame
                                 }
                         }
+                        // Trim List's default 15 pt vertical insets without
+                        // shrinking the import action's 44 pt hit area.
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                     }
 
                     Section {

@@ -1094,6 +1094,22 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 5), "Deletion must persist")
     }
 
+    func testProductEntryActionsRowIsCompact() {
+        let importButton = app.buttons["import-from-paprika"]
+        XCTAssertTrue(importButton.waitForExistence(timeout: 3))
+        let actionsRow = app.collectionViews.cells.containing(.button, identifier: "import-from-paprika").firstMatch
+        XCTAssertTrue(actionsRow.exists)
+        XCTAssertLessThanOrEqual(actionsRow.frame.height, 56, "Remove spare padding, not button hit areas")
+        XCTAssertGreaterThanOrEqual(importButton.frame.height, 44)
+        XCTAssertTrue(importButton.isHittable)
+        XCTAssertTrue(app.buttons["Add Items"].exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Compact product-entry action row"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        print("Product-entry action row height: \(actionsRow.frame.height)")
+    }
+
     func testLemonTreeRemainsDistinctFromLemon() {
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
