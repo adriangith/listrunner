@@ -55,6 +55,7 @@ struct GroceryListScreen: View {
     @State private var scrollTargetItemID: UUID?
     @State private var addedItemScrollTask: Task<Void, Never>?
     @State private var addedItemScrollRequestID = UUID()
+    @State private var addedItemNeedsScrollRecheck = false
     @State private var scrollTargetFrame: (id: UUID, frame: CGRect)?
     @State private var listViewportFrame: CGRect = .zero
     @State private var groceryInputFrame: CGRect = .zero
@@ -523,7 +524,6 @@ struct GroceryListScreen: View {
             // List row insets otherwise sit outside the scrollTo target, leaving
             // the cell's bottom padding clipped even after a successful scroll.
             .padding(.vertical, 15)
-            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button("Delete", systemImage: "trash", role: .destructive) { delete(item) }
                     .accessibilityHint("Removes this item from ListRunner only, not the store cart")
@@ -555,6 +555,7 @@ struct GroceryListScreen: View {
                     ? storeHighlightColor.opacity(0.18)
                     : Color(uiColor: .secondarySystemGroupedBackground)
             )
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
         }
         .onMove(perform: moveItems)
     }
@@ -651,12 +652,24 @@ struct GroceryListScreen: View {
     private func scrollToAddedItem(_ itemID: UUID, using proxy: ScrollViewProxy, animated: Bool = true) {
         // Geometry, query and onAppear callbacks can arrive in the same layout
         // pass. Coalesce them instead of repeatedly cancelling the queued scroll.
-        guard addedItemScrollTask == nil, !isAddedItemFullyVisible(itemID) else { return }
+        guard !isAddedItemFullyVisible(itemID) else { return }
+        if addedItemScrollTask != nil {
+            addedItemNeedsScrollRecheck = true
+            return
+        }
         let requestID = UUID()
         addedItemScrollRequestID = requestID
         addedItemScrollTask = Task { @MainActor in
             defer {
-                if addedItemScrollRequestID == requestID { addedItemScrollTask = nil }
+                if addedItemScrollRequestID == requestID {
+                    addedItemScrollTask = nil
+                    // A layout callback can arrive while scrollTo is executing.
+                    // Do not lose its final clipped-frame correction.
+                    if addedItemNeedsScrollRecheck {
+                        addedItemNeedsScrollRecheck = false
+                        scrollToAddedItem(itemID, using: proxy, animated: false)
+                    }
+                }
             }
             await Task.yield()
             guard !Task.isCancelled, scrollTargetItemID == itemID,
@@ -680,6 +693,7 @@ struct GroceryListScreen: View {
         addedItemScrollTask?.cancel()
         addedItemScrollTask = nil
         addedItemScrollRequestID = UUID()
+        addedItemNeedsScrollRecheck = false
     }
 
     private static func normalizedUnit(_ unit: String?) -> String { unit?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "" }
