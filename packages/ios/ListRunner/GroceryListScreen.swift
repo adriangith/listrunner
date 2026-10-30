@@ -1103,9 +1103,46 @@ private struct StoreWelcomeButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(.white)
-            .background(StoreWelcomePalette.blue, in: Capsule())
+            .background {
+                Capsule()
+                    .fill(StoreWelcomePalette.blue)
+                    .overlay {
+                        StoreWelcomeButtonShimmer()
+                            .clipShape(Capsule())
+                    }
+            }
             .contentShape(Capsule())
             .opacity(configuration.isPressed ? 0.85 : 1)
+    }
+}
+
+private struct StoreWelcomeButtonShimmer: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isVisible = false
+
+    var body: some View {
+        GeometryReader { geometry in
+            if !reduceMotion && scenePhase == .active && isVisible {
+                // Only the small background highlight updates, not the welcome
+                // screen or button label. No timer runs off-screen or inactive.
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                    let cycle = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 4.5)
+                    let progress = min(cycle / 1.6, 1)
+                    let bandWidth = max(geometry.size.width * 0.28, 44)
+                    LinearGradient(colors: [.clear, .white.opacity(0.18), .clear],
+                                   startPoint: .leading, endPoint: .trailing)
+                        .frame(width: bandWidth, height: geometry.size.height * 3)
+                        .rotationEffect(.degrees(18))
+                        .offset(x: -bandWidth * 2 + (geometry.size.width + bandWidth * 4) * progress,
+                                y: -geometry.size.height)
+                }
+            }
+        }
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
