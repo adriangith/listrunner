@@ -1217,6 +1217,22 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Cart Undo, Not included"].exists)
     }
 
+    func testNewUSRetailersStartHiddenWithHonestSupportAndOwnReset() {
+        app.buttons["Settings"].tap()
+        changeCountry("US", name: "United States")
+        app.buttons["Manage Stores"].tap()
+        for (id, name) in [("amazon", "Amazon US"), ("kroger", "Kroger"), ("target", "Target US")] {
+            openStoreSettings(id)
+            XCTAssertEqual(app.switches["store-visibility-\(id)"].value as? String, "0")
+            XCTAssertTrue(app.staticTexts["Cart detection, Not included"].exists)
+            XCTAssertTrue(app.staticTexts["Cart Undo, Not included"].exists)
+            app.buttons["Reset \(name) Session"].tap()
+            XCTAssertTrue(app.alerts["Reset \(name) Session?"].waitForExistence(timeout: 3))
+            app.alerts["Reset \(name) Session?"].buttons["Cancel"].tap()
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+        }
+    }
+
     func testWalmartMovesToLocalGroupForUnitedStates() {
         app.buttons["Settings"].tap()
         changeCountry("US", name: "United States")

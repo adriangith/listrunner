@@ -1,5 +1,12 @@
 ## ListRunner Build Specification
 
+### US retailer expansion (30 October 2026)
+
+* The approved US set is Walmart, Amazon US, Costco US, Kroger and Target US. Amazon (`amazon`), Kroger (`kroger`) and Target (`target`) join the existing registry and shared shopping flow, start disabled, and have permanent independent list/website-data IDs ending `000010`, `000011` and `000012`. Preserve existing stores, regional choices, visibility, lists and sessions. US Target is not Australian Target; Kroger does not implicitly include its other banners; Amazon.com does not imply Amazon Fresh or Whole Foods support.
+* Use exact reviewed US `www`/bare retailer hosts only. Shared country discovery, manual item controls, diagnostics and per-store reset apply; Costco remains one brand with isolated AU/US regional destinations. No new layout or store-specific shopping engine is introduced.
+* Aim for automatic search, trusted product-specific addition detection and safe cart Undo independently. Enable each only after its required live embedded-WebKit verification; a desktop search shell, an Add button, intended quantity or page-wide cart badge is not certification. Unverified capabilities remain disabled in JSON and native ceilings with honest Included Support. Read-only checks do not authorize sign-in, cart mutations, checkout or changing account/delivery settings.
+* Canonical search candidates are Walmart `/search?q={query}`, Amazon `/s?k={query}`, Costco US `/s?keyword={query}`, Kroger `/search?query={query}` and Target `/s?searchTerm={query}`. Templates can remain dormant when blocked/unverified; do not bypass verification or broaden hosts to third-party grocery services. The prior browsing-only US requirements remain the safe baseline until verification is recorded in `packages/ios/VALIDATION.md`.
+
 ### First-store welcome (30 October 2026)
 
 * Welcome → Manage Stores → a brand opens a simplified setup screen containing only an `Enable [store]` button and Included Support (with the selected website in its footer). Use the existing saved/country-suggested regional destination; do not silently change regions. Enabling returns directly to that store's active list, never its website, including when the store was already enabled in the debug preview. Cancelling changes nothing. Ordinary store management and Settings retain the complete store settings screen.

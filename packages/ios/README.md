@@ -31,6 +31,14 @@ The verifier requires every canonical JSON file (including Bunnings) to be byte-
 
 ## Current implementation
 
+### US retailer expansion (30 October 2026)
+
+The catalogue now contains the approved Walmart, Amazon US, Costco US, Kroger and Target US set. Amazon, Kroger and Target are new disabled-by-default registrations with independent saved lists, named persistent website-data stores, diagnostics/reset scopes and US country grouping. Costco US retains its existing regional identity and shares only the discovery brand with Costco Australia. Amazon US means Amazon.com, not a verified Amazon Fresh/Whole Foods integration; Kroger's other banners and Australian Target are not included.
+
+All five currently retain manual browsing/progression while individual automation capabilities are being checked. Data-only dormant search templates do not claim active automatic search. Native policy prevents unverified search, detection or cart Undo from being enabled through bundled JSON. The exact bare/`www` US domains are registered, not arbitrary login subdomains or third-party delivery services. Existing lists/logins/visibility are unchanged. See `VALIDATION.md` for live evidence and remaining work.
+
+`LiveUSSearchTests` is an explicit opt-in, read-only iOS WebKit probe using nonpersistent data stores and GET-only exact-host navigation. Ordinary UI tests skip it. It records visible product links and a matching milk product without touching account settings, sign-in or carts. A recorded probe outcome alone does not certify login, cart detection or cart reversal.
+
 ### Import source setup (30 October 2026)
 
 The list initially offers **Import**, which opens **Set import source**. Paprika is the only available source. Its instruction screen explains exporting groceries from Paprika to the Apple Reminders list named exactly `Paprika`. **Use Paprika** saves an app-wide source preference and returns directly to Your list, including when opened through Settings. It neither imports groceries nor requests Reminders permission.
