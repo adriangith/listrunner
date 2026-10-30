@@ -1199,7 +1199,7 @@ final class StoreSelectionTests: XCTestCase {
         app.alerts["Reset Kmart Session?"].buttons["Cancel"].tap()
     }
 
-    func testWalmartUSIsBrowsingOnlyAndStartsHidden() {
+    func testWalmartUSSupportsSearchAndStartsHidden() {
         app.buttons["Settings"].tap()
         XCTAssertFalse(app.buttons["settings-store-walmart"].exists)
         app.buttons["Manage Stores"].tap()
@@ -1212,7 +1212,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(app.switches.count, 0)
         setStoreVisibility("walmart", shown: true)
         openStoreSettings("walmart")
-        XCTAssertEqual(app.staticTexts.matching(identifier: "Search, Not included").count, 2)
+        XCTAssertTrue(app.staticTexts["Search, Included"].exists)
         XCTAssertEqual(app.staticTexts.matching(identifier: "Cart detection, Not included").count, 2)
         XCTAssertTrue(app.staticTexts["Cart Undo, Not included"].exists)
     }
@@ -1224,6 +1224,7 @@ final class StoreSelectionTests: XCTestCase {
         for (id, name) in [("amazon", "Amazon US"), ("kroger", "Kroger"), ("target", "Target US")] {
             openStoreSettings(id)
             XCTAssertEqual(app.switches["store-visibility-\(id)"].value as? String, "0")
+            XCTAssertTrue(app.staticTexts[id == "amazon" ? "Search, Not included" : "Search, Included"].exists)
             XCTAssertTrue(app.staticTexts["Cart detection, Not included"].exists)
             XCTAssertTrue(app.staticTexts["Cart Undo, Not included"].exists)
             app.buttons["Reset \(name) Session"].tap()

@@ -76,6 +76,9 @@ struct RecoveryTests {
         ]
         for definition in usDefinitions {
             let id = definition.id
+            let expectedSearch = [StoreID.walmart, .kroger, .target].contains(id)
+            check(definition.capabilities.search == expectedSearch && id.permitsSearch == expectedSearch,
+                  "only US routes with matching live iOS WebKit product evidence enable automatic search")
             check(definition.serviceArea.countryCodes == ["US"] && definition.isConfigurationValid,
                   "US registrations have valid US-only coverage")
             check(!definition.capabilities.cartDetection && !definition.capabilities.cartUndo && definition.cart == nil
@@ -448,13 +451,13 @@ struct RecoveryTests {
               && !tesco.allows(URL(string: "https://www.tesco.com.evil.test")!)
               && !tesco.allows(coles.homepage), "Tesco UK browsing hosts remain exact and isolated")
         check(walmart.isConfigurationValid && walmart.serviceArea.countryCodes == ["US"]
-              && !walmart.capabilities.search && !walmart.capabilities.cartDetection && !walmart.capabilities.cartUndo && walmart.cart == nil,
-              "Walmart US is a valid browsing-only definition with no automation")
-        check(!StoreID.walmart.permitsSearch && !StoreID.walmart.permitsCartDetection && !StoreID.walmart.permitsCartUndo,
-              "native Walmart policy prohibits unreviewed store automation")
+              && walmart.capabilities.search && !walmart.capabilities.cartDetection && !walmart.capabilities.cartUndo && walmart.cart == nil,
+              "Walmart US supports verified search without claiming cart automation")
+        check(StoreID.walmart.permitsSearch && !StoreID.walmart.permitsCartDetection && !StoreID.walmart.permitsCartUndo,
+              "native Walmart policy permits search but prohibits unreviewed cart automation")
         var widenedWalmart = walmart
-        widenedWalmart.capabilities.search = true
-        check(!widenedWalmart.isConfigurationValid, "JSON cannot enable Walmart automatic searches")
+        widenedWalmart.capabilities.cartDetection = true
+        check(!widenedWalmart.isConfigurationValid, "JSON cannot enable Walmart cart detection")
         let allStores = [coles, woolworths, bunnings, costco, tesco, walmart]
         let auWithUS = StoreCatalogue.sections(allStores, countryCode: "AU")
         check(auWithUS.count == 3 && auWithUS[0].stores.count == 4

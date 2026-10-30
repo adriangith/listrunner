@@ -10,7 +10,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
     #endif
     var id: String { rawValue }
     // Reviewed native ceilings: bundled data cannot enable unreviewed store automation.
-    var permitsSearch: Bool { ![.tesco, .walmart, .costcoUS, .amazon, .kroger, .target].contains(self) }
+    var permitsSearch: Bool { ![.tesco, .costcoUS, .amazon].contains(self) }
     // Brand grouping is reviewed native identity, never inferred from a name or host.
     var brandID: String { self == .costcoUS ? StoreID.costco.rawValue : rawValue }
     var brandName: String { self == .costcoUS ? "Costco" : displayName }
