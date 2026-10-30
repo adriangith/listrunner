@@ -1247,16 +1247,21 @@ final class StoreSelectionTests: XCTestCase {
         input.typeText("toaster")
         let existingCell = app.collectionViews.cells.containing(.button, identifier: "Actions for Coles fixture item").firstMatch
         let showStore = app.buttons["Show Store"]
+        let keyboardLayout = NSPredicate { _, _ in
+            showStore.frame.maxY < self.app.frame.height * 0.65
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: keyboardLayout, object: app)], timeout: 3), .completed)
         for _ in 0..<6 {
             if existingCell.frame.maxY <= showStore.frame.minY { break }
             // Make room for a row without touching the field or submitting it.
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.48))
-                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.43)))
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.46))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.36)))
         }
         XCTAssertLessThanOrEqual(existingCell.frame.maxY, showStore.frame.minY)
         XCTAssertTrue(input.isHittable)
         XCTAssertTrue(app.keyboards.firstMatch.exists)
         let originalInputY = input.frame.minY
+        print("Before visible-row submission: cell=\(existingCell.frame), showStore=\(showStore.frame), input=\(input.frame)")
         app.buttons["Add Items"].tap()
         assertFirstItemIsFullyVisible("toaster")
         XCTAssertEqual(input.frame.minY, originalInputY, accuracy: 2,
