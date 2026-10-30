@@ -1214,6 +1214,8 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testRepeatedNewItemsAreFullyRevealedInExistingList() {
+        let existingCell = app.collectionViews.cells.containing(.button, identifier: "Actions for Coles fixture item").firstMatch
+        XCTAssertEqual(existingCell.frame.height, 78, accuracy: 1, "Reveal geometry must not add extra cell padding")
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
         let names = [
@@ -1234,6 +1236,28 @@ final class StoreSelectionTests: XCTestCase {
             assertFirstItemIsFullyVisible(name)
             assertGroceryInputIsEmpty(input)
         }
+    }
+
+    func testAlreadyVisibleNewItemDoesNotRepositionList() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("toaster")
+        let existingCell = app.collectionViews.cells.containing(.button, identifier: "Actions for Coles fixture item").firstMatch
+        let showStore = app.buttons["Show Store"]
+        for _ in 0..<6 {
+            if existingCell.frame.maxY <= showStore.frame.minY { break }
+            // Make room for a row without touching the field or submitting it.
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.48))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.43)))
+        }
+        XCTAssertLessThanOrEqual(existingCell.frame.maxY, showStore.frame.minY)
+        XCTAssertTrue(input.isHittable)
+        XCTAssertTrue(app.keyboards.firstMatch.exists)
+        let originalInputY = input.frame.minY
+        app.buttons["Add Items"].tap()
+        assertFirstItemIsFullyVisible("toaster")
+        XCTAssertEqual(input.frame.minY, originalInputY, accuracy: 2,
+                       "An already-visible new row must not force bottom alignment")
     }
 
     func testFirstItemAutoScrollsIntoViewFromEmptyList() {

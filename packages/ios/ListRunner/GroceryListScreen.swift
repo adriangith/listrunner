@@ -676,7 +676,9 @@ struct GroceryListScreen: View {
                   items.contains(where: { $0.id == itemID }),
                   !isAddedItemFullyVisible(itemID) else { return }
             withAnimation(animated ? .easeInOut(duration: 0.35) : nil) {
-                proxy.scrollTo(itemID, anchor: .bottom)
+                // A nil anchor asks SwiftUI for the minimum movement needed to
+                // reveal the full row, including when its frame isn't cached yet.
+                proxy.scrollTo(itemID)
             }
         }
     }
