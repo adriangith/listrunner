@@ -339,7 +339,13 @@ struct StoreVisibilityScreen: View {
     var body: some View {
         let sections = StoreBrand.sections(catalogueDefinitions, countryCode: visibility.shoppingCountryCode,
                                                search: searchText, enabledIDs: visibility.visibleIDs)
-        Group {
+        ZStack {
+            // Keep the native scroll controller attached during empty searches.
+            // Replacing it with a non-scrolling view disconnects the large-title
+            // navigation bar while search/appearance transitions are in flight.
+            StoreManagementTable(sections: sections, searching: !searchText.isEmpty,
+                                 selectBrand: { selectedBrand = $0 })
+                .accessibilityHidden(sections.isEmpty && !searchText.isEmpty)
             if sections.isEmpty && !searchText.isEmpty {
                 VStack {
                     ContentUnavailableView("No stores found", systemImage: "magnifyingglass",
@@ -347,9 +353,6 @@ struct StoreVisibilityScreen: View {
                     Button("Clear Search") { searchText = "" }
                         .frame(minHeight: 44)
                 }
-            } else {
-                StoreManagementTable(sections: sections, searching: !searchText.isEmpty,
-                                      selectBrand: { selectedBrand = $0 })
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
