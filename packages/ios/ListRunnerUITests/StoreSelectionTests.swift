@@ -1257,6 +1257,10 @@ final class StoreSelectionTests: XCTestCase {
             showStore.frame.maxY < self.app.frame.height * 0.65
         }
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: keyboardLayout, object: app)], timeout: 5), .completed)
+        // Typing may let UIKit reveal the editor again. Put the first row back
+        // in view with a pan over the summary, away from buttons and the editor.
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.28))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.23)))
         assertFirstItemIsFullyVisible("kettle")
         XCTAssertLessThanOrEqual(existingCell.frame.maxY, showStore.frame.minY)
         XCTAssertTrue(input.isHittable)
