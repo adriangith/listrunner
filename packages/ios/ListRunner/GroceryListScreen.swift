@@ -54,6 +54,8 @@ struct GroceryListScreen: View {
     @State private var recentlyAddedItemIDs = Set<UUID>()
     @State private var scrollTargetItemID: UUID?
     @State private var addedItemScrollTask: Task<Void, Never>?
+    @State private var addedItemScrollRequestID = UUID()
+    @State private var scrollTargetFrame: (id: UUID, frame: CGRect)?
     @State private var listViewportFrame: CGRect = .zero
     @State private var groceryInputFrame: CGRect = .zero
     @State private var addItemsButtonFrame: CGRect = .zero
@@ -137,7 +139,7 @@ struct GroceryListScreen: View {
                                 if value.contains(where: { $0.isNewline }) {
                                     addItems()
                                 } else if !value.isEmpty {
-                                    addedItemScrollTask?.cancel()
+                                    cancelAddedItemScroll()
                                     scrollTargetItemID = nil
                                 }
                             }
@@ -245,7 +247,7 @@ struct GroceryListScreen: View {
             .simultaneousGesture(DragGesture(minimumDistance: 10).onChanged { _ in
                 // A deliberate manual scroll takes precedence over positioning
                 // the most recently submitted item.
-                addedItemScrollTask?.cancel()
+                cancelAddedItemScroll()
                 scrollTargetItemID = nil
             })
             .onGeometryChange(for: CGRect.self) { geometry in
@@ -433,11 +435,11 @@ struct GroceryListScreen: View {
             #endif
             // Return can briefly change the field's focus while UIKit keeps the
             // keyboard open. Only retire the target on an actual dismissal.
-            addedItemScrollTask?.cancel()
+            cancelAddedItemScroll()
             scrollTargetItemID = nil
         }
         .onDisappear {
-            addedItemScrollTask?.cancel()
+            cancelAddedItemScroll()
             scrollTargetItemID = nil
         }
         }
@@ -517,6 +519,11 @@ struct GroceryListScreen: View {
                 .accessibilityLabel("Actions for \(item.name)")
             }
             .frame(minHeight: 48)
+            // Include the entire cell in the scroll identity/geometry. Native
+            // List row insets otherwise sit outside the scrollTo target, leaving
+            // the cell's bottom padding clipped even after a successful scroll.
+            .padding(.vertical, 15)
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button("Delete", systemImage: "trash", role: .destructive) { delete(item) }
                     .accessibilityHint("Removes this item from ListRunner only, not the store cart")
@@ -525,8 +532,8 @@ struct GroceryListScreen: View {
             .onGeometryChange(for: CGRect.self) { geometry in
                 geometry.frame(in: .global)
             } action: { frame in
-                guard scrollTargetItemID == item.id, listViewportFrame.height > 0,
-                      frame.maxY > listViewportFrame.maxY - 16 else { return }
+                guard scrollTargetItemID == item.id else { return }
+                scrollTargetFrame = (item.id, frame)
                 // UIKit may restore the field's scroll position after Return.
                 // Correct a clipped row after that layout, with room for insets.
                 scrollToAddedItem(item.id, using: scrollProxy, animated: false)
@@ -584,6 +591,8 @@ struct GroceryListScreen: View {
     private func addItems(keepingInputFocused: Bool) {
         let parsed = IngredientParser.application.parseProductEntry(rawInput)
         guard !parsed.isEmpty else { return }
+        cancelAddedItemScroll()
+        scrollTargetFrame = nil
         var newlyAddedIDs = Set<UUID>()
         // Do not animate the empty-state replacement and new bottom inset while
         // trying to position the first row. Later additions keep their animation;
@@ -640,15 +649,37 @@ struct GroceryListScreen: View {
     }
 
     private func scrollToAddedItem(_ itemID: UUID, using proxy: ScrollViewProxy, animated: Bool = true) {
-        addedItemScrollTask?.cancel()
+        // Geometry, query and onAppear callbacks can arrive in the same layout
+        // pass. Coalesce them instead of repeatedly cancelling the queued scroll.
+        guard addedItemScrollTask == nil, !isAddedItemFullyVisible(itemID) else { return }
+        let requestID = UUID()
+        addedItemScrollRequestID = requestID
         addedItemScrollTask = Task { @MainActor in
+            defer {
+                if addedItemScrollRequestID == requestID { addedItemScrollTask = nil }
+            }
             await Task.yield()
             guard !Task.isCancelled, scrollTargetItemID == itemID,
-                  items.contains(where: { $0.id == itemID }) else { return }
+                  items.contains(where: { $0.id == itemID }),
+                  !isAddedItemFullyVisible(itemID) else { return }
             withAnimation(animated ? .easeInOut(duration: 0.35) : nil) {
                 proxy.scrollTo(itemID, anchor: .bottom)
             }
         }
+    }
+
+    private func isAddedItemFullyVisible(_ itemID: UUID) -> Bool {
+        guard let target = scrollTargetFrame, target.id == itemID,
+              listViewportFrame.height > 0 else { return false }
+        // Subpixel rounding must not keep requesting the same scroll forever.
+        return target.frame.minY >= listViewportFrame.minY - 0.5
+            && target.frame.maxY <= listViewportFrame.maxY + 0.5
+    }
+
+    private func cancelAddedItemScroll() {
+        addedItemScrollTask?.cancel()
+        addedItemScrollTask = nil
+        addedItemScrollRequestID = UUID()
     }
 
     private static func normalizedUnit(_ unit: String?) -> String { unit?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "" }
@@ -710,7 +741,7 @@ struct GroceryListScreen: View {
         }
         recentlyAddedItemIDs.subtract(removedIDs)
         if let target = scrollTargetItemID, removedIDs.contains(target) {
-            addedItemScrollTask?.cancel()
+            cancelAddedItemScroll()
             scrollTargetItemID = nil
         }
         for item in removed { modelContext.delete(item) }
