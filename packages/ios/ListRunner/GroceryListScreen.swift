@@ -54,6 +54,7 @@ struct GroceryListScreen: View {
     @State private var productActionsFrame: CGRect = .zero
     @State private var productEntryRevealTask: Task<Void, Never>?
     @State private var isRevealingProductEntry = false
+    @State private var productEntryRevealStatus = "idle"
     @State private var recentlyAddedItemIDs = Set<UUID>()
     @State private var scrollTargetItemID: UUID?
     @State private var addedItemScrollTask: Task<Void, Never>?
@@ -393,7 +394,7 @@ struct GroceryListScreen: View {
         #if DEBUG
         .overlay(alignment: .topLeading) {
             if ProcessInfo.processInfo.environment["LISTRUNNER_REVEAL_TEST_FIXTURE"] == "enabled" {
-                Text(verbatim: "target=\(scrollTargetItemID?.uuidString ?? "none"); frame=\(scrollTargetItemID.flatMap { itemFrames[$0] }.debugDescription); viewport=\(listViewportFrame); pending=\(addedItemScrollTask != nil); editor=\(groceryInputFrame); actions=\(productActionsFrame); focused=\(groceryInputFocused)")
+                Text(verbatim: "target=\(scrollTargetItemID?.uuidString ?? "none"); frame=\(scrollTargetItemID.flatMap { itemFrames[$0] }.debugDescription); viewport=\(listViewportFrame); pending=\(addedItemScrollTask != nil); editor=\(groceryInputFrame); actions=\(productActionsFrame); focused=\(groceryInputFocused); entryReveal=\(productEntryRevealStatus)")
                     .accessibilityIdentifier("item-reveal-status")
                     .frame(width: 1, height: 1)
                     .opacity(0.01)
@@ -706,9 +707,11 @@ struct GroceryListScreen: View {
                 // its explicit padding so scrollTo reveals the full native cell.
                 let cardTop = groceryInputFrame.minY - 19
                 let cardBottom = productActionsFrame.maxY
+                productEntryRevealStatus = "checked bottom=\(cardBottom) viewport=\(listViewportFrame.maxY)"
                 guard cardBottom > listViewportFrame.maxY + 0.5,
                       cardBottom - cardTop <= listViewportFrame.height else { continue }
                 withAnimation(.easeInOut(duration: 0.25)) {
+                    productEntryRevealStatus = "scroll requested bottom=\(cardBottom)"
                     proxy.scrollTo("product-entry-actions", anchor: .bottom)
                 }
             }
