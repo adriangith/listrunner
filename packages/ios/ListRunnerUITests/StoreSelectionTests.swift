@@ -140,6 +140,37 @@ final class StoreSelectionTests: XCTestCase {
         // Settled geometry assertions do not claim that every animation frame is stable.
     }
 
+    func testFirstStoreWelcomeInteractiveBackCanCancelAndComplete() {
+        let action = app.buttons["welcome-choose-store"]
+        let heading = app.staticTexts["Your lists.\nStreamlined."]
+        XCTAssertTrue(action.waitForExistence(timeout: 10))
+        let originalHeadingY = heading.frame.minY
+        let originalActionY = action.frame.minY
+        let table = app.tables["manage-stores-table"]
+
+        for _ in 0..<3 {
+            action.tap()
+            XCTAssertTrue(table.waitForExistence(timeout: 5))
+            let edge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.55))
+            let partial = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.55))
+            edge.press(forDuration: 0.1, thenDragTo: partial,
+                       withVelocity: XCUIGestureVelocity(rawValue: 80), thenHoldForDuration: 0.5)
+            XCTAssertTrue(table.waitForExistence(timeout: 5), "Cancelling Back must keep Manage Stores visible")
+            XCTAssertTrue(app.navigationBars["Manage Stores"].exists)
+
+            let finish = app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.55))
+            edge.press(forDuration: 0.1, thenDragTo: finish,
+                       withVelocity: XCUIGestureVelocity(rawValue: 300), thenHoldForDuration: 0.1)
+            XCTAssertTrue(action.waitForExistence(timeout: 5))
+            XCTAssertFalse(table.exists)
+            XCTAssertEqual(heading.frame.minY, originalHeadingY, accuracy: 1)
+            XCTAssertEqual(action.frame.minY, originalActionY, accuracy: 1)
+            XCTAssertFalse(app.buttons["Settings"].exists)
+        }
+        // A recorded frame-by-frame device check is also needed to catch a
+        // transient safe-area shift that disappears before these settled checks.
+    }
+
     func testFirstStoreWelcomeLargeTextKeepsActionReachable() {
         app.terminate()
         app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]

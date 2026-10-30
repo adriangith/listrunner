@@ -389,7 +389,9 @@ struct GroceryListScreen: View {
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar(showingStoreWelcome && !showingStoreManagement ? .hidden : .visible, for: .navigationBar)
+            // Keep the root's layout stable during interactive Back. The pushed
+            // screen owns its visible navigation bar, not this presentation flag.
+            .toolbar(showingStoreWelcome ? .hidden : .visible, for: .navigationBar)
             .navigationDestination(isPresented: $showingStoreManagement) {
                 StoreVisibilityScreen(sessions: sessions, visibility: visibility)
             }

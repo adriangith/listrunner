@@ -310,6 +310,7 @@ private struct PaprikaImportInstructions: View {
 }
 
 struct StoreVisibilityScreen: View {
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var sessions: StoreSessions
     @ObservedObject var visibility: StoreVisibilityPreferences
     @State private var searchText = ""
@@ -358,8 +359,12 @@ struct StoreVisibilityScreen: View {
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search stores")
         .navigationTitle("Manage Stores")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar(.visible, for: .navigationBar)
         .toolbarBackground(Color(uiColor: .systemGroupedBackground), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        // Refresh the native title/search chrome when appearance changes even
+        // while search owns the bar. Do not set a global UIKit appearance.
+        .toolbarColorScheme(colorScheme, for: .navigationBar)
         .navigationDestination(isPresented: Binding(get: { selectedBrand != nil }, set: { if !$0 { selectedBrand = nil } })) {
             if let selectedBrand {
                 StoreSettingsScreen(brand: selectedBrand, sessions: sessions, visibility: visibility)
