@@ -441,6 +441,7 @@ struct GroceryListScreen: View {
             #endif
             // Return can briefly change the field's focus while UIKit keeps the
             // keyboard open. Only retire the target on an actual dismissal.
+            guard !groceryInputFocused else { return }
             cancelAddedItemScroll()
             scrollTargetItemID = nil
         }

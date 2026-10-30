@@ -1255,10 +1255,14 @@ final class StoreSelectionTests: XCTestCase {
             if existingCell.frame.maxY <= showStore.frame.minY { break }
             // Make room for a row without touching the field or submitting it.
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.46))
-                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.36)))
+                .press(forDuration: 0.05,
+                       thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.43)),
+                       withVelocity: .slow, thenHoldForDuration: 0.2)
         }
         XCTAssertLessThanOrEqual(existingCell.frame.maxY, showStore.frame.minY)
         XCTAssertTrue(input.isHittable)
+        XCTAssertGreaterThan(input.frame.minY, app.buttons["store-picker"].frame.maxY,
+                             "Keep the editor below the fixed header so UIKit need not reveal it on submission")
         XCTAssertTrue(app.keyboards.firstMatch.exists)
         let originalInputY = input.frame.minY
         print("Before visible-row submission: cell=\(existingCell.frame), showStore=\(showStore.frame), input=\(input.frame)")
