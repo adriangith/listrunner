@@ -329,7 +329,7 @@ struct GroceryListScreen: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack(alignment: .center) {
                     Text(showingStoreWelcome ? "ListRunner" : "Your list")
-                        .font(.largeTitle.weight(.bold))
+                        .font(showingStoreWelcome ? .title3.weight(.bold) : .largeTitle.weight(.bold))
                         .foregroundStyle(.primary)
                     Spacer(minLength: 8)
                     if !showingStoreWelcome && !visibility.visibleIDs.isEmpty {
@@ -389,6 +389,7 @@ struct GroceryListScreen: View {
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(showingStoreWelcome && !showingStoreManagement ? .hidden : .visible, for: .navigationBar)
             .navigationDestination(isPresented: $showingStoreManagement) {
                 StoreVisibilityScreen(sessions: sessions, visibility: visibility)
             }
@@ -409,13 +410,15 @@ struct GroceryListScreen: View {
                     if !showingStoreWelcome && !visibility.visibleIDs.isEmpty && !items.isEmpty { EditButton() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        groceryInputFocused = false
-                        showingSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
+                    if !showingStoreWelcome {
+                        Button {
+                            groceryInputFocused = false
+                            showingSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                        }
+                        .accessibilityLabel("Settings")
                     }
-                    .accessibilityLabel("Settings")
                 }
             }
             .sheet(isPresented: $showingStore) {
@@ -1011,19 +1014,13 @@ private struct StoreWelcomeContent: View {
 
     var body: some View {
         VStack(spacing: 24) {
+            StoreWelcomeIllustration()
             StoreWelcomeIntroduction()
-            VStack(alignment: .leading, spacing: 20) {
-                StoreWelcomeStep(number: 1, title: "Choose a store")
-                StoreWelcomeStep(number: 2, title: "Type, paste or import your list")
-                StoreWelcomeStep(number: 3, title: "Shop through your items, one at a time")
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+            StoreWelcomeSteps()
 
             VStack(spacing: 12) {
                 Button(action: chooseStore) {
-                    Text("Choose a Store")
+                    Text("Choose Your First Store")
                         .font(.headline)
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
@@ -1036,7 +1033,8 @@ private struct StoreWelcomeContent: View {
                     .multilineTextAlignment(.center)
             }
         }
-        .padding(.vertical, 24)
+        .padding(.top, 12)
+        .padding(.bottom, 24)
         .frame(maxWidth: 480)
         .frame(maxWidth: .infinity)
     }
@@ -1044,20 +1042,79 @@ private struct StoreWelcomeContent: View {
 
 private struct StoreWelcomeIntroduction: View {
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "cart")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            Text("Choose your first store")
-                .font(.title2.bold())
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Your list.\nOne item at a time.")
+                .font(.largeTitle.bold())
                 .accessibilityAddTraits(.isHeader)
-            Text("Turn your shopping list into a guided trip through your store’s website.")
+            Text("Bring your shopping list to your store’s website and work through it with ListRunner.")
                 .font(.body)
                 .foregroundStyle(.secondary)
         }
-        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct StoreWelcomeIllustration: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Your shopping list")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Label("Milk", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                Label("Bread", systemImage: "arrow.right.circle.fill")
+                    .fontWeight(.semibold)
+                Spacer(minLength: 0)
+                Text("Up next")
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .foregroundStyle(.white)
+                    .background(.blue, in: Capsule())
+            }
+            .padding(10)
+            .foregroundStyle(.blue)
+            .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            Label("Apples", systemImage: "circle")
+                .foregroundStyle(.secondary)
+        }
+        .font(.subheadline)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .padding(18)
+        .frame(maxWidth: 280, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
+        .rotationEffect(.degrees(-3))
+        .padding(28)
+        .frame(maxWidth: .infinity)
+        .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 24))
+        // Example items illustrate the flow; they are not the user's actual list.
+        .accessibilityHidden(true)
+    }
+}
+
+private struct StoreWelcomeSteps: View {
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                StoreWelcomeStep(number: 1, title: "Choose a store")
+                Image(systemName: "chevron.right").accessibilityHidden(true)
+                StoreWelcomeStep(number: 2, title: "Add your list")
+                Image(systemName: "chevron.right").accessibilityHidden(true)
+                StoreWelcomeStep(number: 3, title: "Shop")
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            VStack(alignment: .leading, spacing: 10) {
+                StoreWelcomeStep(number: 1, title: "Choose a store")
+                StoreWelcomeStep(number: 2, title: "Add your list")
+                StoreWelcomeStep(number: 3, title: "Shop")
+            }
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -1066,14 +1123,16 @@ private struct StoreWelcomeStep: View {
     let title: LocalizedStringKey
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
             Text(number, format: .number)
-                .font(.body.bold())
+                .fontWeight(.semibold)
                 .foregroundStyle(.blue)
             Text(title)
-                .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .font(.caption)
+        .padding(8)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
         .accessibilityElement(children: .combine)
     }
 }

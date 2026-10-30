@@ -63,7 +63,9 @@ final class StoreSelectionTests: XCTestCase {
 
     func testFirstStoreWelcomePersistsUntilStoreEnabled() {
         XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10), app.debugDescription)
-        XCTAssertTrue(app.staticTexts["Choose your first store"].exists)
+        XCTAssertTrue(app.staticTexts["Your list.\nOne item at a time."].exists)
+        XCTAssertEqual(app.buttons["welcome-choose-store"].label, "Choose Your First Store")
+        XCTAssertFalse(app.buttons["Settings"].exists)
         XCTAssertFalse(app.buttons["store-picker"].exists)
         XCTAssertFalse(app.buttons["Show Store"].exists)
         app.terminate()
@@ -85,6 +87,27 @@ final class StoreSelectionTests: XCTestCase {
         app.terminate()
         app.launch()
         XCTAssertTrue(app.staticTexts["No stores enabled"].waitForExistence(timeout: 10))
+    }
+
+    func testFirstStoreWelcomeLargeTextKeepsActionReachable() {
+        app.terminate()
+        app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Your list.\nOne item at a time."].waitForExistence(timeout: 10))
+        let button = app.buttons["welcome-choose-store"]
+        for _ in 0..<6 {
+            if button.exists && button.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(button.isHittable, app.debugDescription)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Welcome at accessibility text size"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        button.tap()
+        XCTAssertTrue(app.tables["manage-stores-table"].waitForExistence(timeout: 5))
+        tapNavigationBack()
+        XCTAssertTrue(app.staticTexts["Your list.\nOne item at a time."].exists)
     }
 
     func testFirstStoreWelcomePreviewReturnsAfterCancelledChoice() {

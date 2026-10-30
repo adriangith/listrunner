@@ -2,7 +2,7 @@
 
 ### First-store welcome (30 October 2026)
 
-* Fresh installs start with every store disabled. Show a neutral ListRunner welcome with `Choose your first store`, a brief purpose statement, three steps (choose a store, add/import a list, shop through items), and a prominent `Choose a Store` action opening Manage Stores. No permission requests or store websites open automatically.
+* Fresh installs start with every store disabled. Show a small ListRunner title, a decorative shopping-list illustration, `Your list. One item at a time.`, a brief purpose statement, compact steps (choose a store, add your list, shop), and a prominent `Choose Your First Store` action opening Manage Stores. Hide Settings on welcome only. Use adaptive system colours, scalable text and a vertical step fallback when space is limited. No permission requests or store websites open automatically.
 * Keep the welcome across relaunches and cancelled store selection until a store is enabled. After that, disabling all stores shows `No stores enabled`, `Enable a store to see its grocery list.` and `Manage Stores`, not first-time onboarding. Existing installs retain their enabled stores and use the returning-user empty state. Confirmed Reset Local Data clears welcome completion.
 * Debug builds accept `--preview-store-welcome` to display the welcome for one launch without clearing or changing lists, logins or store preferences. Choose a Store opens ordinary management; backing out without enabling a store returns to the welcome. An explicit store-enable action exits the temporary preview.
 
