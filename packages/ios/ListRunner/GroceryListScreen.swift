@@ -171,9 +171,6 @@ struct GroceryListScreen: View {
                             }
                             .padding(.vertical, 4)
 
-                        // Register the action cell with List's data-driven row
-                        // identity, just like the grocery rows revealed below.
-                        ForEach(["product-entry-actions"], id: \.self) { actionID in
                         HStack {
                             Button(action: importPaprika) {
                                 Label(paprikaReminders.importing ? "Importing…" : "Import from Paprika",
@@ -203,7 +200,7 @@ struct GroceryListScreen: View {
                                 }
                         }
                         .padding(.vertical, 4)
-                        .id(actionID)
+                        .id("product-entry-actions")
                         .onGeometryChange(for: CGRect.self) { geometry in
                             geometry.frame(in: .global)
                         } action: { frame in
@@ -212,7 +209,6 @@ struct GroceryListScreen: View {
                         // Trim List's default 15 pt vertical insets without
                         // shrinking the import action's 44 pt hit area.
                         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-                        }
                     }
 
                     Section {
@@ -712,12 +708,18 @@ struct GroceryListScreen: View {
                 let cardTop = groceryInputFrame.minY - 19
                 let cardBottom = productActionsFrame.maxY
                 productEntryRevealStatus = "checked bottom=\(cardBottom) viewport=\(listViewportFrame.maxY)"
-                guard cardBottom > listViewportFrame.maxY + 0.5,
-                      cardBottom - cardTop <= listViewportFrame.height else { continue }
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    productEntryRevealStatus = "scroll requested bottom=\(cardBottom)"
-                    proxy.scrollTo("product-entry-actions", anchor: .bottom)
-                }
+                guard cardBottom - cardTop <= listViewportFrame.height else { continue }
+                let adjustment: CGFloat
+                if cardBottom > listViewportFrame.maxY + 0.5 {
+                    adjustment = cardBottom - listViewportFrame.maxY
+                } else if cardTop < listViewportFrame.minY - 0.5 {
+                    adjustment = cardTop - listViewportFrame.minY
+                } else { continue }
+                // Static List cells do not reliably register with scrollTo.
+                // Move only the measured clipping distance in the editor's own
+                // enclosing list, retaining its responder and compact geometry.
+                productEntryRevealStatus = "scroll adjustment=\(adjustment)"
+                productEntryFocus.adjustListOffset(by: adjustment)
             }
         }
     }
@@ -945,6 +947,22 @@ private final class ProductEntryFocus {
 
     func resignFirstResponder() {
         if let view, view.isFirstResponder { view.resignFirstResponder() }
+    }
+
+    func adjustListOffset(by adjustment: CGFloat) {
+        guard let view, view.isFirstResponder else { return }
+        var ancestor = view.superview
+        while let candidate = ancestor {
+            if let list = candidate as? UICollectionView {
+                guard !list.isDragging, !list.isDecelerating else { return }
+                let minimum = -list.adjustedContentInset.top
+                let maximum = max(minimum, list.contentSize.height - list.bounds.height + list.adjustedContentInset.bottom)
+                let offset = min(maximum, max(minimum, list.contentOffset.y + adjustment))
+                list.setContentOffset(CGPoint(x: list.contentOffset.x, y: offset), animated: true)
+                return
+            }
+            ancestor = candidate.superview
+        }
     }
 }
 
