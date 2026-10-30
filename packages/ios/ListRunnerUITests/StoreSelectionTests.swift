@@ -1250,9 +1250,11 @@ final class StoreSelectionTests: XCTestCase {
         input.typeText("kettle")
         app.buttons["Add Items"].tap()
         assertFirstItemIsFullyVisible("kettle")
-        // Type into the current first responder. Targeting the editor element
-        // asks XCTest to scroll that element into view before injecting text.
-        app.typeText("toaster")
+        // Tap software keys so XCTest doesn't reposition the editor or briefly
+        // switch to hardware-key injection while arranging this scenario.
+        for letter in "toaster" {
+            app.keys.matching(NSPredicate(format: "label ==[c] %@", String(letter))).firstMatch.tap()
+        }
         let existingCell = app.collectionViews.cells.containing(.button, identifier: "Actions for kettle").firstMatch
         let showStore = app.buttons["Show Store"]
         let keyboardLayout = NSPredicate { _, _ in
