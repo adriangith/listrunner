@@ -9,6 +9,9 @@ final class StoreSelectionTests: XCTestCase {
         app = XCUIApplication()
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
+        if name.contains("FullyRevealed") || name.contains("AlreadyVisibleNewItem") {
+            app.launchEnvironment["LISTRUNNER_REVEAL_TEST_FIXTURE"] = "enabled"
+        }
         if name.contains("KeyboardDismissalAnimation") {
             app.launchEnvironment["LISTRUNNER_ENTRY_ANIMATION_TEST_FIXTURE"] = "enabled"
         }

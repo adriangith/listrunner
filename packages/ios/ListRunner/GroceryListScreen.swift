@@ -55,7 +55,7 @@ struct GroceryListScreen: View {
     @State private var scrollTargetItemID: UUID?
     @State private var addedItemScrollTask: Task<Void, Never>?
     @State private var addedItemScrollRequestID = UUID()
-    @State private var scrollTargetFrame: (id: UUID, frame: CGRect)?
+    @State private var itemFrames: [UUID: CGRect] = [:]
     @State private var listViewportFrame: CGRect = .zero
     @State private var groceryInputFrame: CGRect = .zero
     @State private var addItemsButtonFrame: CGRect = .zero
@@ -374,6 +374,13 @@ struct GroceryListScreen: View {
         .tint(storePrimaryColor)
         #if DEBUG
         .overlay(alignment: .topLeading) {
+            if ProcessInfo.processInfo.environment["LISTRUNNER_REVEAL_TEST_FIXTURE"] == "enabled" {
+                Text("target=\(scrollTargetItemID?.uuidString ?? "none"); frame=\(scrollTargetItemID.flatMap { itemFrames[$0] }.debugDescription); viewport=\(listViewportFrame); pending=\(addedItemScrollTask != nil)")
+                    .accessibilityIdentifier("item-reveal-status")
+                    .frame(width: 1, height: 1)
+                    .opacity(0.01)
+                    .allowsHitTesting(false)
+            }
             if ProcessInfo.processInfo.environment["LISTRUNNER_ENTRY_ANIMATION_TEST_FIXTURE"] == "enabled" {
                 Text(entryDismissalAnimationStatus)
                     .accessibilityIdentifier("entry-dismissal-animation-status")
@@ -531,8 +538,8 @@ struct GroceryListScreen: View {
             .onGeometryChange(for: CGRect.self) { geometry in
                 geometry.frame(in: .global)
             } action: { frame in
+                itemFrames[item.id] = frame
                 guard scrollTargetItemID == item.id else { return }
-                scrollTargetFrame = (item.id, frame)
                 // UIKit may restore the field's scroll position after Return.
                 // Correct a clipped row after that layout, with room for insets.
                 scrollToAddedItem(item.id, using: scrollProxy, animated: false)
@@ -592,7 +599,6 @@ struct GroceryListScreen: View {
         let parsed = IngredientParser.application.parseProductEntry(rawInput)
         guard !parsed.isEmpty else { return }
         cancelAddedItemScroll()
-        scrollTargetFrame = nil
         var newlyAddedIDs = Set<UUID>()
         // Do not animate the empty-state replacement and new bottom inset while
         // trying to position the first row. Later additions keep their animation;
@@ -670,13 +676,13 @@ struct GroceryListScreen: View {
                 catch { return }
                 guard scrollTargetItemID == itemID,
                       items.contains(where: { $0.id == itemID }) else { return }
-                guard let target = scrollTargetFrame, target.id == itemID,
+                guard let target = itemFrames[itemID],
                       listViewportFrame.height > 0,
                       !isAddedItemFullyVisible(itemID) else { continue }
                 // Explicit edge alignment respects List's safe-area insets.
                 // Only request it for a measured, clipped row; a visible row
                 // never gets repositioned just because it was inserted.
-                let anchor: UnitPoint = target.frame.maxY > listViewportFrame.maxY ? .bottom : .top
+                let anchor: UnitPoint = target.maxY > listViewportFrame.maxY ? .bottom : .top
                 withAnimation(animated && index == 0 ? .easeInOut(duration: 0.35) : nil) {
                     proxy.scrollTo(itemID, anchor: anchor)
                 }
@@ -685,11 +691,11 @@ struct GroceryListScreen: View {
     }
 
     private func isAddedItemFullyVisible(_ itemID: UUID) -> Bool {
-        guard let target = scrollTargetFrame, target.id == itemID,
+        guard let target = itemFrames[itemID],
               listViewportFrame.height > 0 else { return false }
         // Subpixel rounding must not keep requesting the same scroll forever.
-        return target.frame.minY >= listViewportFrame.minY - 0.5
-            && target.frame.maxY <= listViewportFrame.maxY + 0.5
+        return target.minY >= listViewportFrame.minY - 0.5
+            && target.maxY <= listViewportFrame.maxY + 0.5
     }
 
     private func cancelAddedItemScroll() {
