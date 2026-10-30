@@ -171,6 +171,9 @@ struct GroceryListScreen: View {
                             }
                             .padding(.vertical, 4)
 
+                        // Register the action cell with List's data-driven row
+                        // identity, just like the grocery rows revealed below.
+                        ForEach(["product-entry-actions"], id: \.self) { actionID in
                         HStack {
                             Button(action: importPaprika) {
                                 Label(paprikaReminders.importing ? "Importing…" : "Import from Paprika",
@@ -200,7 +203,7 @@ struct GroceryListScreen: View {
                                 }
                         }
                         .padding(.vertical, 4)
-                        .id("product-entry-actions")
+                        .id(actionID)
                         .onGeometryChange(for: CGRect.self) { geometry in
                             geometry.frame(in: .global)
                         } action: { frame in
@@ -209,6 +212,7 @@ struct GroceryListScreen: View {
                         // Trim List's default 15 pt vertical insets without
                         // shrinking the import action's 44 pt hit area.
                         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                        }
                     }
 
                     Section {
