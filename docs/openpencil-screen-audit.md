@@ -1,5 +1,26 @@
 # OpenPencil screen audit
 
+## Multiple import sources concept — 2026-10-29
+
+Added **Import sources** to the existing **List Runner** document: 16 editable 402 × 874 phone boards (I01–I16), six navigation connectors, a START HERE guide, per-board behaviour notes and a shared behaviour/accessibility contract. This is a future UX proposal, not native implementation or certification of third-party integrations. The live page ID during editing was `1533388077:11`; the saved FIG remaps it to `0:18`, so rediscover IDs before editing.
+
+- **I01–I04:** empty list, six-source chooser, Paprika preparation/default choice and all-selected preview.
+- **I05–I08:** favourite shortcut, change-source chooser with default retained, conceptual AnyList guidance and partial selection.
+- **I09–I12:** importing, successful append with existing Coffee/Apples preserved, no-new-items guidance and Reminders access recovery.
+- **I13–I16:** missing/ambiguous Paprika list, local-save failure and a larger-text preview with clipped scrolling content above the fixed action.
+- Sources: AnyList, Bring!, Listonic, OurGroceries, Out of Milk and Paprika. Only Paprika has an implemented import mechanism; other transport, login, list-selection and writeback details remain unverified. The page guide and alternative-source board explicitly identify this boundary.
+- Proposed behaviour: explicitly chosen app-wide default, store destination pinned per attempt, selectable preview, source-ID deduplication without a cross-source name-merging promise, atomic commit and no automatic retailer presentation. These proposals do not replace current runtime behaviour in `plan.md` or the app.
+- Paprika instructions and the no-new-items state explicitly remind users to export from Paprika to Apple Reminders. Existing system-permission references remain on **Paprika import outcomes**; no OS permission prompt was reinvented here.
+
+### Verification and preservation
+
+- Saved through OpenPencil and independently read the actual S3 FIG back into the scene graph. Confirmed all 16 boards, expected copy/selection counts, six connectors and zero orphaned component instances across the document. All 15 pre-existing pages have identical recursive fingerprints for hierarchy, text, typography, geometry, visibility, fills/strokes and layout properties against the baseline. This is a scoped semantic comparison, not a byte-for-byte or all-properties equality claim.
+- Font availability reports faithful SF Pro rendering, without substitutions. Top-level FRAME overlap analysis found no major overlaps. Visually reviewed the first-use four-screen export plus representative favourite, preview, success, recovery and larger-text boards; not an exhaustive pixel audit of all 16 boards or runtime accessibility validation.
+- Baseline backup in CT 129: `/var/lib/openpencil-recovery/List-Runner-import-sources-1793242890256.fig` (includes the newly created but empty Import sources page).
+- Verified final backup in CT 129: `/var/lib/openpencil-recovery/List-Runner-import-sources-1793243306285.fig`, 1,599,449 bytes, SHA-256 `f49984ea0027f4c3e50af76abf8dfd3c4a0556dbe54b78684740f176cb316bbc`.
+- Local verification script/report: `/tmp/opencode/import-design-check.mjs` and `/tmp/opencode/import-design-readback.json`. Representative exported image: `/tmp/opencode/import-sources-first-use.png` (also `/opt/open-pencil/import-sources-first-use.png` in CT 129). Scratch artifacts are not repository deliverables.
+- No app code, retailer sessions, permissions or grocery data were changed. Native builds/device tests are not applicable to this design-only task. Static larger-text/selection examples and accessibility notes do not establish VoiceOver, Dynamic Type or native-sheet compliance.
+
 Source of truth: `plan.md`. Design: **List Runner → Shopping Flow**.
 
 ## Status
