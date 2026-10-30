@@ -62,7 +62,7 @@ final class StoreSelectionTests: XCTestCase {
     override func tearDownWithError() throws { app.terminate() }
 
     func testFirstStoreWelcomePersistsUntilStoreEnabled() {
-        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Choose your first store"].exists)
         XCTAssertFalse(app.buttons["store-picker"].exists)
         XCTAssertFalse(app.buttons["Show Store"].exists)

@@ -8,6 +8,13 @@ struct ShoppingRootScreen: View {
     @StateObject private var paprikaReminders = PaprikaReminders()
     @AppStorage("activeStoreID") private var activeStoreID = StoreID.coles.rawValue
     @State private var drafts: [StoreID: String] = [:]
+    @State private var previewingStoreWelcome: Bool = {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("--preview-store-welcome")
+        #else
+        return false
+        #endif
+    }()
 
     init(diagnostics: DiagnosticStore) {
         let preferences = StoreVisibilityPreferences()
@@ -18,6 +25,7 @@ struct ShoppingRootScreen: View {
     var body: some View {
         let storeID = StoreID(rawValue: activeStoreID) ?? .coles
         GroceryListScreen(storeID: storeID, sessions: sessions, visibility: visibility, paprikaReminders: paprikaReminders,
+                           previewingStoreWelcome: $previewingStoreWelcome,
                            rawInput: Binding(get: { drafts[storeID] ?? "" }, set: { drafts[storeID] = $0 }),
                            onSelectStore: { id in
                               sessions.endAllInteractions()
@@ -44,10 +52,8 @@ struct GroceryListScreen: View {
     @State private var editingItem: GroceryItem?
     @State private var showingStore = false
     @State private var showingStoreManagement = false
-    #if DEBUG
-    // One-run visual preview, without changing lists, logins or preferences.
-    @State private var previewingStoreWelcome = ProcessInfo.processInfo.arguments.contains("--preview-store-welcome")
-    #endif
+    // Root-owned so changing the active store cannot restart a dismissed preview.
+    @Binding private var previewingStoreWelcome: Bool
     @State private var showingImportSetup = false
     @State private var showingSettings = false
     @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
@@ -76,11 +82,13 @@ struct GroceryListScreen: View {
     @State private var entryDismissalAnimationStatus = "not-dismissed"
     #endif
 
-    init(storeID: StoreID, sessions: StoreSessions, visibility: StoreVisibilityPreferences, paprikaReminders: PaprikaReminders, rawInput: Binding<String>,
+    init(storeID: StoreID, sessions: StoreSessions, visibility: StoreVisibilityPreferences, paprikaReminders: PaprikaReminders,
+         previewingStoreWelcome: Binding<Bool>, rawInput: Binding<String>,
          onSelectStore: @escaping (StoreID) -> Void) {
         self.storeID = storeID; self.sessions = sessions
         self.visibility = visibility
         self.paprikaReminders = paprikaReminders
+        self._previewingStoreWelcome = previewingStoreWelcome
         self.onSelectStore = onSelectStore; self._rawInput = rawInput
         _browser = StateObject(wrappedValue: sessions.browser(for: storeID))
     }
@@ -1027,7 +1035,6 @@ private struct StoreWelcomeContent: View {
         .padding(.vertical, 24)
         .frame(maxWidth: 480)
         .frame(maxWidth: .infinity)
-        .accessibilityIdentifier("store-welcome")
     }
 }
 
