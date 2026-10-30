@@ -1213,6 +1213,29 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertLessThan(pears.frame.minY, existing.frame.minY)
     }
 
+    func testRepeatedNewItemsAreFullyRevealedInExistingList() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        let names = [
+            "household organiser alpha",
+            "household organiser with an unusually long custom product description",
+            "household organiser bravo",
+            "household organiser charlie",
+            "household organiser with another unusually long custom product description",
+            "household organiser delta"
+        ]
+        for (index, name) in names.enumerated() {
+            if index.isMultiple(of: 2) {
+                input.typeText(name)
+                app.buttons["Add Items"].tap()
+            } else {
+                input.typeText(name + "\n")
+            }
+            assertFirstItemIsFullyVisible(name)
+            assertGroceryInputIsEmpty(input)
+        }
+    }
+
     func testFirstItemAutoScrollsIntoViewFromEmptyList() {
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
         let input = app.descendants(matching: .any)["grocery-input"]
