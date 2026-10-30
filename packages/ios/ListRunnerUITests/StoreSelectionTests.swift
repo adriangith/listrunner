@@ -9,7 +9,7 @@ final class StoreSelectionTests: XCTestCase {
         app = XCUIApplication()
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
-        if name.contains("FullyRevealed") || name.contains("AlreadyVisibleNewItem") {
+        if name.contains("FullyRevealed") || name.contains("AlreadyVisibleNewItem") || name.contains("FocusedProductEntry") {
             app.launchEnvironment["LISTRUNNER_REVEAL_TEST_FIXTURE"] = "enabled"
         }
         if name.contains("KeyboardDismissalAnimation") {
@@ -1253,7 +1253,9 @@ final class StoreSelectionTests: XCTestCase {
                 && self.app.buttons["Show Store"].frame.maxY < self.app.frame.height * 0.65
                 && self.app.keyboards.firstMatch.exists
         }
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: app)], timeout: 5), .completed,
+        let result = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: app)], timeout: 5)
+        if result != .completed { print(app.debugDescription) }
+        XCTAssertEqual(result, .completed,
                        "The whole entry card, including the action row, must fit above Show Store")
         let originalY = editorCell.frame.minY
         // Refocusing an already visible card must not force a different offset.

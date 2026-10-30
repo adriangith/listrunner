@@ -388,7 +388,7 @@ struct GroceryListScreen: View {
         #if DEBUG
         .overlay(alignment: .topLeading) {
             if ProcessInfo.processInfo.environment["LISTRUNNER_REVEAL_TEST_FIXTURE"] == "enabled" {
-                Text("target=\(scrollTargetItemID?.uuidString ?? "none"); frame=\(scrollTargetItemID.flatMap { itemFrames[$0] }.debugDescription); viewport=\(listViewportFrame); pending=\(addedItemScrollTask != nil)")
+                Text(verbatim: "target=\(scrollTargetItemID?.uuidString ?? "none"); frame=\(scrollTargetItemID.flatMap { itemFrames[$0] }.debugDescription); viewport=\(listViewportFrame); pending=\(addedItemScrollTask != nil); editor=\(groceryInputFrame); actions=\(productActionsFrame); focused=\(groceryInputFocused)")
                     .accessibilityIdentifier("item-reveal-status")
                     .frame(width: 1, height: 1)
                     .opacity(0.01)
