@@ -1,5 +1,13 @@
 # Reusable store framework validation
 
+## Whole Add products card focus reveal — 30 October 2026
+
+Revision `128f830690f42491ff660028e58e583f3e4a9468` conditionally reveals the complete editor/action card when focused and its bottom is clipped. It checks the adjusted List viewport after focus/viewport changes and keyboard presentation, includes the action row's 4 pt vertical padding inside its scroll identity, and skips scrolling when the card fits. New-item reveal takes precedence after submission. Interactive keyboard dismissal is temporarily disabled during the programmatic card reveal, not during ordinary manual scrolling.
+
+**5/5 focused iPhone 17 / iOS 27 simulator UI tests passed**, with software keyboard enabled: whole entry card above Show Store plus no reposition on refocus; already-visible new row unchanged; empty-list Return reveal; repeated Add Items/Return including wrapping names; compact action row still 52 pt. Evidence: Mac `~/Library/Developer/Xcode/DerivedData/ListRunner-entry-card-128f830.xcresult`.
+
+Earlier runs on `91af873`, `5c9db65`, and `f5b5a10` failed while simulator hardware-keyboard simulation left an accessibility Keyboard below the physical screen. A visual device-interaction check confirmed this state. With user permission, Device Hub's **Toggle Software Keyboard** made the keyboard visible; hardware-keyboard simulation itself was left unchanged. Before the final padding fix, the visible native card ended at y464, touching Show Store at y464, and extending 8 pt past the List viewport bottom456. Final visual confirmation is pending. No phone installation of this revision has been performed; the phone remains on `26df57a`. Tests use isolated fixtures only.
+
 ## New-item reveal investigation — 30 October 2026 (in progress)
 
 **Follow-up:** Mac connectivity recovered. App-code revision `36c734c8506907014664f9735c29dae301e9850e` (checkout `572d0d557287aa60ffda3480908f0469685ff090`, documentation-only difference) passed **10/10 repeated runs**: five empty-list Return reveals and five six-submission existing-list sequences. Evidence: Mac `~/Library/Developer/Xcode/DerivedData/ListRunner-reveal-36c734c-retry.xcresult`. This supersedes the connectivity blocker below, not the recorded failures on the older revision. Subsequent revision `91af873d814f7ea1944bda7645f15e4929006d87` adds conditional whole-entry-card reveal on focus/keyboard viewport changes; its five focused checks are running. Neither follow-up is installed on the phone yet.
