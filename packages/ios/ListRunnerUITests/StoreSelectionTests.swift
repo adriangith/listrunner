@@ -63,7 +63,8 @@ final class StoreSelectionTests: XCTestCase {
 
     func testFirstStoreWelcomePersistsUntilStoreEnabled() {
         XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10), app.debugDescription)
-        XCTAssertTrue(app.staticTexts["Your list.\nOne item at a time."].exists)
+        XCTAssertTrue(app.staticTexts["Your lists.\nStreamlined."].exists)
+        XCTAssertTrue(app.staticTexts["Bring your shopping lists to your favourite stores’ websites and work through them with ListRunner."].exists)
         XCTAssertEqual(app.buttons["welcome-choose-store"].label, "Choose Your First Store")
         XCTAssertFalse(app.buttons["Mark Added"].exists, "The illustrated action must not be an interactive shopping control")
         XCTAssertFalse(app.buttons["Settings"].exists)
@@ -94,7 +95,7 @@ final class StoreSelectionTests: XCTestCase {
         app.terminate()
         app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
-        XCTAssertTrue(app.staticTexts["Your list.\nOne item at a time."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Your lists.\nStreamlined."].waitForExistence(timeout: 10))
         let button = app.buttons["welcome-choose-store"]
         for _ in 0..<6 {
             if button.exists && button.isHittable { break }
@@ -108,7 +109,7 @@ final class StoreSelectionTests: XCTestCase {
         button.tap()
         XCTAssertTrue(app.tables["manage-stores-table"].waitForExistence(timeout: 5))
         tapNavigationBack()
-        XCTAssertTrue(app.staticTexts["Your list.\nOne item at a time."].exists)
+        XCTAssertTrue(app.staticTexts["Your lists.\nStreamlined."].exists)
     }
 
     func testFirstStoreWelcomePreviewReturnsAfterCancelledChoice() {

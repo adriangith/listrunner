@@ -1044,10 +1044,10 @@ private struct StoreWelcomeContent: View {
 private struct StoreWelcomeIntroduction: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Your list.\nOne item at a time.")
+            Text("Your lists.\nStreamlined.")
                 .font(.largeTitle.bold())
                 .accessibilityAddTraits(.isHeader)
-            Text("Bring your shopping list to your store’s website and work through it with ListRunner.")
+            Text("Bring your shopping lists to your favourite stores’ websites and work through them with ListRunner.")
                 .font(.body)
                 .foregroundStyle(.secondary)
         }
