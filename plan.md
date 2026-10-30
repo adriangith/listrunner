@@ -7,7 +7,7 @@
 * Debug builds accept `--preview-store-welcome` to display the welcome for one launch without clearing or changing lists, logins or store preferences. Choose a Store opens ordinary management; backing out without enabling a store returns to the welcome. An explicit store-enable action exits the temporary preview.
 * The real `Choose Your First Store` button has a subtle repeating shimmer confined to its blue capsule background, behind its label. Keep the illustrated `Mark Added` static. Disable shimmer with Reduce Motion and while the app is inactive; the effect must not change the button's hit area or accessibility action.
 * Manage Stores uses one system grouped background across the table, navigation header and bottom safe area, including empty search results. Extend the background only, not the table content or controls, into the safe areas.
-* Navigation-bar visibility belongs to each destination: welcome keeps its bar hidden throughout push/pop and cancelled interactive Back; Manage Stores explicitly shows its own bar. Its native title/search chrome follows the current colour scheme, including appearance changes during an active search.
+* Navigation-bar visibility belongs to each destination: welcome keeps its bar hidden throughout push/pop and cancelled interactive Back; Manage Stores explicitly shows its own bar. Use a standard inline native Manage Stores title rather than the large-title/search fade path, and keep its table controller attached under empty search results. Its native title/search chrome follows the current colour scheme, including appearance changes during an active search.
 
 ### Simplified import-source setup (30 October 2026)
 
