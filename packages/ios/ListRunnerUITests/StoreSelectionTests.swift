@@ -1241,6 +1241,27 @@ final class StoreSelectionTests: XCTestCase {
         }
     }
 
+    func testFocusedProductEntryRevealsEntireCardAboveShowStore() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        let editorCell = app.collectionViews.cells.containing(.textView, identifier: "grocery-input").firstMatch
+        let actionsCell = app.collectionViews.cells.containing(.button, identifier: "import-from-paprika").firstMatch
+        let visible = NSPredicate { _, _ in
+            editorCell.frame.minY >= self.app.buttons["store-picker"].frame.maxY
+                && actionsCell.frame.maxY <= self.app.buttons["Show Store"].frame.minY
+                && self.app.buttons["Show Store"].frame.maxY < self.app.frame.height * 0.65
+                && self.app.keyboards.firstMatch.exists
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: app)], timeout: 5), .completed,
+                       "The whole entry card, including the action row, must fit above Show Store")
+        let originalY = editorCell.frame.minY
+        // Refocusing an already visible card must not force a different offset.
+        input.tap()
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
+        XCTAssertEqual(editorCell.frame.minY, originalY, accuracy: 2)
+    }
+
     func testAlreadyVisibleNewItemDoesNotRepositionList() {
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()

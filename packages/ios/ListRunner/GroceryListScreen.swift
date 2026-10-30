@@ -51,6 +51,8 @@ struct GroceryListScreen: View {
     // The native editor owns first-responder focus; mirror it as view state.
     @State private var groceryInputFocused = false
     @State private var productEntryFocus = ProductEntryFocus()
+    @State private var productActionsFrame: CGRect = .zero
+    @State private var productEntryRevealTask: Task<Void, Never>?
     @State private var recentlyAddedItemIDs = Set<UUID>()
     @State private var scrollTargetItemID: UUID?
     @State private var addedItemScrollTask: Task<Void, Never>?
@@ -192,6 +194,12 @@ struct GroceryListScreen: View {
                                     addItemsButtonFrame = frame
                                 }
                         }
+                        .id("product-entry-actions")
+                        .onGeometryChange(for: CGRect.self) { geometry in
+                            geometry.frame(in: .global)
+                        } action: { frame in
+                            productActionsFrame = frame
+                        }
                         // Trim List's default 15 pt vertical insets without
                         // shrinking the import action's 44 pt hit area.
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
@@ -261,6 +269,7 @@ struct GroceryListScreen: View {
                 geometry.frame(in: .global)
             } action: { frame in
                 listViewportFrame = frame
+                revealFocusedProductEntry(using: scrollProxy)
                 // The first item also introduces the bottom action inset. Scroll
                 // against the resulting viewport, not the old empty-list size.
                 guard let itemID = scrollTargetItemID else { return }
@@ -429,6 +438,10 @@ struct GroceryListScreen: View {
             guard let itemID else { return }
             scrollToAddedItem(itemID, using: scrollProxy)
         }
+        .onChange(of: groceryInputFocused) { _, focused in
+            productEntryRevealTask?.cancel()
+            if focused { revealFocusedProductEntry(using: scrollProxy) }
+        }
         .onChange(of: items.map(\.id)) { _, itemIDs in
             // When adding the first row, SwiftUI replaces the empty-state row
             // and may not have registered the new row when the target changes.
@@ -456,6 +469,7 @@ struct GroceryListScreen: View {
             }
         }
         .onDisappear {
+            productEntryRevealTask?.cancel()
             cancelAddedItemScroll()
             scrollTargetItemID = nil
         }
@@ -660,6 +674,31 @@ struct GroceryListScreen: View {
             try? await Task.sleep(for: .seconds(1.25))
             withAnimation(.easeOut(duration: 0.45)) {
                 recentlyAddedItemIDs.subtract(newlyAddedIDs)
+            }
+        }
+    }
+
+    private func revealFocusedProductEntry(using proxy: ScrollViewProxy) {
+        productEntryRevealTask?.cancel()
+        guard groceryInputFocused, scrollTargetItemID == nil else { return }
+        productEntryRevealTask = Task { @MainActor in
+            // Keyboard layout can arrive in stages. Re-measure each time rather
+            // than forcing alignment when the complete card already fits.
+            for delay in [0.1, 0.3, 0.3] {
+                do { try await Task.sleep(for: .seconds(delay)) }
+                catch { return }
+                guard groceryInputFocused, scrollTargetItemID == nil,
+                      listViewportFrame.height > 0,
+                      groceryInputFrame.height > 0, productActionsFrame.height > 0 else { return }
+                // The editor geometry excludes its List row's 15 pt native
+                // insets and 4 pt explicit padding; actions exclude 4 pt insets.
+                let cardTop = groceryInputFrame.minY - 19
+                let cardBottom = productActionsFrame.maxY + 4
+                guard cardBottom > listViewportFrame.maxY + 0.5,
+                      cardBottom - cardTop <= listViewportFrame.height else { continue }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    proxy.scrollTo("product-entry-actions", anchor: .bottom)
+                }
             }
         }
     }
