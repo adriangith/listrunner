@@ -1254,9 +1254,9 @@ final class StoreSelectionTests: XCTestCase {
         for _ in 0..<6 {
             if existingCell.frame.maxY <= showStore.frame.minY { break }
             // Make room for a row without touching the field or submitting it.
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.46))
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.46))
                 .press(forDuration: 0.05,
-                       thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.43)),
+                       thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.42)),
                        withVelocity: .slow, thenHoldForDuration: 0.2)
         }
         XCTAssertLessThanOrEqual(existingCell.frame.maxY, showStore.frame.minY)
