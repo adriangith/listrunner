@@ -1241,6 +1241,26 @@ final class StoreSelectionTests: XCTestCase {
         }
     }
 
+    func testFocusedProductEntryGrowingDraftKeepsWholeCardAboveShowStore() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        input.typeText("household cleaning supplies with a deliberately long wrapping product description and extra details to fill several lines in the product entry field")
+        let editorCell = app.collectionViews.cells.containing(.textView, identifier: "grocery-input").firstMatch
+        let actionsCell = app.collectionViews.cells.containing(.button, identifier: "import-from-paprika").firstMatch
+        let visible = NSPredicate { _, _ in
+            editorCell.frame.minY >= self.app.buttons["store-picker"].frame.maxY
+                && actionsCell.frame.maxY <= self.app.buttons["Show Store"].frame.minY
+                && self.app.buttons["Show Store"].frame.maxY < self.app.frame.height * 0.65
+                && self.app.buttons["Add Items"].isHittable
+        }
+        let result = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: app)], timeout: 5)
+        if result != .completed { print(app.debugDescription) }
+        XCTAssertEqual(result, .completed, "Growing a focused draft must reveal the whole card without submitting it")
+        XCTAssertTrue(row("household cleaning supplies", status: "Pending").exists == false)
+        XCTAssertTrue(app.keyboards.firstMatch.exists)
+    }
+
     func testFocusedProductEntryRevealsEntireCardAboveShowStore() {
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()

@@ -145,9 +145,10 @@ struct GroceryListScreen: View {
                                 // Keyboard Return is intercepted before insertion.
                                 if value.contains(where: { $0.isNewline }) {
                                     addItems()
-                                } else if !value.isEmpty {
-                                    cancelAddedItemScroll()
-                                    scrollTargetItemID = nil
+                                 } else if !value.isEmpty {
+                                     cancelAddedItemScroll()
+                                     scrollTargetItemID = nil
+                                     revealFocusedProductEntry(using: scrollProxy)
                                 }
                             }
                             .padding(.horizontal, 14)
@@ -162,8 +163,10 @@ struct GroceryListScreen: View {
                             .simultaneousGesture(TapGesture().onEnded { groceryInputFocused = true })
                             .onGeometryChange(for: CGRect.self) { geometry in
                                 geometry.frame(in: .global)
-                            } action: { frame in
-                                groceryInputFrame = frame
+                             } action: { frame in
+                                 let heightChanged = abs(groceryInputFrame.height - frame.height) > 0.5
+                                 groceryInputFrame = frame
+                                 if heightChanged { revealFocusedProductEntry(using: scrollProxy) }
                             }
                             .padding(.vertical, 4)
 
@@ -262,6 +265,7 @@ struct GroceryListScreen: View {
                 // A deliberate manual scroll takes precedence over positioning
                 // the most recently submitted item.
                 cancelAddedItemScroll()
+                productEntryRevealTask?.cancel()
                 scrollTargetItemID = nil
             })
             .onGeometryChange(for: CGRect.self) { geometry in
