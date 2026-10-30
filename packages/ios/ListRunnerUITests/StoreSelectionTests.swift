@@ -1,5 +1,78 @@
 import XCTest
 import UIKit
+import WebKit
+
+// Explicit opt-in only: ordinary UI tests remain offline. These read-only probes
+// use fresh iOS WebKit data stores, never app cookies, sign-in or cart actions.
+final class LiveUSSearchTests: XCTestCase {
+    @MainActor
+    func testReadOnlySearchRoutes() async throws {
+        guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_US_SEARCH"] == "1" else {
+            throw XCTSkip("Live retailer search requires explicit opt-in")
+        }
+        let probes = [
+            ("walmart", "https://www.walmart.com/search?q=milk", "a[href*='/ip/']"),
+            ("amazon", "https://www.amazon.com/s?k=milk", "a[href*='/dp/']"),
+            ("costcoUS", "https://www.costco.com/s?keyword=milk", "a[href*='.product.'], a[href*='/p/']"),
+            ("kroger", "https://www.kroger.com/search?query=milk", "a[href*='/p/']"),
+            ("target", "https://www.target.com/s?searchTerm=milk", "a[href*='/p/']")
+        ]
+        let required = Set((ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_US_REQUIRED"] ?? "")
+            .split(separator: ",").map(String.init))
+        for (id, route, selector) in probes {
+            let configuration = WKWebViewConfiguration()
+            configuration.websiteDataStore = .nonPersistent()
+            let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), configuration: configuration)
+            let policy = ReadOnlySearchPolicy(host: URL(string: route)!.host!)
+            webView.navigationDelegate = policy
+            webView.load(URLRequest(url: URL(string: route)!))
+            var products = 0
+            var matched = false
+            for _ in 0..<30 {
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+                let script = """
+                (() => {
+                    const links = [...document.querySelectorAll("\(selector)")]
+                      .filter(a => a.getClientRects().length && new URL(a.href).host === location.host);
+                    return {products: links.length, matched: links.some(a => /milk/i.test(a.textContent || a.getAttribute('aria-label') || ''))};
+                })()
+                """
+                if let result = try? await webView.evaluateJavaScript(script) as? [String: Any] {
+                    products = result["products"] as? Int ?? 0
+                    matched = result["matched"] as? Bool ?? false
+                    if products > 0 && matched { break }
+                }
+            }
+            let result = "\(id): productLinks=\(products), milkProduct=\(matched), sameHost=\(webView.url?.host == policy.host)"
+            print("US_SEARCH_PROBE \(result)")
+            let attachment = XCTAttachment(string: result)
+            attachment.name = "Read-only search: \(id)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            if required.contains(id) {
+                XCTAssertTrue(products > 0 && matched && webView.url?.host == policy.host, result)
+            }
+            webView.stopLoading()
+            webView.navigationDelegate = nil
+        }
+    }
+}
+
+@MainActor
+private final class ReadOnlySearchPolicy: NSObject, WKNavigationDelegate {
+    let host: String
+    init(host: String) { self.host = host }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard let url = navigationAction.request.url, url.scheme == "https",
+              url.host == host, navigationAction.request.httpMethod == "GET" else {
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+}
 
 final class StoreSelectionTests: XCTestCase {
     private var app: XCUIApplication!

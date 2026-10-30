@@ -3,14 +3,14 @@ import CoreFoundation
 import Combine
 
 enum StoreID: String, Codable, CaseIterable, Identifiable {
-    case coles, woolworths, bunnings, costco, tesco, walmart, kmart, costcoUS, bigW
+    case coles, woolworths, bunnings, costco, tesco, walmart, kmart, costcoUS, bigW, amazon, kroger, target
     #if STORE_REGISTRY_PROOF
     // Only compiled by the standalone extensibility proof, never the app.
     case synthetic
     #endif
     var id: String { rawValue }
     // Reviewed native ceilings: bundled data cannot enable unreviewed store automation.
-    var permitsSearch: Bool { ![.tesco, .walmart, .costcoUS].contains(self) }
+    var permitsSearch: Bool { ![.tesco, .walmart, .costcoUS, .amazon, .kroger, .target].contains(self) }
     // Brand grouping is reviewed native identity, never inferred from a name or host.
     var brandID: String { self == .costcoUS ? StoreID.costco.rawValue : rawValue }
     var brandName: String { self == .costcoUS ? "Costco" : displayName }
@@ -34,6 +34,9 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .kmart: "Kmart"
         case .costcoUS: "Costco US"
         case .bigW: "BIG W"
+        case .amazon: "Amazon US"
+        case .kroger: "Kroger"
+        case .target: "Target US"
         #if STORE_REGISTRY_PROOF
         case .synthetic: "Example Hardware"
         #endif
@@ -50,6 +53,9 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .kmart: ["www.kmart.com.au", "kmart.com.au"]
         case .costcoUS: ["www.costco.com", "costco.com"]
         case .bigW: ["www.bigw.com.au", "bigw.com.au"]
+        case .amazon: ["www.amazon.com", "amazon.com"]
+        case .kroger: ["www.kroger.com", "kroger.com"]
+        case .target: ["www.target.com", "target.com"]
         #if STORE_REGISTRY_PROOF
         case .synthetic: ["www.store.example"]
         #endif
@@ -66,6 +72,9 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .kmart: "kmart.com.au"
         case .costcoUS: "costco.com"
         case .bigW: "bigw.com.au"
+        case .amazon: "amazon.com"
+        case .kroger: "kroger.com"
+        case .target: "target.com"
         #if STORE_REGISTRY_PROOF
         case .synthetic: "store.example"
         #endif
@@ -84,6 +93,9 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .kmart: value = "10000000-0000-4000-8000-000000000007"
         case .costcoUS: value = "10000000-0000-4000-8000-000000000008"
         case .bigW: value = "10000000-0000-4000-8000-000000000009"
+        case .amazon: value = "10000000-0000-4000-8000-000000000010"
+        case .kroger: value = "10000000-0000-4000-8000-000000000011"
+        case .target: value = "10000000-0000-4000-8000-000000000012"
         #if STORE_REGISTRY_PROOF
         case .synthetic: value = "10000000-0000-4000-8000-000000000099"
         #endif
@@ -102,6 +114,9 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .kmart: value = "20000000-0000-4000-8000-000000000007"
         case .costcoUS: value = "20000000-0000-4000-8000-000000000008"
         case .bigW: value = "20000000-0000-4000-8000-000000000009"
+        case .amazon: value = "20000000-0000-4000-8000-000000000010"
+        case .kroger: value = "20000000-0000-4000-8000-000000000011"
+        case .target: value = "20000000-0000-4000-8000-000000000012"
         #if STORE_REGISTRY_PROOF
         case .synthetic: value = "20000000-0000-4000-8000-000000000099"
         #endif
@@ -384,6 +399,9 @@ struct StoreDefinition: Codable {
                                         case .kmart: AddedColor(red: 0, green: 91, blue: 172)
                                         case .costcoUS: AddedColor(red: 0, green: 93, blue: 170)
                                         case .bigW: AddedColor(red: 0, green: 107, blue: 182)
+                                        case .amazon: AddedColor(red: 35, green: 47, blue: 62)
+                                        case .kroger: AddedColor(red: 0, green: 75, blue: 141)
+                                        case .target: AddedColor(red: 204, green: 0, blue: 0)
                                         #if STORE_REGISTRY_PROOF
                                         case .synthetic: AddedColor(red: 64, green: 64, blue: 64)
                                         #endif

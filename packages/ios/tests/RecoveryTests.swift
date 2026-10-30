@@ -61,6 +61,73 @@ struct RecoveryTests {
               && costcoUS.id.listID != costco.id.listID && costcoUS.id.websiteDataID != costco.id.websiteDataID,
               "Costco regions cannot share hosts, lists or website-data identities")
         let brandDefinitions = [coles, woolworths, bunnings, costco, costcoUS, tesco, walmart, kmart, bigW]
+        let amazon = try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("amazon.json")))
+        let kroger = try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("kroger.json")))
+        let target = try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("target.json")))
+        let usDefinitions = [amazon, costcoUS, kroger, target, walmart]
+        let expandedDefinitions = brandDefinitions + [amazon, kroger, target]
+        check(Set(expandedDefinitions.map(\.id)) == Set(StoreID.allCases), "every production store has a canonical validated resource")
+        check(Set(StoreID.allCases.map(\.listID)).count == StoreID.allCases.count
+              && Set(StoreID.allCases.map(\.websiteDataID)).count == StoreID.allCases.count,
+              "all store and regional list/session identities remain unique")
+        let searchContracts: [StoreID: (String, String)] = [
+            .amazon: ("/s", "k"), .costcoUS: ("/s", "keyword"), .kroger: ("/search", "query"),
+            .target: ("/s", "searchTerm"), .walmart: ("/search", "q")
+        ]
+        for definition in usDefinitions {
+            let id = definition.id
+            check(definition.serviceArea.countryCodes == ["US"] && definition.isConfigurationValid,
+                  "US registrations have valid US-only coverage")
+            check(!definition.capabilities.cartDetection && !definition.capabilities.cartUndo && definition.cart == nil
+                  && !id.permitsCartDetection && !id.permitsCartUndo,
+                  "US cart automation stays disabled until separately verified")
+            for capability in ["cartDetection", "cartUndo"] {
+                var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(definition)) as! [String: Any]
+                var capabilities = object["capabilities"] as! [String: Any]
+                capabilities[capability] = true
+                object["capabilities"] = capabilities
+                check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: object))) == nil,
+                      "US JSON cannot enable unreviewed cart capabilities")
+            }
+            let query = "milk & bread + 50% / café #?"
+            let url = definition.searchURL(for: query)!
+            let components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+            let contract = searchContracts[id]!
+            check(components.path == contract.0 && components.queryItems?.count == 1
+                  && components.queryItems?.first?.name == contract.1 && components.queryItems?.first?.value == query
+                  && components.fragment == nil && definition.allows(url), "US query encoding preserves one retailer-specific parameter")
+            for raw in ["http://www.\(id.dataDomain)", "https://www.\(id.dataDomain):444",
+                        "https://user:secret@www.\(id.dataDomain)", "https://www.\(id.dataDomain).evil.test",
+                        "https://login.\(id.dataDomain)"] {
+                check(!definition.allowsNavigation(URL(string: raw)!), "US browsing trust cannot widen to unreviewed origins")
+            }
+            for other in expandedDefinitions where other.id != id {
+                check(!definition.allows(other.homepage) && !id.ownsDataDomain(other.id.dataDomain),
+                      "US browsing and reset scopes cannot leak across stores or regions")
+            }
+            for host in id.hosts {
+                check(DiagnosticEntry.Host(rawValue: host) != nil, "US hosts use the closed diagnostic allowlist")
+            }
+        }
+        let usBrands = StoreBrand.sections(expandedDefinitions, countryCode: "US", search: "")
+        check(usBrands.first?.brands.map(\.id) == ["amazon", "costco", "kroger", "target", "walmart"],
+              "all five US retailers appear alphabetically in the country group, Costco once")
+        check(usBrands.flatMap(\.brands).count == 11, "twelve regional definitions form eleven unique brands")
+        check(StoreBrand.sections(expandedDefinitions, countryCode: "AU", search: "Target").flatMap(\.brands).map(\.id) == ["target"],
+              "US Target is searchable without inventing an Australian Target integration")
+        let usSuite = "ListRunner.USStores.\(UUID().uuidString)"
+        let usDefaults = UserDefaults(suiteName: usSuite)!
+        defer { usDefaults.removePersistentDomain(forName: usSuite) }
+        usDefaults.set(brandDefinitions.map { $0.id.rawValue }, forKey: "knownStoreIDs.v1")
+        usDefaults.set(["coles", "walmart"], forKey: "visibleStoreIDs.v1")
+        let usPreferences = StoreVisibilityPreferences(defaults: usDefaults, suggestedCountryCode: "US")
+        check(usPreferences.visibleIDs == [.coles, .walmart], "adding US retailers preserves old visibility and starts new stores disabled")
+        usPreferences.setVisible(true, for: .target)
+        usPreferences.setShoppingCountry("AU")
+        let usRestored = StoreVisibilityPreferences(defaults: usDefaults)
+        check(usRestored.visibleIDs == [.coles, .walmart, .target]
+              && usRestored.selectionForList(current: .coles, definitions: expandedDefinitions) == .target,
+              "US enabling and pending selection persist without country changes switching a website")
         let emptySuite = "ListRunner.EmptyStoreTests.\(UUID().uuidString)"
         let emptyDefaults = UserDefaults(suiteName: emptySuite)!
         defer { emptyDefaults.removePersistentDomain(forName: emptySuite) }
@@ -983,6 +1050,9 @@ struct RecoveryTests {
         await website.httpCookieStore.setCookie(cookie(".costco.com", "costco-us-test"))
         await website.httpCookieStore.setCookie(cookie(".tesco.com", "tesco-test"))
         await website.httpCookieStore.setCookie(cookie(".walmart.com", "walmart-test"))
+        for id in [StoreID.amazon, .kroger, .target] {
+            await website.httpCookieStore.setCookie(cookie("." + id.dataDomain, id.rawValue + "-test"))
+        }
         let cleared = await StoreWebsiteData.clear(in: website, for: .coles)
         check(cleared, "real nonpersistent WebKit deletion verifies success")
         let remaining = await website.httpCookieStore.allCookies()
@@ -1027,7 +1097,16 @@ struct RecoveryTests {
         let afterWalmart = await website.httpCookieStore.allCookies()
         check(clearedWalmart && !afterWalmart.contains { $0.name == "walmart-test" }
               && afterWalmart.contains { $0.name == "coles-kept-for-costco-reset" }
-              && afterWalmart.contains { $0.name == "unrelated-test" }, "Walmart reset preserves other store data")
+               && afterWalmart.contains { $0.name == "unrelated-test" }, "Walmart reset preserves other store data")
+        for id in [StoreID.amazon, .kroger, .target] {
+            let before = await website.httpCookieStore.allCookies()
+            check(before.contains { $0.name == id.rawValue + "-test" }, "other resets preserve each new US retailer's cookies")
+            let result = await StoreWebsiteData.clear(in: website, for: id)
+            let after = await website.httpCookieStore.allCookies()
+            check(result && !after.contains { id.ownsDataDomain($0.domain) }, "each US reset clears its own website data")
+            check(Set(after.map(\.name)) == Set(before.filter { !id.ownsDataDomain($0.domain) }.map(\.name)),
+                  "each US reset preserves every other retailer and unrelated cookie")
+        }
         let finalCount = try storage.container!.mainContext.fetchCount(FetchDescriptor<GroceryItem>())
         check(finalCount == 1, "Coles reset leaves groceries unchanged")
         check(defaults.string(forKey: "unrelated") == "keep", "Coles reset leaves app preferences unchanged")

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "id": "target",
+  "displayName": "Target US",
+  "serviceArea": {"countryCodes": ["US"]},
+  "homepage": "https://www.target.com",
+  "allowedHosts": ["www.target.com", "target.com"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.target.com/s?searchTerm={query}"},
+  "addedColor": {"red": 204, "green": 0, "blue": 0},
+  "capabilities": {"search": false, "cartDetection": false, "cartUndo": false},
+  "cart": null
+}

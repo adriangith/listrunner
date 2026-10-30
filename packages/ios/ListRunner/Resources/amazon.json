@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 2,
+  "id": "amazon",
+  "displayName": "Amazon US",
+  "serviceArea": {"countryCodes": ["US"]},
+  "homepage": "https://www.amazon.com",
+  "allowedHosts": ["www.amazon.com", "amazon.com"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.amazon.com/s?k={query}"},
+  "addedColor": {"red": 35, "green": 47, "blue": 62},
+  "brandColors": {
+    "primary": {"red": 35, "green": 47, "blue": 62},
+    "highlight": {"red": 255, "green": 153, "blue": 0}
+  },
+  "capabilities": {"search": false, "cartDetection": false, "cartUndo": false},
+  "cart": null
+}
