@@ -348,12 +348,18 @@ struct StoreVisibilityScreen: View {
                 }
             } else {
                 StoreManagementTable(sections: sections, searching: !searchText.isEmpty,
-                                     selectBrand: { selectedBrand = $0 })
+                                      selectBrand: { selectedBrand = $0 })
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Colour the hosting view's safe areas as well as the UIKit table.
+        // Extending only this background preserves native scroll/search insets.
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search stores")
         .navigationTitle("Manage Stores")
         .navigationBarTitleDisplayMode(.large)
+        .toolbarBackground(Color(uiColor: .systemGroupedBackground), for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .navigationDestination(isPresented: Binding(get: { selectedBrand != nil }, set: { if !$0 { selectedBrand = nil } })) {
             if let selectedBrand {
                 StoreSettingsScreen(brand: selectedBrand, sessions: sessions, visibility: visibility)
@@ -497,6 +503,7 @@ private struct StoreManagementTable: UIViewControllerRepresentable {
         override func viewDidLoad() {
             super.viewDidLoad()
             tableView.accessibilityIdentifier = "manage-stores-table"
+            tableView.backgroundColor = .systemGroupedBackground
             tableView.rowHeight = UITableView.automaticDimension
             tableView.estimatedRowHeight = 54
             tableView.estimatedSectionHeaderHeight = 40

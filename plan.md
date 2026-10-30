@@ -6,6 +6,7 @@
 * Keep the welcome across relaunches and cancelled store selection until a store is enabled. After that, disabling all stores shows `No stores enabled`, `Enable a store to see its grocery list.` and `Manage Stores`, not first-time onboarding. Existing installs retain their enabled stores and use the returning-user empty state. Confirmed Reset Local Data clears welcome completion.
 * Debug builds accept `--preview-store-welcome` to display the welcome for one launch without clearing or changing lists, logins or store preferences. Choose a Store opens ordinary management; backing out without enabling a store returns to the welcome. An explicit store-enable action exits the temporary preview.
 * The real `Choose Your First Store` button has a subtle repeating shimmer confined to its blue capsule background, behind its label. Keep the illustrated `Mark Added` static. Disable shimmer with Reduce Motion and while the app is inactive; the effect must not change the button's hit area or accessibility action.
+* Manage Stores uses one system grouped background across the table, navigation header and bottom safe area, including empty search results. Extend the background only, not the table content or controls, into the safe areas.
 
 ### Simplified import-source setup (30 October 2026)
 

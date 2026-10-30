@@ -91,6 +91,55 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["No stores enabled"].waitForExistence(timeout: 10))
     }
 
+    func testFirstStoreWelcomeManageBackgroundAndReturnLayout() throws {
+        let heading = app.staticTexts["Your lists.\nStreamlined."]
+        let action = app.buttons["welcome-choose-store"]
+        XCTAssertTrue(action.waitForExistence(timeout: 10))
+        let originalHeading = heading.frame
+        let originalAction = action.frame
+
+        for visit in 0..<4 {
+            action.tap()
+            XCTAssertTrue(app.tables["manage-stores-table"].waitForExistence(timeout: 5))
+            if visit == 0 {
+                let screenshot = app.screenshot()
+                let attachment = XCTAttachment(screenshot: screenshot)
+                attachment.name = "Manage Stores full-screen grouped background"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                let image = try XCTUnwrap(screenshot.image.cgImage)
+                var pixels = [UInt8](repeating: 0, count: image.width * image.height * 4)
+                try pixels.withUnsafeMutableBytes { buffer in
+                    let context = try XCTUnwrap(CGContext(data: buffer.baseAddress,
+                        width: image.width, height: image.height, bitsPerComponent: 8,
+                        bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue))
+                    context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+                }
+                func rgb(x: Double, y: Double) -> [Int] {
+                    let offset = (Int(Double(image.height) * y) * image.width + Int(Double(image.width) * x)) * 4
+                    return (0..<3).map { Int(pixels[offset + $0]) }
+                }
+                // Sample away from status text, rows, section index and home indicator.
+                let tableBackground = rgb(x: 0.015, y: 0.5)
+                for (area, colour) in [("header", rgb(x: 0.015, y: 0.15)),
+                                       ("bottom safe area", rgb(x: 0.1, y: 0.975))] {
+                    for channel in 0..<3 {
+                        XCTAssertLessThanOrEqual(abs(colour[channel] - tableBackground[channel]), 6,
+                            "The \(area) should match the grouped table background")
+                    }
+                }
+            }
+            tapNavigationBack()
+            XCTAssertTrue(action.waitForExistence(timeout: 5))
+            XCTAssertEqual(heading.frame.minY, originalHeading.minY, accuracy: 1, "Heading moved after visit \(visit + 1)")
+            XCTAssertEqual(action.frame.minY, originalAction.minY, accuracy: 1, "Action moved after visit \(visit + 1)")
+            XCTAssertEqual(action.frame.height, originalAction.height, accuracy: 1)
+            XCTAssertFalse(app.buttons["Settings"].exists)
+        }
+        // Settled geometry assertions do not claim that every animation frame is stable.
+    }
+
     func testFirstStoreWelcomeLargeTextKeepsActionReachable() {
         app.terminate()
         app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
