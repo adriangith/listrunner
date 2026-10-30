@@ -1,5 +1,16 @@
 ## ListRunner Build Specification
 
+### Simplified import-source setup (30 October 2026)
+
+This approved flow follows the simplified **Import sources** OpenPencil page and supersedes older multi-source favourite/preview proposals, not the Paprika transaction or reminder-writeback rules below.
+
+* Before a source is configured, the list action is `Import`. It opens `Set import source`, currently containing Paprika only. Choosing Paprika opens export instructions; backing out does not configure or import anything.
+* `Use Paprika` is a confirmation button, not a toggle. It persists the single app-wide active source and returns directly to Your list. This setup action neither imports nor requests Reminders access. Existing installations with no source preference also get this one-time setup.
+* The configured list action is `Import from Paprika` and performs the existing immediate import into the selected store list. There is no per-import source chooser, preview/selection stage or automatic store presentation.
+* Settings → `Import source` displays the active source and allows reopening the same chooser/instructions. Confirmation there also returns to Your list. Instructions explicitly tell users to export from Paprika to Apple Reminders; only an explicit subsequent import requests full Reminders access when required.
+* Source setup does not change grocery rows, quantities, statuses, order, reminder links, drafts or retailer sessions. Store switches/relaunches preserve the source. Unknown source values return to setup; confirmed Reset Local Data clears the source preference. Other list/session/diagnostic clears do not.
+* Only Paprika is offered until another integration is implemented and verified. Do not imply that the other five source concepts already work. Existing all-or-nothing import, store-local source-ID deduplication, incomplete-reminder filtering and best-effort writeback rules remain unchanged.
+
 ### Approved multi-store expansion (21 October 2026)
 
 This expansion promotes bundled support for Woolworths, multiple store-bound lists, remembered store selection, and per-store sessions from Later Scope. The original Coles-only MVP requirements below remain the regression baseline; where they refer to the single list/store or hard-code retailer wording, use the following rules for the expanded build:

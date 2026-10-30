@@ -1,5 +1,17 @@
 # Reusable store framework validation
 
+## Simplified Paprika import-source setup — 30 October 2026
+
+App/test implementation `5ed3b621329b41e687b24d0caafb574f89bfbf57` is pushed on `feat/import-source-setup`. It follows the simplified OpenPencil Import sources page: first-use Import → source chooser (Paprika only) → instructions → Use Paprika → Your list, without importing/requesting permission during setup. Later Import from Paprika retains the existing immediate, store-scoped import. Settings reopens source setup/instructions and confirmation returns all the way to the list. A new app-wide preference persists selection; unknown values return to setup, and confirmed local-data reset clears it. No database schema or reminder-link migration.
+
+**Passed:** 336 native recovery/reset/diagnostics checks and 449 parser checks on the clean Mac task worktree; 7 bundled-resource verifier regression checks on Linux. Native coverage adds unset/unknown/persisted source selection, diagnostics preservation and reset clearing. Mac logs: `/tmp/listrunner-import-recovery-tests.log`, `/tmp/listrunner-import-parser-tests.log`.
+
+**UI and visual validation incomplete, not passed.** Six focused UI tests were launched on dedicated iPhone 17 / iOS 27.0 simulator `C26F6191-664A-4C14-A113-6B1324650BE0` (ListRunner Import Setup), covering setup/cancellation/persistence/Settings, empty-list setup, existing import deduplication/store ownership/failures and compact action-row geometry. Mac connectivity became unresponsive before results could be retrieved. Do not infer a successful app/test build or passing tests from the command being launched. Inspect `/tmp/listrunner-import-ui-tests-1.log` and `~/Library/Developer/Xcode/DerivedData/ListRunnerImportSourceSetup-results-1.xcresult` after reconnection, and rerun failures as necessary. Verification of the actual built app's bundled resources was also interrupted and remains pending.
+
+A separate visual reviewer created simulator `A6A36E73-B725-47AB-8FA2-D68819BBC342` (ListRunner Import Visual), installed the existing task-built app (`com.AdrianZ.ListRunner`), then encountered a launch timeout/connectivity loss. No screenshot/hierarchy evidence or UI success was obtained. **Cleanup outstanding:** close standalone device-interaction session `Paprika Import Visual Verification` when Xcode tools reconnect. Preserve simulator/test evidence; do not delete simulator state as generic cleanup.
+
+Mac task checkout: `/Users/adrianzafir/Projects/listrunner-worktrees/import-source-setup`, detached at the exact app/test revision above; main checkout and physical devices were not switched/installed. All attempted UI runs use isolated test preferences/lists and Paprika fixtures, not real Reminders or retailer carts. The task is not merged to main or installed on the user's phone. Native builds/runtime checks for iOS 17, manual accessibility and visual sign-off remain unverified.
+
 ## Compact import/Add Items row — 30 October 2026
 
 Revision `815864efab3f52510630c2b351b8d03caae2332e` reduces only the existing product-action List row's vertical insets to 4 pt top/bottom, retaining 16 pt horizontal insets and the import action's 44 pt minimum tap area. Measured row height is **52 pt**, down from the previous 74 pt native row. Button styling, input geometry, import behavior and Add Items focus retention are unchanged. OpenPencil inspection timed out; no custom redesign or design-document edits were attempted.
