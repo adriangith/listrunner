@@ -1,5 +1,15 @@
 # Reusable store framework validation
 
+## Welcome-only store setup and completion crossfade — 30 October 2026
+
+Final app revision `2e0ee3ff7cc8a16badcd5b851b48045dba241b7e` adds welcome-only Enable Store/Included Support, direct selection of the enabled store's list, and a 0.3-second completion crossfade with native success sensory feedback. Normal management retains full settings. A scene-local window snapshot fades while the new root navigation stack lays out with animations disabled; no snapshot is written to disk by the app. Reduce Motion skips snapshot/animation. Earlier live-stack animation at `cfac320` passed settled UI tests but visibly mislaid the incoming Woolworths screen; it is superseded, not visual sign-off.
+
+**Passed:** 340 native checks, 2 focused final-revision UI tests covering welcome cancellation, enabling a nondefault store, preview completion, no residual Back/setup stack and unchanged full settings, plus unsigned generic-iOS Release build. The prior 3-test suite passed at `cfac320` and `a8b430d`, not rerun in full on the final revision. Final result bundle: Mac `/tmp/listrunner-welcome-completion-tests/Logs/Test/Test-ListRunner-2026.10.30_17-40-45-+1100.xcresult`; Release log `/tmp/listrunner-welcome-completion-release.log`.
+
+**Recorded simulator visual checks passed** on the final revision for both default/same-store Coles and different-store Woolworths: genuine fade, stable full-width incoming list with store picker present, no white margins/title overlap/layout snap/intermediate Manage Stores pop, correct final selected store and no website or Back button. Isolated preferences/lists only, no real store or Reminders access. Evidence: Linux `/tmp/opencode/listrunner-snapshot-{woolworths,coles}.mp4`, `snapshot-wool-transition.png`, `snapshot-coles-transition.png`, `snapshot-wool-final.png`. Reduce Motion runtime and physical haptic sensation remain unverified.
+
+**Phone deployed:** Xcode built/signed/installed/launched final app revision on Adrian's iPhone/iOS 27.2 with no build errors, PID15386, then devicectl relaunched with `--preview-store-welcome`. No app-data reset, fixture environment or store/list/login changes. Log: Mac `/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261030-174531.txt`. Phone UI was not directly inspected.
+
 ## Manage Stores background, interactive Back and appearance — 30 October 2026
 
 App revision `8754e8c52720b81231d884f2b3feb02d75601f3b` fixes the grouped-background safe-area bands, stabilises welcome navigation-bar ownership during interactive Back, and uses a standard inline Manage Stores title. Keep the table controller attached under empty search results. Earlier candidates `0fcfb95` and `3f1c3d7` fixed the jump but still failed live appearance-switch title checks; their passing settled UI tests were not proof of title rendering.
