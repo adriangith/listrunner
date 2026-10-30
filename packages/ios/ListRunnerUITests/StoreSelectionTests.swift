@@ -1253,6 +1253,11 @@ final class StoreSelectionTests: XCTestCase {
         input.typeText("toaster")
         let existingCell = app.collectionViews.cells.containing(.button, identifier: "Actions for kettle").firstMatch
         let showStore = app.buttons["Show Store"]
+        let keyboardLayout = NSPredicate { _, _ in
+            showStore.frame.maxY < self.app.frame.height * 0.65
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: keyboardLayout, object: app)], timeout: 5), .completed)
+        assertFirstItemIsFullyVisible("kettle")
         XCTAssertLessThanOrEqual(existingCell.frame.maxY, showStore.frame.minY)
         XCTAssertTrue(input.isHittable)
         XCTAssertGreaterThan(input.frame.minY, app.buttons["store-picker"].frame.maxY,
