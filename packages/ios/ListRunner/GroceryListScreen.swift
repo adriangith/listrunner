@@ -55,7 +55,6 @@ struct GroceryListScreen: View {
     @State private var scrollTargetItemID: UUID?
     @State private var addedItemScrollTask: Task<Void, Never>?
     @State private var addedItemScrollRequestID = UUID()
-    @State private var addedItemNeedsScrollRecheck = false
     @State private var scrollTargetFrame: (id: UUID, frame: CGRect)?
     @State private var listViewportFrame: CGRect = .zero
     @State private var groceryInputFrame: CGRect = .zero
@@ -653,32 +652,34 @@ struct GroceryListScreen: View {
         // Geometry, query and onAppear callbacks can arrive in the same layout
         // pass. Coalesce them instead of repeatedly cancelling the queued scroll.
         guard !isAddedItemFullyVisible(itemID) else { return }
-        if addedItemScrollTask != nil {
-            addedItemNeedsScrollRecheck = true
-            return
-        }
+        guard addedItemScrollTask == nil else { return }
         let requestID = UUID()
         addedItemScrollRequestID = requestID
         addedItemScrollTask = Task { @MainActor in
             defer {
                 if addedItemScrollRequestID == requestID {
                     addedItemScrollTask = nil
-                    // A layout callback can arrive while scrollTo is executing.
-                    // Do not lose its final clipped-frame correction.
-                    if addedItemNeedsScrollRecheck {
-                        addedItemNeedsScrollRecheck = false
-                        scrollToAddedItem(itemID, using: proxy, animated: false)
-                    }
                 }
             }
-            await Task.yield()
-            guard !Task.isCancelled, scrollTargetItemID == itemID,
-                  items.contains(where: { $0.id == itemID }),
-                  !isAddedItemFullyVisible(itemID) else { return }
-            withAnimation(animated ? .easeInOut(duration: 0.35) : nil) {
-                // A nil anchor asks SwiftUI for the minimum movement needed to
-                // reveal the full row, including when its frame isn't cached yet.
-                proxy.scrollTo(itemID)
+            // The insertion spring and UITextView's Return handling can both
+            // restore the content offset after the initial geometry callback.
+            // Wait past the insertion, then recheck after the reveal animation.
+            // Keep the request alive even when an intermediate frame fits.
+            for (index, delay) in [0.5, 0.4, 0.2].enumerated() {
+                do { try await Task.sleep(for: .seconds(delay)) }
+                catch { return }
+                guard scrollTargetItemID == itemID,
+                      items.contains(where: { $0.id == itemID }) else { return }
+                guard let target = scrollTargetFrame, target.id == itemID,
+                      listViewportFrame.height > 0,
+                      !isAddedItemFullyVisible(itemID) else { continue }
+                // Explicit edge alignment respects List's safe-area insets.
+                // Only request it for a measured, clipped row; a visible row
+                // never gets repositioned just because it was inserted.
+                let anchor: UnitPoint = target.frame.maxY > listViewportFrame.maxY ? .bottom : .top
+                withAnimation(animated && index == 0 ? .easeInOut(duration: 0.35) : nil) {
+                    proxy.scrollTo(itemID, anchor: anchor)
+                }
             }
         }
     }
@@ -695,7 +696,6 @@ struct GroceryListScreen: View {
         addedItemScrollTask?.cancel()
         addedItemScrollTask = nil
         addedItemScrollRequestID = UUID()
-        addedItemNeedsScrollRecheck = false
     }
 
     private static func normalizedUnit(_ unit: String?) -> String { unit?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "" }
