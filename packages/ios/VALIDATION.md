@@ -1,5 +1,13 @@
 # Reusable store framework validation
 
+## Compact import/Add Items row — 30 October 2026
+
+Revision `815864efab3f52510630c2b351b8d03caae2332e` reduces only the existing product-action List row's vertical insets to 4 pt top/bottom, retaining 16 pt horizontal insets and the import action's 44 pt minimum tap area. Measured row height is **52 pt**, down from the previous 74 pt native row. Button styling, input geometry, import behavior and Add Items focus retention are unchanged. OpenPencil inspection timed out; no custom redesign or design-document edits were attempted.
+
+**4/4 focused iPhone 17 / iOS 27 simulator UI tests passed**: compact-row geometry/hit area, repeated Add Items with keyboard retained, first-item visibility above the keyboard, and isolated Paprika import/deduplication/store ownership. Evidence: Mac `~/Library/Developer/Xcode/DerivedData/ListRunner-compact-actions-815864e.xcresult`, including the compact-row screenshot attachment and measured 52.0 pt log. Tests used local fixtures only, not real Reminders or retailer carts.
+
+At the user's request, Xcode built, installed in place and launched this revision on **Adrian’s iPhone / iOS 27.2** (PID 11967, launch `968073300`), preserving existing app data; no list/session reset or retailer interaction was performed. Device build/launch log: Mac `/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261030-121957.txt`. Unrelated Linux design-audit edits remain untouched.
+
 ## Preserve Lemon Tree — 30 October 2026
 
 Revision `30ef292e3b49e4e9dafff5cce61853cf8fd2c320` adds a distinct `lemon-tree` dictionary entry with canonical name/search term `Lemon Tree` and plural alias `lemon trees`. The existing longest-overlapping-match rule now chooses the complete product name instead of the nested Lemon entry, without changing parser algorithms or globally changing compound-name handling. Case variants and counted trees retain the full name; ordinary Lemon and Lemon juice remain separate. Existing saved names are untouched because lost source wording cannot be inferred safely.
