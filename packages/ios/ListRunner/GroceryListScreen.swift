@@ -251,11 +251,10 @@ struct GroceryListScreen: View {
                 scrollTargetItemID = nil
             })
             .onGeometryChange(for: CGRect.self) { geometry in
-                let frame = geometry.frame(in: .global)
-                let insets = geometry.safeAreaInsets
-                return CGRect(x: frame.minX + insets.leading, y: frame.minY + insets.top,
-                              width: max(0, frame.width - insets.leading - insets.trailing),
-                              height: max(0, frame.height - insets.top - insets.bottom))
+                // The surrounding safeAreaInsets already reduce this layout
+                // frame for the header, Show Store and keyboard. Subtracting
+                // geometry.safeAreaInsets again can produce a zero-height area.
+                geometry.frame(in: .global)
             } action: { frame in
                 listViewportFrame = frame
                 // The first item also introduces the bottom action inset. Scroll
