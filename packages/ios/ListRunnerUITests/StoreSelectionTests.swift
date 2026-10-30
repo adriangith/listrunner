@@ -9,7 +9,7 @@ final class StoreSelectionTests: XCTestCase {
         app = XCUIApplication()
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
-        if name.contains("FullyRevealed") || name.contains("AlreadyVisibleNewItem") {
+        if name.contains("FullyRevealed") || name.contains("AlreadyVisibleNewItem") || name.contains("FocusedProductEntry") {
             app.launchEnvironment["LISTRUNNER_REVEAL_TEST_FIXTURE"] = "enabled"
         }
         if name.contains("KeyboardDismissalAnimation") {
@@ -1241,24 +1241,73 @@ final class StoreSelectionTests: XCTestCase {
         }
     }
 
+    func testFocusedProductEntryGrowingDraftKeepsWholeCardAboveShowStore() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        input.typeText("household cleaning supplies with a deliberately long wrapping product description and extra details to fill several lines in the product entry field")
+        let editorCell = app.collectionViews.cells.containing(.textView, identifier: "grocery-input").firstMatch
+        let actionsCell = app.collectionViews.cells.containing(.button, identifier: "import-from-paprika").firstMatch
+        let visible = NSPredicate { _, _ in
+            editorCell.frame.minY >= self.app.buttons["store-picker"].frame.maxY
+                && actionsCell.frame.maxY <= self.app.buttons["Show Store"].frame.minY
+                && self.app.buttons["Show Store"].frame.maxY < self.app.frame.height * 0.65
+                && self.app.buttons["Add Items"].isHittable
+        }
+        let result = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: app)], timeout: 5)
+        if result != .completed { print(app.debugDescription) }
+        XCTAssertEqual(result, .completed, "Growing a focused draft must reveal the whole card without submitting it")
+        XCTAssertTrue(row("household cleaning supplies", status: "Pending").exists == false)
+        XCTAssertTrue(app.keyboards.firstMatch.exists)
+    }
+
+    func testFocusedProductEntryRevealsEntireCardAboveShowStore() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        let initialEditorY = app.collectionViews.cells.containing(.textView, identifier: "grocery-input").firstMatch.frame.minY
+        input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        let editorCell = app.collectionViews.cells.containing(.textView, identifier: "grocery-input").firstMatch
+        let actionsCell = app.collectionViews.cells.containing(.button, identifier: "import-from-paprika").firstMatch
+        let visible = NSPredicate { _, _ in
+            editorCell.frame.minY >= self.app.buttons["store-picker"].frame.maxY
+                && actionsCell.frame.maxY <= self.app.buttons["Show Store"].frame.minY
+                && self.app.buttons["Show Store"].frame.maxY < self.app.frame.height * 0.65
+                && self.app.keyboards.firstMatch.exists
+        }
+        let result = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: app)], timeout: 5)
+        if result != .completed { print(app.debugDescription) }
+        XCTAssertEqual(result, .completed,
+                       "The whole entry card, including the action row, must fit above Show Store")
+        XCTAssertEqual(editorCell.frame.minY, initialEditorY, accuracy: 2,
+                       "Opening the keyboard must not reposition a card that already fits")
+        let originalY = editorCell.frame.minY
+        // Refocusing an already visible card must not force a different offset.
+        input.tap()
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
+        XCTAssertEqual(editorCell.frame.minY, originalY, accuracy: 2)
+    }
+
     func testAlreadyVisibleNewItemDoesNotRepositionList() {
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
-        input.typeText("toaster")
-        let existingCell = app.collectionViews.cells.containing(.button, identifier: "Actions for Coles fixture item").firstMatch
+        // First establish the normal post-reveal position. Another same-height
+        // row inserted at the front already fits there, without a synthetic drag
+        // that can dismiss the keyboard or hide the editor beneath the header.
+        input.typeText("kettle")
+        app.buttons["Add Items"].tap()
+        assertFirstItemIsFullyVisible("kettle")
+        // Tap software keys so XCTest doesn't reposition the editor or briefly
+        // switch to hardware-key injection while arranging this scenario.
+        for letter in "toaster" {
+            app.keys.matching(NSPredicate(format: "label ==[c] %@", String(letter))).firstMatch.tap()
+        }
+        let existingCell = app.collectionViews.cells.containing(.button, identifier: "Actions for kettle").firstMatch
         let showStore = app.buttons["Show Store"]
         let keyboardLayout = NSPredicate { _, _ in
             showStore.frame.maxY < self.app.frame.height * 0.65
         }
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: keyboardLayout, object: app)], timeout: 3), .completed)
-        for _ in 0..<6 {
-            if existingCell.frame.maxY <= showStore.frame.minY { break }
-            // Make room for a row without touching the field or submitting it.
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.46))
-                .press(forDuration: 0.05,
-                       thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.43)),
-                       withVelocity: .slow, thenHoldForDuration: 0.2)
-        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: keyboardLayout, object: app)], timeout: 5), .completed)
+        assertFirstItemIsFullyVisible("kettle")
         XCTAssertLessThanOrEqual(existingCell.frame.maxY, showStore.frame.minY)
         XCTAssertTrue(input.isHittable)
         XCTAssertGreaterThan(input.frame.minY, app.buttons["store-picker"].frame.maxY,

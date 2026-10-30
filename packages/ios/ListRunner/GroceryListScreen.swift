@@ -54,6 +54,11 @@ struct GroceryListScreen: View {
     // The native editor owns first-responder focus; mirror it as view state.
     @State private var groceryInputFocused = false
     @State private var productEntryFocus = ProductEntryFocus()
+    @State private var productActionsFrame: CGRect = .zero
+    @State private var showStoreFrame: CGRect = .zero
+    @State private var productEntryRevealTask: Task<Void, Never>?
+    @State private var isRevealingProductEntry = false
+    @State private var productEntryRevealStatus = "idle"
     @State private var recentlyAddedItemIDs = Set<UUID>()
     @State private var scrollTargetItemID: UUID?
     @State private var addedItemScrollTask: Task<Void, Never>?
@@ -137,13 +142,18 @@ struct GroceryListScreen: View {
                                            focusControl: productEntryFocus,
                                            onSubmit: addItems)
                             .onChange(of: rawInput) { _, value in
+                                // Return can submit and clear the binding before
+                                // SwiftUI delivers the preceding typing change.
+                                // That obsolete edit must not cancel its reveal.
+                                guard value == rawInput else { return }
                                 // Multiline paste is parsed in a single edit.
                                 // Keyboard Return is intercepted before insertion.
                                 if value.contains(where: { $0.isNewline }) {
                                     addItems()
-                                } else if !value.isEmpty {
-                                    cancelAddedItemScroll()
-                                    scrollTargetItemID = nil
+                                 } else if !value.isEmpty {
+                                     cancelAddedItemScroll()
+                                     scrollTargetItemID = nil
+                                     revealFocusedProductEntry()
                                 }
                             }
                             .padding(.horizontal, 14)
@@ -158,8 +168,10 @@ struct GroceryListScreen: View {
                             .simultaneousGesture(TapGesture().onEnded { groceryInputFocused = true })
                             .onGeometryChange(for: CGRect.self) { geometry in
                                 geometry.frame(in: .global)
-                            } action: { frame in
-                                groceryInputFrame = frame
+                             } action: { frame in
+                                 let heightChanged = abs(groceryInputFrame.height - frame.height) > 0.5
+                                 groceryInputFrame = frame
+                                 if heightChanged { revealFocusedProductEntry() }
                             }
                             .padding(.vertical, 4)
 
@@ -200,9 +212,16 @@ struct GroceryListScreen: View {
                                     addItemsButtonFrame = frame
                                 }
                         }
+                        .padding(.vertical, 4)
+                        .id("product-entry-actions")
+                        .onGeometryChange(for: CGRect.self) { geometry in
+                            geometry.frame(in: .global)
+                        } action: { frame in
+                            productActionsFrame = frame
+                        }
                         // Trim List's default 15 pt vertical insets without
                         // shrinking the import action's 44 pt hit area.
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                     }
 
                     Section {
@@ -255,11 +274,12 @@ struct GroceryListScreen: View {
             .listStyle(.insetGrouped)
             .contentMargins(.top, 0, for: .scrollContent)
             .listSectionSpacing(.compact)
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(isRevealingProductEntry ? .never : .interactively)
             .simultaneousGesture(DragGesture(minimumDistance: 10).onChanged { _ in
                 // A deliberate manual scroll takes precedence over positioning
                 // the most recently submitted item.
                 cancelAddedItemScroll()
+                productEntryRevealTask?.cancel()
                 scrollTargetItemID = nil
             })
             .onGeometryChange(for: CGRect.self) { geometry in
@@ -269,6 +289,7 @@ struct GroceryListScreen: View {
                 geometry.frame(in: .global)
             } action: { frame in
                 listViewportFrame = frame
+                revealFocusedProductEntry()
                 // The first item also introduces the bottom action inset. Scroll
                 // against the resulting viewport, not the old empty-list size.
                 guard let itemID = scrollTargetItemID else { return }
@@ -321,6 +342,12 @@ struct GroceryListScreen: View {
                             .frame(maxWidth: .infinity, minHeight: 52)
                     }
                     .modifier(StoreLaunchButtonStyle(tint: storePrimaryColor))
+                    .onGeometryChange(for: CGRect.self) { geometry in
+                        geometry.frame(in: .global)
+                    } action: { frame in
+                        showStoreFrame = frame
+                        revealFocusedProductEntry()
+                    }
                      .disabled(!browser.canPresentStore || !visibility.visibleIDs.contains(storeID))
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
@@ -399,7 +426,7 @@ struct GroceryListScreen: View {
         #if DEBUG
         .overlay(alignment: .topLeading) {
             if ProcessInfo.processInfo.environment["LISTRUNNER_REVEAL_TEST_FIXTURE"] == "enabled" {
-                Text("target=\(scrollTargetItemID?.uuidString ?? "none"); frame=\(scrollTargetItemID.flatMap { itemFrames[$0] }.debugDescription); viewport=\(listViewportFrame); pending=\(addedItemScrollTask != nil)")
+                Text(verbatim: "target=\(scrollTargetItemID?.uuidString ?? "none"); frame=\(scrollTargetItemID.flatMap { itemFrames[$0] }.debugDescription); viewport=\(listViewportFrame); pending=\(addedItemScrollTask != nil); editor=\(groceryInputFrame); actions=\(productActionsFrame); focused=\(groceryInputFocused); entryReveal=\(productEntryRevealStatus)")
                     .accessibilityIdentifier("item-reveal-status")
                     .frame(width: 1, height: 1)
                     .opacity(0.01)
@@ -450,12 +477,19 @@ struct GroceryListScreen: View {
             guard let itemID else { return }
             scrollToAddedItem(itemID, using: scrollProxy)
         }
+        .onChange(of: groceryInputFocused) { _, focused in
+            productEntryRevealTask?.cancel()
+            if focused { revealFocusedProductEntry() }
+        }
         .onChange(of: items.map(\.id)) { _, itemIDs in
             // When adding the first row, SwiftUI replaces the empty-state row
             // and may not have registered the new row when the target changes.
             // Retry after the query reflects the inserted row.
             guard let itemID = scrollTargetItemID, itemIDs.contains(itemID) else { return }
             scrollToAddedItem(itemID, using: scrollProxy)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
+            revealFocusedProductEntry()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
             #if DEBUG
@@ -466,11 +500,18 @@ struct GroceryListScreen: View {
             #endif
             // Return can briefly change the field's focus while UIKit keeps the
             // keyboard open. Only retire the target on an actual dismissal.
-            guard !groceryInputFocused else { return }
-            cancelAddedItemScroll()
-            scrollTargetItemID = nil
+            let targetAtDismissal = scrollTargetItemID
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !groceryInputFocused,
+                      productEntryFocus.view?.isFirstResponder != true,
+                      scrollTargetItemID == targetAtDismissal else { return }
+                cancelAddedItemScroll()
+                scrollTargetItemID = nil
+            }
         }
         .onDisappear {
+            productEntryRevealTask?.cancel()
             cancelAddedItemScroll()
             scrollTargetItemID = nil
         }
@@ -675,6 +716,46 @@ struct GroceryListScreen: View {
             try? await Task.sleep(for: .seconds(1.25))
             withAnimation(.easeOut(duration: 0.45)) {
                 recentlyAddedItemIDs.subtract(newlyAddedIDs)
+            }
+        }
+    }
+
+    private func revealFocusedProductEntry() {
+        productEntryRevealTask?.cancel()
+        guard groceryInputFocused, scrollTargetItemID == nil else { return }
+        productEntryRevealTask = Task { @MainActor in
+            isRevealingProductEntry = true
+            defer { isRevealingProductEntry = false }
+            // Keyboard layout can arrive in stages. Re-measure each time rather
+            // than forcing alignment when the complete card already fits.
+            for delay in [0.1, 0.3, 0.3] {
+                do { try await Task.sleep(for: .seconds(delay)) }
+                catch { return }
+                guard groceryInputFocused, scrollTargetItemID == nil,
+                      listViewportFrame.height > 0,
+                      groceryInputFrame.height > 0, productActionsFrame.height > 0 else { return }
+                // The editor geometry excludes its List row's 15 pt native
+                // insets and 4 pt explicit padding. The actions target includes
+                // its explicit padding so scrollTo reveals the full native cell.
+                let cardTop = groceryInputFrame.minY - 19
+                let cardBottom = productActionsFrame.maxY
+                // The inset's top spacing is unobscured. A card touching the
+                // actual Show Store button already fits and must not move.
+                let visibleBottom = items.isEmpty || showStoreFrame.height == 0
+                    ? listViewportFrame.maxY : showStoreFrame.minY
+                productEntryRevealStatus = "checked bottom=\(cardBottom) visibleBottom=\(visibleBottom)"
+                guard cardBottom - cardTop <= visibleBottom - listViewportFrame.minY else { continue }
+                let adjustment: CGFloat
+                if cardBottom > visibleBottom + 0.5 {
+                    adjustment = cardBottom - visibleBottom
+                } else if cardTop < listViewportFrame.minY - 0.5 {
+                    adjustment = cardTop - listViewportFrame.minY
+                } else { continue }
+                // Static List cells do not reliably register with scrollTo.
+                // Move only the measured clipping distance in the editor's own
+                // enclosing list, retaining its responder and compact geometry.
+                productEntryRevealStatus = "scroll adjustment=\(adjustment)"
+                productEntryFocus.adjustListOffset(by: adjustment)
             }
         }
     }
@@ -902,6 +983,22 @@ private final class ProductEntryFocus {
 
     func resignFirstResponder() {
         if let view, view.isFirstResponder { view.resignFirstResponder() }
+    }
+
+    func adjustListOffset(by adjustment: CGFloat) {
+        guard let view, view.isFirstResponder else { return }
+        var ancestor = view.superview
+        while let candidate = ancestor {
+            if let list = candidate as? UICollectionView {
+                guard !list.isDragging, !list.isDecelerating else { return }
+                let minimum = -list.adjustedContentInset.top
+                let maximum = max(minimum, list.contentSize.height - list.bounds.height + list.adjustedContentInset.bottom)
+                let offset = min(maximum, max(minimum, list.contentOffset.y + adjustment))
+                list.setContentOffset(CGPoint(x: list.contentOffset.x, y: offset), animated: true)
+                return
+            }
+            ancestor = candidate.superview
+        }
     }
 }
 
