@@ -134,6 +134,10 @@ struct GroceryListScreen: View {
                                            focusControl: productEntryFocus,
                                            onSubmit: addItems)
                             .onChange(of: rawInput) { _, value in
+                                // Return can submit and clear the binding before
+                                // SwiftUI delivers the preceding typing change.
+                                // That obsolete edit must not cancel its reveal.
+                                guard value == rawInput else { return }
                                 // Multiline paste is parsed in a single edit.
                                 // Keyboard Return is intercepted before insertion.
                                 if value.contains(where: { $0.isNewline }) {
@@ -441,9 +445,15 @@ struct GroceryListScreen: View {
             #endif
             // Return can briefly change the field's focus while UIKit keeps the
             // keyboard open. Only retire the target on an actual dismissal.
-            guard !groceryInputFocused else { return }
-            cancelAddedItemScroll()
-            scrollTargetItemID = nil
+            let targetAtDismissal = scrollTargetItemID
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !groceryInputFocused,
+                      productEntryFocus.view?.isFirstResponder != true,
+                      scrollTargetItemID == targetAtDismissal else { return }
+                cancelAddedItemScroll()
+                scrollTargetItemID = nil
+            }
         }
         .onDisappear {
             cancelAddedItemScroll()
