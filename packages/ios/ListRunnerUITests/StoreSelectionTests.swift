@@ -49,10 +49,43 @@ final class StoreSelectionTests: XCTestCase {
             app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_CATALOGUE"] = "mixed"
         }
         app.launch()
+        if name.contains("FirstStoreWelcome") { return }
+        // Shopping-flow tests start after the real first-store setup flow.
+        if app.buttons["welcome-choose-store"].waitForExistence(timeout: 3) {
+            app.buttons["welcome-choose-store"].tap()
+            for id in ["bunnings", "woolworths", "coles"] { setStoreVisibility(id, shown: true) }
+            tapNavigationBack()
+        }
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
     }
 
     override func tearDownWithError() throws { app.terminate() }
+
+    func testFirstStoreWelcomePersistsUntilStoreEnabled() {
+        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Choose your first store"].exists)
+        XCTAssertFalse(app.buttons["store-picker"].exists)
+        XCTAssertFalse(app.buttons["Show Store"].exists)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
+        app.buttons["welcome-choose-store"].tap()
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 3))
+        app.buttons["welcome-choose-store"].tap()
+        setStoreVisibility("coles", shown: true)
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility("coles", shown: false)
+        tapNavigationBack()
+        XCTAssertTrue(app.staticTexts["No stores enabled"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["welcome-choose-store"].exists)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["No stores enabled"].waitForExistence(timeout: 10))
+    }
 
     private func choose(_ name: String) {
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))

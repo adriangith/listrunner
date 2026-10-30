@@ -44,6 +44,10 @@ struct GroceryListScreen: View {
     @State private var editingItem: GroceryItem?
     @State private var showingStore = false
     @State private var showingStoreManagement = false
+    #if DEBUG
+    // One-run visual preview, without changing lists, logins or preferences.
+    @State private var previewingStoreWelcome = ProcessInfo.processInfo.arguments.contains("--preview-store-welcome")
+    #endif
     @State private var showingImportSetup = false
     @State private var showingSettings = false
     @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
@@ -87,6 +91,12 @@ struct GroceryListScreen: View {
     private var pendingCount: Int { items.filter { $0.status == .pending }.count }
     private var addedCount: Int { items.filter { $0.status == .added }.count }
     private var skippedCount: Int { items.filter { $0.status == .skipped }.count }
+    private var showingStoreWelcome: Bool {
+        #if DEBUG
+        if previewingStoreWelcome { return true }
+        #endif
+        return visibility.visibleIDs.isEmpty && !visibility.hasCompletedStoreSetup
+    }
     // The storefront configuration is the single source of truth for the
     // selected store's visual identity, including all list-screen accents.
     private var storePrimaryColor: Color {
@@ -108,11 +118,20 @@ struct GroceryListScreen: View {
         ScrollViewReader { scrollProxy in
         NavigationStack {
             List {
-                if visibility.visibleIDs.isEmpty {
+                if showingStoreWelcome {
+                    StoreWelcomeContent {
+                        #if DEBUG
+                        previewingStoreWelcome = false
+                        #endif
+                        showingStoreManagement = true
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                } else if visibility.visibleIDs.isEmpty {
                     ContentUnavailableView {
                         Label("No stores enabled", systemImage: "basket")
                     } description: {
-                        Text("Enable a store to see its grocery list. Your saved lists and logins are kept.")
+                        Text("Enable a store to see its grocery list.")
                     } actions: {
                         Button("Manage Stores") { showingStoreManagement = true }
                             .buttonStyle(.bordered)
@@ -297,11 +316,11 @@ struct GroceryListScreen: View {
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack(alignment: .center) {
-                    Text("Your list")
+                    Text(showingStoreWelcome ? "ListRunner" : "Your list")
                         .font(.largeTitle.weight(.bold))
                         .foregroundStyle(.primary)
                     Spacer(minLength: 8)
-                    if !visibility.visibleIDs.isEmpty {
+                    if !showingStoreWelcome && !visibility.visibleIDs.isEmpty {
                         Menu {
                             ForEach(StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
                                                            enabledIDs: visibility.visibleIDs), id: \.id) { store in
@@ -333,7 +352,7 @@ struct GroceryListScreen: View {
                 .background(Color(uiColor: .systemGroupedBackground))
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if !visibility.visibleIDs.isEmpty && !items.isEmpty {
+                if !showingStoreWelcome && !visibility.visibleIDs.isEmpty && !items.isEmpty {
                     Button {
                         presentStore()
                     } label: {
@@ -375,7 +394,7 @@ struct GroceryListScreen: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if !visibility.visibleIDs.isEmpty && !items.isEmpty { EditButton() }
+                    if !showingStoreWelcome && !visibility.visibleIDs.isEmpty && !items.isEmpty { EditButton() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -972,6 +991,79 @@ struct GroceryListScreen: View {
         format.timeZone = .current
         format.dateFormat = "yyyy-MM-dd"
         return format.string(from: Date())
+    }
+}
+
+private struct StoreWelcomeContent: View {
+    let chooseStore: () -> Void
+
+    var body: some View {
+        VStack(spacing: 24) {
+            StoreWelcomeIntroduction()
+            VStack(alignment: .leading, spacing: 20) {
+                StoreWelcomeStep(number: 1, title: "Choose a store")
+                StoreWelcomeStep(number: 2, title: "Type, paste or import your list")
+                StoreWelcomeStep(number: 3, title: "Shop through your items, one at a time")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+
+            VStack(spacing: 12) {
+                Button(action: chooseStore) {
+                    Text("Choose a Store")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+                .accessibilityIdentifier("welcome-choose-store")
+                Text("You can add more stores later.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(.vertical, 24)
+        .frame(maxWidth: 480)
+        .frame(maxWidth: .infinity)
+        .accessibilityIdentifier("store-welcome")
+    }
+}
+
+private struct StoreWelcomeIntroduction: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "cart")
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text("Choose your first store")
+                .font(.title2.bold())
+                .accessibilityAddTraits(.isHeader)
+            Text("Turn your shopping list into a guided trip through your store’s website.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+        }
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct StoreWelcomeStep: View {
+    let number: Int
+    let title: LocalizedStringKey
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(number, format: .number)
+                .font(.body.bold())
+                .foregroundStyle(.blue)
+            Text(title)
+                .font(.body)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

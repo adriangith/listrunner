@@ -76,7 +76,7 @@ final class LocalDataController: ObservableObject {
                 if FileManager.default.fileExists(atPath: path.path) { try FileManager.default.removeItem(at: path) }
             }
             for key in ["lastOverlaySelectedItemID", "lastActiveLocalDate", "activeStoreID",
-                        "visibleStoreIDs.v1", "knownStoreIDs.v1", "storeSortMode.v1",
+                        "visibleStoreIDs.v1", "knownStoreIDs.v1", "storeSortMode.v1", "storeSetupCompleted.v1",
                          "shoppingCountry.v1", "shoppingCountryInitialized.v1", "storeRegionalChoices.v1", "useLocalIngredientNames.v1",
                          "selectEnabledStoreAfterEmpty.v1", "pendingEnabledStoreSelection.v1",
                          GroceryImportSource.preferenceKey] {

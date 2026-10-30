@@ -69,11 +69,16 @@ struct RecoveryTests {
         check(emptyPreferences.visibleIDs.isEmpty
               && emptyPreferences.selectionForList(current: .bunnings, definitions: brandDefinitions) == nil,
               "fresh installs start with every store disabled and no enabled destination")
+        check(!emptyPreferences.hasCompletedStoreSetup
+              && !StoreVisibilityPreferences(defaults: emptyDefaults).hasCompletedStoreSetup,
+              "first-store welcome survives relaunch before choosing a store")
         for id in StoreID.allCases { emptyPreferences.setVisible(false, for: id) }
         check(emptyPreferences.selectionForList(current: .bunnings, definitions: brandDefinitions) == nil,
               "all-disabled state has no enabled destination")
         emptyPreferences.setVisible(true, for: .coles)
         let emptyRestored = StoreVisibilityPreferences(defaults: emptyDefaults)
+        check(emptyRestored.hasCompletedStoreSetup,
+              "enabling the first store permanently completes welcome setup")
         check(emptyRestored.selectionForList(current: .bunnings, definitions: brandDefinitions) == .coles,
               "all-disabled then Coles-only selects Coles even after relaunch")
         check(emptyDefaults.string(forKey: "activeStoreID") == "bunnings",
@@ -81,6 +86,8 @@ struct RecoveryTests {
         check(emptyRestored.selectionForList(current: .coles, definitions: brandDefinitions) == .coles,
               "list reconciliation preserves an explicit enabled store choice")
         emptyRestored.setVisible(false, for: .coles)
+        check(StoreVisibilityPreferences(defaults: emptyDefaults).hasCompletedStoreSetup,
+              "disabling every store does not show first-time welcome again")
         emptyRestored.setVisible(true, for: .woolworths)
         emptyRestored.setVisible(true, for: .coles)
         check(emptyRestored.selectionForList(current: .woolworths, definitions: brandDefinitions) == .coles,
@@ -564,7 +571,8 @@ struct RecoveryTests {
           check(migratedPreferences.visibleIDs == Set([.coles, .woolworths, .bunnings])
                 && !migratedPreferences.visibleIDs.contains(.costco) && !migratedPreferences.visibleIDs.contains(.tesco)
                 && !migratedPreferences.visibleIDs.contains(.walmart) && !migratedPreferences.visibleIDs.contains(.kmart),
-                "existing stores remain visible while newly introduced stores start hidden")
+                 "existing stores remain visible while newly introduced stores start hidden")
+          check(migratedPreferences.hasCompletedStoreSetup, "legacy installs do not receive first-time welcome")
           migratedPreferences.setVisible(true, for: .costco)
           check(StoreVisibilityPreferences(defaults: preferenceDefaults).visibleIDs.contains(.costco),
                 "enabling Costco persists without enabling another store")

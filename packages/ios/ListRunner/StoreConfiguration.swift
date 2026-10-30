@@ -634,6 +634,7 @@ struct StoreBrand: Identifiable {
 @MainActor
 final class StoreVisibilityPreferences: ObservableObject {
     @Published private(set) var visibleIDs: Set<StoreID>
+    @Published private(set) var hasCompletedStoreSetup: Bool
     @Published private(set) var shoppingCountryCode: String?
     @Published private(set) var useLocalIngredientNames: Bool
     // Published as one atomic value so browsers never see a half-updated pair.
@@ -646,6 +647,7 @@ final class StoreVisibilityPreferences: ObservableObject {
     private let countryInitializedKey = "shoppingCountryInitialized.v1"
     private let regionalKey = "storeRegionalChoices.v1"
     private let pendingSelectionKey = "pendingEnabledStoreSelection.v1"
+    private let setupCompletedKey = "storeSetupCompleted.v1"
 
     init(defaults: UserDefaults? = nil, suggestedCountryCode: String? = Locale.current.region?.identifier) {
         if let defaults {
@@ -685,6 +687,7 @@ final class StoreVisibilityPreferences: ObservableObject {
         let hasLegacyStorePreferences = defaults.object(forKey: "storeSortMode.v1") != nil
         defaults.removeObject(forKey: "storeSortMode.v1")
         let current = Set(StoreID.allCases)
+        let hasStoredVisibility = defaults.array(forKey: knownKey) != nil
         if defaults.array(forKey: knownKey) != nil {
             let stored = Set((defaults.array(forKey: visibleKey) as? [String] ?? []).compactMap(StoreID.init(rawValue:)))
             visibleIDs = stored.intersection(current)
@@ -694,6 +697,12 @@ final class StoreVisibilityPreferences: ObservableObject {
         } else {
             visibleIDs = []
         }
+        // Existing installs retain the neutral empty state. On new installs the
+        // welcome remains until a store is actually enabled, across relaunches.
+        hasCompletedStoreSetup = defaults.object(forKey: setupCompletedKey) as? Bool
+            ?? (hasStoredVisibility || hasLegacyStorePreferences)
+        if !visibleIDs.isEmpty { hasCompletedStoreSetup = true }
+        defaults.set(hasCompletedStoreSetup, forKey: setupCompletedKey)
         defaults.set(current.map(\.rawValue).sorted(), forKey: knownKey)
         defaults.set(visibleIDs.map(\.rawValue).sorted(), forKey: visibleKey)
         // Superseded by checking the active store on every return to the list.
@@ -719,6 +728,10 @@ final class StoreVisibilityPreferences: ObservableObject {
         defaults.set(pending.map(\.rawValue), forKey: pendingSelectionKey)
         visibleIDs = updated
         defaults.set(updated.map(\.rawValue).sorted(), forKey: visibleKey)
+        if !updated.isEmpty {
+            hasCompletedStoreSetup = true
+            defaults.set(true, forKey: setupCompletedKey)
+        }
     }
 
     func selectionForList(current: StoreID, definitions: [StoreDefinition]) -> StoreID? {
