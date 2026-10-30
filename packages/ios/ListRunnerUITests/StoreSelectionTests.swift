@@ -230,6 +230,8 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.tables["manage-stores-table"].exists)
         XCTAssertFalse(app.buttons["welcome-enable-store"].exists)
         XCTAssertFalse(app.buttons["Dismiss store"].exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "BackButton").firstMatch.exists,
+                       "Welcome completion must replace the setup navigation stack")
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
         openStoreSettings("woolworths")

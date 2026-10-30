@@ -3,11 +3,13 @@ import SwiftUI
 import UIKit
 
 struct ShoppingRootScreen: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var sessions: StoreSessions
     @StateObject private var visibility: StoreVisibilityPreferences
     @StateObject private var paprikaReminders = PaprikaReminders()
     @AppStorage("activeStoreID") private var activeStoreID = StoreID.coles.rawValue
     @State private var drafts: [StoreID: String] = [:]
+    @State private var welcomeCompletion = 0
     @State private var previewingStoreWelcome: Bool = {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("--preview-store-welcome")
@@ -24,14 +26,28 @@ struct ShoppingRootScreen: View {
 
     var body: some View {
         let storeID = StoreID(rawValue: activeStoreID) ?? .coles
+        ZStack {
         GroceryListScreen(storeID: storeID, sessions: sessions, visibility: visibility, paprikaReminders: paprikaReminders,
                            previewingStoreWelcome: $previewingStoreWelcome,
                            rawInput: Binding(get: { drafts[storeID] ?? "" }, set: { drafts[storeID] = $0 }),
-                           onSelectStore: { id in
+                           onWelcomeStoreEnabled: { id in
+                               sessions.endAllInteractions()
+                               _ = visibility.selectionForList(current: id, definitions: sessions.definitions)
+                               // Replace the welcome navigation stack rather than
+                               // animating a pop through its intermediate screens.
+                               withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+                                   previewingStoreWelcome = false
+                                   activeStoreID = id.rawValue
+                                   welcomeCompletion += 1
+                               }
+                           }, onSelectStore: { id in
                               sessions.endAllInteractions()
                               activeStoreID = id.rawValue
                           })
-            .id(storeID)
+            .id("\(storeID.rawValue)-\(welcomeCompletion)")
+            .transition(.opacity)
+        }
+            .sensoryFeedback(.success, trigger: welcomeCompletion)
             .onChange(of: visibility.visibleIDs) { previous, current in
                 // Opening management is not a choice. Keep the one-run welcome
                 // preview when backing out, and finish only on an enable action.
@@ -53,6 +69,7 @@ struct GroceryListScreen: View {
     let storeID: StoreID
     let sessions: StoreSessions
     let onSelectStore: (StoreID) -> Void
+    let onWelcomeStoreEnabled: (StoreID) -> Void
     @Binding private var rawInput: String
     @State private var routedLaunch = false
     @State private var itemToMove: GroceryItem?
@@ -92,10 +109,12 @@ struct GroceryListScreen: View {
 
     init(storeID: StoreID, sessions: StoreSessions, visibility: StoreVisibilityPreferences, paprikaReminders: PaprikaReminders,
          previewingStoreWelcome: Binding<Bool>, rawInput: Binding<String>,
+         onWelcomeStoreEnabled: @escaping (StoreID) -> Void,
          onSelectStore: @escaping (StoreID) -> Void) {
         self.storeID = storeID; self.sessions = sessions
         self.visibility = visibility
         self.paprikaReminders = paprikaReminders
+        self.onWelcomeStoreEnabled = onWelcomeStoreEnabled
         self._previewingStoreWelcome = previewingStoreWelcome
         self.onSelectStore = onSelectStore; self._rawInput = rawInput
         _browser = StateObject(wrappedValue: sessions.browser(for: storeID))
@@ -397,13 +416,9 @@ struct GroceryListScreen: View {
             .navigationDestination(isPresented: $showingStoreManagement) {
                 StoreVisibilityScreen(sessions: sessions, visibility: visibility,
                     onWelcomeStoreEnabled: managingWelcomeStores ? { id in
-                        previewingStoreWelcome = false
-                        showingStoreManagement = false
-                        managingWelcomeStores = false
-                        // Consume the enable-selection queue before explicitly
-                        // selecting, including re-enabling an existing preview store.
-                        _ = visibility.selectionForList(current: id, definitions: sessions.definitions)
-                        onSelectStore(id)
+                        // Let the root crossfade to a fresh list navigation stack.
+                        // Do not pop this outgoing stack during its fade.
+                        onWelcomeStoreEnabled(id)
                     } : nil)
             }
             .onChange(of: showingStoreManagement) { _, presented in
