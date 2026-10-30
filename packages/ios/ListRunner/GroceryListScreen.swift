@@ -195,6 +195,7 @@ struct GroceryListScreen: View {
                                     addItemsButtonFrame = frame
                                 }
                         }
+                        .padding(.vertical, 4)
                         .id("product-entry-actions")
                         .onGeometryChange(for: CGRect.self) { geometry in
                             geometry.frame(in: .global)
@@ -203,7 +204,7 @@ struct GroceryListScreen: View {
                         }
                         // Trim List's default 15 pt vertical insets without
                         // shrinking the import action's 44 pt hit area.
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                     }
 
                     Section {
@@ -450,6 +451,9 @@ struct GroceryListScreen: View {
             guard let itemID = scrollTargetItemID, itemIDs.contains(itemID) else { return }
             scrollToAddedItem(itemID, using: scrollProxy)
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
+            revealFocusedProductEntry(using: scrollProxy)
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
             #if DEBUG
             if let enabled = ProductEntryEditor.EntryTextView.lastResignAnimationsEnabled {
@@ -694,9 +698,10 @@ struct GroceryListScreen: View {
                       listViewportFrame.height > 0,
                       groceryInputFrame.height > 0, productActionsFrame.height > 0 else { return }
                 // The editor geometry excludes its List row's 15 pt native
-                // insets and 4 pt explicit padding; actions exclude 4 pt insets.
+                // insets and 4 pt explicit padding. The actions target includes
+                // its explicit padding so scrollTo reveals the full native cell.
                 let cardTop = groceryInputFrame.minY - 19
-                let cardBottom = productActionsFrame.maxY + 4
+                let cardBottom = productActionsFrame.maxY
                 guard cardBottom > listViewportFrame.maxY + 0.5,
                       cardBottom - cardTop <= listViewportFrame.height else { continue }
                 withAnimation(.easeInOut(duration: 0.25)) {
