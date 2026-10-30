@@ -1244,21 +1244,15 @@ final class StoreSelectionTests: XCTestCase {
     func testAlreadyVisibleNewItemDoesNotRepositionList() {
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
+        // First establish the normal post-reveal position. Another same-height
+        // row inserted at the front already fits there, without a synthetic drag
+        // that can dismiss the keyboard or hide the editor beneath the header.
+        input.typeText("kettle")
+        app.buttons["Add Items"].tap()
+        assertFirstItemIsFullyVisible("kettle")
         input.typeText("toaster")
-        let existingCell = app.collectionViews.cells.containing(.button, identifier: "Actions for Coles fixture item").firstMatch
+        let existingCell = app.collectionViews.cells.containing(.button, identifier: "Actions for kettle").firstMatch
         let showStore = app.buttons["Show Store"]
-        let keyboardLayout = NSPredicate { _, _ in
-            showStore.frame.maxY < self.app.frame.height * 0.65
-        }
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: keyboardLayout, object: app)], timeout: 3), .completed)
-        for _ in 0..<6 {
-            if existingCell.frame.maxY <= showStore.frame.minY { break }
-            // Make room for a row without touching the field or submitting it.
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.46))
-                .press(forDuration: 0.05,
-                       thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.42)),
-                       withVelocity: .slow, thenHoldForDuration: 0.2)
-        }
         XCTAssertLessThanOrEqual(existingCell.frame.maxY, showStore.frame.minY)
         XCTAssertTrue(input.isHittable)
         XCTAssertGreaterThan(input.frame.minY, app.buttons["store-picker"].frame.maxY,
