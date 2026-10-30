@@ -53,6 +53,7 @@ struct GroceryListScreen: View {
     @State private var productEntryFocus = ProductEntryFocus()
     @State private var productActionsFrame: CGRect = .zero
     @State private var productEntryRevealTask: Task<Void, Never>?
+    @State private var isRevealingProductEntry = false
     @State private var recentlyAddedItemIDs = Set<UUID>()
     @State private var scrollTargetItemID: UUID?
     @State private var addedItemScrollTask: Task<Void, Never>?
@@ -255,7 +256,7 @@ struct GroceryListScreen: View {
             .listStyle(.insetGrouped)
             .contentMargins(.top, 0, for: .scrollContent)
             .listSectionSpacing(.compact)
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(isRevealingProductEntry ? .never : .interactively)
             .simultaneousGesture(DragGesture(minimumDistance: 10).onChanged { _ in
                 // A deliberate manual scroll takes precedence over positioning
                 // the most recently submitted item.
@@ -682,6 +683,8 @@ struct GroceryListScreen: View {
         productEntryRevealTask?.cancel()
         guard groceryInputFocused, scrollTargetItemID == nil else { return }
         productEntryRevealTask = Task { @MainActor in
+            isRevealingProductEntry = true
+            defer { isRevealingProductEntry = false }
             // Keyboard layout can arrive in stages. Re-measure each time rather
             // than forcing alignment when the complete card already fits.
             for delay in [0.1, 0.3, 0.3] {
