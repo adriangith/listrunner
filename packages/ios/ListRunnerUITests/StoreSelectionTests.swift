@@ -215,7 +215,7 @@ final class StoreSelectionTests: XCTestCase {
     func testFirstStoreWelcomeSimpleSetupCancelsThenActivatesChosenStore() {
         XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
         app.buttons["welcome-choose-store"].tap()
-        openStoreSettings("woolworths")
+        openStoreSettings("woolworths", welcome: true)
         XCTAssertTrue(app.buttons["welcome-enable-store"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Included Support"].exists)
         XCTAssertFalse(app.switches["store-visibility-woolworths"].exists)
@@ -239,7 +239,7 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     private func enableWelcomeStore(_ store: String) {
-        openStoreSettings(store)
+        openStoreSettings(store, welcome: true)
         let button = app.buttons["welcome-enable-store"]
         XCTAssertTrue(button.waitForExistence(timeout: 5))
         button.tap()
@@ -322,7 +322,7 @@ final class StoreSelectionTests: XCTestCase {
         app.descendants(matching: .any)["manage-store-\(store)"].firstMatch
     }
 
-    private func openStoreSettings(_ store: String) {
+    private func openStoreSettings(_ store: String, welcome: Bool = false) {
         let entry = manageRow(store)
         let table = app.tables["manage-stores-table"]
         // XCTest considers even a sliver of a clipped cell hittable. Require
@@ -343,7 +343,11 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(entry.waitForExistence(timeout: 3))
         XCTAssertTrue(fullyVisible(), "Store row must be fully visible before tapping: \(store)")
         entry.tap()
-        XCTAssertTrue(app.switches["store-visibility-\(store)"].waitForExistence(timeout: 3))
+        if welcome {
+            XCTAssertTrue(app.buttons["welcome-enable-store"].waitForExistence(timeout: 3))
+        } else {
+            XCTAssertTrue(app.switches["store-visibility-\(store)"].waitForExistence(timeout: 3))
+        }
     }
 
     private func changeCountry(_ code: String, name: String) {
