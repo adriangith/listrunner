@@ -361,7 +361,9 @@ struct StoreVisibilityScreen: View {
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search stores")
         .navigationTitle("Manage Stores")
-        .navigationBarTitleDisplayMode(.large)
+        // The inline native title avoids the large-title/search fade state
+        // getting stuck across a live system appearance change.
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbarBackground(Color(uiColor: .systemGroupedBackground), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
