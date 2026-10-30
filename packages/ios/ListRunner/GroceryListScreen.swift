@@ -59,6 +59,7 @@ struct GroceryListScreen: View {
     @State private var editingItem: GroceryItem?
     @State private var showingStore = false
     @State private var showingStoreManagement = false
+    @State private var managingWelcomeStores = false
     // Root-owned so changing the active store cannot restart a dismissed preview.
     @Binding private var previewingStoreWelcome: Bool
     @State private var showingImportSetup = false
@@ -135,6 +136,7 @@ struct GroceryListScreen: View {
             List {
                 if showingStoreWelcome {
                     StoreWelcomeContent {
+                        managingWelcomeStores = true
                         showingStoreManagement = true
                     }
                     .listRowBackground(Color.clear)
@@ -393,7 +395,19 @@ struct GroceryListScreen: View {
             // screen owns its visible navigation bar, not this presentation flag.
             .toolbar(showingStoreWelcome ? .hidden : .visible, for: .navigationBar)
             .navigationDestination(isPresented: $showingStoreManagement) {
-                StoreVisibilityScreen(sessions: sessions, visibility: visibility)
+                StoreVisibilityScreen(sessions: sessions, visibility: visibility,
+                    onWelcomeStoreEnabled: managingWelcomeStores ? { id in
+                        previewingStoreWelcome = false
+                        showingStoreManagement = false
+                        managingWelcomeStores = false
+                        // Consume the enable-selection queue before explicitly
+                        // selecting, including re-enabling an existing preview store.
+                        _ = visibility.selectionForList(current: id, definitions: sessions.definitions)
+                        onSelectStore(id)
+                    } : nil)
+            }
+            .onChange(of: showingStoreManagement) { _, presented in
+                if !presented { managingWelcomeStores = false }
             }
             .navigationDestination(isPresented: $showingImportSetup) {
                 ImportSourceSelectionScreen(selectedSourceID: importSourceID) { source in

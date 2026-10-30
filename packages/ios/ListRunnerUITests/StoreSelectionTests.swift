@@ -53,6 +53,9 @@ final class StoreSelectionTests: XCTestCase {
         // Shopping-flow tests start after the real first-store setup flow.
         if app.buttons["welcome-choose-store"].waitForExistence(timeout: 3) {
             app.buttons["welcome-choose-store"].tap()
+            enableWelcomeStore("coles")
+            app.buttons["store-picker"].tap()
+            app.buttons["Manage Stores"].tap()
             for id in ["bunnings", "woolworths", "coles"] { setStoreVisibility(id, shown: true) }
             tapNavigationBack()
         }
@@ -77,8 +80,7 @@ final class StoreSelectionTests: XCTestCase {
         tapNavigationBack()
         XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 3))
         app.buttons["welcome-choose-store"].tap()
-        setStoreVisibility("coles", shown: true)
-        tapNavigationBack()
+        enableWelcomeStore("coles")
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
@@ -195,8 +197,7 @@ final class StoreSelectionTests: XCTestCase {
     func testFirstStoreWelcomePreviewReturnsAfterCancelledChoice() {
         XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
         app.buttons["welcome-choose-store"].tap()
-        setStoreVisibility("coles", shown: true)
-        tapNavigationBack()
+        enableWelcomeStore("coles")
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         app.terminate()
         app.launchArguments = ["--preview-store-welcome"]
@@ -206,10 +207,43 @@ final class StoreSelectionTests: XCTestCase {
         tapNavigationBack()
         XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 5))
         app.buttons["welcome-choose-store"].tap()
-        setStoreVisibility("bunnings", shown: true)
-        tapNavigationBack()
+        enableWelcomeStore("bunnings")
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["welcome-choose-store"].exists)
+    }
+
+    func testFirstStoreWelcomeSimpleSetupCancelsThenActivatesChosenStore() {
+        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
+        app.buttons["welcome-choose-store"].tap()
+        openStoreSettings("woolworths")
+        XCTAssertTrue(app.buttons["welcome-enable-store"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Included Support"].exists)
+        XCTAssertFalse(app.switches["store-visibility-woolworths"].exists)
+        XCTAssertFalse(app.staticTexts["Current Session Status"].exists)
+        XCTAssertFalse(app.buttons["Reset Woolworths Session"].exists)
+        tapNavigationBack()
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 5))
+        app.buttons["welcome-choose-store"].tap()
+        enableWelcomeStore("woolworths")
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Woolworths"))
+        XCTAssertFalse(app.tables["manage-stores-table"].exists)
+        XCTAssertFalse(app.buttons["welcome-enable-store"].exists)
+        XCTAssertFalse(app.buttons["Dismiss store"].exists)
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        openStoreSettings("woolworths")
+        XCTAssertTrue(app.switches["store-visibility-woolworths"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["welcome-enable-store"].exists)
+        XCTAssertTrue(app.staticTexts["Current Session Status"].exists)
+    }
+
+    private func enableWelcomeStore(_ store: String) {
+        openStoreSettings(store)
+        let button = app.buttons["welcome-enable-store"]
+        XCTAssertTrue(button.waitForExistence(timeout: 5))
+        button.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
     }
 
     private func choose(_ name: String) {

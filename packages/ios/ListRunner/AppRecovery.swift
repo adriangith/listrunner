@@ -164,6 +164,43 @@ private struct StoreSettingsScreen: View {
     }
 }
 
+private struct WelcomeStoreSetupScreen: View {
+    let store: StoreDefinition
+    let enableStore: () -> Void
+
+    var body: some View {
+        Form {
+            Section {
+                Button(action: enableStore) {
+                    Text("Enable \(store.displayName)")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("welcome-enable-store")
+                .accessibilityHint("Returns to this store’s grocery list without opening its website")
+                .listRowBackground(Color.clear)
+            }
+            Section {
+                LabeledContent("Search", value: supportState(store.capabilities.search))
+                LabeledContent("Cart detection", value: supportState(store.capabilities.cartDetection))
+                LabeledContent("Cart Undo", value: supportState(store.capabilities.cartUndo))
+            } header: {
+                Text("Included Support")
+            } footer: {
+                Text(store.homepage.host ?? "")
+            }
+        }
+        .navigationTitle(store.displayName)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func supportState(_ included: Bool) -> String {
+        guard store.isConfigurationValid else { return "Unavailable — configuration invalid" }
+        return included ? "Included" : "Not included"
+    }
+}
+
 struct SettingsOverviewScreen: View {
     @ObservedObject var sessions: StoreSessions
     @ObservedObject var visibility: StoreVisibilityPreferences
@@ -313,6 +350,9 @@ struct StoreVisibilityScreen: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var sessions: StoreSessions
     @ObservedObject var visibility: StoreVisibilityPreferences
+    // Non-nil only for the welcome entry point. Normal management retains all
+    // settings, toggles and region/session controls.
+    var onWelcomeStoreEnabled: ((StoreID) -> Void)? = nil
     @State private var searchText = ""
     @State private var selectedBrand: StoreBrand?
 
@@ -372,7 +412,15 @@ struct StoreVisibilityScreen: View {
         .toolbarColorScheme(colorScheme, for: .navigationBar)
         .navigationDestination(isPresented: Binding(get: { selectedBrand != nil }, set: { if !$0 { selectedBrand = nil } })) {
             if let selectedBrand {
-                StoreSettingsScreen(brand: selectedBrand, sessions: sessions, visibility: visibility)
+                if let onWelcomeStoreEnabled {
+                    let store = visibility.selectedRegion(for: selectedBrand)
+                    WelcomeStoreSetupScreen(store: store) {
+                        visibility.setBrandVisible(true, brand: selectedBrand)
+                        onWelcomeStoreEnabled(store.id)
+                    }
+                } else {
+                    StoreSettingsScreen(brand: selectedBrand, sessions: sessions, visibility: visibility)
+                }
             }
         }
     }
