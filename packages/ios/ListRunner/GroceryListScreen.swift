@@ -52,6 +52,7 @@ struct GroceryListScreen: View {
     @State private var groceryInputFocused = false
     @State private var productEntryFocus = ProductEntryFocus()
     @State private var productActionsFrame: CGRect = .zero
+    @State private var showStoreFrame: CGRect = .zero
     @State private var productEntryRevealTask: Task<Void, Never>?
     @State private var isRevealingProductEntry = false
     @State private var productEntryRevealStatus = "idle"
@@ -149,7 +150,7 @@ struct GroceryListScreen: View {
                                  } else if !value.isEmpty {
                                      cancelAddedItemScroll()
                                      scrollTargetItemID = nil
-                                     revealFocusedProductEntry(using: scrollProxy)
+                                     revealFocusedProductEntry()
                                 }
                             }
                             .padding(.horizontal, 14)
@@ -167,7 +168,7 @@ struct GroceryListScreen: View {
                              } action: { frame in
                                  let heightChanged = abs(groceryInputFrame.height - frame.height) > 0.5
                                  groceryInputFrame = frame
-                                 if heightChanged { revealFocusedProductEntry(using: scrollProxy) }
+                                 if heightChanged { revealFocusedProductEntry() }
                             }
                             .padding(.vertical, 4)
 
@@ -276,7 +277,7 @@ struct GroceryListScreen: View {
                 geometry.frame(in: .global)
             } action: { frame in
                 listViewportFrame = frame
-                revealFocusedProductEntry(using: scrollProxy)
+                revealFocusedProductEntry()
                 // The first item also introduces the bottom action inset. Scroll
                 // against the resulting viewport, not the old empty-list size.
                 guard let itemID = scrollTargetItemID else { return }
@@ -329,6 +330,12 @@ struct GroceryListScreen: View {
                             .frame(maxWidth: .infinity, minHeight: 52)
                     }
                     .modifier(StoreLaunchButtonStyle(tint: storePrimaryColor))
+                    .onGeometryChange(for: CGRect.self) { geometry in
+                        geometry.frame(in: .global)
+                    } action: { frame in
+                        showStoreFrame = frame
+                        revealFocusedProductEntry()
+                    }
                      .disabled(!browser.canPresentStore || !visibility.visibleIDs.contains(storeID))
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
@@ -447,7 +454,7 @@ struct GroceryListScreen: View {
         }
         .onChange(of: groceryInputFocused) { _, focused in
             productEntryRevealTask?.cancel()
-            if focused { revealFocusedProductEntry(using: scrollProxy) }
+            if focused { revealFocusedProductEntry() }
         }
         .onChange(of: items.map(\.id)) { _, itemIDs in
             // When adding the first row, SwiftUI replaces the empty-state row
@@ -457,7 +464,7 @@ struct GroceryListScreen: View {
             scrollToAddedItem(itemID, using: scrollProxy)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
-            revealFocusedProductEntry(using: scrollProxy)
+            revealFocusedProductEntry()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
             #if DEBUG
@@ -688,7 +695,7 @@ struct GroceryListScreen: View {
         }
     }
 
-    private func revealFocusedProductEntry(using proxy: ScrollViewProxy) {
+    private func revealFocusedProductEntry() {
         productEntryRevealTask?.cancel()
         guard groceryInputFocused, scrollTargetItemID == nil else { return }
         productEntryRevealTask = Task { @MainActor in
@@ -707,11 +714,15 @@ struct GroceryListScreen: View {
                 // its explicit padding so scrollTo reveals the full native cell.
                 let cardTop = groceryInputFrame.minY - 19
                 let cardBottom = productActionsFrame.maxY
-                productEntryRevealStatus = "checked bottom=\(cardBottom) viewport=\(listViewportFrame.maxY)"
-                guard cardBottom - cardTop <= listViewportFrame.height else { continue }
+                // The inset's top spacing is unobscured. A card touching the
+                // actual Show Store button already fits and must not move.
+                let visibleBottom = items.isEmpty || showStoreFrame.height == 0
+                    ? listViewportFrame.maxY : showStoreFrame.minY
+                productEntryRevealStatus = "checked bottom=\(cardBottom) visibleBottom=\(visibleBottom)"
+                guard cardBottom - cardTop <= visibleBottom - listViewportFrame.minY else { continue }
                 let adjustment: CGFloat
-                if cardBottom > listViewportFrame.maxY + 0.5 {
-                    adjustment = cardBottom - listViewportFrame.maxY
+                if cardBottom > visibleBottom + 0.5 {
+                    adjustment = cardBottom - visibleBottom
                 } else if cardTop < listViewportFrame.minY - 0.5 {
                     adjustment = cardTop - listViewportFrame.minY
                 } else { continue }

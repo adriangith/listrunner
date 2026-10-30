@@ -1263,6 +1263,7 @@ final class StoreSelectionTests: XCTestCase {
 
     func testFocusedProductEntryRevealsEntireCardAboveShowStore() {
         let input = app.descendants(matching: .any)["grocery-input"]
+        let initialEditorY = app.collectionViews.cells.containing(.textView, identifier: "grocery-input").firstMatch.frame.minY
         input.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
         let editorCell = app.collectionViews.cells.containing(.textView, identifier: "grocery-input").firstMatch
@@ -1277,6 +1278,8 @@ final class StoreSelectionTests: XCTestCase {
         if result != .completed { print(app.debugDescription) }
         XCTAssertEqual(result, .completed,
                        "The whole entry card, including the action row, must fit above Show Store")
+        XCTAssertEqual(editorCell.frame.minY, initialEditorY, accuracy: 2,
+                       "Opening the keyboard must not reposition a card that already fits")
         let originalY = editorCell.frame.minY
         // Refocusing an already visible card must not force a different offset.
         input.tap()
