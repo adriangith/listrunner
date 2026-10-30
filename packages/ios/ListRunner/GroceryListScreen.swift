@@ -1022,10 +1022,11 @@ private struct StoreWelcomeContent: View {
                 Button(action: chooseStore) {
                     Text("Choose Your First Store")
                         .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .frame(maxWidth: .infinity, minHeight: 52)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
+                .buttonStyle(StoreWelcomeButtonStyle())
                 .accessibilityIdentifier("welcome-choose-store")
                 Text("You can add more stores later.")
                     .font(.footnote)
@@ -1057,41 +1058,101 @@ private struct StoreWelcomeIntroduction: View {
 
 private struct StoreWelcomeIllustration: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Your shopping list")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Label("Milk", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.secondary)
-            HStack(spacing: 10) {
-                Label("Bread", systemImage: "arrow.right.circle.fill")
-                    .fontWeight(.semibold)
-                Spacer(minLength: 0)
-                Text("Up next")
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .foregroundStyle(.white)
-                    .background(.blue, in: Capsule())
+        GeometryReader { geometry in
+            // A fixed illustration coordinate space scales as one unit. Rotation
+            // and shadows stay inside the panel even on narrow phones; surrounding
+            // onboarding text and the real action still follow Dynamic Type.
+            let scale = geometry.size.width / 320
+            ZStack(alignment: .topLeading) {
+                StoreWelcomeExampleCard(name: "Apples", completed: true, selected: false)
+                    .frame(width: 122, height: 190)
+                    .rotationEffect(.degrees(-6))
+                    .position(x: 84, y: 132)
+                StoreWelcomeExampleCard(name: "Milk", completed: false, selected: false)
+                    .frame(width: 122, height: 190)
+                    .rotationEffect(.degrees(6))
+                    .position(x: 236, y: 132)
+                StoreWelcomeExampleCard(name: "Bread", completed: false, selected: true)
+                    .frame(width: 142, height: 204)
+                    .position(x: 160, y: 125)
             }
-            .padding(10)
-            .foregroundStyle(.blue)
-            .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-            Label("Apples", systemImage: "circle")
-                .foregroundStyle(.secondary)
+            .frame(width: 320, height: 250)
+            .dynamicTypeSize(.large)
+            .scaleEffect(scale, anchor: .topLeading)
         }
-        .font(.subheadline)
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-        .padding(18)
-        .frame(maxWidth: 280, alignment: .leading)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
-        .rotationEffect(.degrees(-3))
-        .padding(28)
-        .frame(maxWidth: .infinity)
+        .aspectRatio(320.0 / 250.0, contentMode: .fit)
         .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 24))
-        // Example items illustrate the flow; they are not the user's actual list.
+        // Decorative example only: no fake control or sample item is exposed as
+        // real shopping data or a second action to VoiceOver / Switch Control.
         .accessibilityHidden(true)
+    }
+}
+
+private enum StoreWelcomePalette {
+    static let blue = LinearGradient(
+        colors: [Color(red: 18.0 / 255, green: 106.0 / 255, blue: 190.0 / 255),
+                 Color(red: 70.0 / 255, green: 148.0 / 255, blue: 222.0 / 255)],
+        startPoint: .topLeading, endPoint: .bottomTrailing)
+    static let cream = LinearGradient(
+        colors: [Color(red: 1, green: 253.0 / 255, blue: 243.0 / 255),
+                 Color(red: 238.0 / 255, green: 233.0 / 255, blue: 213.0 / 255)],
+        startPoint: .topLeading, endPoint: .bottomTrailing)
+}
+
+private struct StoreWelcomeButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.white)
+            .background(StoreWelcomePalette.blue, in: Capsule())
+            .contentShape(Capsule())
+            .opacity(configuration.isPressed ? 0.85 : 1)
+    }
+}
+
+private struct StoreWelcomeExampleCard: View {
+    let name: LocalizedStringKey
+    let completed: Bool
+    let selected: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(name)
+                .font(.largeTitle.bold())
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+            Text("Quantity · 1")
+                .font(.callout)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            if selected {
+                VStack(spacing: 15) {
+                    Rectangle()
+                        .fill(Color.black.opacity(0.1))
+                        .frame(height: 0.5)
+                    Text("Mark Added")
+                        .font(.headline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.9)
+                        .foregroundStyle(.white)
+                        .padding(.vertical, 12)
+                        .frame(maxWidth: .infinity)
+                        .background(StoreWelcomePalette.blue, in: Capsule())
+                }
+                .padding(.horizontal, -4)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 25)
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .foregroundStyle(completed ? Color.white : Color(red: 0.16, green: 0.18, blue: 0.19))
+        .background(completed ? StoreWelcomePalette.blue : StoreWelcomePalette.cream,
+                    in: RoundedRectangle(cornerRadius: 20))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20)
+                .strokeBorder(.white.opacity(0.5), lineWidth: 0.5)
+        }
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 6)
     }
 }
 

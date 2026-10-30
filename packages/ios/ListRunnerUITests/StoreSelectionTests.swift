@@ -65,6 +65,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Your list.\nOne item at a time."].exists)
         XCTAssertEqual(app.buttons["welcome-choose-store"].label, "Choose Your First Store")
+        XCTAssertFalse(app.buttons["Mark Added"].exists, "The illustrated action must not be an interactive shopping control")
         XCTAssertFalse(app.buttons["Settings"].exists)
         XCTAssertFalse(app.buttons["store-picker"].exists)
         XCTAssertFalse(app.buttons["Show Store"].exists)
