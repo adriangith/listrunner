@@ -201,6 +201,15 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- Waitrose login-route check **passed** at `59cb76e`: reached a secure password
+  field with no credential entry or cart action. However XCTest closed the app
+  after completion even when explicit teardown was skipped. Its historical
+  `LOGIN_HANDOFF_READY` marker is therefore **not a ready manual handoff**.
+  Mac `~/Library/Logs/ListRunner-Login-Handoff-waitrose-59cb76e.*`.
+  Future checks emit `LOGIN_ROUTE_VERIFIED` with `manualHandoffReady=false`.
+  The actual user handoff must launch outside XCTest in valid-UUID nonpersistent
+  browsing mode, then independently verify a visible form and a running app.
+
 - Waitrose handoff `19a7079` did not reach login: native recovery alert appeared;
   isolated diagnostics recorded a network failure on the Waitrose host (domain
   classified `other`, no retained HTTP code). No credentials/cart mutation.

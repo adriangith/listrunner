@@ -212,7 +212,6 @@ private final class ReadOnlySearchPolicy: NSObject, WKNavigationDelegate {
 
 final class StoreSelectionTests: XCTestCase {
     private var app: XCUIApplication!
-    private var preserveLoginHandoff = false
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -304,9 +303,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
     }
 
-    override func tearDownWithError() throws {
-        if !preserveLoginHandoff { app.terminate() }
-    }
+    override func tearDownWithError() throws { app.terminate() }
 
     func testFirstStoreWelcomePersistsUntilStoreEnabled() {
         XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10), app.debugDescription)
@@ -583,8 +580,9 @@ final class StoreSelectionTests: XCTestCase {
 
     private func prepareLoginHandoff(store: String, signInLabel: String) throws {
         // No credentials, Add, checkout, or account-setting actions. A passing
-        // preparation is NOT authentication or detector certification. Keep this
-        // app alive only after the login form is ready for the person at the Mac.
+        // route check is NOT authentication, detector certification, or an active
+        // user handoff. XCTest closes the app even if explicit teardown is skipped.
+        // Launch the same isolated setup outside XCTest for manual sign-in.
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
         setStoreVisibility(store, shown: true)
@@ -609,8 +607,7 @@ final class StoreSelectionTests: XCTestCase {
             signIn.tap()
         }
         XCTAssertTrue(web.secureTextFields.firstMatch.waitForExistence(timeout: 60), "Stop only at a real login form")
-        preserveLoginHandoff = true
-        print("LOGIN_HANDOFF_READY store=\(store), authenticationPerformed=false, cartMutationAttempted=false")
+        print("LOGIN_ROUTE_VERIFIED store=\(store), authenticationPerformed=false, cartMutationAttempted=false, manualHandoffReady=false")
     }
 
     func testLiveStoreCartSupercheap() throws {

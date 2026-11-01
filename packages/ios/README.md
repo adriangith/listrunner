@@ -62,10 +62,12 @@ native status changes. Ordinary tests do not contact retailers.
 User-operated sign-in handoffs have a separate browsing-only opt-in:
 `TEST_RUNNER_LISTRUNNER_LIVE_LOGIN_STORE=waitrose` (or `sainsburys`) with
 `testLiveStoreLoginWaitroseHandoff` / `testLiveStoreLoginSainsburysHandoff`.
-These prepare a real login form in nonpersistent test storage and leave the app
-running for the person at the Mac. They never enter credentials, Add products,
-or certify authentication/detection. Sainsbury's exact account origin is allowed
-for browsing only; it is excluded from cart automation trust.
+These verify a real login form in nonpersistent test storage; XCTest closes the
+app afterward. A manual handoff must launch the isolated setup outside XCTest
+and independently verify that the form remains visible and the app is running.
+The checks never enter credentials, Add products, or certify authentication/detection.
+Sainsbury's exact account origin and Waitrose's observed authentication redirect
+are allowed for browsing only, never cart automation trust.
 Linux-compatible resource/probe/project consistency checks run with:
 
 ```sh
