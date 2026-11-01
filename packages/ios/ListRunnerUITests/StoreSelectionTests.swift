@@ -595,10 +595,28 @@ final class StoreSelectionTests: XCTestCase {
                 return web.buttons.matching(addPredicate).allElementsBoundByIndex
                     .filter { $0.frame.height > 0 }.sorted { $0.frame.minY < $1.frame.minY }.first
             }
-            return web.otherElements.containing(.link, identifier: product).allElementsBoundByIndex
+            let structured = web.otherElements.containing(.link, identifier: product).allElementsBoundByIndex
                 .filter { $0.frame.height > 0 && $0.frame.height < 900 && $0.buttons.matching(addPredicate).count == 1 }
                 .sorted { $0.frame.minY == $1.frame.minY ? $0.frame.height < $1.frame.height : $0.frame.minY < $1.frame.minY }
                 .first?.buttons.matching(addPredicate).firstMatch
+            if let structured { return structured }
+            // Priceline flattens each card into sibling AX elements. Its text
+            // title (smaller than its duplicate image link) still locates the
+            // exact column. Require one nearby Add below it, with no intervening
+            // different product link. This is test navigation, not detector logic.
+            guard let title = web.links.matching(identifier: product).allElementsBoundByIndex
+                .filter({ $0.frame.height > 0 }).min(by: { $0.frame.height < $1.frame.height }) else { return nil }
+            let frame = title.frame
+            let candidates = web.buttons.matching(addPredicate).allElementsBoundByIndex.filter { button in
+                let box = button.frame
+                return box.midX >= frame.minX && box.midX <= frame.maxX && box.minY >= frame.maxY - 2 && box.minY <= frame.maxY + 220
+            }
+            guard candidates.count == 1, let button = candidates.first else { return nil }
+            let interveningLink = web.links.allElementsBoundByIndex.contains { other in
+                other.label != product && !other.label.isEmpty && other.frame.midX >= frame.minX && other.frame.midX <= frame.maxX
+                    && other.frame.minY > frame.maxY && other.frame.maxY < button.frame.minY
+            }
+            return interveningLink ? nil : button
         }
         var add = matchingAdd()
         for _ in 0..<12 {
