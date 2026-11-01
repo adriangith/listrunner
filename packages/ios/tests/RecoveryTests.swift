@@ -91,7 +91,7 @@ struct RecoveryTests {
             check(definition.allows(url) && url.fragment == nil && !url.absoluteString.contains(" "),
                   "new store search query stays encoded on its exact approved host")
             let components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-            let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))))!
+            let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~")))!
             check(components.queryItems?.filter { $0.value == query }.count == 1
                   || (components.queryItems == nil && components.percentEncodedPath.hasSuffix(encodedQuery)),
                   "expansion queries stay one complete parameter or one percent-encoded path segment")
