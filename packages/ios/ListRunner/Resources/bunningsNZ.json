@@ -1,10 +1,27 @@
 {
-  "schemaVersion": 2, "id": "bunningsNZ", "displayName": "Bunnings New Zealand",
+  "schemaVersion": 4, "id": "bunningsNZ", "displayName": "Bunnings New Zealand",
   "serviceArea": {"countryCodes": ["NZ"]},
   "homepage": "https://www.bunnings.co.nz",
   "allowedHosts": ["www.bunnings.co.nz", "bunnings.co.nz"],
   "search": {"strategy": "urlTemplate", "template": "https://www.bunnings.co.nz/search/products?q={query}"},
   "addedColor": {"red": 218, "green": 41, "blue": 28},
   "brandColors": {"primary": {"red": 13, "green": 82, "blue": 87}, "highlight": {"red": 255, "green": 171, "blue": 0}},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+   "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+   "cart": {
+     "strategy": "profiled", "identityStrategy": "numericURLSuffix",
+     "tileSelector": "[data-search-product-tile='true']", "linkSelector": "a[href]",
+     "productURLPattern": "^/[^/]+_p(\\d{1,32})/?$",
+     "addSelector": "button[data-locator='atcButton'],button[aria-label='Increase quantity']",
+     "addLabelPatterns": ["^add to cart$", "^increase quantity$"],
+     "quantitySelector": "input[aria-label='Quantity']", "emptyStatusSelector": "button[data-locator='atcButton']",
+     "emptyStatusText": "Add to Cart", "decrementLabelPattern": "^decrease quantity$",
+     "profiles": [{
+       "id": "product-card", "scope": "productCard", "identity": "cardLink",
+       "containerSelector": "[data-search-product-tile='true']", "titleSelector": "a[href] p",
+       "addSelector": "button[data-locator='atcButton'],button[aria-label='Increase quantity']",
+       "addLabelPatterns": ["^add to cart$", "^increase quantity$"],
+       "confirmation": "quantityIncrease", "confirmationWindowMS": 15000,
+       "quantitySelector": "input[aria-label='Quantity']", "emptyStatusText": "Add to Cart"
+     }]
+   }
 }

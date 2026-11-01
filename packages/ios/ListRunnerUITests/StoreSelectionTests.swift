@@ -219,7 +219,7 @@ final class StoreSelectionTests: XCTestCase {
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
         if name.contains("LiveStoreCart") {
-            let probes = [("Priceline", "priceline"), ("Supercheap", "supercheapAuto"), ("ChemistWarehouse", "chemistWarehouse")]
+            let probes = [("Priceline", "priceline"), ("Supercheap", "supercheapAuto"), ("ChemistWarehouse", "chemistWarehouse"), ("JBHiFi", "jbHiFi")]
             guard let store = probes.first(where: { name.contains($0.0) })?.1 else { throw XCTSkip("Unknown live cart probe") }
             guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_CART_STORE"] == store else {
                 throw XCTSkip("Live cart mutation requires explicit single-store opt-in")
@@ -557,6 +557,11 @@ final class StoreSelectionTests: XCTestCase {
                           product: "Sukin Natural Balance Shampoo 500ml", detail: true)
     }
 
+    func testLiveStoreCartJBHiFi() throws {
+        try liveStoreCart(store: "jbHiFi", query: "usb cable",
+                          product: "Belkin Hi Speed USB Cable (1.8 Metres)")
+    }
+
     private func liveStoreCart(store: String, query: String, product: String, detail: Bool = false) throws {
         // Each run uses the existing isolated UI-test UUID and a fresh,
         // nonpersistent website store. Never use a person's real cart/login.
@@ -631,6 +636,15 @@ final class StoreSelectionTests: XCTestCase {
             if remove.exists && remove.isHittable { remove.tap() }
             let removed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: remove)
             cleanupVerified = XCTWaiter.wait(for: [removed], timeout: 15) == .completed
+            XCTAssertTrue(cleanupVerified)
+        } else if store == "jbHiFi" {
+            let review = web.buttons["Review cart"].firstMatch
+            XCTAssertTrue(review.waitForExistence(timeout: 15))
+            if review.exists && review.isHittable { review.tap() }
+            let remove = web.buttons["Remove"].firstMatch
+            XCTAssertTrue(remove.waitForExistence(timeout: 20))
+            if remove.exists && remove.isHittable { remove.tap() }
+            cleanupVerified = web.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Your cart is empty")).firstMatch.waitForExistence(timeout: 20)
             XCTAssertTrue(cleanupVerified)
         } else if store == "chemistWarehouse" {
             let decrease = web.buttons["Decrement quantity"].firstMatch

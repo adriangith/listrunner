@@ -14,10 +14,12 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
   const config = load(store);
   config.capabilities.cartDetection = true; // test only; production ceilings stay off until certified
   const detail = store === 'chemistWarehouse';
-  const acknowledged = store === 'jbHiFi';
+  const office = store === 'officeworks';
+  const bunnings = store === 'bunningsNZ';
+  const acknowledged = store === 'jbHiFi' || office;
   const name = store === 'priceline' ? 'PRO:VOKE Touch Of Silver Brightening Shampoo 50mL'
-    : detail ? 'Sukin Natural Balance Shampoo 500ml' : acknowledged ? 'Belkin Hi Speed USB Cable (1.8 Metres)' : 'SCA Car Wash Concentrate 1 Litre';
-  let id = store === 'priceline' ? '39390' : detail ? '85510' : acknowledged ? 'belkin-hi-speed-usb-cable-1-8-metres' : '733022';
+    : detail ? 'Sukin Natural Balance Shampoo 500ml' : office ? 'Keji Ballpoint Pens 1mm Assorted 10 Pack' : bunnings ? 'Craftright 8oz Steel Claw Hammer' : acknowledged ? 'Belkin Hi Speed USB Cable (1.8 Metres)' : 'SCA Car Wash Concentrate 1 Litre';
+  let id = store === 'priceline' ? '39390' : detail ? '85510' : office ? 'keji-ballpoint-pens-1mm-assorted-10-pack-keka1271as' : bunnings ? '5660292' : acknowledged ? 'belkin-hi-speed-usb-cable-1-8-metres' : '733022';
   if (captured) {
     id = 'keji-ballpoint-pens-keka1271as';
     config.id = 'officeworks';
@@ -27,7 +29,7 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
     config.cart.linkSelector = 'a[href]';
   }
   const host = config.allowedHosts[0];
-  const path = value => captured ? `/shop/officeworks/p/${value}` : store === 'priceline'
+  const path = value => captured || office ? `/shop/officeworks/p/${value}` : bunnings ? `/craftright-8oz-steel-claw-hammer_p${value}` : store === 'priceline'
     ? `/product/${value}/pro-voke-touch-of-silver-brightening-shampoo-50ml`
     : detail ? `/buy/${value}/sukin-natural-balance-shampoo-500ml` : acknowledged ? `/products/${value}` : `/p/sca-sca-car-wash-concentrate-1-litre/${value}.html`;
   let now = 0, click, mutation;
@@ -52,18 +54,23 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
     matches(selector) {
       const simple = (node, text) => {
         if (text === '*') return true;
+        const not = text.match(/:not\(([^)]+)\)/);
+        if (not) {
+          if (node.matches(not[1])) return false;
+          text = text.replace(not[0], '');
+        }
         const has = text.match(/:has\(([^)]+)\)/);
         if (has) {
           if (!node.querySelectorAll(has[1]).length) return false;
           text = text.replace(has[0], '');
         }
-        const attrs = [...text.matchAll(/\[([\w-]+)(\*=|=)['"]([^'"]*)['"]\]/g)];
+        const attrs = [...text.matchAll(/\[([\w-]+)(\*=|\^=|=)['"]([^'"]*)['"]\]/g)];
         const base = text.replace(/\[[^\]]+\]/g, '');
         const tag = base.match(/^[\w-]+/)?.[0];
         const classes = [...base.matchAll(/\.([\w-]+)/g)].map(m => m[1]);
         return (!tag || node.tagName === tag.toUpperCase())
           && classes.every(c => (node.attrs.class || '').split(/\s+/).includes(c))
-          && attrs.every(([, key, op, value]) => op === '=' ? node.getAttribute(key) === value : node.getAttribute(key)?.includes(value))
+          && attrs.every(([, key, op, value]) => op === '=' ? node.getAttribute(key) === value : op === '^=' ? node.getAttribute(key)?.startsWith(value) : node.getAttribute(key)?.includes(value))
           && (!text.includes('[href]') || node.getAttribute('href') !== null);
       };
       return selector.split(',').some(raw => {
@@ -88,16 +95,17 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
   document.documentElement = new Element('html');
   document.body = document.documentElement.append(new Element('body'));
   const main = document.body.append(new Element('main'));
-  const tile = main.append(new Element('div', { class: store === 'priceline' ? 'card' : detail ? 'flex' : 'product-tile', 'data-testid': 'product-card-content' }));
+  const tile = main.append(new Element('div', { class: store === 'priceline' ? 'card' : detail ? 'flex' : 'product-tile', 'data-testid': 'product-card-content', 'data-ref': 'product-tile-KEKA1271AS', 'data-search-product-tile': 'true' }));
   const imageLink = detail ? null : tile.append(new Element('a', { href: `https://${host}${path(id)}` }));
   const title = tile.append(new Element(detail ? 'h1' : 'a', detail ? {} : { href: `https://${host}${path(id)}`, class: 'name-link', 'data-testid': 'product-card-title' }, name));
+  if (bunnings) { title.ownText = ''; title.append(new Element('p', {}, name)); }
   const controls = tile.append(new Element(store === 'priceline' ? 'api-add-to-cart' : 'div'));
-  let button = controls.append(new Element('button', detail ? before > 0
-    ? { 'aria-label': 'Increment quantity' } : { 'data-cy': 'add-to-cart' }
-    : { type: 'submit', class: 'atc-button', 'data-testid': 'product-card-actions' }, detail && before > 0 ? '' : 'Add to cart'));
-  if (acknowledged) button.append(new Element('span', {}, 'Added')); // static before Add; never success evidence
-  const actual = new Element('input', { class: 'in-cart-quantity-input', type: 'number', min: '0' }); actual.value = String(before);
-  if (!detail || before > 0) controls.append(actual);
+  let button = controls.append(new Element('button', detail || bunnings ? before > 0
+    ? { 'aria-label': bunnings ? 'Increase quantity' : 'Increment quantity' } : bunnings ? { 'data-locator': 'atcButton' } : { 'data-cy': 'add-to-cart' }
+    : { type: 'submit', class: 'atc-button', 'data-testid': 'product-card-actions', 'data-ref': 'add-to-cart-button-KEKA1271AS' }, (detail || bunnings) && before > 0 ? '' : 'Add to cart'));
+  if (store === 'jbHiFi') button.append(new Element('span', {}, 'Added')); // static before Add; never success evidence
+  const actual = new Element('input', { class: 'in-cart-quantity-input', type: 'number', min: '0', 'aria-label': 'Quantity' }); actual.value = String(before);
+  if ((!detail && !bunnings) || before > 0) controls.append(actual);
   const intended = controls.append(new Element('select', { name: 'Quantity' })); intended.value = '9';
   const modal = document.body.append(new Element('ngb-modal-window', { class: 'add-product-modal' })); modal.hidden = true;
   const receipt = modal.append(new Element('api-added-to-cart-dialog', {}, 'My Cart'));
@@ -108,10 +116,12 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
   const cartImage = media.append(new Element('img', { src: `https://api.priceline.com.au/medias/300Wx300H-${id}.jpg` }));
   const cartQuantity = cartRow.append(new Element('input', { 'aria-label': 'Quantity' })); cartQuantity.value = '1';
   const otherButton = document.body.append(new Element('button', {}, 'Open cart'));
-  const acknowledgement = document.body.append(new Element('div', { 'data-testid': 'slideout-added-to-cart-alert' }));
+  const acknowledgement = document.body.append(new Element('div', { 'data-testid': 'slideout-added-to-cart-alert', 'data-ref': 'confirmation-page' }));
   acknowledgement.hidden = true;
-  const successHeading = acknowledgement.append(new Element('h5', { 'data-testid': 'slideout-added-to-cart-alert-heading' }, 'Item added to your cart!'));
-  const acknowledgedTitle = acknowledgement.append(new Element('h3', { 'data-testid': 'slideout-product-title' }, name));
+  const successHeading = acknowledgement.append(new Element(office ? 'h3' : 'h5', { 'data-testid': 'slideout-added-to-cart-alert-heading' }, office ? 'We’ve added it to your cart' : 'Item added to your cart!'));
+  const acknowledgementRow = office ? acknowledgement.append(new Element('div', { 'data-ref': 'minicart-item-KEKA1271AS' })) : acknowledgement;
+  const acknowledgedTitle = acknowledgementRow.append(new Element(office ? 'label' : 'h3', { 'data-testid': 'slideout-product-title' }, name));
+  if (office) acknowledgementRow.append(new Element('label', { 'aria-label': 'price' }, '$1.00'));
   const location = { protocol: 'https:', hostname: host, pathname: detail ? path(id) : '/search', href: `https://${host}${detail ? path(id) : '/search'}` };
   const context = vm.createContext({ URL, Element, document, location, Date: { now: () => now },
     getComputedStyle: e => ({ visibility: e.hidden ? 'hidden' : 'visible', opacity: e.opacity ?? '1', display: 'block' }),
@@ -131,16 +141,16 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
     wrongAcknowledgementTitle() { acknowledgedTitle.ownText = 'Other product'; },
     wrongSuccess() { successHeading.ownText = 'Unable to add item'; },
     acknowledgementError() { acknowledgement.append(new Element('div', { role: 'alert' }, 'Failed to add')); },
-    duplicateAcknowledgementTitle() { acknowledgement.append(new Element('h3', { 'data-testid': 'slideout-product-title' }, 'Other product')); },
+    duplicateAcknowledgementTitle() { acknowledgementRow.append(new Element(office ? 'label' : 'h3', { 'data-testid': 'slideout-product-title' }, 'Other product')); },
     recommendation() { document.body.append(new Element('h3', { 'data-testid': 'slideout-product-title' }, name)); acknowledgedTitle.ownText = 'Other product'; },
     receipt(quantity = 1) { modal.hidden = false; cartQuantity.value = String(quantity); mutation(); },
     quantity(value) {
       actual.value = String(value);
-      if (detail) {
+      if (detail || bunnings) {
         controls.children = controls.children.filter(child => child !== button && child !== actual);
         button.isConnected = false;
         if (value > 0) controls.append(actual);
-        button = controls.append(new Element('button', value > 0 ? { 'aria-label': 'Increment quantity' } : { 'data-cy': 'add-to-cart' }, value > 0 ? '' : 'Add to cart'));
+        button = controls.append(new Element('button', value > 0 ? { 'aria-label': bunnings ? 'Increase quantity' : 'Increment quantity' } : bunnings ? { 'data-locator': 'atcButton' } : { 'data-cy': 'add-to-cart' }, value > 0 ? '' : 'Add to cart'));
       }
       mutation();
     },
@@ -177,9 +187,26 @@ test('JB confirms a fresh product-specific acknowledgement without inventing qua
   assert.equal(p.additions.length, 0);
 });
 
-for (const scenario of ['passive', 'synthetic', 'unrelatedClick', 'wrongTitle', 'wrongSuccess', 'hidden', 'transparent', 'error', 'ambiguous', 'stale', 'recommendation', 'navigation', 'expired', 'ended']) {
-  test(`JB acknowledgement rejects ${scenario}`, () => {
-    const p = fixture('jbHiFi');
+test('Officeworks observes the exact confirmation title and excludes price labels', () => {
+  const p = fixture('officeworks'); p.tap(); p.acknowledge(); p.tick();
+  assert.equal(p.acknowledgements.length, 1);
+  assert.equal(p.acknowledgements[0].productID, 'keji-ballpoint-pens-1mm-assorted-10-pack-keka1271as');
+  assert.equal('resultingQuantity' in p.acknowledgements[0], false);
+});
+
+for (const before of [0, 2]) {
+  test(`Bunnings NZ confirms product-card stepper ${before}→${before + 1}`, () => {
+    const p = fixture('bunningsNZ', { before }); p.tap(); p.quantity(before + 1); p.tick();
+    assert.equal(p.additions.length, 1);
+    assert.equal(p.additions[0].productID, '5660292');
+    assert.equal(p.additions[0].beforeQuantity, before);
+    assert.equal(p.additions[0].resultingQuantity, before + 1);
+  });
+}
+
+for (const store of ['jbHiFi', 'officeworks']) for (const scenario of ['passive', 'synthetic', 'unrelatedClick', 'wrongTitle', 'wrongSuccess', 'hidden', 'transparent', 'error', 'ambiguous', 'stale', 'recommendation', 'navigation', 'expired', 'ended']) {
+  test(`${store} acknowledgement rejects ${scenario}`, () => {
+    const p = fixture(store);
     if (scenario === 'stale') p.acknowledge();
     if (scenario !== 'passive') p.tap(scenario !== 'synthetic');
     if (scenario === 'unrelatedClick') p.tapOther();
@@ -248,9 +275,9 @@ for (const before of [0, 2]) {
   });
 }
 
-for (const scenario of ['synthetic', 'foreign', 'recycled', 'unchanged', 'unrelatedClick', 'navigation']) {
-  test(`schema-4 quantity rejects ${scenario}`, () => {
-    const p = fixture('supercheapAuto');
+for (const store of ['supercheapAuto', 'bunningsNZ']) for (const scenario of ['synthetic', 'foreign', 'recycled', 'unchanged', 'unrelatedClick', 'navigation']) {
+  test(`${store} schema-4 quantity rejects ${scenario}`, () => {
+    const p = fixture(store);
     if (scenario === 'foreign') p.foreignLink();
     p.tap(scenario !== 'synthetic');
     if (scenario === 'recycled') p.changeIdentity('99999');

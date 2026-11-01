@@ -5,7 +5,11 @@
 The user requested search and add-to-cart detection for twenty additional popular
 retailers and explicitly authorized test cart additions. This is **not** authority
 to check out, purchase, sign in, change addresses/fulfilment/account settings, or
-bypass retailer verification. Cart Undo is a separate capability and is not part
+bypass retailer verification. Subsequent authorization allows representative
+postcodes (AU 3000, NZ 1010, UK SW1A 1AA, US 10001) and delivery/nearby pickup
+selection in isolated guest sessions only. Full addresses, booked slots and saved
+account-setting changes remain unauthorized. The original twenty must be kept.
+Cart Undo is a separate capability and is not part
 of this expansion.
 
 **The complete search-and-detection request is not yet delivered.** Registration,
@@ -140,7 +144,10 @@ observations alone do not enable iOS capabilities:
 ## Cart investigation — no new detection certified
 
 All twenty new destinations currently keep cart detection and cart Undo disabled
-in both JSON and native ceilings. The existing detector engine is unchanged.
+in both JSON and native ceilings. The engine now supports schema-4 product-linked
+receipt quantities, tightly allowlisted Priceline image identity, bounded captured
+URL-component identities, and explicit quantity-free product acknowledgements.
+Prospective profiles are not enabled production integrations.
 New store registration does not inherit another region's cart evidence.
 
 Linux browser investigations used isolated, signed-out guest sessions:
@@ -183,12 +190,47 @@ certification follows from the failed sessions.
 - Some stores have nonnumeric/slug product identities and some expose receipt
   quantity only in product-linked input values. These need explicitly reviewed
   shared strategies and negative DOM tests, not guessed per-store selectors or
-  loosening numeric-identity validation. No such speculative extension was shipped.
+   loosening numeric-identity validation. Reviewed schema-4 extensions now have
+   focused DOM and native validation tests; live iPhone certification remains separate.
 - Add reviewed profiles and native ceilings independently, then verify native
   ListRunner status changes, stale/foreign/passive-event rejection and manual
   fallback. Retailer-cart Undo remains off.
 - Complete Manage Stores/region/enable/manual-flow UI checks and physical-device
   sign-off. Do not install a build to a physical phone merely to claim testing.
+
+### Follow-up implementation and live evidence
+
+- `3ef44f8c59c9068980c73037b7249493bbcdfa31`: prospective Priceline and
+  Supercheap profiles, schema-4 foundations and isolated live-test gate. The gate
+  requires a valid UI-test UUID, an explicit single-store opt-in and nonpersistent
+  WebKit storage. Ordinary tests remain offline; production ceilings remain off.
+- `94650b0`: Chemist Warehouse PDP quantity profile and JB Hi-Fi explicit
+  acknowledgement, with no fabricated quantities and no retailer-cart Undo.
+  Mac recovery passed 1,453 checks and synthetic store proof. Focused DOM tests
+  include hidden/stale/error/ambiguous receipts, recommendations outside the
+  confirmation, unrelated clicks and unsafe captured identities.
+- First native Priceline/Supercheap tests at `3ef44f8` compiled but failed before
+  any Add: Priceline query became `PRO`; Supercheap default gestures hit the native
+  overlay. Corrected query and unobscured-coordinate gestures are in `94650b0`.
+  Priceline rerun launched on existing iPhone 17; no result recorded yet.
+- Linux guest Priceline and Supercheap test carts were restored to zero and closed.
+  Chemist Warehouse test cart returned to $0.00 with its PDP Add state restored.
+- JB Hi-Fi: Belkin Hi Speed USB Cable (1.8 Metres), $8, explicit
+  `Item added to your cart!` plus product title in `slideout-added-to-cart-alert`.
+  Its static pre-existing `Added` button span is not success evidence. Removed
+  through Review cart → Remove; `Your cart is empty...` verified; browser closed.
+- Officeworks: the pending $1 Keji pen-pack Add resumed after guest postcode 3000
+  setup. `confirmation-page` showed `We’ve added it to your cart` and exact product
+  title. No duplicate Add was performed. View Cart → Delete returned header to
+  zero; browser closed. Prospective acknowledgement profile awaits native proof.
+- Bunnings NZ: Craftright 8oz Steel Claw Hammer (`5660292`, NZ$4.98), actual
+  per-card quantity input changed to 1 following Add. Product-specific decrement
+  restored Add state and quantity zero; browser closed. Prospective quantity
+  profile awaits native proof and is not borrowed from Bunnings AU certification.
+- Morrisons retry: Add opened location search. Entering approved postcode
+  SW1A 1AA returned only complete-address choices, not postcode-only choices.
+  None selected, no Confirm location, no Add completed. Modal and browser closed.
+  A specific full-address authorization/login handoff is needed to go further.
 
 ## Mac reconciliation
 

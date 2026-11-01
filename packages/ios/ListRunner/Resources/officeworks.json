@@ -1,9 +1,28 @@
 {
-  "schemaVersion": 2, "id": "officeworks", "displayName": "Officeworks",
+  "schemaVersion": 4, "id": "officeworks", "displayName": "Officeworks",
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.officeworks.com.au",
   "allowedHosts": ["www.officeworks.com.au", "officeworks.com.au"],
   "search": {"strategy": "urlTemplate", "template": "https://www.officeworks.com.au/shop/officeworks/search?q={query}"},
   "addedColor": {"red": 0, "green": 81, "blue": 165},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "cart": {
+    "strategy": "profiled", "identityStrategy": "capturedURLComponent",
+    "tileSelector": "[data-ref^='product-tile-']", "linkSelector": "a[href*='/shop/officeworks/p/']",
+    "productURLPattern": "^/shop/officeworks/p/([A-Za-z0-9_-]{1,256})/?$",
+    "addSelector": "button[data-ref^='add-to-cart-button-']", "addLabelPatterns": ["^add to cart$"],
+    "quantitySelector": "input[aria-label='Quantity']", "emptyStatusSelector": "button[data-ref^='add-to-cart-button-']",
+    "emptyStatusText": "Add to Cart", "decrementLabelPattern": "^subtract$",
+    "profiles": [{
+      "id": "product-card", "scope": "productCard", "identity": "cardLink",
+      "containerSelector": "[data-ref^='product-tile-']", "titleSelector": "a[href*='/shop/officeworks/p/']",
+      "addSelector": "button[data-ref^='add-to-cart-button-']", "addLabelPatterns": ["^add to cart$"],
+      "confirmation": "productAcknowledgement", "confirmationWindowMS": 15000,
+      "acknowledgement": {
+        "selector": "[data-ref='confirmation-page']", "successSelector": "h3",
+        "successText": "We’ve added it to your cart", "titleSelector": "[data-ref^='minicart-item-'] label:not([aria-label='price'])",
+        "failureSelector": "[role='alert'],[data-ref*='error']"
+      }
+    }]
+  }
 }
