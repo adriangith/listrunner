@@ -201,6 +201,17 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- Waitrose handoff `19a7079` did not reach login: native recovery alert appeared;
+  isolated diagnostics recorded a network failure on the Waitrose host (domain
+  classified `other`, no retained HTTP code). No credentials/cart mutation.
+  Independent guest browser document trace then established the necessary flow:
+  `/ecom/login` → `/api/token-client-prod/v1/auth` → exact
+  `auth.waitrose.com/oauth2/authorize` → `/ecom/sign-in`.
+  At `59cb76e`, that exact authentication host is allowed for browsing only;
+  automation trust remains unchanged. Six native positive/refusal checks added;
+  Mac recovery 1,461 + synthetic proof pass. A rerun must still verify that this
+  resolves the live handoff; the observed missing hop is not itself a login pass.
+
 - User authorized preparing Waitrose/Sainsbury's sign-in handoffs and confirmed
   access to the Mac Simulator. Separate DEBUG browsing-only opt-in uses a valid
   UI-test UUID and nonpersistent WebKit; it does not enable unverified detectors.
