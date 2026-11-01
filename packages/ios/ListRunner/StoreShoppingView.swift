@@ -1572,9 +1572,10 @@ final class StoreBrowser: ObservableObject {
         if (values.size === 1) return [...values][0];
         // A reviewed dedicated Add state is explicit zero evidence. Do not use
         // it if a present quantity input is invalid or disagrees with another.
-        if (!inputs.length && profile.emptyStatusText && deepQueryAll(tile, profile.addSelector)
-            .some(control => profileControlMatches(control, profile) &&
-              normalize(control.getAttribute('aria-label') || control.textContent) === normalize(profile.emptyStatusText))) return 0;
+         if (!inputs.length && profile.emptyStatusText && deepQueryAll(tile, profile.addSelector)
+             .some(control => profileControlMatches(control, profile) &&
+               (normalize(control.getAttribute('aria-label') || control.textContent) === normalize(profile.emptyStatusText) ||
+                 (config.schemaVersion === 4 && normalize(control.textContent) === normalize(profile.emptyStatusText))))) return 0;
         return null;
       };
       const profileAcknowledgement = (profile, name) => {

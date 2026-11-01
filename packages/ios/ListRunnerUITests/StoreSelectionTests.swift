@@ -219,13 +219,15 @@ final class StoreSelectionTests: XCTestCase {
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
         if name.contains("LiveStoreCart") {
-            let probes = [("Priceline", "priceline"), ("Supercheap", "supercheapAuto"), ("ChemistWarehouse", "chemistWarehouse"), ("JBHiFi", "jbHiFi"), ("BunningsNZ", "bunningsNZ")]
+            let probes = [("Priceline", "priceline"), ("Supercheap", "supercheapAuto"), ("ChemistWarehouse", "chemistWarehouse"), ("JBHiFi", "jbHiFi"), ("BunningsNZ", "bunningsNZ"), ("Officeworks", "officeworks"), ("Ocado", "ocado")]
             guard let store = probes.first(where: { name.contains($0.0) })?.1 else { throw XCTSkip("Unknown live cart probe") }
             guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_CART_STORE"] == store else {
                 throw XCTSkip("Live cart mutation requires explicit single-store opt-in")
             }
             app.launchEnvironment["LISTRUNNER_LIVE_CART_PROBE"] = store
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
+            if store == "bunningsNZ" { app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "NZ" }
+            if store == "ocado" { app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "GB" }
         }
         if name.contains("FullyRevealed") || name.contains("AlreadyVisibleNewItem") || name.contains("FocusedProductEntry") {
             app.launchEnvironment["LISTRUNNER_REVEAL_TEST_FIXTURE"] = "enabled"
@@ -567,12 +569,22 @@ final class StoreSelectionTests: XCTestCase {
                           product: "CRAFTRIGHT Craftright 8oz Steel Claw Hammer")
     }
 
+    func testLiveStoreCartOfficeworks() throws {
+        try liveStoreCart(store: "officeworks", query: "pens",
+                          product: "Keji Ballpoint Pens 1mm Assorted 10 Pack")
+    }
+
+    func testLiveStoreCartOcado() throws {
+        try liveStoreCart(store: "ocado", query: "milk",
+                          product: "Ocado British Semi Skimmed Milk 2 Pints")
+    }
+
     private func liveStoreCart(store: String, query: String, product: String, detail: Bool = false) throws {
         // Each run uses the existing isolated UI-test UUID and a fresh,
         // nonpersistent website store. Never use a person's real cart/login.
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
-        setStoreVisibility(store, shown: true)
+        setStoreVisibility(store == "bunningsNZ" ? "bunnings" : store, shown: true)
         tapNavigationBack()
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 5))
@@ -587,14 +599,51 @@ final class StoreSelectionTests: XCTestCase {
         // expanded native cards. Collapsing reserves real web layout space.
         let collapse = app.buttons["Collapse overlay"]
         if collapse.exists && collapse.isHittable { collapse.tap() }
-        for text in ["Accept essential only", "Reject All", "CLOSE"] {
+        let consentLabels = store == "priceline" ? ["Accept essential only"]
+            : store == "chemistWarehouse" ? ["CLOSE"]
+            : store == "ocado" ? ["Decline advertising cookies"] : ["Reject All"]
+        for text in consentLabels {
             let consent = web.buttons.matching(NSPredicate(format: "label ==[c] %@", text)).firstMatch
-            if consent.waitForExistence(timeout: 2) && consent.isHittable { consent.tap() }
+            if consent.waitForExistence(timeout: 2) && consent.isHittable,
+               !consent.frame.isEmpty, !consent.frame.isInfinite,
+               consent.frame.minY >= web.frame.minY + 40, consent.frame.maxY <= app.frame.maxY - 80 { consent.tap() }
         }
-        if detail { link.tap() }
+        if store == "officeworks" {
+            // Configure guest location BEFORE Add, so the pending Add does not
+            // span a separate trusted Continue click. No saved account is used.
+            let location = web.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Shopping method")).firstMatch
+            XCTAssertTrue(location.waitForExistence(timeout: 10))
+            location.tap()
+            let postcode = web.textFields["Enter your suburb or postcode"].firstMatch
+            XCTAssertTrue(postcode.waitForExistence(timeout: 10))
+            postcode.tap(); postcode.typeText("3000")
+            let suburb = web.staticTexts["Melbourne VIC 3000"].firstMatch
+            XCTAssertTrue(suburb.waitForExistence(timeout: 15))
+            suburb.tap()
+            let proceed = web.buttons["Continue"].firstMatch
+            XCTAssertTrue(proceed.waitForExistence(timeout: 10))
+            proceed.tap()
+        }
+        if detail {
+            for _ in 0..<8 {
+                if link.isHittable && link.frame.minY > web.frame.minY + 80 && link.frame.maxY < app.frame.maxY - 120 { break }
+                let origin = app.coordinate(withNormalizedOffset: .zero)
+                let down = link.frame.midY < web.frame.minY + 80
+                let top = web.frame.minY + 110
+                let bottom = app.frame.maxY - 150
+                origin.withOffset(CGVector(dx: web.frame.midX, dy: down ? top : bottom))
+                    .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: web.frame.midX, dy: down ? bottom : top)))
+            }
+            XCTAssertTrue(link.isHittable && link.frame.minY > web.frame.minY + 60 && link.frame.maxY < app.frame.maxY - 100,
+                          "Detail link must be visible before attempting navigation")
+            link.tap()
+            XCTAssertTrue(web.buttons.matching(NSPredicate(format: "label MATCHES[c] %@", ".*Add (?:to|To) (?:cart|Cart).*"))
+                .firstMatch.waitForExistence(timeout: 60), "Wait for the product detail page, not search results")
+        }
         // Attribute the actual trusted tap to the smallest AX container holding
         // this exact title and a single Add button. Never choose a page-wide Add.
-        let addPredicate = NSPredicate(format: "label MATCHES[c] %@", ".*Add (?:to|To) (?:cart|Cart).*")
+        let addPredicate = NSPredicate(format: "label MATCHES[c] %@", store == "ocado"
+            ? "^Add .+ to trolley$" : ".*Add (?:to|To) (?:cart|Cart).*")
         func matchingAdd() -> XCUIElement? {
             if detail {
                 return web.buttons.matching(addPredicate).allElementsBoundByIndex
@@ -684,6 +733,21 @@ final class StoreSelectionTests: XCTestCase {
             if revealForCleanup(remove) { remove.tap() }
             let removed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: remove)
             cleanupVerified = XCTWaiter.wait(for: [removed], timeout: 15) == .completed
+            XCTAssertTrue(cleanupVerified)
+        } else if store == "ocado" {
+            let decrease = web.buttons["Decrease quantity of Ocado British Semi Skimmed Milk 2 Pints in trolley"].firstMatch
+            XCTAssertTrue(decrease.waitForExistence(timeout: 15))
+            if revealForCleanup(decrease) { decrease.tap() }
+            cleanupVerified = web.buttons["Add Ocado British Semi Skimmed Milk 2 Pints to trolley"].firstMatch.waitForExistence(timeout: 15)
+            XCTAssertTrue(cleanupVerified)
+        } else if store == "officeworks" {
+            let review = web.buttons["View Cart"].firstMatch
+            XCTAssertTrue(review.waitForExistence(timeout: 15))
+            if revealForCleanup(review) { review.tap() }
+            let remove = web.buttons["Delete"].firstMatch
+            XCTAssertTrue(remove.waitForExistence(timeout: 15))
+            if revealForCleanup(remove) { remove.tap() }
+            cleanupVerified = web.buttons.matching(NSPredicate(format: "label MATCHES[c] %@", "0\\s*Cart")).firstMatch.waitForExistence(timeout: 15)
             XCTAssertTrue(cleanupVerified)
         } else if store == "bunningsNZ" {
             let close = web.buttons["Close add to cart confirmation"].firstMatch

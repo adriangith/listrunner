@@ -5,7 +5,7 @@
   "allowedHosts": ["www.supercheapauto.com.au", "supercheapauto.com.au"],
   "search": {"strategy": "urlTemplate", "template": "https://www.supercheapauto.com.au/search?q={query}"},
   "addedColor": {"red": 198, "green": 12, "blue": 48},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "capabilities": {"search": true, "cartDetection": true, "cartUndo": false},
   "cart": {
     "strategy": "profiled", "identityStrategy": "numericURLSuffix",
     "tileSelector": ".product-tile", "linkSelector": "a[href*='/p/']",

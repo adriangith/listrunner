@@ -141,10 +141,10 @@ observations alone do not enable iOS capabilities:
 - CVS explicitly reports that the site is unavailable outside US/US territories.
   No geographic bypass was attempted.
 
-## Cart investigation — Priceline certified; nineteen remain
+## Cart investigation — two certified; eighteen remain
 
-Priceline cart detection is certified and enabled in JSON and native ceilings.
-The other nineteen new destinations keep detection disabled; all twenty keep
+Priceline and Supercheap Auto cart detection are certified and enabled in JSON and native ceilings.
+The other eighteen new destinations keep detection disabled; all twenty keep
 retailer-cart Undo disabled. The engine now supports schema-4 product-linked
 receipt quantities, tightly allowlisted Priceline image identity, bounded captured
 URL-component identities, and explicit quantity-free product acknowledgements.
@@ -200,6 +200,27 @@ certification follows from the failed sessions.
   sign-off. Do not install a build to a physical phone merely to claim testing.
 
 ### Follow-up implementation and live evidence
+
+- **Supercheap Auto native live PASS** at `b305bcf`: detected=true and
+  cleanupVerified=true; XCTest passed (not skipped), 173.609s. A trusted Add for
+  SCA Car Wash Concentrate 1 Litre (`733022`, $7.99) triggered native confirmation.
+  View Cart → Remove restored `Shopping Cart is Empty` after cleanup scrolling.
+  Mac logs/results: `~/Library/Logs/ListRunner-Finish-Cart-supercheapAuto-b305bcf.*`.
+  Enabled production detection afterward; retailer-cart Undo remains disabled.
+- Chemist Warehouse `b305bcf` stopped before Add: initial product link was not
+  visibly navigated to the detail page. No mutation. Test now reveals and validates
+  that link and waits for the product page's Add before looking for its control.
+- Morrisons later retry **supersedes the address-selection blocker below**:
+  explicitly scrolled exact authorized suggestion into view, selected it, checked
+  the exact address in the location summary, and confirmed guest Home Delivery.
+  No name, sign-in, slot booking or checkout. Belvita Milk & Cereal multipack
+  (`109427121`, £1.25) added once; `input[data-test='quantity-in-basket']` was 1
+  in that exact card, then its decrement restored Add and £0.00 trolley.
+  Browser closed. Prospective numeric card profile awaits native proof. Its Add
+  has product-specific ARIA text and visible `Add`; schema-4 baseline accepts the
+  reviewed visible text only when the configured accessible action also matches.
+- Correctly scrolled Add attempts: Sainsbury's and Waitrose redirect to sign-in;
+  ASDA blocks access. No confirmed additions, no authentication/security bypass.
 
 - **Priceline native live PASS** at `b01ff2835732d0940f1c8024b1cf74b1cfe7a832`:
   `LIVE_CART_NATIVE_PROBE store=priceline, detected=true, cleanupVerified=true`.

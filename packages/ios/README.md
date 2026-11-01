@@ -40,8 +40,8 @@ is separate from unrelated Target US. Existing store identities and lists are
 preserved. There are now 32 destinations and 30 brand rows.
 
 Automatic search is enabled only for independently reviewed routes. Unverified
-searches remain off. **Priceline cart detection is live-verified and enabled;
-the other nineteen new detectors and all twenty retailer-cart Undo capabilities remain off**;
+searches remain off. **Priceline and Supercheap Auto cart detection are live-verified and enabled;
+the other eighteen new detectors and all twenty retailer-cart Undo capabilities remain off**;
 registration is not certification of the user's full search-and-detection request.
 Manual controls remain available. Evidence, corrected retailer routes, verification
 barriers and remaining cart implementation work are recorded in
@@ -52,8 +52,9 @@ real matching product links plus visible query reflection; Priceline has a separ
 two-query result-set check. Observational test success does not mean every retailer
 passed. `testExpansionStoreDiscoveryAndSeparateTargetBrands` is an offline UI check.
 Schema-4 profiles cover Priceline, Supercheap Auto, Chemist Warehouse,
-JB Hi-Fi, Officeworks and Bunnings NZ; only Priceline is production-enabled after native
-live proof. Quantity-free acknowledgements never invent before/after totals and
+JB Hi-Fi, Officeworks, Bunnings NZ, Petbarn and Morrisons; only Priceline and
+Supercheap Auto are production-enabled after native live proof.
+Quantity-free acknowledgements never invent before/after totals and
 cannot reverse the retailer cart. Opt-in `testLiveStoreCart…` tests require
 `TEST_RUNNER_LISTRUNNER_LIVE_CART_STORE=<store>` when launched through xcodebuild.
 They use isolated guest storage and must verify cleanup as well as automatic

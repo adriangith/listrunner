@@ -3,8 +3,9 @@
 ## Twenty-store expansion — 1 November 2026 (partial delivery)
 
 Twenty additional destinations are registered, disabled by default, with stable
-independent list/session identities. **Sixteen new searches are verified; all
-twenty new cart detectors and retailer-cart Undo remain disabled.** The full
+independent list/session identities. **Sixteen new searches are verified;
+Priceline and Supercheap Auto automatic cart detection are live-verified and enabled. The other
+eighteen new detectors and all twenty retailer-cart Undo capabilities remain disabled.** The full
 search-and-detection request is not complete. New World, PAK’nSAVE, Boots and CVS
 remain browsing/manual-only after unverified/blocked search observations.
 
@@ -33,6 +34,46 @@ evidence. The subsequent XCTest discovery run succeeded on the existing test sim
 Full retailer list, exact capability decisions, cart observations, environment
 limitations, Mac identifier reconciliation and remaining work:
 `docs/retailer-expansion-2026-11-01.md` from the repository root.
+
+### Detector follow-up — 2 November 2026
+
+- Supercheap Auto passed at `b305bcf`: detected=true and cleanupVerified=true,
+  173.609s. Retest fixes the earlier off-screen Remove failure below and verifies
+  empty-cart cleanup. Mac `~/Library/Logs/ListRunner-Finish-Cart-supercheapAuto-b305bcf.*`.
+  Its production detector is enabled afterward; retailer-cart Undo remains off.
+- Morrisons' authorized guest address was successfully selected after corrected
+  browser scrolling, superseding its earlier location blocker. One Belvita pack
+  showed actual per-card quantity 1, then decrement restored 0/Add and £0.00.
+  Prospective profile is fixture-tested but not yet native-certified/enabled.
+
+- Priceline passed `StoreSelectionTests/testLiveStoreCartPriceline` at
+  `b01ff2835732d0940f1c8024b1cf74b1cfe7a832` on existing iPhone 17/iOS 27 simulator:
+  trusted product Add automatically exposed native Undo, without Mark Added;
+  guest test product removal was verified. Not skipped; 533.694s.
+  Mac logs/results: `~/Library/Logs/ListRunner-Finish-Cart-priceline-b01ff28.*`.
+  Enabled production capability at `85cb068`; retailer-cart Undo stays off.
+- At `b305bcf`: 1,452 native checks and synthetic store proof pass. Count is one
+  lower after removing the refusal test for Priceline's now-authorized capability.
+  Schema-4 prospective profiles also cover Supercheap Auto, Chemist Warehouse,
+  JB Hi-Fi, Officeworks, Bunnings NZ and Petbarn's numeric product-detail routes.
+  Paired quantities and explicit acknowledgements are separate; quantity-free
+  confirmations never fabricate before/after totals or enable cart reversal.
+- Supercheap at `85cb068`: native detection confirmed (retained screenshot
+  `Live cart detector supercheapAuto confirmed` and failure-time hierarchy show
+  Added), but cleanup assertion failed because Remove was below the viewport.
+  Removal was not attempted; disposable nonpersistent guest store was released
+  when XCTest terminated the app. This is **not** a clean end-to-end pass.
+  `b305bcf` adds measured cleanup scrolling; sequential rerun pending.
+- Guest Linux Petbarn actual PDP cart stepper observed at 1 for Providore Beef
+  with Kiwi Fruit Dog Treat (`138813`); decrement restored Add and both header
+  controls explicitly said `Shopping cart is empty`. Browser closed.
+- Corrected Linux Add checks: Sainsbury's and Waitrose redirect to sign-in;
+  ASDA returns a security block. No confirmed additions. Do not enable detectors
+  from these gates or attempt to bypass them.
+- User authorized representative guest postcodes and subsequently a specific
+  Morrisons UK test address; no personal name/address is tracked. Morrisons
+  selection failed to replace its unrelated default location, so no slot or
+  checkout followed. Physical phone remains untouched.
 
 ## US retailer expansion — 30 October 2026
 

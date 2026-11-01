@@ -1,9 +1,26 @@
 {
-  "schemaVersion": 2, "id": "morrisons", "displayName": "Morrisons",
+  "schemaVersion": 4, "id": "morrisons", "displayName": "Morrisons",
   "serviceArea": {"countryCodes": ["GB"]},
   "homepage": "https://groceries.morrisons.com",
   "allowedHosts": ["groceries.morrisons.com"],
   "search": {"strategy": "urlTemplate", "template": "https://groceries.morrisons.com/search?q={query}"},
   "addedColor": {"red": 0, "green": 91, "blue": 65},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "cart": {
+    "strategy": "profiled", "identityStrategy": "numericURLSuffix",
+    "tileSelector": "[data-test='fop-body']", "linkSelector": "a[data-test='fop-product-link']",
+    "productURLPattern": "^/products/[^/]+/(\\d{1,32})/?$",
+    "addSelector": "button[data-synthetics='add-button']",
+    "addLabelPatterns": ["^add .+ to basket$", "^increase quantity of .+ in trolley$"],
+    "quantitySelector": "input[data-test='quantity-in-basket']", "emptyStatusSelector": "button[data-test='counter-button']",
+    "emptyStatusText": "Add", "decrementLabelPattern": "^decrease quantity of .+ in trolley$",
+    "profiles": [{
+      "id": "product-card", "scope": "productCard", "identity": "cardLink",
+      "containerSelector": "[data-test='fop-body']", "titleSelector": "h3[data-test='fop-title']",
+      "addSelector": "button[data-synthetics='add-button']",
+      "addLabelPatterns": ["^add .+ to basket$", "^increase quantity of .+ in trolley$"],
+      "confirmation": "quantityIncrease", "confirmationWindowMS": 15000,
+      "quantitySelector": "input[data-test='quantity-in-basket']", "emptyStatusText": "Add"
+    }]
+  }
 }
