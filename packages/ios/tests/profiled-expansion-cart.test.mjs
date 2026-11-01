@@ -119,6 +119,11 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
     ? { 'aria-label': bunnings ? 'Increase quantity' : 'Increment quantity' } : bunnings ? { 'data-locator': 'atcButton' } : { 'data-cy': 'add-to-cart' }
     : { type: 'submit', class: 'atc-button', 'data-testid': 'product-card-actions', 'data-ref': 'add-to-cart-button-KEKA1271AS' }, morrisons || waitrose ? before > 0 ? '' : 'Add' : petbarn && before > 0 ? '+' : (detail || bunnings) && before > 0 ? '' : 'Add to cart'));
   const buttonSuccess = store === 'jbHiFi' ? button.append(new Element('span', {}, 'Added')) : null;
+  if (office) {
+    button.ownText = '';
+    button.append(new Element('svg')).append(new Element('title', {}, 'base--icons--cart'));
+    button.append(new Element('span', {}, 'Add to Cart'));
+  }
   if (buttonSuccess) {
     button.overflowX = 'hidden'; button.overflowY = 'hidden';
     buttonSuccess.box = { left: 1, top: -47, right: 99, bottom: 1, width: 98, height: 48 };
@@ -181,6 +186,7 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
     },
     intended(value) { intended.value = String(value); mutation(); },
     relabel(value) { button.attrs['aria-label'] = value; },
+    controlText(value) { button.ownText = value; button.children = []; },
     wrongImage(hostname = 'evil.test', product = id) { cartImage.attrs.src = `https://${hostname}/medias/300Wx300H-${product}.jpg`; },
     wrongName() { cartRow.children[0].ownText = 'Other product'; },
     hideReceipt() { modal.hidden = true; },
@@ -235,6 +241,23 @@ test('Officeworks observes the exact confirmation title and excludes price label
   assert.equal(p.acknowledgements.length, 1);
   assert.equal(p.acknowledgements[0].productID, 'keji-ballpoint-pens-1mm-assorted-10-pack-keka1271as');
   assert.equal('resultingQuantity' in p.acknowledgements[0], false);
+});
+
+test('Officeworks accepts observed adjacent SVG title and Add text without whitespace', () => {
+  const p = fixture('officeworks'); p.controlText('base--icons--cartAdd to Cart'); p.tap(); p.acknowledge(); p.tick();
+  assert.equal(p.acknowledgements.length, 1);
+});
+
+for (const label of ['other-iconAdd to Cart', 'base--icons--cartAdd to wishlist', 'base--icons--cartAdded to Cart']) {
+  test(`Officeworks rejects unreviewed icon/action label ${label}`, () => {
+    const p = fixture('officeworks'); p.controlText(label); p.tap(); p.acknowledge(); p.tick();
+    assert.equal(p.acknowledgements.length, 0);
+  });
+}
+
+test('Officeworks never lets matching icon text override a different accessible action', () => {
+  const p = fixture('officeworks'); p.relabel('Save for later'); p.tap(); p.acknowledge(); p.tick();
+  assert.equal(p.acknowledgements.length, 0);
 });
 
 for (const before of [0, 2]) {

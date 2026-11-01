@@ -201,6 +201,16 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- Officeworks manual preflight on `65e56dd` found the exact Keji Ballpoint Pens
+  1mm Assorted 10 Pack card (`keka1271as` URL), active debug-only detector and no
+  acknowledgement. Its dedicated Add button has no aria-label and textContent
+  `base--icons--cartAdd to Cart`: an SVG title precedes the visible action with no
+  whitespace. Correct the inactive profile's label rule to allow only that exact
+  optional icon prefix, not arbitrary icon names/action substrings. Fixtures cover
+  nested SVG and adjacent text, unknown icons, wishlist/past-tense actions and
+  conflicting accessible labels. No Add occurred during this preflight; production
+  detection remains disabled pending native proof and cleanup.
+
 - Bunnings NZ native certification completed on simulator build
   `27bf24106a594502eaa5459f8f861becc0ae61d5` after the browsing-only NZ auth-frame
   fix. User confirmed the retailer cart now loaded empty, then returned to the

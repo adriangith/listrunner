@@ -10,13 +10,13 @@
     "strategy": "profiled", "identityStrategy": "capturedURLComponent",
     "tileSelector": "[data-ref^='product-tile-']", "linkSelector": "a[href*='/shop/officeworks/p/']",
     "productURLPattern": "^/shop/officeworks/p/([A-Za-z0-9_-]{1,256})/?$",
-    "addSelector": "button[data-ref^='add-to-cart-button-']", "addLabelPatterns": ["^add to cart$"],
+    "addSelector": "button[data-ref^='add-to-cart-button-']", "addLabelPatterns": ["^(?:base--icons--cart\\s*)?add to cart$"],
     "quantitySelector": "input[aria-label='Quantity']", "emptyStatusSelector": "button[data-ref^='add-to-cart-button-']",
     "emptyStatusText": "Add to Cart", "decrementLabelPattern": "^subtract$",
     "profiles": [{
       "id": "product-card", "scope": "productCard", "identity": "cardLink",
       "containerSelector": "[data-ref^='product-tile-']", "titleSelector": "a[href*='/shop/officeworks/p/']",
-      "addSelector": "button[data-ref^='add-to-cart-button-']", "addLabelPatterns": ["^add to cart$"],
+      "addSelector": "button[data-ref^='add-to-cart-button-']", "addLabelPatterns": ["^(?:base--icons--cart\\s*)?add to cart$"],
       "confirmation": "productAcknowledgement", "confirmationWindowMS": 15000,
       "acknowledgement": {
         "selector": "[data-ref='confirmation-page']", "successSelector": "h3",
