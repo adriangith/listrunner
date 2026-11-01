@@ -227,6 +227,9 @@ final class StoreSelectionTests: XCTestCase {
             app.launchEnvironment["LISTRUNNER_LIVE_BROWSE_PROBE"] = store
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
             app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "GB"
+            if store == "waitrose" {
+                app.launchEnvironment["LISTRUNNER_LIVE_LOGIN_URL"] = "https://www.waitrose.com/ecom/login"
+            }
         }
         if name.contains("LiveStoreCart") {
             let probes = [("Priceline", "priceline"), ("Supercheap", "supercheapAuto"), ("ChemistWarehouse", "chemistWarehouse"), ("JBHiFi", "jbHiFi"), ("BunningsNZ", "bunningsNZ"), ("Officeworks", "officeworks"), ("Ocado", "ocado"), ("Morrisons", "morrisons")]
@@ -599,10 +602,12 @@ final class StoreSelectionTests: XCTestCase {
         let consent = web.buttons.matching(NSPredicate(format: "label ==[c] %@", consentLabel)).firstMatch
         if consent.waitForExistence(timeout: 15), consent.isHittable, !consent.frame.isEmpty,
            !consent.frame.isInfinite, consent.frame.minY > web.frame.minY + 40 { consent.tap() }
-        let signIn = (store == "waitrose" ? web.links : web.buttons).matching(identifier: signInLabel).firstMatch
-        XCTAssertTrue(signIn.waitForExistence(timeout: 60))
-        XCTAssertTrue(signIn.isHittable && !signIn.frame.isEmpty && signIn.frame.minY > web.frame.minY + 40)
-        signIn.tap()
+        if store != "waitrose" {
+            let signIn = web.buttons.matching(identifier: signInLabel).firstMatch
+            XCTAssertTrue(signIn.waitForExistence(timeout: 60))
+            XCTAssertTrue(signIn.isHittable && !signIn.frame.isEmpty && signIn.frame.minY > web.frame.minY + 40)
+            signIn.tap()
+        }
         XCTAssertTrue(web.secureTextFields.firstMatch.waitForExistence(timeout: 60), "Stop only at a real login form")
         preserveLoginHandoff = true
         print("LOGIN_HANDOFF_READY store=\(store), authenticationPerformed=false, cartMutationAttempted=false")

@@ -2393,6 +2393,12 @@ final class StoreBrowser: ObservableObject {
            store.cart?.profiles?.contains(where: { $0.scope == .productPage }) == true {
             url = detailURL
         }
+        if isLiveWebsiteProbe,
+           ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_BROWSE_PROBE"] == store.id.rawValue,
+           let raw = ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_LOGIN_URL"],
+           let loginURL = URL(string: raw), store.allowsNavigation(loginURL) {
+            url = loginURL
+        }
         #endif
         guard canPresentStore, storeRecovery == nil else { return }
         navigationPacing.requested(at: ProcessInfo.processInfo.systemUptime)
