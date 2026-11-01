@@ -589,3 +589,13 @@ The production code at `f86c569b8fec32ae4e4cbc7f2047e5d3cfb076d0` also passed an
 OpenPencil `List Runner` → `Settings & reset` was inspected: its older consolidated frame still shows store rows, so the newer native hierarchy in `plan.md` takes precedence. The implementation uses native Form/Toggle styling; no mockup fidelity or manual VoiceOver/Dynamic Type/light-dark sign-off is claimed. iOS 17 runtime and physical-device validation are not claimed.
 
 Fixtures must stay offline, using isolated UI-test preferences and nonpersistent WebKit. No new live retailer or physical-device install is required/claimed.
+# Waitrose signed-in native cart proof — 2026-11-02
+
+On simulator build `0ca7f554ce2b72296483c35ca0acaf2412b1e544`, a user-operated
+trusted Add for Essential British Free Range Semi-Skimmed Milk 4 Pints (£1.75)
+changed product quantity 0→1, emitted a successful native cart-detection diagnostic,
+and persisted the isolated Waitrose `Milk` item as `Added`. Read-only inspection
+was restricted to the exact public product DOM and the named test namespace.
+User's minus tap restored Add/no quantity field and trolley 0 items/£0.00.
+Waitrose production detection enabled after this proof; retailer-cart Undo remains
+disabled. Full evidence and scope are in `docs/retailer-expansion-2026-11-01.md`.

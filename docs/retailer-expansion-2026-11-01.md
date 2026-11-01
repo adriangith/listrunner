@@ -201,6 +201,20 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- Waitrose native certification completed on the simulator build of `0ca7f554ce2b72296483c35ca0acaf2412b1e544`.
+  Read-only isolated-world preflight confirmed schema 4, active cart detection,
+  context receiver and unapplied-Update guard. Starting exact milk card had Add,
+  no quantity field and trolley 0 items/£0.00. User tapped Add once: the observed
+  product quantity became 1 with no draft Update, trolley 1 item/£1.75. Native
+  isolated-session diagnostics recorded `automation/cartDetection/succeeded`
+  (sequence 5), and a read-only query of that session's SwiftData store independently
+  confirmed Waitrose's `Milk` item persisted as `Added`. No manual Mark Added was
+  requested. User removed the single test quantity; inspection verified Add,
+  no quantity field, no draft Update and trolley 0 items/£0.00. App was not restarted
+  during this cycle. Production detection is now enabled; retailer-cart Undo stays
+  off. This brings certified expansion detectors to five of twenty, not completion
+  of the remaining retailers. Earlier research-only entries below are historical.
+
 - Signed-in Waitrose research was performed in the existing nonpersistent app
   without rebuilding or restarting it. A bounded, read-only own-app debugger
   inspection emitted only the exact public milk card's DOM metadata, not account
