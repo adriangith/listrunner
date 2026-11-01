@@ -132,6 +132,15 @@ struct RecoveryTests {
                       "https://user@account.sainsburys.co.uk/login"] {
             check(!sainsburys.allowsNavigation(URL(string: value)!), "Sainsbury's authentication exceptions remain exact and HTTPS-only")
         }
+        let waitrose = expansionDefinitions.first { $0.id == .waitrose }!
+        let waitroseLogin = URL(string: "https://auth.waitrose.com/oauth2/authorize")!
+        check(waitrose.allowsNavigation(waitroseLogin) && !waitrose.allows(waitroseLogin),
+              "Waitrose's observed OAuth redirect is browsing-only, not cart-bridge trusted")
+        for value in ["https://evil.auth.waitrose.com/login", "https://auth.waitrose.com.evil.test/login",
+                      "https://auth.waitrose.com:444/login", "http://auth.waitrose.com/login",
+                      "https://user@auth.waitrose.com/login"] {
+            check(!waitrose.allowsNavigation(URL(string: value)!), "Waitrose authentication remains exact-host HTTPS without credentials or custom ports")
+        }
         let prospectiveSupercheap = expansionDefinitions.first { $0.id == .supercheapAuto }!
         check(prospectivePriceline.schemaVersion == 4 && prospectivePriceline.cart?.profiles?.first?.receipt?.imageIdentity?.allowedHosts == ["api.priceline.com.au"],
               "Priceline's linkless receipt has an explicitly bounded image-identity source")
