@@ -6,6 +6,58 @@ import WebKit
 // tap Add, use app cookies, set fulfilment details, or submit credentials.
 final class LiveExpansionSearchTests: XCTestCase {
     @MainActor
+    func testPricelineDifferentialSearch() async throws {
+        guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_EXPANSION_SEARCH"] == "1" else {
+            throw XCTSkip("Live expansion search requires explicit opt-in")
+        }
+        // Priceline's visible heading says "All products" and its input clears
+        // after submission. Two unrelated queries must instead produce distinct,
+        // relevant product sets: a general catalogue cannot satisfy this proof.
+        var productSets: [Set<String>] = []
+        for query in ["shampoo", "toothpaste"] {
+            let configuration = WKWebViewConfiguration()
+            configuration.websiteDataStore = .nonPersistent()
+            let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), configuration: configuration)
+            let policy = ReadOnlySearchPolicy(host: "www.priceline.com.au")
+            webView.navigationDelegate = policy
+            webView.load(URLRequest(url: URL(string: "https://www.priceline.com.au/search?query=\(query)")!))
+            var matches = Set<String>()
+            var catalogue = Set<String>()
+            for _ in 0..<25 {
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+                let script = """
+                (() => {
+                  const links = [...document.querySelectorAll('a[href*="/product/"]')].filter(a =>
+                    a.getClientRects().length && new URL(a.href).host === location.host
+                    && /\\/product\\/[0-9]+\\//.test(new URL(a.href).pathname)
+                    && (a.textContent || a.getAttribute('aria-label') || '').trim());
+                  return {all: links.map(a => new URL(a.href).pathname),
+                    matching: links.filter(a => /\(query)/i.test(a.textContent || a.getAttribute('aria-label') || ''))
+                      .map(a => new URL(a.href).pathname)};
+                })()
+                """
+                if let result = try? await webView.evaluateJavaScript(script) as? [String: Any] {
+                    matches = Set(result["matching"] as? [String] ?? [])
+                    catalogue = Set(result["all"] as? [String] ?? [])
+                    if matches.count >= 3 && matches.count * 4 >= catalogue.count * 3 { break }
+                }
+            }
+            XCTAssertGreaterThanOrEqual(matches.count, 3)
+            XCTAssertGreaterThanOrEqual(matches.count * 4, catalogue.count * 3, "Results must predominantly match the query")
+            let components = webView.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
+            XCTAssertEqual(components?.host, policy.host)
+            XCTAssertEqual(components?.queryItems?.first(where: { $0.name == "query" })?.value, query)
+            print("EXPANSION_DIFFERENTIAL_PROBE priceline: query=\(query), matchingProducts=\(matches.count), allProducts=\(catalogue.count)")
+            productSets.append(catalogue)
+            webView.stopLoading()
+            webView.navigationDelegate = nil
+        }
+        XCTAssertLessThan(productSets[0].intersection(productSets[1]).count * 2,
+                          min(productSets[0].count, productSets[1].count),
+                          "Unrelated queries must not return the same general catalogue")
+    }
+
+    @MainActor
     func testReadOnlySearchRoutes() async throws {
         guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_EXPANSION_SEARCH"] == "1" else {
             throw XCTSkip("Live expansion search requires explicit opt-in")
@@ -479,6 +531,38 @@ final class StoreSelectionTests: XCTestCase {
     // pattern the previous Shopping country row used.
     private func manageRow(_ store: String) -> XCUIElement {
         app.descendants(matching: .any)["manage-store-\(store)"].firstMatch
+    }
+
+    func testExpansionStoreDiscoveryAndSeparateTargetBrands() {
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        XCTAssertTrue(app.tables["manage-stores-table"].waitForExistence(timeout: 5))
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        let stores = [
+            ("chemistWarehouse", "Chemist Warehouse"), ("priceline", "Priceline"),
+            ("officeworks", "Officeworks"), ("jbHiFi", "JB Hi-Fi"), ("targetAU", "Target Australia"),
+            ("petbarn", "Petbarn"), ("supercheapAuto", "Supercheap Auto"), ("bcf", "BCF"),
+            ("bunnings", "Bunnings New Zealand"), ("theWarehouse", "The Warehouse"),
+            ("newWorld", "New World"), ("paknsave", "PAK"), ("sainsburys", "Sainsbury"),
+            ("asda", "Asda"), ("morrisons", "Morrisons"), ("ocado", "Ocado"),
+            ("waitrose", "Waitrose"), ("boots", "Boots"), ("walgreens", "Walgreens"), ("cvs", "CVS")
+        ]
+        for (id, name) in stores {
+            search.tap()
+            if search.buttons["Clear text"].exists { search.buttons["Clear text"].tap() }
+            search.typeText(name)
+            XCTAssertTrue(manageRow(id).waitForExistence(timeout: 5), "Missing new store: \(name)")
+        }
+        search.buttons["Clear text"].tap()
+        search.typeText("Target")
+        XCTAssertTrue(manageRow("targetAU").waitForExistence(timeout: 5))
+        XCTAssertTrue(manageRow("target").exists, "Unrelated Australian and US Target must remain separate brands")
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Separate Australian and US Target discovery"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        XCTAssertFalse(app.buttons["Dismiss store"].exists, "Discovery must not open any retailer website")
     }
 
     private func openStoreSettings(_ store: String, welcome: Bool = false) {
