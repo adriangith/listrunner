@@ -219,7 +219,8 @@ final class StoreSelectionTests: XCTestCase {
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
         if name.contains("LiveStoreCart") {
-            let store = name.contains("Priceline") ? "priceline" : "supercheapAuto"
+            let probes = [("Priceline", "priceline"), ("Supercheap", "supercheapAuto"), ("ChemistWarehouse", "chemistWarehouse")]
+            guard let store = probes.first(where: { name.contains($0.0) })?.1 else { throw XCTSkip("Unknown live cart probe") }
             guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_CART_STORE"] == store else {
                 throw XCTSkip("Live cart mutation requires explicit single-store opt-in")
             }
@@ -542,7 +543,7 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testLiveStoreCartPriceline() throws {
-        try liveStoreCart(store: "priceline", query: "PRO:VOKE Touch Of Silver Brightening Shampoo 50mL",
+        try liveStoreCart(store: "priceline", query: "shampoo",
                           product: "PRO:VOKE Touch Of Silver Brightening Shampoo 50mL")
     }
 
@@ -551,7 +552,12 @@ final class StoreSelectionTests: XCTestCase {
                           product: "SCA Car Wash Concentrate 1 Litre")
     }
 
-    private func liveStoreCart(store: String, query: String, product: String) throws {
+    func testLiveStoreCartChemistWarehouse() throws {
+        try liveStoreCart(store: "chemistWarehouse", query: "sukin shampoo",
+                          product: "Sukin Natural Balance Shampoo 500ml", detail: true)
+    }
+
+    private func liveStoreCart(store: String, query: String, product: String, detail: Bool = false) throws {
         // Each run uses the existing isolated UI-test UUID and a fresh,
         // nonpersistent website store. Never use a person's real cart/login.
         app.buttons["store-picker"].tap()
@@ -571,21 +577,37 @@ final class StoreSelectionTests: XCTestCase {
             let consent = web.buttons.matching(NSPredicate(format: "label ==[c] %@", text)).firstMatch
             if consent.exists && consent.isHittable { consent.tap() }
         }
+        if detail { link.tap() }
         // Attribute the actual trusted tap to the smallest AX container holding
         // this exact title and a single Add button. Never choose a page-wide Add.
         let addPredicate = NSPredicate(format: "label MATCHES[c] %@", ".*Add (?:to|To) (?:cart|Cart).*")
         func matchingAdd() -> XCUIElement? {
-            web.otherElements.containing(.link, identifier: product).allElementsBoundByIndex
+            if detail {
+                return web.buttons.matching(addPredicate).allElementsBoundByIndex
+                    .filter { $0.frame.height > 0 }.sorted { $0.frame.minY < $1.frame.minY }.first
+            }
+            return web.otherElements.containing(.link, identifier: product).allElementsBoundByIndex
                 .filter { $0.frame.height > 0 && $0.frame.height < 900 && $0.buttons.matching(addPredicate).count == 1 }
-                .sorted { $0.frame.height < $1.frame.height }
+                .sorted { $0.frame.minY == $1.frame.minY ? $0.frame.height < $1.frame.height : $0.frame.minY < $1.frame.minY }
                 .first?.buttons.matching(addPredicate).firstMatch
         }
         var add = matchingAdd()
-        for _ in 0..<7 {
+        for _ in 0..<12 {
             if let button = add, button.isHittable, button.frame.minY > web.frame.minY + 60,
                button.frame.maxY < app.frame.maxY - 230 { break }
-            if let button = add, button.frame.midY < web.frame.minY + 60 { web.swipeDown() }
-            else { web.swipeUp() }
+            // WKWebView extends underneath ListRunner's bottom overlay. A
+            // default web.swipeUp starts there and merely swipes native cards.
+            // Keep this measured gesture entirely in unobscured website space.
+            let top = max(web.frame.minY + 100, app.frame.minY + 150)
+            let bottom = min(web.frame.maxY - 20, app.frame.maxY - 280)
+            let distance = min(max(80, abs((add?.frame.midY ?? bottom + 200) - (top + bottom) / 2)), max(80, bottom - top - 40))
+            let down = (add?.frame.midY ?? bottom + 200) < top
+            let fromY = down ? top + 20 : bottom - 20
+            let toY = down ? min(bottom - 20, fromY + distance) : max(top + 20, fromY - distance)
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let from = origin.withOffset(CGVector(dx: web.frame.midX - app.frame.minX, dy: fromY - app.frame.minY))
+            let to = origin.withOffset(CGVector(dx: web.frame.midX - app.frame.minX, dy: toY - app.frame.minY))
+            from.press(forDuration: 0.05, thenDragTo: to)
             add = matchingAdd()
         }
         guard let add, add.exists && add.isHittable else {
@@ -602,12 +624,20 @@ final class StoreSelectionTests: XCTestCase {
 
         // Cleanup even if detector confirmation failed. A fresh guest cart has
         // no unrelated items. Never invoke checkout or change fulfilment.
+        var cleanupVerified = false
         if store == "priceline" {
             let remove = web.buttons["Remove Product from Cart"].firstMatch
             XCTAssertTrue(remove.waitForExistence(timeout: 15), "Could not locate our test product for cleanup")
             if remove.exists && remove.isHittable { remove.tap() }
             let removed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: remove)
-            XCTAssertEqual(XCTWaiter.wait(for: [removed], timeout: 15), .completed)
+            cleanupVerified = XCTWaiter.wait(for: [removed], timeout: 15) == .completed
+            XCTAssertTrue(cleanupVerified)
+        } else if store == "chemistWarehouse" {
+            let decrease = web.buttons["Decrement quantity"].firstMatch
+            XCTAssertTrue(decrease.waitForExistence(timeout: 15))
+            if decrease.exists && decrease.isHittable { decrease.tap() }
+            cleanupVerified = web.buttons.matching(NSPredicate(format: "label ==[c] %@", "ADD TO CART")).firstMatch.waitForExistence(timeout: 15)
+            XCTAssertTrue(cleanupVerified, "Product stepper must return to the empty-cart Add state")
         } else {
             let viewCart = web.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "View Cart")).firstMatch
             XCTAssertTrue(viewCart.waitForExistence(timeout: 15), "Could not reach test-cart cleanup")
@@ -615,10 +645,11 @@ final class StoreSelectionTests: XCTestCase {
             let remove = web.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Remove")).firstMatch
             XCTAssertTrue(remove.waitForExistence(timeout: 20))
             if remove.exists && remove.isHittable { remove.tap() }
-            XCTAssertTrue(web.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Shopping Cart is Empty")).firstMatch.waitForExistence(timeout: 20))
+            cleanupVerified = web.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Shopping Cart is Empty")).firstMatch.waitForExistence(timeout: 20)
+            XCTAssertTrue(cleanupVerified)
         }
         XCTAssertTrue(detected, "A website Add is not native ListRunner detector certification")
-        print("LIVE_CART_NATIVE_PROBE store=\(store), detected=\(detected), cleanupChecksCompleted=true")
+        print("LIVE_CART_NATIVE_PROBE store=\(store), detected=\(detected), cleanupVerified=\(cleanupVerified)")
     }
 
     func testExpansionStoreDiscoveryAndSeparateTargetBrands() {

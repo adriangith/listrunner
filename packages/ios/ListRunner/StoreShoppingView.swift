@@ -949,8 +949,10 @@ final class StoreBrowser: ObservableObject {
         let itemID: UUID
         let confirmationID: String
         let productID: String
-        let before: Int
-        let after: Int
+        // Explicit retailer success receipts may confirm an addition without
+        // publishing quantities. Never invent totals or permit reversal for them.
+        let before: Int?
+        let after: Int?
     }
 
     @Published private(set) var webView: WKWebView
@@ -1242,6 +1244,7 @@ final class StoreBrowser: ObservableObject {
     private var itemID: UUID?
     private var documentGeneration = 0
     private var activeCandidate: (productID: String, before: Int, deadline: TimeInterval)?
+    private var lastAcknowledgedSequence: (generation: Int, value: UInt64)?
     private var candidateTimeoutTask: Task<Void, Never>?
     private var pendingSearchTask: Task<Void, Never>?
     private var searchRequestID = UUID()
@@ -1574,6 +1577,29 @@ final class StoreBrowser: ObservableObject {
               normalize(control.getAttribute('aria-label') || control.textContent) === normalize(profile.emptyStatusText))) return 0;
         return null;
       };
+      const profileAcknowledgement = (profile, name) => {
+        const rule = profile.acknowledgement;
+        if (!rule) return null;
+        const visible = element => {
+          if (!element.getClientRects().length) return false;
+          for (let current = element; current; current = current.parentElement) {
+            const style = getComputedStyle(current);
+            if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) === 0) return false;
+          }
+          return true;
+        };
+        const matches = [];
+        for (const root of deepQueryAll(document, rule.selector)) {
+          if (!visible(root) || deepQueryAll(root, rule.failureSelector)
+              .some(error => visible(error) && normalize(error.innerText || error.textContent))) continue;
+          const success = deepQueryAll(root, rule.successSelector).filter(element =>
+            visible(element) && normalize(element.innerText || element.textContent) === normalize(rule.successText));
+          const titles = new Set(deepQueryAll(root, rule.titleSelector)
+            .filter(visible).map(element => normalize(element.innerText || element.textContent)).filter(Boolean));
+          if (success.length === 1 && titles.size === 1 && titles.has(name)) matches.push(`${normalize(rule.successText)}|${name}`);
+        }
+        return matches.length === 1 ? matches[0] : null;
+      };
       const findProfileState = (id, profile) => {
         const states = [];
         const seen = new Set();
@@ -1630,6 +1656,20 @@ final class StoreBrowser: ObservableObject {
         setTimeout(() => {
           if (candidate !== checkingCandidate) return;
           if (!candidateIsValid(checkingCandidate)) return;
+          if (checkingCandidate.profile?.confirmation === 'productAcknowledgement') {
+            const signature = profileAcknowledgement(checkingCandidate.profile, checkingCandidate.productName);
+            if (signature && signature !== checkingCandidate.initialAcknowledgement) checkingCandidate.stableCount++;
+            else checkingCandidate.stableCount = 0;
+            if (checkingCandidate.stableCount >= 2) {
+              post('addAcknowledged', { confirmationID: String(++confirmationSequence), productID: checkingCandidate.productID,
+                profileID: checkingCandidate.profile.id });
+              candidate = null;
+              return;
+            }
+            checkingCandidate.checking = false;
+            checkCandidate();
+            return;
+          }
           if (checkingCandidate.profile?.confirmation === 'productReceipt') {
             const receipt = profileReceipt(checkingCandidate.profile, checkingCandidate.productName, checkingCandidate.productID);
             if (receipt && receipt.text !== checkingCandidate.initialToast) {
@@ -1775,6 +1815,7 @@ final class StoreBrowser: ObservableObject {
           if (profile.confirmation === 'quantityIncrease' && before === null) return;
           candidate = { ...resolved, control, before, pageURL: location.href,
             initialToast: profile.confirmation === 'productReceipt' ? profileReceipt(profile, name, id)?.text || null : null,
+            initialAcknowledgement: profile.confirmation === 'productAcknowledgement' ? profileAcknowledgement(profile, name) : null,
             expires: Date.now() + profile.confirmationWindowMS,
             setupDeadline: Date.now() + (profile.setupPrompt?.maximumWaitMS || 0), stableCount: 0, checking: false };
           if (before !== null && !profile.setupPrompt) post('cartInteractionStarted', { productID: id, beforeQuantity: before, intent: before === 0 ? 'add' : 'increment' });
@@ -2546,7 +2587,8 @@ final class StoreBrowser: ObservableObject {
         guard record.storeID == store.id, undoOperationID == nil,
               record.sessionID == sessionID, record.interactionID == interactionID,
               record.documentGeneration == documentGeneration, record.itemID == itemID,
-              record.before >= 0, record.after > record.before, record.after <= 9999,
+              let before = record.before, let after = record.after,
+              before >= 0, after > before, after <= 9999,
               let url = webView.url, store.allows(url) else {
             showCartUndoWarning()
             return
@@ -2558,7 +2600,7 @@ final class StoreBrowser: ObservableObject {
             "sessionID": record.sessionID, "interactionID": record.interactionID,
             "documentGeneration": record.documentGeneration, "itemID": record.itemID.uuidString,
             "confirmationID": record.confirmationID, "productID": record.productID,
-            "beforeQuantity": record.before, "resultingQuantity": record.after
+            "beforeQuantity": before, "resultingQuantity": after
         ]
         // The isolated script verifies its own saved confirmation as well as current
         // quantity, then confirms each decrement. It never receives arbitrary JS.
@@ -2610,6 +2652,30 @@ final class StoreBrowser: ObservableObject {
         }
 
         let commonKeys: Set<String> = ["schemaVersion", "type", "storeID", "sessionID", "interactionID", "itemID", "documentGeneration", "pageURL"]
+        if type == "addAcknowledged" {
+            guard store.schemaVersion == 4, !store.capabilities.cartUndo,
+                  Set(object.keys) == commonKeys.union(["confirmationID", "productID", "profileID"]),
+                  let confirmationID = object["confirmationID"] as? String,
+                  let sequence = UInt64(confirmationID), sequence > 0,
+                  lastAcknowledgedSequence?.generation != documentGeneration || sequence > (lastAcknowledgedSequence?.value ?? 0),
+                  let productID = object["productID"] as? String, store.acceptsProductIdentity(productID),
+                  let profileID = object["profileID"] as? String,
+                  store.cart?.profiles?.contains(where: { $0.id == profileID && $0.confirmation == .productAcknowledgement }) == true,
+                  let itemID else { return }
+            lastAcknowledgedSequence = (documentGeneration, sequence)
+            activeCandidate = nil
+            candidateTimeoutTask?.cancel()
+            cartDetectionUnavailable = false
+            cartDetectionIssue = nil
+            lastDetectedItemID = itemID
+            lastDetectedAdd = CartAddRecord(storeID: store.id, sessionID: sessionID, interactionID: interactionID,
+                                           documentGeneration: documentGeneration, itemID: itemID,
+                                           confirmationID: confirmationID, productID: productID, before: nil, after: nil)
+            diagnostics.record(.automation, .cartDetection, outcome: .succeeded, host: diagnosticHost)
+            detectedAddSequence += 1
+            automationLog("Product-specific retailer acknowledgement confirmed; notifying overlay")
+            return
+        }
         if type == "cartInteractionStarted" {
             guard Set(object.keys) == commonKeys.union(["productID", "beforeQuantity", "intent"]),
                   let productID = object["productID"] as? String, store.acceptsProductIdentity(productID),

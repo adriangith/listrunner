@@ -1,9 +1,28 @@
 {
-  "schemaVersion": 2, "id": "jbHiFi", "displayName": "JB Hi-Fi",
+  "schemaVersion": 4, "id": "jbHiFi", "displayName": "JB Hi-Fi",
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.jbhifi.com.au",
   "allowedHosts": ["www.jbhifi.com.au", "jbhifi.com.au"],
   "search": {"strategy": "urlTemplate", "template": "https://www.jbhifi.com.au/search?query={query}"},
   "addedColor": {"red": 153, "green": 109, "blue": 0},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "cart": {
+    "strategy": "profiled", "identityStrategy": "capturedURLComponent",
+    "tileSelector": "[data-testid='product-card-content']", "linkSelector": "a[href*='/products/']",
+    "productURLPattern": "^/products/([A-Za-z0-9_-]{1,256})/?$",
+    "addSelector": "button[data-testid='product-card-actions']", "addLabelPatterns": ["^add to cart(?:\\s*added)?$"],
+    "quantitySelector": "input[type='number']", "emptyStatusSelector": "button[data-testid='product-card-actions']",
+    "emptyStatusText": "Add to cart", "decrementLabelPattern": "^decrease quantity$",
+    "profiles": [{
+      "id": "product-card", "scope": "productCard", "identity": "cardLink",
+      "containerSelector": "[data-testid='product-card-content']", "titleSelector": "[data-testid='product-card-title']",
+      "addSelector": "button[data-testid='product-card-actions']", "addLabelPatterns": ["^add to cart(?:\\s*added)?$"],
+      "confirmation": "productAcknowledgement", "confirmationWindowMS": 15000,
+      "acknowledgement": {
+        "selector": "[data-testid='slideout-added-to-cart-alert']",
+        "successSelector": "[data-testid='slideout-added-to-cart-alert-heading']", "successText": "Item added to your cart!",
+        "titleSelector": "[data-testid='slideout-product-title']", "failureSelector": "[role='alert'],[data-testid*='error']"
+      }
+    }]
+  }
 }

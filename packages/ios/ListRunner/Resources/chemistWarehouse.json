@@ -1,9 +1,26 @@
 {
-  "schemaVersion": 2, "id": "chemistWarehouse", "displayName": "Chemist Warehouse",
+  "schemaVersion": 4, "id": "chemistWarehouse", "displayName": "Chemist Warehouse",
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.chemistwarehouse.com.au",
   "allowedHosts": ["www.chemistwarehouse.com.au", "chemistwarehouse.com.au"],
   "search": {"strategy": "urlTemplate", "template": "https://www.chemistwarehouse.com.au/search?query={query}&contexts=default"},
   "addedColor": {"red": 205, "green": 0, "blue": 26},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "cart": {
+    "strategy": "profiled", "identityStrategy": "numericURLSuffix",
+    "tileSelector": "div.flex:has(h1)", "linkSelector": "a[href*='/buy/']",
+    "productURLPattern": "^/buy/(\\d{1,32})/[^/]+/?$",
+    "addSelector": "button[data-cy='add-to-cart'],button[aria-label='Increment quantity']",
+    "addLabelPatterns": ["^add to cart$", "^increment quantity$"],
+    "quantitySelector": "input[type='number'][min='0']", "emptyStatusSelector": "button[data-cy='add-to-cart']",
+    "emptyStatusText": "ADD TO CART", "decrementLabelPattern": "^decrement quantity$",
+    "profiles": [{
+      "id": "product-page", "scope": "productPage", "identity": "pageURL",
+      "containerSelector": "div.flex:has(h1)", "titleSelector": "h1",
+      "addSelector": "button[data-cy='add-to-cart'],button[aria-label='Increment quantity']",
+      "addLabelPatterns": ["^add to cart$", "^increment quantity$"],
+      "confirmation": "quantityIncrease", "confirmationWindowMS": 15000,
+      "quantitySelector": "input[type='number'][min='0']", "emptyStatusText": "ADD TO CART"
+    }]
+  }
 }

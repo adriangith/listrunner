@@ -13,8 +13,11 @@ const load = id => JSON.parse(readFileSync(new URL(`../ListRunner/Resources/${id
 function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
   const config = load(store);
   config.capabilities.cartDetection = true; // test only; production ceilings stay off until certified
-  const name = store === 'priceline' ? 'PRO:VOKE Touch Of Silver Brightening Shampoo 50mL' : 'SCA Car Wash Concentrate 1 Litre';
-  let id = store === 'priceline' ? '39390' : '733022';
+  const detail = store === 'chemistWarehouse';
+  const acknowledged = store === 'jbHiFi';
+  const name = store === 'priceline' ? 'PRO:VOKE Touch Of Silver Brightening Shampoo 50mL'
+    : detail ? 'Sukin Natural Balance Shampoo 500ml' : acknowledged ? 'Belkin Hi Speed USB Cable (1.8 Metres)' : 'SCA Car Wash Concentrate 1 Litre';
+  let id = store === 'priceline' ? '39390' : detail ? '85510' : acknowledged ? 'belkin-hi-speed-usb-cable-1-8-metres' : '733022';
   if (captured) {
     id = 'keji-ballpoint-pens-keka1271as';
     config.id = 'officeworks';
@@ -26,7 +29,7 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
   const host = config.allowedHosts[0];
   const path = value => captured ? `/shop/officeworks/p/${value}` : store === 'priceline'
     ? `/product/${value}/pro-voke-touch-of-silver-brightening-shampoo-50ml`
-    : `/p/sca-sca-car-wash-concentrate-1-litre/${value}.html`;
+    : detail ? `/buy/${value}/sukin-natural-balance-shampoo-500ml` : acknowledged ? `/products/${value}` : `/p/sca-sca-car-wash-concentrate-1-litre/${value}.html`;
   let now = 0, click, mutation;
   const timers = [], messages = [];
   class Element {
@@ -49,6 +52,11 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
     matches(selector) {
       const simple = (node, text) => {
         if (text === '*') return true;
+        const has = text.match(/:has\(([^)]+)\)/);
+        if (has) {
+          if (!node.querySelectorAll(has[1]).length) return false;
+          text = text.replace(has[0], '');
+        }
         const attrs = [...text.matchAll(/\[([\w-]+)(\*=|=)['"]([^'"]*)['"]\]/g)];
         const base = text.replace(/\[[^\]]+\]/g, '');
         const tag = base.match(/^[\w-]+/)?.[0];
@@ -80,12 +88,16 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
   document.documentElement = new Element('html');
   document.body = document.documentElement.append(new Element('body'));
   const main = document.body.append(new Element('main'));
-  const tile = main.append(new Element('div', { class: store === 'priceline' ? 'card' : 'product-tile' }));
-  const imageLink = tile.append(new Element('a', { href: `https://${host}${path(id)}` }));
-  const title = tile.append(new Element('a', { href: `https://${host}${path(id)}`, class: 'name-link' }, name));
+  const tile = main.append(new Element('div', { class: store === 'priceline' ? 'card' : detail ? 'flex' : 'product-tile', 'data-testid': 'product-card-content' }));
+  const imageLink = detail ? null : tile.append(new Element('a', { href: `https://${host}${path(id)}` }));
+  const title = tile.append(new Element(detail ? 'h1' : 'a', detail ? {} : { href: `https://${host}${path(id)}`, class: 'name-link', 'data-testid': 'product-card-title' }, name));
   const controls = tile.append(new Element(store === 'priceline' ? 'api-add-to-cart' : 'div'));
-  const button = controls.append(new Element('button', { type: 'submit', class: 'atc-button' }, 'Add to cart'));
-  const actual = controls.append(new Element('input', { class: 'in-cart-quantity-input' })); actual.value = String(before);
+  let button = controls.append(new Element('button', detail ? before > 0
+    ? { 'aria-label': 'Increment quantity' } : { 'data-cy': 'add-to-cart' }
+    : { type: 'submit', class: 'atc-button', 'data-testid': 'product-card-actions' }, detail && before > 0 ? '' : 'Add to cart'));
+  if (acknowledged) button.append(new Element('span', {}, 'Added')); // static before Add; never success evidence
+  const actual = new Element('input', { class: 'in-cart-quantity-input', type: 'number', min: '0' }); actual.value = String(before);
+  if (!detail || before > 0) controls.append(actual);
   const intended = controls.append(new Element('select', { name: 'Quantity' })); intended.value = '9';
   const modal = document.body.append(new Element('ngb-modal-window', { class: 'add-product-modal' })); modal.hidden = true;
   const receipt = modal.append(new Element('api-added-to-cart-dialog', {}, 'My Cart'));
@@ -96,9 +108,13 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
   const cartImage = media.append(new Element('img', { src: `https://api.priceline.com.au/medias/300Wx300H-${id}.jpg` }));
   const cartQuantity = cartRow.append(new Element('input', { 'aria-label': 'Quantity' })); cartQuantity.value = '1';
   const otherButton = document.body.append(new Element('button', {}, 'Open cart'));
-  const location = { protocol: 'https:', hostname: host, pathname: '/search', href: `https://${host}/search` };
+  const acknowledgement = document.body.append(new Element('div', { 'data-testid': 'slideout-added-to-cart-alert' }));
+  acknowledgement.hidden = true;
+  const successHeading = acknowledgement.append(new Element('h5', { 'data-testid': 'slideout-added-to-cart-alert-heading' }, 'Item added to your cart!'));
+  const acknowledgedTitle = acknowledgement.append(new Element('h3', { 'data-testid': 'slideout-product-title' }, name));
+  const location = { protocol: 'https:', hostname: host, pathname: detail ? path(id) : '/search', href: `https://${host}${detail ? path(id) : '/search'}` };
   const context = vm.createContext({ URL, Element, document, location, Date: { now: () => now },
-    getComputedStyle: e => ({ visibility: e.hidden ? 'hidden' : 'visible' }),
+    getComputedStyle: e => ({ visibility: e.hidden ? 'hidden' : 'visible', opacity: e.opacity ?? '1', display: 'block' }),
     setTimeout(fn, ms) { timers.push(() => { now += ms; fn(); }); },
     MutationObserver: class { constructor(fn) { mutation = fn; } observe() {} },
     window: { __listRunnerStoreConfig: config, webkit: { messageHandlers: { listRunner: { postMessage(raw) {
@@ -109,8 +125,25 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
   return { messages, config,
     tap(trusted = true) { click({ isTrusted: trusted, target: button, composedPath: () => [button, controls, tile] }); },
     tapOther() { click({ isTrusted: true, target: otherButton, composedPath: () => [otherButton] }); },
+    acknowledge() { acknowledgement.hidden = false; mutation(); },
+    hideAcknowledgement() { acknowledgement.hidden = true; },
+    transparentAcknowledgement() { acknowledgement.opacity = '0'; },
+    wrongAcknowledgementTitle() { acknowledgedTitle.ownText = 'Other product'; },
+    wrongSuccess() { successHeading.ownText = 'Unable to add item'; },
+    acknowledgementError() { acknowledgement.append(new Element('div', { role: 'alert' }, 'Failed to add')); },
+    duplicateAcknowledgementTitle() { acknowledgement.append(new Element('h3', { 'data-testid': 'slideout-product-title' }, 'Other product')); },
+    recommendation() { document.body.append(new Element('h3', { 'data-testid': 'slideout-product-title' }, name)); acknowledgedTitle.ownText = 'Other product'; },
     receipt(quantity = 1) { modal.hidden = false; cartQuantity.value = String(quantity); mutation(); },
-    quantity(value) { actual.value = String(value); mutation(); },
+    quantity(value) {
+      actual.value = String(value);
+      if (detail) {
+        controls.children = controls.children.filter(child => child !== button && child !== actual);
+        button.isConnected = false;
+        if (value > 0) controls.append(actual);
+        button = controls.append(new Element('button', value > 0 ? { 'aria-label': 'Increment quantity' } : { 'data-cy': 'add-to-cart' }, value > 0 ? '' : 'Add to cart'));
+      }
+      mutation();
+    },
     intended(value) { intended.value = String(value); mutation(); },
     wrongImage(hostname = 'evil.test', product = id) { cartImage.attrs.src = `https://${hostname}/medias/300Wx300H-${product}.jpg`; },
     wrongName() { cartRow.children[0].ownText = 'Other product'; },
@@ -128,7 +161,41 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
     end() { context.window.__listRunnerSetContext(null); },
     tick(n = 8) { for (let i = 0; i < n; i++) timers.shift()?.(); },
     get additions() { return messages.filter(m => m.type === 'addDetected'); },
+    get acknowledgements() { return messages.filter(m => m.type === 'addAcknowledged'); },
   };
+}
+
+test('JB confirms a fresh product-specific acknowledgement without inventing quantities', () => {
+  const p = fixture('jbHiFi'); p.tap(); p.tick(2);
+  assert.equal(p.acknowledgements.length, 0, 'static Added span is not evidence');
+  p.acknowledge(); p.tick(1); assert.equal(p.acknowledgements.length, 0);
+  p.tick(); assert.equal(p.acknowledgements.length, 1);
+  assert.equal(p.acknowledgements[0].productID, 'belkin-hi-speed-usb-cable-1-8-metres');
+  assert.equal(p.acknowledgements[0].profileID, 'product-card');
+  assert.equal('beforeQuantity' in p.acknowledgements[0], false);
+  assert.equal('resultingQuantity' in p.acknowledgements[0], false);
+  assert.equal(p.additions.length, 0);
+});
+
+for (const scenario of ['passive', 'synthetic', 'unrelatedClick', 'wrongTitle', 'wrongSuccess', 'hidden', 'transparent', 'error', 'ambiguous', 'stale', 'recommendation', 'navigation', 'expired', 'ended']) {
+  test(`JB acknowledgement rejects ${scenario}`, () => {
+    const p = fixture('jbHiFi');
+    if (scenario === 'stale') p.acknowledge();
+    if (scenario !== 'passive') p.tap(scenario !== 'synthetic');
+    if (scenario === 'unrelatedClick') p.tapOther();
+    if (scenario === 'wrongTitle') p.wrongAcknowledgementTitle();
+    if (scenario === 'wrongSuccess') p.wrongSuccess();
+    if (scenario === 'error') p.acknowledgementError();
+    if (scenario === 'ambiguous') p.duplicateAcknowledgementTitle();
+    if (scenario === 'recommendation') p.recommendation();
+    if (scenario === 'navigation') p.navigate();
+    if (scenario === 'expired') p.expire();
+    if (scenario === 'ended') p.end();
+    p.acknowledge();
+    if (scenario === 'hidden') p.hideAcknowledgement();
+    if (scenario === 'transparent') p.transparentAcknowledgement();
+    p.tick(); assert.equal(p.acknowledgements.length, 0);
+  });
 }
 
 test('Priceline confirms only a new, stable product-image-identified quantity receipt', () => {
@@ -165,6 +232,17 @@ for (const before of [0, 2]) {
     const p = fixture('supercheapAuto', { before }); p.tap(); p.intended(9); p.tick(2);
     assert.equal(p.additions.length, 0);
     p.quantity(before + 1); p.tick(); assert.equal(p.additions.length, 1);
+    assert.equal(p.additions[0].beforeQuantity, before);
+    assert.equal(p.additions[0].resultingQuantity, before + 1);
+  });
+}
+
+for (const before of [0, 2]) {
+  test(`Chemist Warehouse detail confirms actual cart stepper ${before}→${before + 1} after Add replacement`, () => {
+    const p = fixture('chemistWarehouse', { before });
+    p.tap(); p.quantity(before + 1); p.tick();
+    assert.equal(p.additions.length, 1);
+    assert.equal(p.additions[0].productID, '85510');
     assert.equal(p.additions[0].beforeQuantity, before);
     assert.equal(p.additions[0].resultingQuantity, before + 1);
   });

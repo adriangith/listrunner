@@ -826,6 +826,42 @@ struct RecoveryTests {
         }
         check(StoreBridge.decode(String(repeating: "é", count: 4_097), store: coles) == nil, "UTF-8 bridge size bound")
         check(StoreBridge.decode("not json", store: coles) == nil, "malformed bridge rejected")
+        let prospectiveJB = expansionDefinitions.first { $0.id == .jbHiFi }!
+        var acknowledgementBridge = bridge
+        acknowledgementBridge["storeID"] = "jbHiFi"
+        acknowledgementBridge["pageURL"] = "https://www.jbhifi.com.au/search?query=usb"
+        acknowledgementBridge["type"] = "addAcknowledged"
+        acknowledgementBridge["productID"] = "belkin-hi-speed-usb-cable-1-8-metres"
+        acknowledgementBridge["profileID"] = "product-card"
+        acknowledgementBridge.removeValue(forKey: "beforeQuantity")
+        acknowledgementBridge.removeValue(forKey: "resultingQuantity")
+        check(StoreBridge.decode(try bridgeRaw(acknowledgementBridge), store: prospectiveJB) != nil,
+              "acknowledgement bridge supports reviewed nonnumeric identity without fabricated quantities")
+        for (key, value) in [("productID", "unsafe/sku" as Any), ("profileID", "other" as Any),
+                             ("beforeQuantity", 0 as Any), ("resultingQuantity", 1 as Any),
+                             ("confirmationID", true as Any), ("injected", "field" as Any)] {
+            var invalid = acknowledgementBridge
+            invalid[key] = value
+            check(StoreBridge.decode(try bridgeRaw(invalid), store: prospectiveJB) == nil,
+                  "acknowledgement bridge rejects invalid \(key)")
+        }
+        for mutation in ["schema", "quantity", "undo", "emptySuccess", "unknownKey"] {
+            var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(prospectiveJB)) as! [String: Any]
+            var cart = object["cart"] as! [String: Any]
+            var profiles = cart["profiles"] as! [[String: Any]]
+            var acknowledgement = profiles[0]["acknowledgement"] as! [String: Any]
+            switch mutation {
+            case "schema": object["schemaVersion"] = 3
+            case "quantity": profiles[0]["quantitySelector"] = "input"
+            case "undo": object["capabilities"] = ["search": true, "cartDetection": true, "cartUndo": true]
+            case "emptySuccess": acknowledgement["successText"] = " "
+            default: acknowledgement["script"] = "arbitrary code"
+            }
+            profiles[0]["acknowledgement"] = acknowledgement
+            cart["profiles"] = profiles; object["cart"] = cart
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: object))) == nil,
+                  "acknowledgement configuration rejects \(mutation)")
+        }
 
         var pacing = StoreNavigationPacing()
         check(pacing.delay(at: 100) == 0, "first storefront request can start immediately")

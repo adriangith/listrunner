@@ -284,7 +284,14 @@ struct StoreDefinition: Codable {
         struct DetectionProfile: Codable {
             enum Scope: String, Codable { case productCard, productPage }
             enum Identity: String, Codable { case cardLink, pageURL }
-            enum Confirmation: String, Codable { case productReceipt, quantityIncrease }
+            enum Confirmation: String, Codable { case productReceipt, quantityIncrease, productAcknowledgement }
+            struct Acknowledgement: Codable {
+                let selector: String
+                let successSelector: String
+                let successText: String
+                let titleSelector: String
+                let failureSelector: String
+            }
             struct Receipt: Codable {
                 struct ImageIdentity: Codable {
                     let selector: String
@@ -322,6 +329,7 @@ struct StoreDefinition: Codable {
             var emptyStatusText: String? = nil
             var undo: Undo? = nil
             var setupPrompt: SetupPrompt? = nil
+            var acknowledgement: Acknowledgement? = nil
         }
         let strategy: Strategy
         let identityStrategy: IdentityStrategy
@@ -445,7 +453,8 @@ struct StoreDefinition: Codable {
                             || (profile.scope == .productPage && profile.identity == .pageURL),
                           (500...15_000).contains(profile.confirmationWindowMS),
                           !profile.addLabelPatterns.isEmpty else { throw ConfigurationError.invalid }
-                    for selector in [profile.containerSelector, profile.titleSelector, profile.addSelector] + [profile.quantitySelector, profile.receipt?.selector, profile.receipt?.productSelector, profile.receipt?.quantitySelector, profile.receipt?.failureSelector].compactMap({ $0 }) {
+                    for selector in [profile.containerSelector, profile.titleSelector, profile.addSelector] + [profile.quantitySelector, profile.receipt?.selector, profile.receipt?.productSelector, profile.receipt?.quantitySelector, profile.receipt?.failureSelector,
+                        profile.acknowledgement?.selector, profile.acknowledgement?.successSelector, profile.acknowledgement?.titleSelector, profile.acknowledgement?.failureSelector].compactMap({ $0 }) {
                         guard !selector.isEmpty, selector.utf8.count <= 1_024 else { throw ConfigurationError.invalid }
                     }
                     for pattern in profile.addLabelPatterns {
@@ -454,7 +463,7 @@ struct StoreDefinition: Codable {
                     }
                     switch profile.confirmation {
                     case .productReceipt:
-                        guard let receipt = profile.receipt, profile.quantitySelector == nil, profile.emptyStatusText == nil, profile.undo == nil,
+                        guard let receipt = profile.receipt, profile.acknowledgement == nil, profile.quantitySelector == nil, profile.emptyStatusText == nil, profile.undo == nil,
                                !receipt.successText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                                receipt.successText.utf8.count <= 256 else { throw ConfigurationError.invalid }
                         if let pattern = receipt.quantityPattern {
@@ -474,7 +483,13 @@ struct StoreDefinition: Codable {
                                   try NSRegularExpression(pattern: image.productURLPattern).numberOfCaptureGroups == 1 else { throw ConfigurationError.invalid }
                         }
                     case .quantityIncrease:
-                        guard profile.quantitySelector != nil, profile.receipt == nil else { throw ConfigurationError.invalid }
+                        guard profile.quantitySelector != nil, profile.receipt == nil, profile.acknowledgement == nil else { throw ConfigurationError.invalid }
+                    case .productAcknowledgement:
+                        guard schemaVersion == 4, let acknowledgement = profile.acknowledgement,
+                              !acknowledgement.successText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                              acknowledgement.successText.utf8.count <= 256,
+                              profile.receipt == nil, profile.quantitySelector == nil, profile.emptyStatusText == nil,
+                              profile.undo == nil, profile.setupPrompt == nil, !capabilities.cartUndo else { throw ConfigurationError.invalid }
                     }
                     if let empty = profile.emptyStatusText {
                         guard !empty.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, empty.utf8.count <= 256 else { throw ConfigurationError.invalid }
@@ -612,7 +627,7 @@ struct StoreDefinition: Codable {
             guard let profiles = rawProfiles as? [[String: Any]] else { throw ConfigurationError.invalid }
             for profile in profiles {
                 guard hasOnlyKeys(profile, ["id", "scope", "identity", "containerSelector", "titleSelector", "addSelector",
-                                           "addLabelPatterns", "confirmation", "confirmationWindowMS", "quantitySelector", "receipt", "emptyStatusText", "undo", "setupPrompt"]) else {
+                                           "addLabelPatterns", "confirmation", "confirmationWindowMS", "quantitySelector", "receipt", "emptyStatusText", "undo", "setupPrompt", "acknowledgement"]) else {
                     throw ConfigurationError.invalid
                 }
                 if let receipt = profile["receipt"], !(receipt is NSNull),
@@ -623,6 +638,8 @@ struct StoreDefinition: Codable {
                    !hasOnlyKeys(undo as? [String: Any], ["decrementSelector", "decrementLabelPattern"]) { throw ConfigurationError.invalid }
                 if let setup = profile["setupPrompt"], !(setup is NSNull),
                    !hasOnlyKeys(setup as? [String: Any], ["selector", "textPattern", "maximumWaitMS"]) { throw ConfigurationError.invalid }
+                if let acknowledgement = profile["acknowledgement"], !(acknowledgement is NSNull),
+                   !hasOnlyKeys(acknowledgement as? [String: Any], ["selector", "successSelector", "successText", "titleSelector", "failureSelector"]) { throw ConfigurationError.invalid }
             }
         }
         let value = try JSONDecoder().decode(Self.self, from: data)
@@ -1011,14 +1028,22 @@ enum StoreBridge {
         let common: Set<String> = ["schemaVersion", "storeID", "sessionID", "interactionID", "itemID", "documentGeneration", "pageURL", "type"]
         switch type {
         case "cartInteractionStarted":
-            guard Set(object.keys) == common.union(["productID", "beforeQuantity", "intent"]), productID(object["productID"]),
+            guard Set(object.keys) == common.union(["productID", "beforeQuantity", "intent"]),
+                  let product = object["productID"] as? String, store.acceptsProductIdentity(product),
                   let before = integer(object["beforeQuantity"]), (0...9_999).contains(before),
                   object["intent"] as? String == (before == 0 ? "add" : "increment") else { return nil }
         case "addDetected":
             guard Set(object.keys) == common.union(["productID", "beforeQuantity", "resultingQuantity", "confirmationID"]),
-                  productID(object["productID"]), productID(object["confirmationID"]),
+                   let product = object["productID"] as? String, store.acceptsProductIdentity(product), productID(object["confirmationID"]),
                   let before = integer(object["beforeQuantity"]), let after = integer(object["resultingQuantity"]),
-                  (0...9_999).contains(before), (1...9_999).contains(after), after > before else { return nil }
+                   (0...9_999).contains(before), (1...9_999).contains(after), after > before else { return nil }
+        case "addAcknowledged":
+            guard store.schemaVersion == 4, !store.capabilities.cartUndo,
+                  Set(object.keys) == common.union(["productID", "confirmationID", "profileID"]),
+                  let product = object["productID"] as? String, store.acceptsProductIdentity(product),
+                  productID(object["confirmationID"]),
+                  let profileID = object["profileID"] as? String,
+                  store.cart?.profiles?.contains(where: { $0.id == profileID && $0.confirmation == .productAcknowledgement }) == true else { return nil }
         case "automationUnavailable":
             guard Set(object.keys) == common.union(["capability", "scope", "reason"]),
                   object["capability"] as? String == "cartDetection", object["scope"] as? String == "interaction",
