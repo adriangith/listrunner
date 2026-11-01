@@ -649,6 +649,17 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
         setStoreVisibility(store == "bunningsNZ" ? "bunnings" : store, shown: true)
+        if store == "bunningsNZ" {
+            // Enabling the brand can retain its existing AU preference. Select
+            // the exact regional destination explicitly; country alone must not
+            // silently switch an already enabled store.
+            openStoreSettings("bunnings")
+            app.buttons["store-region-picker-bunnings"].tap()
+            app.buttons["store-region-bunningsNZ"].tap()
+            let confirm = app.alerts.buttons["Use this regional website"]
+            if confirm.waitForExistence(timeout: 3) { confirm.tap() }
+            tapNavigationBack()
+        }
         tapNavigationBack()
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 5))
@@ -680,7 +691,7 @@ final class StoreSelectionTests: XCTestCase {
         if store == "officeworks" {
             // Configure guest location BEFORE Add, so the pending Add does not
             // span a separate trusted Continue click. No saved account is used.
-            let location = web.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Shopping method")).firstMatch
+            let location = web.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@ OR label == %@", "Shopping method", "LocationIconRgbOl")).firstMatch
             XCTAssertTrue(location.waitForExistence(timeout: 10))
             location.tap()
             let postcode = web.textFields["Enter your suburb or postcode"].firstMatch
@@ -751,7 +762,9 @@ final class StoreSelectionTests: XCTestCase {
             // title (smaller than its duplicate image link) still locates the
             // exact column. Require one nearby Add below it, with no intervening
             // different product link. This is test navigation, not detector logic.
-            guard let title = web.links.matching(identifier: product).allElementsBoundByIndex
+            let textTitles = web.staticTexts.matching(identifier: product).allElementsBoundByIndex
+            let titles = textTitles.isEmpty ? web.links.matching(identifier: product).allElementsBoundByIndex : textTitles
+            guard let title = titles
                 .filter({ $0.frame.height > 0 }).min(by: { $0.frame.height < $1.frame.height }) else { return nil }
             let frame = title.frame
             let candidates = web.buttons.matching(addPredicate).allElementsBoundByIndex.filter { button in
@@ -760,7 +773,9 @@ final class StoreSelectionTests: XCTestCase {
             }
             guard candidates.count == 1, let button = candidates.first else { return nil }
             let interveningLink = web.links.allElementsBoundByIndex.contains { other in
-                other.label != product && !other.label.isEmpty && other.frame.midX >= frame.minX && other.frame.midX <= frame.maxX
+                other.label != product && other.label != "\(product) \(product)" && !other.label.isEmpty
+                    && other.label.range(of: "^[\\s$£€0-9.,()/★]+$", options: .regularExpression) == nil
+                    && other.frame.midX >= frame.minX && other.frame.midX <= frame.maxX
                     && other.frame.minY > frame.maxY && other.frame.maxY < button.frame.minY
             }
             return interveningLink ? nil : button
@@ -840,7 +855,11 @@ final class StoreSelectionTests: XCTestCase {
             let remove = web.buttons["Delete"].firstMatch
             XCTAssertTrue(remove.waitForExistence(timeout: 15))
             if revealForCleanup(remove) { remove.tap() }
-            cleanupVerified = web.buttons.matching(NSPredicate(format: "label MATCHES[c] %@", "0\\s*Cart")).firstMatch.waitForExistence(timeout: 15)
+            let removed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: remove)
+            let exactItemRemoved = XCTWaiter.wait(for: [removed], timeout: 15) == .completed
+            // Officeworks' SVG cart icon is not included in its AX label: the
+            // numeric header button is exposed as just "0" on iPhone.
+            cleanupVerified = exactItemRemoved && web.buttons.matching(NSPredicate(format: "label MATCHES[c] %@", "0(?:\\s*Cart)?")).firstMatch.waitForExistence(timeout: 15)
             XCTAssertTrue(cleanupVerified)
         } else if store == "bunningsNZ" {
             let close = web.buttons["Close add to cart confirmation"].firstMatch
