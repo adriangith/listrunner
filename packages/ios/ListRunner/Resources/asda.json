@@ -1,9 +1,9 @@
 {
   "schemaVersion": 2, "id": "asda", "displayName": "Asda",
   "serviceArea": {"countryCodes": ["GB"]},
-  "homepage": "https://groceries.asda.com",
-  "allowedHosts": ["groceries.asda.com"],
-  "search": {"strategy": "urlTemplate", "template": "https://groceries.asda.com/search/{query}"},
+  "homepage": "https://www.asda.com/groceries",
+  "allowedHosts": ["www.asda.com", "asda.com", "groceries.asda.com"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.asda.com/groceries/search/{query}"},
   "addedColor": {"red": 63, "green": 119, "blue": 0},
   "capabilities": {"search": false, "cartDetection": false, "cartUndo": false}, "cart": null
 }

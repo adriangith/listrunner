@@ -90,6 +90,11 @@ struct RecoveryTests {
             let url = definition.searchURL(for: query)!
             check(definition.allows(url) && url.fragment == nil && !url.absoluteString.contains(" "),
                   "new store search query stays encoded on its exact approved host")
+            let components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+            let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))))!
+            check(components.queryItems?.filter { $0.value == query }.count == 1
+                  || (components.queryItems == nil && components.percentEncodedPath.hasSuffix(encodedQuery)),
+                  "expansion queries stay one complete parameter or one percent-encoded path segment")
             for raw in ["http://\(id.home.host!)", "https://\(id.home.host!):444", "https://user:secret@\(id.home.host!)",
                         "https://\(id.home.host!).evil.test", "https://login.\(id.dataDomain)"] {
                 check(!definition.allowsNavigation(URL(string: raw)!), "new browsing trust rejects unreviewed origins")
@@ -114,6 +119,9 @@ struct RecoveryTests {
               "Australian Target and unrelated US Target remain separate brands and sessions")
         check(StoreBrand.catalogue(allProductionDefinitions).first(where: { $0.id == "bunnings" })?.regions.map(\.id).sorted(by: { $0.rawValue < $1.rawValue }) == [.bunnings, .bunningsNZ],
               "Bunnings has explicit independently isolated AU/NZ destinations")
+        check(StoreID.morrisons.ownsDataDomain("morrisons.com") && StoreID.asda.ownsDataDomain("asda.com")
+              && !StoreID.morrisons.hosts.contains("www.morrisons.com"),
+              "root-domain website data resets do not widen subdomain-only browsing trust")
         check(Set(StoreID.allCases.map(\.listID)).count == StoreID.allCases.count
               && Set(StoreID.allCases.map(\.websiteDataID)).count == StoreID.allCases.count,
               "all store and regional list/session identities remain unique")

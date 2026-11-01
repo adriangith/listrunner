@@ -3,7 +3,7 @@
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.petbarn.com.au",
   "allowedHosts": ["www.petbarn.com.au", "petbarn.com.au"],
-  "search": {"strategy": "urlTemplate", "template": "https://www.petbarn.com.au/search?q={query}"},
+  "search": {"strategy": "urlTemplate", "template": "https://www.petbarn.com.au/catalogsearch/result/q/{query}"},
   "addedColor": {"red": 170, "green": 70, "blue": 0},
   "capabilities": {"search": false, "cartDetection": false, "cartUndo": false}, "cart": null
 }

@@ -109,7 +109,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .newWorld: ["www.newworld.co.nz", "newworld.co.nz"]
         case .paknsave: ["www.paknsave.co.nz", "paknsave.co.nz"]
         case .sainsburys: ["www.sainsburys.co.uk", "sainsburys.co.uk"]
-        case .asda: ["groceries.asda.com"]
+        case .asda: ["www.asda.com", "asda.com", "groceries.asda.com"]
         case .morrisons: ["groceries.morrisons.com"]
         case .ocado: ["www.ocado.com", "ocado.com"]
         case .waitrose: ["www.waitrose.com", "waitrose.com"]
@@ -148,8 +148,8 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .newWorld: "newworld.co.nz"
         case .paknsave: "paknsave.co.nz"
         case .sainsburys: "sainsburys.co.uk"
-        case .asda: "groceries.asda.com"
-        case .morrisons: "groceries.morrisons.com"
+        case .asda: "asda.com"
+        case .morrisons: "morrisons.com"
         case .ocado: "ocado.com"
         case .waitrose: "waitrose.com"
         case .boots: "boots.com"
@@ -161,7 +161,9 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         }
     }
     var home: URL {
-        URL(string: "https://\([StoreID.asda, .morrisons].contains(self) ? dataDomain : "www." + dataDomain)")!
+        if self == .asda { return URL(string: "https://www.asda.com/groceries")! }
+        if self == .morrisons { return URL(string: "https://groceries.morrisons.com")! }
+        return URL(string: "https://www.\(dataDomain)")!
     }
     var listID: UUID {
         let value: String

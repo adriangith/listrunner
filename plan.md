@@ -1,5 +1,12 @@
 ## ListRunner Build Specification
 
+### Twenty additional retailer destinations (1 November 2026)
+
+* The user requested search and cart-addition detection for twenty more popular stores and authorized test additions, but no checkout/purchase, sign-in, account/fulfilment changes or verification bypass. The chosen AU/NZ/GB/US set and evidence are recorded in `docs/retailer-expansion-2026-11-01.md`.
+* Use the existing registry and shared UI. New destinations start disabled and retain isolated stable list/session/diagnostic identities. Group only reviewed Bunnings AU/NZ regional identities; Target Australia remains separate from unrelated Target US. Preserve existing lists, selected regions, preferences and website sessions.
+* Search and cart detection are independently verified capabilities, not consequences of registration. Search requires actual matching product results and reflected query in live embedded iPhone WebKit, not a general catalogue that happens to contain matching products. Unverified capabilities remain disabled in JSON and native ceilings; keep the existing manual controls.
+* Cart detection requires a trusted tap plus stable, correlated product-specific confirmation. Cart badges, intended PDP quantities, synthetic clicks and desktop-only additions are not certification. New cart Undo is out of scope. The full twenty-store search-and-detection request remains incomplete until these checks pass; do not describe all twenty registrations as automated support.
+
 ### US retailer expansion (30 October 2026)
 
 * The approved US set is Walmart, Amazon US, Costco US, Kroger and Target US. Amazon (`amazon`), Kroger (`kroger`) and Target (`target`) join the existing registry and shared shopping flow, start disabled, and have permanent independent list/website-data IDs ending `000010`, `000011` and `000012`. Preserve existing stores, regional choices, visibility, lists and sessions. US Target is not Australian Target; Kroger does not implicitly include its other banners; Amazon.com does not imply Amazon Fresh or Whole Foods support.

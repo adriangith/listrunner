@@ -106,6 +106,7 @@ struct DiagnosticEntry: Codable, Equatable {
         case paknsave = "www.paknsave.co.nz", paknsaveBare = "paknsave.co.nz"
         case sainsburys = "www.sainsburys.co.uk", sainsburysBare = "sainsburys.co.uk"
         case asda = "groceries.asda.com", morrisons = "groceries.morrisons.com"
+        case asdaWWW = "www.asda.com", asdaBare = "asda.com"
         case ocado = "www.ocado.com", ocadoBare = "ocado.com"
         case waitrose = "www.waitrose.com", waitroseBare = "waitrose.com"
         case boots = "www.boots.com", bootsBare = "boots.com"
