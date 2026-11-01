@@ -231,6 +231,23 @@ certification follows from the failed sessions.
   SW1A 1AA returned only complete-address choices, not postcode-only choices.
   None selected, no Confirm location, no Add completed. Modal and browser closed.
   A specific full-address authorization/login handoff is needed to go further.
+- User subsequently supplied a specific UK address and authorized its guest
+  location selection. Exact address was found in Morrisons' postcode suggestions,
+  but choosing it left the location summary on an unrelated default postcode
+  (`AL10 9BW`). That mismatched location was not accepted as verified setup; no
+  delivery-method confirmation, slot, checkout or purchase followed. Closed modal
+  and browser. Do not record the supplied person's name/address in tracked code.
+- BCF: Gillies Split Shot Sinker dial pack (`109293`, $10.99), one guest Add
+  produced only a generic `Item successfully added to cart` dialog; requested PDP
+  quantity remained 1 and was not treated as actual cart quantity. Cart page
+  verified exact product quantity 1. Remove restored `Your Shopping Cart is Empty`;
+  browser closed. No BCF detector enabled from that generic receipt.
+- Native Priceline `94650b0` and `1cd63da` reruns failed before any Add. First
+  still encountered cookie controls under native overlay; second dismissed consent
+  but re-expanded cards before dragging, again covering gesture origin. `fa4ba64`
+  keeps cards collapsed for website interaction and expands only to inspect native
+  confirmation. Its rerun is pending. None of these failures certifies detection.
+- Linux full DOM suite: 148 tests passed; core: 90 tests and typecheck passed.
 
 ## Mac reconciliation
 
