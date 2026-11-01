@@ -37,6 +37,8 @@ final class LiveExpansionSearchTests: XCTestCase {
         let required = Set((ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_EXPANSION_REQUIRED"] ?? "")
             .split(separator: ",").map(String.init))
         XCTAssertTrue(required.isSubset(of: Set(probes.map { $0.0 })), "Unknown required store")
+        XCTAssertTrue(selected.isSubset(of: Set(probes.map { $0.0 })), "Unknown selected store")
+        XCTAssertTrue(selected.isEmpty || required.isSubset(of: selected), "A required store must actually run")
         for (id, route, term) in probes where selected.isEmpty || selected.contains(id) {
             let configuration = WKWebViewConfiguration()
             configuration.websiteDataStore = .nonPersistent()
@@ -46,6 +48,7 @@ final class LiveExpansionSearchTests: XCTestCase {
             webView.load(URLRequest(url: URL(string: route)!))
             var products = 0
             var paths: [String] = []
+            var queryReflected = false
             for _ in 0..<25 {
                 try await Task.sleep(nanoseconds: 1_000_000_000)
                 let script = """
@@ -56,18 +59,21 @@ final class LiveExpansionSearchTests: XCTestCase {
                             && /\\b\\w*\(term)\\w*\\b/i.test(a.textContent || a.getAttribute('aria-label') || '')
                             && /(?:\\/p\\/|\\/product[s]?\\/|\\/shop\\/product\\/|\\/buy\\/[0-9]|_p[0-9]|\\.html(?:[?]|$)|\\.product|skuId|id=|prodid=)/i.test(u.pathname + u.search);
                     });
-                    return {products: new Set(links.map(a => a.href)).size,
+                    const queryReflected = [...document.querySelectorAll('input[type="search"],input[type="text"],input:not([type]),h1,h2')]
+                      .some(e => e.getClientRects().length && /\\b\\w*\(term)\\w*\\b/i.test(e.value || e.innerText || ''));
+                    return {products: new Set(links.map(a => a.href)).size, queryReflected,
                             paths: [...new Set(links.map(a => new URL(a.href).pathname))].slice(0, 3)};
                 })()
                 """
                 if let result = try? await webView.evaluateJavaScript(script) as? [String: Any] {
                     products = result["products"] as? Int ?? 0
                     paths = result["paths"] as? [String] ?? []
-                    if products > 0 { break }
+                    queryReflected = result["queryReflected"] as? Bool ?? false
+                    if products > 0 && queryReflected { break }
                 }
             }
-            let passed = products > 0 && webView.url?.host == policy.host
-            let result = "\(id): matchingProductLinks=\(products), sameHost=\(webView.url?.host == policy.host), paths=\(paths)"
+            let passed = products > 0 && queryReflected && webView.url?.host == policy.host
+            let result = "\(id): matchingProductLinks=\(products), queryReflected=\(queryReflected), sameHost=\(webView.url?.host == policy.host), finalPath=\(webView.url?.path ?? "none"), paths=\(paths)"
             print("EXPANSION_SEARCH_PROBE \(result)")
             let attachment = XCTAttachment(string: result)
             attachment.name = "Read-only expansion search: \(id)"

@@ -14,7 +14,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
     // Reviewed native ceilings: bundled data cannot enable unreviewed store automation.
     var permitsSearch: Bool {
         [.coles, .woolworths, .bunnings, .costco, .walmart, .kmart, .bigW, .kroger, .target,
-         .priceline, .officeworks, .jbHiFi, .targetAU, .supercheapAuto, .bunningsNZ, .theWarehouse,
+         .chemistWarehouse, .priceline, .officeworks, .jbHiFi, .targetAU, .supercheapAuto, .bunningsNZ, .theWarehouse,
          .sainsburys, .morrisons, .ocado, .waitrose, .walgreens].contains(self)
     }
     // Brand grouping is reviewed native identity, never inferred from a name or host.
