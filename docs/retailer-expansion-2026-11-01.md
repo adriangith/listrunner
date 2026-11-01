@@ -141,10 +141,10 @@ observations alone do not enable iOS capabilities:
 - CVS explicitly reports that the site is unavailable outside US/US territories.
   No geographic bypass was attempted.
 
-## Cart investigation — two certified; eighteen remain
+## Cart investigation — three certified; seventeen remain
 
-Priceline and Supercheap Auto cart detection are certified and enabled in JSON and native ceilings.
-The other eighteen new destinations keep detection disabled; all twenty keep
+Priceline, Supercheap Auto and Ocado cart detection are certified and enabled in JSON and native ceilings.
+The other seventeen new destinations keep detection disabled; all twenty keep
 retailer-cart Undo disabled. The engine now supports schema-4 product-linked
 receipt quantities, tightly allowlisted Priceline image identity, bounded captured
 URL-component identities, and explicit quantity-free product acknowledgements.
@@ -200,6 +200,11 @@ certification follows from the failed sessions.
   sign-off. Do not install a build to a physical phone merely to claim testing.
 
 ### Follow-up implementation and live evidence
+
+- **Ocado native live PASS** at `38496f2`: automatic native confirmation and
+  cleanupVerified=true, not skipped, 244.267s. Exact Ocado milk test card restored
+  to Add by its decrement. Mac `~/Library/Logs/ListRunner-Finish-Cart-ocado-38496f2.*`.
+  Production detection enabled afterward; retailer-cart Undo stays off.
 
 - Additional fixture checks reject invalid/fractional/negative/out-of-range or
   decreasing actual quantities, and intended-quantity-only changes across all

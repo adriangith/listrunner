@@ -5,7 +5,7 @@
   "allowedHosts": ["www.ocado.com", "ocado.com"],
   "search": {"strategy": "urlTemplate", "template": "https://www.ocado.com/search?q={query}"},
   "addedColor": {"red": 88, "green": 49, "blue": 127},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "capabilities": {"search": true, "cartDetection": true, "cartUndo": false},
   "cart": {
     "strategy": "profiled", "identityStrategy": "numericURLSuffix",
     "tileSelector": "[data-test='fop-body']", "linkSelector": "a[data-test='fop-product-link']",

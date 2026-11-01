@@ -4,8 +4,8 @@
 
 Twenty additional destinations are registered, disabled by default, with stable
 independent list/session identities. **Sixteen new searches are verified;
-Priceline and Supercheap Auto automatic cart detection are live-verified and enabled. The other
-eighteen new detectors and all twenty retailer-cart Undo capabilities remain disabled.** The full
+Priceline, Supercheap Auto and Ocado automatic cart detection are live-verified and enabled. The other
+seventeen new detectors and all twenty retailer-cart Undo capabilities remain disabled.** The full
 search-and-detection request is not complete. New World, PAK’nSAVE, Boots and CVS
 remain browsing/manual-only after unverified/blocked search observations.
 
@@ -36,6 +36,12 @@ limitations, Mac identifier reconciliation and remaining work:
 `docs/retailer-expansion-2026-11-01.md` from the repository root.
 
 ### Detector follow-up — 2 November 2026
+
+- Ocado native PASS at `38496f2`: detected=true, cleanupVerified=true,
+  244.267s, not skipped. Exact test milk card automatically triggered native Undo;
+  retailer decrement restored Add. Mac logs/results:
+  `~/Library/Logs/ListRunner-Finish-Cart-ocado-38496f2.*`. Production detection
+  enabled afterward; retailer-cart Undo remains off.
 
 - Supercheap Auto passed at `b305bcf`: detected=true and cleanupVerified=true,
   173.609s. Retest fixes the earlier off-screen Remove failure below and verifies

@@ -24,7 +24,7 @@ class StoreExpansionTests(unittest.TestCase):
                 data = json.loads((BASE / f"ListRunner/Resources/{store}.json").read_text())
                 self.assertEqual(data["id"], store)
                 self.assertEqual(data["serviceArea"]["countryCodes"], [country])
-                self.assertEqual(data["capabilities"]["cartDetection"], store in {"priceline", "supercheapAuto"})
+                self.assertEqual(data["capabilities"]["cartDetection"], store in {"priceline", "supercheapAuto", "ocado"})
                 self.assertFalse(data["capabilities"]["cartUndo"])
                 if data["cart"] is not None:
                     self.assertEqual(data["schemaVersion"], 4)

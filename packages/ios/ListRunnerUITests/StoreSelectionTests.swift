@@ -219,7 +219,7 @@ final class StoreSelectionTests: XCTestCase {
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
         if name.contains("LiveStoreCart") {
-            let probes = [("Priceline", "priceline"), ("Supercheap", "supercheapAuto"), ("ChemistWarehouse", "chemistWarehouse"), ("JBHiFi", "jbHiFi"), ("BunningsNZ", "bunningsNZ"), ("Officeworks", "officeworks"), ("Ocado", "ocado")]
+            let probes = [("Priceline", "priceline"), ("Supercheap", "supercheapAuto"), ("ChemistWarehouse", "chemistWarehouse"), ("JBHiFi", "jbHiFi"), ("BunningsNZ", "bunningsNZ"), ("Officeworks", "officeworks"), ("Ocado", "ocado"), ("Morrisons", "morrisons")]
             guard let store = probes.first(where: { name.contains($0.0) })?.1 else { throw XCTSkip("Unknown live cart probe") }
             guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_CART_STORE"] == store else {
                 throw XCTSkip("Live cart mutation requires explicit single-store opt-in")
@@ -227,7 +227,13 @@ final class StoreSelectionTests: XCTestCase {
             app.launchEnvironment["LISTRUNNER_LIVE_CART_PROBE"] = store
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
             if store == "bunningsNZ" { app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "NZ" }
-            if store == "ocado" { app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "GB" }
+            if ["ocado", "morrisons"].contains(store) { app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "GB" }
+            if store == "morrisons" {
+                guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_GUEST_POSTCODE"] != nil,
+                      ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_GUEST_ADDRESS"] != nil else {
+                    throw XCTSkip("Morrisons requires an explicitly authorized guest address supplied at runtime")
+                }
+            }
             if store == "chemistWarehouse" {
                 app.launchEnvironment["LISTRUNNER_LIVE_CART_DETAIL_URL"] = "https://www.chemistwarehouse.com.au/buy/85510/sukin-natural-balance-shampoo-500ml"
             }
@@ -582,6 +588,11 @@ final class StoreSelectionTests: XCTestCase {
                           product: "Ocado British Semi Skimmed Milk 2 Pints")
     }
 
+    func testLiveStoreCartMorrisons() throws {
+        try liveStoreCart(store: "morrisons", query: "belvita milk",
+                          product: "Belvita Milk & Cereal Biscuit Snack Bars Multipack")
+    }
+
     private func liveStoreCart(store: String, query: String, product: String, detail: Bool = false) throws {
         // Each run uses the existing isolated UI-test UUID and a fresh,
         // nonpersistent website store. Never use a person's real cart/login.
@@ -632,6 +643,30 @@ final class StoreSelectionTests: XCTestCase {
             XCTAssertTrue(proceed.waitForExistence(timeout: 10))
             proceed.tap()
         }
+        if store == "morrisons" {
+            // Runtime-only authorized guest address; never put personal test
+            // addresses or names in tracked code/resources or saved accounts.
+            let location = web.buttons["Choose your delivery location"].firstMatch
+            XCTAssertTrue(location.waitForExistence(timeout: 10))
+            location.tap()
+            let addressField = web.textFields["Search for your address"].firstMatch
+            XCTAssertTrue(addressField.waitForExistence(timeout: 15))
+            addressField.tap()
+            addressField.typeText(ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_GUEST_POSTCODE"]!)
+            let address = web.staticTexts[ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_GUEST_ADDRESS"]!].firstMatch
+            XCTAssertTrue(address.waitForExistence(timeout: 15))
+            address.tap()
+            let confirmLocation = web.buttons["Confirm location"].firstMatch
+            XCTAssertTrue(confirmLocation.waitForExistence(timeout: 10))
+            confirmLocation.tap()
+            let expectedPostcode = ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_GUEST_POSTCODE"]!
+                .replacingOccurrences(of: " ", with: "").uppercased()
+            XCTAssertTrue(web.buttons[expectedPostcode].firstMatch.waitForExistence(timeout: 10),
+                          "Do not confirm a default or mismatched guest location")
+            let confirmMethod = web.buttons["Confirm"].firstMatch
+            XCTAssertTrue(confirmMethod.waitForExistence(timeout: 10))
+            confirmMethod.tap() // Default Home Delivery only; never book a slot.
+        }
         if detail && !directDetail {
             for _ in 0..<8 {
                 if link.isHittable && link.frame.minY > web.frame.minY + 80 && link.frame.maxY < app.frame.maxY - 120 { break }
@@ -651,7 +686,7 @@ final class StoreSelectionTests: XCTestCase {
         // Attribute the actual trusted tap to the smallest AX container holding
         // this exact title and a single Add button. Never choose a page-wide Add.
         let addPredicate = NSPredicate(format: "label MATCHES[c] %@", store == "ocado"
-            ? "^Add .+ to trolley$" : ".*Add (?:to|To) (?:cart|Cart).*")
+            ? "^Add .+ to trolley$" : store == "morrisons" ? "^Add .+ to basket$" : ".*Add (?:to|To) (?:cart|Cart).*")
         func matchingAdd() -> XCUIElement? {
             if detail {
                 return web.buttons.matching(addPredicate).allElementsBoundByIndex
@@ -742,11 +777,11 @@ final class StoreSelectionTests: XCTestCase {
             let removed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: remove)
             cleanupVerified = XCTWaiter.wait(for: [removed], timeout: 15) == .completed
             XCTAssertTrue(cleanupVerified)
-        } else if store == "ocado" {
-            let decrease = web.buttons["Decrease quantity of Ocado British Semi Skimmed Milk 2 Pints in trolley"].firstMatch
+        } else if ["ocado", "morrisons"].contains(store) {
+            let decrease = web.buttons["Decrease quantity of \(product) in trolley"].firstMatch
             XCTAssertTrue(decrease.waitForExistence(timeout: 15))
             if revealForCleanup(decrease) { decrease.tap() }
-            cleanupVerified = web.buttons["Add Ocado British Semi Skimmed Milk 2 Pints to trolley"].firstMatch.waitForExistence(timeout: 15)
+            cleanupVerified = web.buttons["Add \(product) to \(store == "ocado" ? "trolley" : "basket")"].firstMatch.waitForExistence(timeout: 15)
             XCTAssertTrue(cleanupVerified)
         } else if store == "officeworks" {
             let review = web.buttons["View Cart"].firstMatch
