@@ -623,3 +623,17 @@ verified visible `Your cart is empty!`. Production detection enabled after proof
 retailer-cart Undo remains disabled. Prior namespace timeout was pre-fix, not a pass.
 Auth fix passed 1,513 native checks, 244 DOM tests, synthetic proof, Debug build and
 34 bundled-resource comparisons. See expansion ledger for details and scope.
+# Officeworks website-cart blocker — 2026-11-02
+
+At `d1b3c01`, corrected exact icon-prefixed Add label passes 249 DOM tests,
+1,512 native checks, synthetic proof, Debug build and all 34 resource comparisons.
+Live trusted Add still does not establish an observed cart: POST carts 204 then
+GET carts/111-fake 404, generic confirmation with no product row/title, native item
+Pending. Guest location 3000 is retained; initial session/header GETs return 200.
+Public frontend code uses `111-fake` when cartId is unreadable and still dispatches
+success after the empty follow-up result. Native metadata found no matching cartId
+cookie; no cookie values were inspected/exported. Underlying cookie/session-creation
+failure remains unexplained. Production detection and retailer Undo stay off.
+Temporary status-only observer is removed; no request bodies/headers were captured.
+User reported empty cart before the final diagnostic Add; final recheck pending.
+See expansion ledger for precise evidence and boundaries, not a passing claim.

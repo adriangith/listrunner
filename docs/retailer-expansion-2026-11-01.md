@@ -201,6 +201,32 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- Officeworks remains **website-cart blocked, not certified** on `d1b3c01`.
+  User's first Add included a location-confirmation interaction; a later clean
+  trusted Add after location 3000 was set matched the configured control but
+  produced only generic success heading, zero receipt items and no exact pen title.
+  Native item stayed Pending with no successful diagnostic. User checked View Cart
+  and reported empty. After reload, location remained `3000 | Russell ...`; session
+  and cart-header GETs returned 200. A subsequent diagnostic Add captured POST
+  `/catalogue-app/api/carts` → 204, GET `/catalogue-app/api/carts/111-fake` → 404,
+  header cart GET → 200. Generic success dialog still lacked a product row.
+- Public `client.286b78ea66afec03f793.bundle.js` module `If96` reads the `cartId`
+  cookie or falls back to literal `111-fake`. Initial-cart POST discards its body
+  and maps any resolved Axios 2xx to `{}`; follow-up 404 maps to `{}`, and the client
+  still dispatches success unless the POST result was null. Its reducer resets
+  missing-cart-ID responses to an empty cart. Thus 204 and the generic heading do
+  not establish a real cart or item. Read-only native cookie metadata found no
+  matching Officeworks cartId cookie (no values, credentials or cookies exported).
+  Why the server/browser failed to establish it is not yet proven; no evidence
+  justifies forcing cookies, fabricating IDs, browser spoofing or bypassing controls.
+- HTTP diagnostics recorded only method, redacted first-party cart/session path and
+  status, never request/response bodies or headers. Temporary reload observer was
+  stopped and its own injected user script removed while preserving all original
+  scripts. Public source research used assets only, never private APIs. No confirmed
+  successful mutation is claimed; final user empty-cart recheck after the last
+  diagnostic Add is still pending. No further Add retries until session creation is
+  understood. Seven of twenty production expansion detectors remain certified.
+
 - Officeworks manual preflight on `65e56dd` found the exact Keji Ballpoint Pens
   1mm Assorted 10 Pack card (`keka1271as` URL), active debug-only detector and no
   acknowledgement. Its dedicated Add button has no aria-label and textContent
