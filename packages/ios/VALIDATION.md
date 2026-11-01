@@ -599,3 +599,15 @@ was restricted to the exact public product DOM and the named test namespace.
 User's minus tap restored Add/no quantity field and trolley 0 items/£0.00.
 Waitrose production detection enabled after this proof; retailer-cart Undo remains
 disabled. Full evidence and scope are in `docs/retailer-expansion-2026-11-01.md`.
+# JB Hi-Fi human-assisted native cart proof — 2026-11-02
+
+Simulator build `c66d3ddbed06e5b676ec936ed0517b25543e3941` detected the user's
+Add for Belkin Hi Speed USB Cable (1.8 Metres). The user saw automatic Added;
+native diagnostics independently recorded cartDetection/succeeded (sequence 3),
+and the isolated SwiftData row persisted `usb cable / Added / jbHiFi` before any
+manual local reset. User confirmed the retailer cart empty afterward and restored
+the local item to Pending. Final cart cleanup is user-confirmed, not a fresh
+independent open-cart inspection. Production detection enabled, retailer Undo off.
+The optional attach dialog is content-gated by the retailer; this profile uses the
+exact product button's stable, unclipped Added animation instead. See the ledger
+for public-source findings, runtime flags and negative clipping fixtures.

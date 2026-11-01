@@ -53,7 +53,7 @@ two-query result-set check. Observational test success does not mean every retai
 passed. `testExpansionStoreDiscoveryAndSeparateTargetBrands` is an offline UI check.
 Schema-4 profiles cover Priceline, Supercheap Auto, Chemist Warehouse,
 JB Hi-Fi, Officeworks, Bunnings NZ, Petbarn, Morrisons and Waitrose; only Priceline,
-Supercheap Auto, Ocado, Chemist Warehouse and Waitrose are production-enabled after native live proof.
+Supercheap Auto, Ocado, Chemist Warehouse, Waitrose and JB Hi-Fi are production-enabled after native live proof.
 Quantity-free acknowledgements never invent before/after totals and
 cannot reverse the retailer cart. Opt-in `testLiveStoreCart…` tests require
 `TEST_RUNNER_LISTRUNNER_LIVE_CART_STORE=<store>` when launched through xcodebuild.

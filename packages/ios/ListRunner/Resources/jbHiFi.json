@@ -5,7 +5,7 @@
   "allowedHosts": ["www.jbhifi.com.au", "jbhifi.com.au"],
   "search": {"strategy": "urlTemplate", "template": "https://www.jbhifi.com.au/search?query={query}"},
   "addedColor": {"red": 153, "green": 109, "blue": 0},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "capabilities": {"search": true, "cartDetection": true, "cartUndo": false},
   "cart": {
     "strategy": "profiled", "identityStrategy": "capturedURLComponent",
     "tileSelector": "[data-testid='product-card-content']", "linkSelector": "a[href*='/products/']",

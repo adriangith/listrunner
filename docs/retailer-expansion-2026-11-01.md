@@ -201,6 +201,18 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- JB Hi-Fi native certification completed on simulator build
+  `c66d3ddbed06e5b676ec936ed0517b25543e3941`. User's Add on the exact Belkin cable
+  automatically changed ListRunner to Added, reported by the user and independently
+  confirmed by native `automation/cartDetection/succeeded` diagnostic sequence 3
+  and read-only isolated SwiftData row `usb cable / Added / jbHiFi`. User subsequently
+  confirmed retailer cart empty, reopened the store and manually restored the local
+  item to Pending. That later local change does not erase the recorded native proof.
+  Cleanup is user-confirmed; the final empty cart was not independently inspected
+  while open. Production profile and native ceiling now enabled; all retailer-cart
+  Undo remains off. Six of the original twenty expansion detectors are certified.
+  Earlier inactive-profile and failed-dialog observations below are historical.
+
 - Human-assisted JB Hi-Fi investigation after the stalled automated navigation:
   exact Belkin Hi Speed USB Cable (1.8 Metres), product identity
   `belkin-hi-speed-usb-cable-1-8-metres`. User confirmed empty cart, tapped Add,
