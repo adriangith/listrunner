@@ -219,7 +219,7 @@ final class StoreSelectionTests: XCTestCase {
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
         if name.contains("LiveStoreCart") {
-            let probes = [("Priceline", "priceline"), ("Supercheap", "supercheapAuto"), ("ChemistWarehouse", "chemistWarehouse"), ("JBHiFi", "jbHiFi")]
+            let probes = [("Priceline", "priceline"), ("Supercheap", "supercheapAuto"), ("ChemistWarehouse", "chemistWarehouse"), ("JBHiFi", "jbHiFi"), ("BunningsNZ", "bunningsNZ")]
             guard let store = probes.first(where: { name.contains($0.0) })?.1 else { throw XCTSkip("Unknown live cart probe") }
             guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_CART_STORE"] == store else {
                 throw XCTSkip("Live cart mutation requires explicit single-store opt-in")
@@ -562,6 +562,11 @@ final class StoreSelectionTests: XCTestCase {
                           product: "Belkin Hi Speed USB Cable (1.8 Metres)")
     }
 
+    func testLiveStoreCartBunningsNZ() throws {
+        try liveStoreCart(store: "bunningsNZ", query: "craftright hammer",
+                          product: "CRAFTRIGHT Craftright 8oz Steel Claw Hammer")
+    }
+
     private func liveStoreCart(store: String, query: String, product: String, detail: Bool = false) throws {
         // Each run uses the existing isolated UI-test UUID and a fresh,
         // nonpersistent website store. Never use a person's real cart/login.
@@ -646,6 +651,7 @@ final class StoreSelectionTests: XCTestCase {
         if expand.exists && expand.isHittable { expand.tap() }
         // No native Mark Added is ever tapped: this must be detector-driven.
         let detected = app.buttons["Undo"].waitForExistence(timeout: 25)
+        print("LIVE_CART_DETECTION store=\(store), detected=\(detected), cleanupPending=true")
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Live cart detector \(store): \(detected ? "confirmed" : "not confirmed")"
         attachment.lifetime = .keepAlways
@@ -653,14 +659,39 @@ final class StoreSelectionTests: XCTestCase {
 
         if collapse.exists && collapse.isHittable { collapse.tap() }
 
+        func revealForCleanup(_ element: XCUIElement) -> Bool {
+            for _ in 0..<10 {
+                guard element.exists else { return false }
+                let top = max(web.frame.minY + 100, app.frame.minY + 150)
+                let bottom = min(web.frame.maxY - 20, app.frame.maxY - 100)
+                if element.isHittable && element.frame.minY >= top && element.frame.maxY <= bottom { return true }
+                let down = element.frame.midY < top
+                let origin = app.coordinate(withNormalizedOffset: .zero)
+                let from = origin.withOffset(CGVector(dx: web.frame.midX, dy: down ? top + 20 : bottom - 20))
+                let to = origin.withOffset(CGVector(dx: web.frame.midX, dy: down ? bottom - 20 : top + 20))
+                from.press(forDuration: 0.05, thenDragTo: to)
+            }
+            return element.exists && element.isHittable && element.frame.minY >= web.frame.minY + 60
+                && element.frame.maxY <= min(web.frame.maxY - 20, app.frame.maxY - 100)
+        }
+
         // Cleanup even if detector confirmation failed. A fresh guest cart has
         // no unrelated items. Never invoke checkout or change fulfilment.
         var cleanupVerified = false
         if store == "priceline" {
             let remove = web.buttons["Remove Product from Cart"].firstMatch
             XCTAssertTrue(remove.waitForExistence(timeout: 15), "Could not locate our test product for cleanup")
-            if remove.exists && remove.isHittable { remove.tap() }
+            if revealForCleanup(remove) { remove.tap() }
             let removed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: remove)
+            cleanupVerified = XCTWaiter.wait(for: [removed], timeout: 15) == .completed
+            XCTAssertTrue(cleanupVerified)
+        } else if store == "bunningsNZ" {
+            let close = web.buttons["Close add to cart confirmation"].firstMatch
+            if close.waitForExistence(timeout: 5) && close.isHittable { close.tap() }
+            let decrease = web.buttons["Decrease quantity"].firstMatch
+            XCTAssertTrue(decrease.waitForExistence(timeout: 15))
+            if revealForCleanup(decrease) { decrease.tap() }
+            let removed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: decrease)
             cleanupVerified = XCTWaiter.wait(for: [removed], timeout: 15) == .completed
             XCTAssertTrue(cleanupVerified)
         } else if store == "jbHiFi" {
@@ -669,13 +700,13 @@ final class StoreSelectionTests: XCTestCase {
             if review.exists && review.isHittable { review.tap() }
             let remove = web.buttons["Remove"].firstMatch
             XCTAssertTrue(remove.waitForExistence(timeout: 20))
-            if remove.exists && remove.isHittable { remove.tap() }
+            if revealForCleanup(remove) { remove.tap() }
             cleanupVerified = web.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Your cart is empty")).firstMatch.waitForExistence(timeout: 20)
             XCTAssertTrue(cleanupVerified)
         } else if store == "chemistWarehouse" {
             let decrease = web.buttons["Decrement quantity"].firstMatch
             XCTAssertTrue(decrease.waitForExistence(timeout: 15))
-            if decrease.exists && decrease.isHittable { decrease.tap() }
+            if revealForCleanup(decrease) { decrease.tap() }
             cleanupVerified = web.buttons.matching(NSPredicate(format: "label ==[c] %@", "ADD TO CART")).firstMatch.waitForExistence(timeout: 15)
             XCTAssertTrue(cleanupVerified, "Product stepper must return to the empty-cart Add state")
         } else {
@@ -684,7 +715,7 @@ final class StoreSelectionTests: XCTestCase {
             if viewCart.exists && viewCart.isHittable { viewCart.tap() }
             let remove = web.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Remove")).firstMatch
             XCTAssertTrue(remove.waitForExistence(timeout: 20))
-            if remove.exists && remove.isHittable { remove.tap() }
+            if revealForCleanup(remove) { remove.tap() }
             cleanupVerified = web.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Shopping Cart is Empty")).firstMatch.waitForExistence(timeout: 20)
             XCTAssertTrue(cleanupVerified)
         }

@@ -13,13 +13,14 @@ const load = id => JSON.parse(readFileSync(new URL(`../ListRunner/Resources/${id
 function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
   const config = load(store);
   config.capabilities.cartDetection = true; // test only; production ceilings stay off until certified
-  const detail = store === 'chemistWarehouse';
+  const petbarn = store === 'petbarn';
+  const detail = store === 'chemistWarehouse' || petbarn;
   const office = store === 'officeworks';
   const bunnings = store === 'bunningsNZ';
   const acknowledged = store === 'jbHiFi' || office;
   const name = store === 'priceline' ? 'PRO:VOKE Touch Of Silver Brightening Shampoo 50mL'
-    : detail ? 'Sukin Natural Balance Shampoo 500ml' : office ? 'Keji Ballpoint Pens 1mm Assorted 10 Pack' : bunnings ? 'Craftright 8oz Steel Claw Hammer' : acknowledged ? 'Belkin Hi Speed USB Cable (1.8 Metres)' : 'SCA Car Wash Concentrate 1 Litre';
-  let id = store === 'priceline' ? '39390' : detail ? '85510' : office ? 'keji-ballpoint-pens-1mm-assorted-10-pack-keka1271as' : bunnings ? '5660292' : acknowledged ? 'belkin-hi-speed-usb-cable-1-8-metres' : '733022';
+    : petbarn ? 'Beef with Kiwi Fruit Dog Treat' : detail ? 'Sukin Natural Balance Shampoo 500ml' : office ? 'Keji Ballpoint Pens 1mm Assorted 10 Pack' : bunnings ? 'Craftright 8oz Steel Claw Hammer' : acknowledged ? 'Belkin Hi Speed USB Cable (1.8 Metres)' : 'SCA Car Wash Concentrate 1 Litre';
+  let id = store === 'priceline' ? '39390' : petbarn ? '138813' : detail ? '85510' : office ? 'keji-ballpoint-pens-1mm-assorted-10-pack-keka1271as' : bunnings ? '5660292' : acknowledged ? 'belkin-hi-speed-usb-cable-1-8-metres' : '733022';
   if (captured) {
     id = 'keji-ballpoint-pens-keka1271as';
     config.id = 'officeworks';
@@ -31,7 +32,7 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
   const host = config.allowedHosts[0];
   const path = value => captured || office ? `/shop/officeworks/p/${value}` : bunnings ? `/craftright-8oz-steel-claw-hammer_p${value}` : store === 'priceline'
     ? `/product/${value}/pro-voke-touch-of-silver-brightening-shampoo-50ml`
-    : detail ? `/buy/${value}/sukin-natural-balance-shampoo-500ml` : acknowledged ? `/products/${value}` : `/p/sca-sca-car-wash-concentrate-1-litre/${value}.html`;
+    : petbarn ? `/p/providore-beef-with-kiwi-fruit-dog-treat/${value}` : detail ? `/buy/${value}/sukin-natural-balance-shampoo-500ml` : acknowledged ? `/products/${value}` : `/p/sca-sca-car-wash-concentrate-1-litre/${value}.html`;
   let now = 0, click, mutation;
   const timers = [], messages = [];
   class Element {
@@ -54,6 +55,10 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
     matches(selector) {
       const simple = (node, text) => {
         if (text === '*') return true;
+        if (text.includes(':last-child')) {
+          if (node.parentElement?.children.at(-1) !== node) return false;
+          text = text.replace(':last-child', '');
+        }
         const not = text.match(/:not\(([^)]+)\)/);
         if (not) {
           if (node.matches(not[1])) return false;
@@ -99,10 +104,12 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
   const imageLink = detail ? null : tile.append(new Element('a', { href: `https://${host}${path(id)}` }));
   const title = tile.append(new Element(detail ? 'h1' : 'a', detail ? {} : { href: `https://${host}${path(id)}`, class: 'name-link', 'data-testid': 'product-card-title' }, name));
   if (bunnings) { title.ownText = ''; title.append(new Element('p', {}, name)); }
-  const controls = tile.append(new Element(store === 'priceline' ? 'api-add-to-cart' : 'div'));
-  let button = controls.append(new Element('button', detail || bunnings ? before > 0
+  const controls = tile.append(new Element(store === 'priceline' ? 'api-add-to-cart' : 'div', { 'data-identifier-id': 'product-add-to-cart' }));
+  const petQuantity = petbarn ? controls.append(new Element('div', { 'data-identifier-id': 'quantity-selector' })) : null;
+  const petButton = value => value > 0 ? {} : { 'aria-label': 'Submit', 'data-identifier-id': 'product-add-to-cart-button' };
+  let button = (petQuantity || controls).append(new Element('button', petbarn ? petButton(before) : detail || bunnings ? before > 0
     ? { 'aria-label': bunnings ? 'Increase quantity' : 'Increment quantity' } : bunnings ? { 'data-locator': 'atcButton' } : { 'data-cy': 'add-to-cart' }
-    : { type: 'submit', class: 'atc-button', 'data-testid': 'product-card-actions', 'data-ref': 'add-to-cart-button-KEKA1271AS' }, (detail || bunnings) && before > 0 ? '' : 'Add to cart'));
+    : { type: 'submit', class: 'atc-button', 'data-testid': 'product-card-actions', 'data-ref': 'add-to-cart-button-KEKA1271AS' }, petbarn && before > 0 ? '+' : (detail || bunnings) && before > 0 ? '' : 'Add to cart'));
   if (store === 'jbHiFi') button.append(new Element('span', {}, 'Added')); // static before Add; never success evidence
   const actual = new Element('input', { class: 'in-cart-quantity-input', type: 'number', min: '0', 'aria-label': 'Quantity' }); actual.value = String(before);
   if ((!detail && !bunnings) || before > 0) controls.append(actual);
@@ -150,7 +157,8 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
         controls.children = controls.children.filter(child => child !== button && child !== actual);
         button.isConnected = false;
         if (value > 0) controls.append(actual);
-        button = controls.append(new Element('button', value > 0 ? { 'aria-label': bunnings ? 'Increase quantity' : 'Increment quantity' } : bunnings ? { 'data-locator': 'atcButton' } : { 'data-cy': 'add-to-cart' }, value > 0 ? '' : 'Add to cart'));
+        if (petQuantity) petQuantity.children = [];
+        button = (petQuantity || controls).append(new Element('button', petbarn ? petButton(value) : value > 0 ? { 'aria-label': bunnings ? 'Increase quantity' : 'Increment quantity' } : bunnings ? { 'data-locator': 'atcButton' } : { 'data-cy': 'add-to-cart' }, petbarn && value > 0 ? '+' : value > 0 ? '' : 'Add to cart'));
       }
       mutation();
     },
@@ -272,6 +280,26 @@ for (const before of [0, 2]) {
     assert.equal(p.additions[0].productID, '85510');
     assert.equal(p.additions[0].beforeQuantity, before);
     assert.equal(p.additions[0].resultingQuantity, before + 1);
+  });
+  test(`Petbarn numeric PDP confirms its actual cart stepper ${before}→${before + 1}`, () => {
+    const p = fixture('petbarn', { before }); p.tap(); p.quantity(before + 1); p.tick();
+    assert.equal(p.additions.length, 1);
+    assert.equal(p.additions[0].productID, '138813');
+    assert.equal(p.additions[0].beforeQuantity, before);
+    assert.equal(p.additions[0].resultingQuantity, before + 1);
+  });
+}
+
+for (const scenario of ['passive', 'synthetic', 'unrelatedClick', 'unchanged', 'navigation', 'expired', 'ended']) {
+  test(`Petbarn rejects ${scenario}`, () => {
+    const p = fixture('petbarn');
+    if (scenario !== 'passive') p.tap(scenario !== 'synthetic');
+    if (scenario === 'unrelatedClick') p.tapOther();
+    if (scenario === 'navigation') p.navigate();
+    if (scenario === 'expired') p.expire();
+    if (scenario === 'ended') p.end();
+    if (scenario !== 'unchanged') p.quantity(1);
+    p.tick(); assert.equal(p.additions.length, 0);
   });
 }
 

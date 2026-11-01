@@ -1,9 +1,26 @@
 {
-  "schemaVersion": 2, "id": "petbarn", "displayName": "Petbarn",
+  "schemaVersion": 4, "id": "petbarn", "displayName": "Petbarn",
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.petbarn.com.au",
   "allowedHosts": ["www.petbarn.com.au", "petbarn.com.au"],
   "search": {"strategy": "urlTemplate", "template": "https://www.petbarn.com.au/catalogsearch/result/q/{query}"},
   "addedColor": {"red": 170, "green": 70, "blue": 0},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "cart": {
+    "strategy": "profiled", "identityStrategy": "numericURLSuffix",
+    "tileSelector": "[data-identifier-id='product-add-to-cart']", "linkSelector": "a[href*='/p/']",
+    "productURLPattern": "^/p/[^/]+/(\\d{1,32})/?$",
+    "addSelector": "button[data-identifier-id='product-add-to-cart-button'],[data-identifier-id='quantity-selector'] button:last-child",
+    "addLabelPatterns": ["^submit$", "^\\+$"],
+    "quantitySelector": "input[type='number'][min='0']", "emptyStatusSelector": "button[data-identifier-id='product-add-to-cart-button']",
+    "emptyStatusText": "Submit", "decrementLabelPattern": "^decrease quantity$",
+    "profiles": [{
+      "id": "product-page", "scope": "productPage", "identity": "pageURL",
+      "containerSelector": "[data-identifier-id='product-add-to-cart']", "titleSelector": "h1",
+      "addSelector": "button[data-identifier-id='product-add-to-cart-button'],[data-identifier-id='quantity-selector'] button:last-child",
+      "addLabelPatterns": ["^submit$", "^\\+$"],
+      "confirmation": "quantityIncrease", "confirmationWindowMS": 15000,
+      "quantitySelector": "input[type='number'][min='0']", "emptyStatusText": "Submit"
+    }]
+  }
 }
