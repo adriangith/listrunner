@@ -540,7 +540,8 @@ struct StoreDefinition: Codable {
         if id == .waitrose { return host == "auth.waitrose.com" }
         // Bunnings establishes its website session through a silent authorization
         // frame. This is browsing-only: `allows` and automation hosts stay closed.
-        return id == .bunnings && host == "authorisation.api.bunnings.com.au"
+        if id == .bunnings { return host == "authorisation.api.bunnings.com.au" }
+        return id == .bunningsNZ && host == "authorisation.api.bunnings.co.nz"
     }
 
     func searchURL(for query: String) -> URL? {

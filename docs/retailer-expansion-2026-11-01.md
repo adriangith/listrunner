@@ -201,6 +201,18 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- Human-assisted Bunnings NZ Add did not produce an observed product quantity,
+  and opening the cart stalled. Read-only inspection of the existing frame's
+  public origin identified `authorisation.api.bunnings.co.nz` while the storefront
+  remained `www.bunnings.co.nz`. Native browsing policy previously allowed only
+  the Australian equivalent for AU. Add the exact NZ origin as a browsing-only
+  exception, never a storefront/automation/bridge origin; reject cross-region,
+  other-store, HTTP, credentials, lookalike and nonstandard-port navigation.
+  No successful cart mutation or cleanup is claimed for the stalled session;
+  native detection remains production-disabled pending real proof after the fix.
+  Temporary isolated-only blocked-host logging was built but never installed;
+  the actual frame origin was observed without restarting, and logging is removed.
+
 - JB Hi-Fi native certification completed on simulator build
   `c66d3ddbed06e5b676ec936ed0517b25543e3941`. User's Add on the exact Belkin cable
   automatically changed ListRunner to Added, reported by the user and independently

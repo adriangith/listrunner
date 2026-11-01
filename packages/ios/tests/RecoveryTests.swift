@@ -73,6 +73,29 @@ struct RecoveryTests {
             try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent($0.rawValue + ".json")))
         }
         let allProductionDefinitions = expandedDefinitions + expansionDefinitions
+        let bunningsNZ = expansionDefinitions.first { $0.id == .bunningsNZ }!
+        let nzAuthorization = URL(string: "https://authorisation.api.bunnings.co.nz/connect/authorize")!
+        check(bunningsNZ.allowsNavigation(nzAuthorization)
+              && bunningsNZ.allowsNavigation(URL(string: "https://authorisation.api.bunnings.co.nz:443/connect/authorize")!),
+              "Bunnings NZ observed silent authorization frame permits HTTPS/default port browsing")
+        check(!bunningsNZ.allows(nzAuthorization)
+              && !bunningsNZ.allowedHosts.contains("authorisation.api.bunnings.co.nz"),
+              "Bunnings NZ auth is never an automation or bridge origin")
+        check(!bunnings.allowsNavigation(nzAuthorization) && !bunningsNZ.allowsNavigation(bunningsAuthorization),
+              "AU and NZ authentication exceptions stay region-isolated")
+        for definition in allProductionDefinitions where definition.id != .bunningsNZ {
+            check(!definition.allowsNavigation(nzAuthorization), "NZ auth does not extend another retailer's browsing trust")
+        }
+        for raw in ["http://authorisation.api.bunnings.co.nz/connect/authorize",
+                    "https://authorisation.api.bunnings.co.nz:444/connect/authorize",
+                    "https://user:secret@authorisation.api.bunnings.co.nz/connect/authorize",
+                    "https://authorisation.api.bunnings.co.nz.evil.test/connect/authorize",
+                    "https://login.bunnings.co.nz/connect/authorize"] {
+            check(!bunningsNZ.allowsNavigation(URL(string: raw)!), "NZ auth exception rejects insecure and unreviewed navigation")
+        }
+        check(StoreID.bunningsNZ.ownsDataDomain("authorisation.api.bunnings.co.nz")
+              && !StoreID.bunnings.ownsDataDomain("authorisation.api.bunnings.co.nz"),
+              "NZ authorization data belongs only to the NZ session reset boundary")
         check(expansionDefinitions.count == 20 && Set(allProductionDefinitions.map(\.id)) == Set(StoreID.allCases),
               "all twenty additions and every legacy store have a canonical validated resource")
         check(StoreBrand.catalogue(allProductionDefinitions).count == 30,

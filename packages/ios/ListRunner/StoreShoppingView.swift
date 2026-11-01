@@ -2810,9 +2810,6 @@ final class StoreBrowser: ObservableObject {
     @MainActor
     private final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         weak var browser: StoreBrowser?
-        #if DEBUG
-        private var loggedBunningsNavigationHosts: Set<String> = []
-        #endif
 
         private func checkPreloadReadiness(_ webView: WKWebView, browser: StoreBrowser, attempt: Int = 0) {
             guard browser.preloadedSearch?.view === webView, !browser.preloadedSearchReady else { return }
@@ -2878,17 +2875,6 @@ final class StoreBrowser: ObservableObject {
                 return
             }
             if !browser.store.allowsNavigation(url) {
-                #if DEBUG
-                // Isolated NZ research only: identify a blocked retailer-owned
-                // auth frame without logging paths, queries, tokens or accounts.
-                if browser.uiTestMode, browser.store.id == .bunningsNZ,
-                   let host = url.host?.lowercased(),
-                   (host.hasSuffix(".bunnings.co.nz") || host.hasSuffix(".bunnings.com.au")),
-                   loggedBunningsNavigationHosts.count < 8,
-                   loggedBunningsNavigationHosts.insert(host).inserted {
-                    print("[ListRunner NZ navigation] blocked host=\(host) mainFrame=\(navigationAction.targetFrame?.isMainFrame == true)")
-                }
-                #endif
                 if navigationAction.targetFrame?.isMainFrame != false, ["https", "http"].contains(url.scheme?.lowercased() ?? "") {
                     UIApplication.shared.open(url)
                 }
