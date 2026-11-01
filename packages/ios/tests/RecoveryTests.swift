@@ -835,14 +835,16 @@ struct RecoveryTests {
         acknowledgementBridge["profileID"] = "product-card"
         acknowledgementBridge.removeValue(forKey: "beforeQuantity")
         acknowledgementBridge.removeValue(forKey: "resultingQuantity")
-        check(StoreBridge.decode(try bridgeRaw(acknowledgementBridge), store: prospectiveJB) != nil,
+        let validAcknowledgementBridge = try bridgeRaw(acknowledgementBridge)
+        check(StoreBridge.decode(validAcknowledgementBridge, store: prospectiveJB) != nil,
               "acknowledgement bridge supports reviewed nonnumeric identity without fabricated quantities")
         for (key, value) in [("productID", "unsafe/sku" as Any), ("profileID", "other" as Any),
                              ("beforeQuantity", 0 as Any), ("resultingQuantity", 1 as Any),
                              ("confirmationID", true as Any), ("injected", "field" as Any)] {
             var invalid = acknowledgementBridge
             invalid[key] = value
-            check(StoreBridge.decode(try bridgeRaw(invalid), store: prospectiveJB) == nil,
+            let raw = try bridgeRaw(invalid)
+            check(StoreBridge.decode(raw, store: prospectiveJB) == nil,
                   "acknowledgement bridge rejects invalid \(key)")
         }
         for mutation in ["schema", "quantity", "undo", "emptySuccess", "unknownKey"] {
