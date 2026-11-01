@@ -611,3 +611,15 @@ independent open-cart inspection. Production detection enabled, retailer Undo of
 The optional attach dialog is content-gated by the retailer; this profile uses the
 exact product button's stable, unclipped Added animation instead. See the ledger
 for public-source findings, runtime flags and negative clipping fixtures.
+# Bunnings NZ native cart proof — 2026-11-02
+
+Build `27bf24106a594502eaa5459f8f861becc0ae61d5` fixes the observed blocked NZ
+silent-auth frame with an exact browsing-only exception. User verified cart loaded
+empty, then one trusted Add for Craftright 8oz Steel Claw Hammer (`5660292`) changed
+the scoped quantity 0→1 and automatically updated ListRunner. Native success
+diagnostic sequence 3 and isolated SwiftData `craftright hammer / Added / bunningsNZ`
+independently confirm it. User decreased once; read-only inspection of `/cart`
+verified visible `Your cart is empty!`. Production detection enabled after proof;
+retailer-cart Undo remains disabled. Prior namespace timeout was pre-fix, not a pass.
+Auth fix passed 1,513 native checks, 244 DOM tests, synthetic proof, Debug build and
+34 bundled-resource comparisons. See expansion ledger for details and scope.

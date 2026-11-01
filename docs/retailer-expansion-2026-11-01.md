@@ -201,6 +201,22 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- Bunnings NZ native certification completed on simulator build
+  `27bf24106a594502eaa5459f8f861becc0ae61d5` after the browsing-only NZ auth-frame
+  fix. User confirmed the retailer cart now loaded empty, then returned to the
+  hammer results with ListRunner Reload. Read-only preflight confirmed the exact
+  `Craftright 8oz Steel Claw Hammer`, identity `5660292`, explicit Add/no quantity,
+  NZ host, schema 4, active probe and context receiver. One user Add changed its
+  product quantity to 1 and automatically marked the native item Added; independently
+  recorded `automation/cartDetection/succeeded` sequence 3 and isolated SwiftData
+  `craftright hammer / Added / bunningsNZ`. An earlier timeout in that namespace
+  belongs to the pre-fix failed attempt and is not counted as success. User's
+  Decrease restored zero; read-only `/cart` inspection verified visible
+  `h1[data-locator='ErrorMessage_EmptyCart']` with `Your cart is empty!`.
+  Production detector and native ceiling now enabled; retailer Undo remains off.
+  Seven of twenty expansion cart detectors are certified. Earlier inactive and
+  blocked-auth entries below describe prior revisions, not current status.
+
 - Human-assisted Bunnings NZ Add did not produce an observed product quantity,
   and opening the cart stalled. Read-only inspection of the existing frame's
   public origin identified `authorisation.api.bunnings.co.nz` while the storefront
