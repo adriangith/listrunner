@@ -586,8 +586,6 @@ final class StoreSelectionTests: XCTestCase {
             let consent = web.buttons.matching(NSPredicate(format: "label ==[c] %@", text)).firstMatch
             if consent.waitForExistence(timeout: 2) && consent.isHittable { consent.tap() }
         }
-        let expand = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Expand overlay")).firstMatch
-        if expand.exists && expand.isHittable { expand.tap() }
         if detail { link.tap() }
         // Attribute the actual trusted tap to the smallest AX container holding
         // this exact title and a single Add button. Never choose a page-wide Add.
@@ -626,12 +624,16 @@ final class StoreSelectionTests: XCTestCase {
             return
         }
         add.tap()
+        let expand = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Expand overlay")).firstMatch
+        if expand.exists && expand.isHittable { expand.tap() }
         // No native Mark Added is ever tapped: this must be detector-driven.
         let detected = app.buttons["Undo"].waitForExistence(timeout: 25)
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Live cart detector \(store): \(detected ? "confirmed" : "not confirmed")"
         attachment.lifetime = .keepAlways
         self.add(attachment)
+
+        if collapse.exists && collapse.isHittable { collapse.tap() }
 
         // Cleanup even if detector confirmation failed. A fresh guest cart has
         // no unrelated items. Never invoke checkout or change fulfilment.

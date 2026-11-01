@@ -50,6 +50,13 @@ barriers and remaining cart implementation work are recorded in
 real matching product links plus visible query reflection; Priceline has a separate
 two-query result-set check. Observational test success does not mean every retailer
 passed. `testExpansionStoreDiscoveryAndSeparateTargetBrands` is an offline UI check.
+Prospective schema-4 profiles cover Priceline, Supercheap Auto, Chemist Warehouse,
+JB Hi-Fi, Officeworks and Bunnings NZ; none is production-enabled before native
+live proof. Quantity-free acknowledgements never invent before/after totals and
+cannot reverse the retailer cart. Opt-in `testLiveStoreCart…` tests require
+`TEST_RUNNER_LISTRUNNER_LIVE_CART_STORE=<store>` when launched through xcodebuild.
+They use isolated guest storage and must verify cleanup as well as automatic
+native status changes. Ordinary tests do not contact retailers.
 Linux-compatible resource/probe/project consistency checks run with:
 
 ```sh
