@@ -5,7 +5,7 @@
   "allowedHosts": ["www.priceline.com.au", "priceline.com.au"],
   "search": {"strategy": "urlTemplate", "template": "https://www.priceline.com.au/search?query={query}"},
   "addedColor": {"red": 194, "green": 0, "blue": 105},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "capabilities": {"search": true, "cartDetection": true, "cartUndo": false},
   "cart": {
     "strategy": "profiled", "identityStrategy": "numericURLSuffix",
     "tileSelector": ".card", "linkSelector": "a[href*='/product/']",

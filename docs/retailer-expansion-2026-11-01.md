@@ -141,10 +141,11 @@ observations alone do not enable iOS capabilities:
 - CVS explicitly reports that the site is unavailable outside US/US territories.
   No geographic bypass was attempted.
 
-## Cart investigation — no new detection certified
+## Cart investigation — Priceline certified; nineteen remain
 
-All twenty new destinations currently keep cart detection and cart Undo disabled
-in both JSON and native ceilings. The engine now supports schema-4 product-linked
+Priceline cart detection is certified and enabled in JSON and native ceilings.
+The other nineteen new destinations keep detection disabled; all twenty keep
+retailer-cart Undo disabled. The engine now supports schema-4 product-linked
 receipt quantities, tightly allowlisted Priceline image identity, bounded captured
 URL-component identities, and explicit quantity-free product acknowledgements.
 Prospective profiles are not enabled production integrations.
@@ -199,6 +200,15 @@ certification follows from the failed sessions.
   sign-off. Do not install a build to a physical phone merely to claim testing.
 
 ### Follow-up implementation and live evidence
+
+- **Priceline native live PASS** at `b01ff2835732d0940f1c8024b1cf74b1cfe7a832`:
+  `LIVE_CART_NATIVE_PROBE store=priceline, detected=true, cleanupVerified=true`.
+  On existing iPhone 17/iOS 27 simulator, trusted Add for PRO:VOKE Touch Of Silver
+  Brightening Shampoo 50mL (`39390`) triggered native ListRunner Undo without
+  tapping Mark Added. Test removed that guest item and verified removal.
+  XCTest passed (not skipped), 533.694 seconds. Evidence:
+  `~/Library/Logs/ListRunner-Finish-Cart-priceline-b01ff28.{log,xcresult}` on Mac.
+  Production detector enabled afterward; retailer-cart Undo remains disabled.
 
 - `3ef44f8c59c9068980c73037b7249493bbcdfa31`: prospective Priceline and
   Supercheap profiles, schema-4 foundations and isolated live-test gate. The gate
