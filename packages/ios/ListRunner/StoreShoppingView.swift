@@ -1591,6 +1591,21 @@ final class StoreBrowser: ObservableObject {
           for (let current = element; current; current = current.parentElement) {
             const style = getComputedStyle(current);
             if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) === 0) return false;
+            // Retailers can keep a success label in the DOM, translated outside
+            // an overflow-clipped Add button. Its centre must actually enter
+            // every clipping ancestor; layout rectangles alone are not proof.
+            if (current !== element) {
+              const clipsX = ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowX);
+              const clipsY = ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowY);
+              if (clipsX || clipsY) {
+                const bounds = current.getBoundingClientRect();
+                const label = element.getBoundingClientRect();
+                if (label.width <= 0 || label.height <= 0) return false;
+                const x = label.left + label.width / 2, y = label.top + label.height / 2;
+                if ((clipsX && (x <= bounds.left || x >= bounds.right)) ||
+                    (clipsY && (y <= bounds.top || y >= bounds.bottom))) return false;
+              }
+            }
           }
           return true;
         };

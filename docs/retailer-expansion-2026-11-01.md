@@ -201,6 +201,37 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- Human-assisted JB Hi-Fi investigation after the stalled automated navigation:
+  exact Belkin Hi Speed USB Cable (1.8 Metres), product identity
+  `belkin-hi-speed-usb-cable-1-8-metres`. User confirmed empty cart, tapped Add,
+  and subsequently confirmed removal/empty cart after each research cycle.
+  Native isolated item remained Pending on the original profile; no successful
+  cart-detection diagnostic was recorded. An interrupted page-close/reopen cycle
+  was inconclusive, not a pass. A bounded isolated-world diagnostic subsequently
+  captured trusted product-specific Add, matching label and exact success content,
+  but the attach panel stayed explicitly hidden. No production detection enabled.
+- Public JB bundle `bundle.8454fa42034900eb.js` gates the attach panel on requested
+  open, eligible attach content and completion of three loading flags. The panel
+  renders success content even when closed. Its recommendation hook is disabled
+  on mobile when `isEnhancedGoogleRecommendationsEnabled` is true, leaving services
+  or trade-in content as alternative eligibility routes. Read-only simulator
+  configuration confirmed that flag true, mobile layout, productAttach enabled,
+  search attach enabled, and closed drawer class `xgt6632`. No direct Safari/WK
+  browser guard was found in the opening chain. This supports retailer-side
+  conditional presentation, not proof of the exact difference from the user's
+  Safari session (different product/session). No flags, cookies or page styles
+  were changed to force the panel open.
+- Observed the cable's actual product-card button success transition: `Added` is
+  permanently present but translated above an overflow-hidden button before Add
+  (`top -47`, height 48, only 1px overlap). Following trusted Add it moves inside
+  (`top 1`, height 48) before returning outside. Revised inactive JB profile
+  acknowledges exact product-card title plus stable, unclipped button `Added`,
+  with no invented quantities or retailer Undo. Generic acknowledgement visibility
+  now rejects labels whose centre falls outside any clipping ancestor. Fixtures
+  reject baseline/one-pixel overlap, horizontal/vertical clipping, zero-sized,
+  unstable, stale and unrelated success. This change still needs native proof
+  with the user before enabling JB Hi-Fi.
+
 - Waitrose native certification completed on the simulator build of `0ca7f554ce2b72296483c35ca0acaf2412b1e544`.
   Read-only isolated-world preflight confirmed schema 4, active cart detection,
   context receiver and unapplied-Update guard. Starting exact milk card had Add,

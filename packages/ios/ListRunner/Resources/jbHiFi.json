@@ -19,9 +19,9 @@
       "addSelector": "button[data-testid='product-card-actions']", "addLabelPatterns": ["^add to cart(?:\\s*added)?$"],
       "confirmation": "productAcknowledgement", "confirmationWindowMS": 15000,
       "acknowledgement": {
-        "selector": "[data-testid='slideout-added-to-cart-alert']",
-        "successSelector": "[data-testid='slideout-added-to-cart-alert-heading']", "successText": "Item added to your cart!",
-        "titleSelector": "[data-testid='slideout-product-title']", "failureSelector": "[role='alert'],[data-testid*='error']"
+        "selector": "[data-testid='product-card-content']",
+        "successSelector": "button[data-testid='product-card-actions'] span", "successText": "Added",
+        "titleSelector": "[data-testid='product-card-title']", "failureSelector": "[role='alert'],[data-testid*='error']"
       }
     }]
   }
