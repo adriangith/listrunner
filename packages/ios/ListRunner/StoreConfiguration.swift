@@ -280,15 +280,24 @@ struct StoreDefinition: Codable {
     }
     struct Cart: Codable {
         enum Strategy: String, Codable { case trustedTileQuantity, profiled }
-        enum IdentityStrategy: String, Codable { case numericURLSuffix }
+        enum IdentityStrategy: String, Codable { case numericURLSuffix, capturedURLComponent }
         struct DetectionProfile: Codable {
             enum Scope: String, Codable { case productCard, productPage }
             enum Identity: String, Codable { case cardLink, pageURL }
             enum Confirmation: String, Codable { case productReceipt, quantityIncrease }
             struct Receipt: Codable {
+                struct ImageIdentity: Codable {
+                    let selector: String
+                    let allowedHosts: [String]
+                    let productURLPattern: String
+                }
                 let selector: String
                 let successText: String
-                let quantityPattern: String
+                let quantityPattern: String?
+                var productSelector: String? = nil
+                var quantitySelector: String? = nil
+                var imageIdentity: ImageIdentity? = nil
+                var failureSelector: String? = nil
             }
             struct Undo: Codable {
                 let decrementSelector: String
@@ -390,7 +399,7 @@ struct StoreDefinition: Codable {
     func validate() throws {
         let countries = serviceArea.countryCodes
         let supportedCountryCodes = Set(Locale.Region.isoRegions.map(\.identifier))
-        guard [2, 3].contains(schemaVersion), displayName == id.displayName,
+        guard [2, 3, 4].contains(schemaVersion), displayName == id.displayName,
               !countries.isEmpty, Set(countries).count == countries.count,
               countries.allSatisfy({ $0.range(of: "^[A-Z]{2}$", options: .regularExpression) != nil
                   && supportedCountryCodes.contains($0) }),
@@ -411,7 +420,12 @@ struct StoreDefinition: Codable {
               !capabilities.cartDetection || cart != nil else { throw ConfigurationError.invalid }
         if let cart {
             guard (schemaVersion == 2 && cart.strategy == .trustedTileQuantity && cart.profiles == nil)
-                || (schemaVersion == 3 && cart.strategy == .profiled && cart.profiles?.isEmpty == false) else { throw ConfigurationError.invalid }
+                || ([3, 4].contains(schemaVersion) && cart.strategy == .profiled && cart.profiles?.isEmpty == false) else { throw ConfigurationError.invalid }
+            guard schemaVersion == 4 || cart.identityStrategy == .numericURLSuffix else { throw ConfigurationError.invalid }
+            if cart.identityStrategy == .capturedURLComponent {
+                guard [.officeworks, .jbHiFi, .petbarn, .sainsburys, .walgreens, .boots, .theWarehouse].contains(id),
+                      !capabilities.cartUndo else { throw ConfigurationError.invalid }
+            }
             for selector in [cart.tileSelector, cart.linkSelector, cart.addSelector, cart.quantitySelector, cart.emptyStatusSelector] {
                 guard !selector.isEmpty, selector.utf8.count <= 1_024 else { throw ConfigurationError.invalid }
             }
@@ -431,7 +445,7 @@ struct StoreDefinition: Codable {
                             || (profile.scope == .productPage && profile.identity == .pageURL),
                           (500...15_000).contains(profile.confirmationWindowMS),
                           !profile.addLabelPatterns.isEmpty else { throw ConfigurationError.invalid }
-                    for selector in [profile.containerSelector, profile.titleSelector, profile.addSelector] + [profile.quantitySelector, profile.receipt?.selector].compactMap({ $0 }) {
+                    for selector in [profile.containerSelector, profile.titleSelector, profile.addSelector] + [profile.quantitySelector, profile.receipt?.selector, profile.receipt?.productSelector, profile.receipt?.quantitySelector, profile.receipt?.failureSelector].compactMap({ $0 }) {
                         guard !selector.isEmpty, selector.utf8.count <= 1_024 else { throw ConfigurationError.invalid }
                     }
                     for pattern in profile.addLabelPatterns {
@@ -441,10 +455,24 @@ struct StoreDefinition: Codable {
                     switch profile.confirmation {
                     case .productReceipt:
                         guard let receipt = profile.receipt, profile.quantitySelector == nil, profile.emptyStatusText == nil, profile.undo == nil,
-                              !receipt.successText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                              receipt.successText.utf8.count <= 256,
-                              receipt.quantityPattern.utf8.count <= 512,
-                              try NSRegularExpression(pattern: receipt.quantityPattern).numberOfCaptureGroups == 1 else { throw ConfigurationError.invalid }
+                               !receipt.successText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                               receipt.successText.utf8.count <= 256 else { throw ConfigurationError.invalid }
+                        if let pattern = receipt.quantityPattern {
+                            guard receipt.productSelector == nil, receipt.quantitySelector == nil, receipt.imageIdentity == nil, receipt.failureSelector == nil,
+                                  pattern.utf8.count <= 512,
+                                  try NSRegularExpression(pattern: pattern).numberOfCaptureGroups == 1 else { throw ConfigurationError.invalid }
+                        } else {
+                            guard schemaVersion == 4, receipt.productSelector != nil,
+                                  receipt.quantitySelector != nil, receipt.failureSelector != nil else { throw ConfigurationError.invalid }
+                        }
+                        if let image = receipt.imageIdentity {
+                            guard schemaVersion == 4, id == .priceline,
+                                  image.allowedHosts == ["api.priceline.com.au"],
+                                  !image.selector.isEmpty, image.selector.utf8.count <= 1_024,
+                                  image.productURLPattern.utf8.count <= 512,
+                                  image.productURLPattern.hasPrefix("^"), image.productURLPattern.hasSuffix("$"),
+                                  try NSRegularExpression(pattern: image.productURLPattern).numberOfCaptureGroups == 1 else { throw ConfigurationError.invalid }
+                        }
                     case .quantityIncrease:
                         guard profile.quantitySelector != nil, profile.receipt == nil else { throw ConfigurationError.invalid }
                     }
@@ -468,7 +496,7 @@ struct StoreDefinition: Codable {
                     }
                 }
             }
-        } else if schemaVersion == 3 {
+        } else if [3, 4].contains(schemaVersion) {
             throw ConfigurationError.invalid
         }
     }
@@ -497,6 +525,16 @@ struct StoreDefinition: Codable {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
         guard let encoded = query.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
         return URL(string: search.template.replacingOccurrences(of: "{query}", with: encoded))
+    }
+
+    func acceptsProductIdentity(_ value: String) -> Bool {
+        if schemaVersion == 4 && cart?.identityStrategy == .capturedURLComponent {
+            let bytes = Array(value.utf8)
+            let isAlphanumeric: (UInt8) -> Bool = { (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0) }
+            guard (1...256).contains(bytes.count), let first = bytes.first, isAlphanumeric(first) else { return false }
+            return bytes.allSatisfy { isAlphanumeric($0) || $0 == 45 || $0 == 95 }
+        }
+        return !value.isEmpty && value.utf8.count <= 32 && value.utf8.allSatisfy { (48...57).contains($0) }
     }
 
     static func load(_ id: StoreID, bundle: Bundle = .main) -> StoreDefinition {
@@ -578,7 +616,9 @@ struct StoreDefinition: Codable {
                     throw ConfigurationError.invalid
                 }
                 if let receipt = profile["receipt"], !(receipt is NSNull),
-                   !hasOnlyKeys(receipt as? [String: Any], ["selector", "successText", "quantityPattern"]) { throw ConfigurationError.invalid }
+                   !hasOnlyKeys(receipt as? [String: Any], ["selector", "successText", "quantityPattern", "productSelector", "quantitySelector", "imageIdentity", "failureSelector"]) { throw ConfigurationError.invalid }
+                if let receipt = profile["receipt"] as? [String: Any], let image = receipt["imageIdentity"], !(image is NSNull),
+                   !hasOnlyKeys(image as? [String: Any], ["selector", "allowedHosts", "productURLPattern"]) { throw ConfigurationError.invalid }
                 if let undo = profile["undo"], !(undo is NSNull),
                    !hasOnlyKeys(undo as? [String: Any], ["decrementSelector", "decrementLabelPattern"]) { throw ConfigurationError.invalid }
                 if let setup = profile["setupPrompt"], !(setup is NSNull),

@@ -1,9 +1,24 @@
 {
-  "schemaVersion": 2, "id": "supercheapAuto", "displayName": "Supercheap Auto",
+  "schemaVersion": 4, "id": "supercheapAuto", "displayName": "Supercheap Auto",
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.supercheapauto.com.au",
   "allowedHosts": ["www.supercheapauto.com.au", "supercheapauto.com.au"],
   "search": {"strategy": "urlTemplate", "template": "https://www.supercheapauto.com.au/search?q={query}"},
   "addedColor": {"red": 198, "green": 12, "blue": 48},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "cart": {
+    "strategy": "profiled", "identityStrategy": "numericURLSuffix",
+    "tileSelector": ".product-tile", "linkSelector": "a[href*='/p/']",
+    "productURLPattern": "^/p/[^/]+/(\\d{1,32})\\.html$",
+    "addSelector": "button.atc-button", "addLabelPatterns": ["^add to cart$"],
+    "quantitySelector": "input.in-cart-quantity-input", "emptyStatusSelector": "button.atc-button",
+    "emptyStatusText": "Add To Cart", "decrementLabelPattern": "^decrease quantity$",
+    "profiles": [{
+      "id": "product-card", "scope": "productCard", "identity": "cardLink",
+      "containerSelector": ".product-tile", "titleSelector": "a.name-link",
+      "addSelector": "button.atc-button", "addLabelPatterns": ["^add to cart$"],
+      "confirmation": "quantityIncrease", "confirmationWindowMS": 15000,
+      "quantitySelector": "input.in-cart-quantity-input"
+    }]
+  }
 }

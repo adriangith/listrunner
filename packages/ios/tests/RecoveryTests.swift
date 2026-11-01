@@ -122,6 +122,43 @@ struct RecoveryTests {
         check(StoreID.morrisons.ownsDataDomain("morrisons.com") && StoreID.asda.ownsDataDomain("asda.com")
               && !StoreID.morrisons.hosts.contains("www.morrisons.com"),
               "root-domain website data resets do not widen subdomain-only browsing trust")
+        let prospectivePriceline = expansionDefinitions.first { $0.id == .priceline }!
+        let prospectiveSupercheap = expansionDefinitions.first { $0.id == .supercheapAuto }!
+        check(prospectivePriceline.schemaVersion == 4 && prospectivePriceline.cart?.profiles?.first?.receipt?.imageIdentity?.allowedHosts == ["api.priceline.com.au"],
+              "Priceline's linkless receipt has an explicitly bounded image-identity source")
+        for mutation in ["oldSchema", "foreignImage", "missingRow", "missingQuantity", "mixedQuantityModes", "unknownImageKey"] {
+            var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(prospectivePriceline)) as! [String: Any]
+            var cart = object["cart"] as! [String: Any]
+            var profiles = cart["profiles"] as! [[String: Any]]
+            var receipt = profiles[0]["receipt"] as! [String: Any]
+            var image = receipt["imageIdentity"] as! [String: Any]
+            switch mutation {
+            case "oldSchema": object["schemaVersion"] = 3
+            case "foreignImage": image["allowedHosts"] = ["evil.test"]
+            case "missingRow": receipt.removeValue(forKey: "productSelector")
+            case "missingQuantity": receipt.removeValue(forKey: "quantitySelector")
+            case "mixedQuantityModes": receipt["quantityPattern"] = "qty ([0-9]+)"
+            default: image["script"] = "arbitrary code"
+            }
+            receipt["imageIdentity"] = image; profiles[0]["receipt"] = receipt
+            cart["profiles"] = profiles; object["cart"] = cart
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: object))) == nil,
+                  "schema-4 receipt rejects \(mutation)")
+        }
+        var componentObject = try JSONSerialization.jsonObject(with: JSONEncoder().encode(expansionDefinitions.first { $0.id == .officeworks }!)) as! [String: Any]
+        componentObject["schemaVersion"] = 4
+        var componentCart = try JSONSerialization.jsonObject(with: JSONEncoder().encode(prospectiveSupercheap.cart!)) as! [String: Any]
+        componentCart["identityStrategy"] = "capturedURLComponent"
+        componentCart["productURLPattern"] = "^/shop/officeworks/p/([A-Za-z0-9_-]{1,256})$"
+        componentObject["cart"] = componentCart
+        let componentDefinition = try StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: componentObject))
+        check(componentDefinition.acceptsProductIdentity("keji-ballpoint-pens-keka1271as")
+              && componentDefinition.acceptsProductIdentity(String(repeating: "x", count: 256)), "reviewed schema-4 identities support bounded nonnumeric SKUs")
+        for value in ["", "-sku", "_sku", "../sku", "sku/path", "sku%2Fpath", "café", "sku\n", String(repeating: "x", count: 257)] {
+            check(!componentDefinition.acceptsProductIdentity(value), "native bridge refuses unsafe captured product identity")
+        }
+        check(!prospectiveSupercheap.acceptsProductIdentity("sku") && prospectiveSupercheap.acceptsProductIdentity("733022"),
+              "numeric stores do not inherit captured SKU identity validation")
         check(Set(StoreID.allCases.map(\.listID)).count == StoreID.allCases.count
               && Set(StoreID.allCases.map(\.websiteDataID)).count == StoreID.allCases.count,
               "all store and regional list/session identities remain unique")

@@ -218,6 +218,14 @@ final class StoreSelectionTests: XCTestCase {
         app = XCUIApplication()
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
+        if name.contains("LiveStoreCart") {
+            let store = name.contains("Priceline") ? "priceline" : "supercheapAuto"
+            guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_CART_STORE"] == store else {
+                throw XCTSkip("Live cart mutation requires explicit single-store opt-in")
+            }
+            app.launchEnvironment["LISTRUNNER_LIVE_CART_PROBE"] = store
+            app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
+        }
         if name.contains("FullyRevealed") || name.contains("AlreadyVisibleNewItem") || name.contains("FocusedProductEntry") {
             app.launchEnvironment["LISTRUNNER_REVEAL_TEST_FIXTURE"] = "enabled"
         }
@@ -531,6 +539,86 @@ final class StoreSelectionTests: XCTestCase {
     // pattern the previous Shopping country row used.
     private func manageRow(_ store: String) -> XCUIElement {
         app.descendants(matching: .any)["manage-store-\(store)"].firstMatch
+    }
+
+    func testLiveStoreCartPriceline() throws {
+        try liveStoreCart(store: "priceline", query: "PRO:VOKE Touch Of Silver Brightening Shampoo 50mL",
+                          product: "PRO:VOKE Touch Of Silver Brightening Shampoo 50mL")
+    }
+
+    func testLiveStoreCartSupercheap() throws {
+        try liveStoreCart(store: "supercheapAuto", query: "SCA Car Wash Concentrate 1 Litre",
+                          product: "SCA Car Wash Concentrate 1 Litre")
+    }
+
+    private func liveStoreCart(store: String, query: String, product: String) throws {
+        // Each run uses the existing isolated UI-test UUID and a fresh,
+        // nonpersistent website store. Never use a person's real cart/login.
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility(store, shown: true)
+        tapNavigationBack()
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap(); input.typeText(query)
+        app.buttons["Add Items"].tap()
+        app.buttons["Show Store"].tap()
+        let web = app.webViews.firstMatch
+        XCTAssertTrue(web.waitForExistence(timeout: 10))
+        let link = web.links[product].firstMatch
+        XCTAssertTrue(link.waitForExistence(timeout: 60), web.debugDescription)
+        for text in ["Accept essential only", "Reject All", "CLOSE"] {
+            let consent = web.buttons.matching(NSPredicate(format: "label ==[c] %@", text)).firstMatch
+            if consent.exists && consent.isHittable { consent.tap() }
+        }
+        // Attribute the actual trusted tap to the smallest AX container holding
+        // this exact title and a single Add button. Never choose a page-wide Add.
+        let addPredicate = NSPredicate(format: "label MATCHES[c] %@", ".*Add (?:to|To) (?:cart|Cart).*")
+        func matchingAdd() -> XCUIElement? {
+            web.otherElements.containing(.link, identifier: product).allElementsBoundByIndex
+                .filter { $0.frame.height > 0 && $0.frame.height < 900 && $0.buttons.matching(addPredicate).count == 1 }
+                .sorted { $0.frame.height < $1.frame.height }
+                .first?.buttons.matching(addPredicate).firstMatch
+        }
+        var add = matchingAdd()
+        for _ in 0..<7 {
+            if let button = add, button.isHittable, button.frame.minY > web.frame.minY + 60,
+               button.frame.maxY < app.frame.maxY - 230 { break }
+            if let button = add, button.frame.midY < web.frame.minY + 60 { web.swipeDown() }
+            else { web.swipeUp() }
+            add = matchingAdd()
+        }
+        guard let add, add.exists && add.isHittable else {
+            XCTFail("No uniquely product-scoped visible Add; no cart mutation attempted. \(web.debugDescription)")
+            return
+        }
+        add.tap()
+        // No native Mark Added is ever tapped: this must be detector-driven.
+        let detected = app.buttons["Undo"].waitForExistence(timeout: 25)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Live cart detector \(store): \(detected ? "confirmed" : "not confirmed")"
+        attachment.lifetime = .keepAlways
+        self.add(attachment)
+
+        // Cleanup even if detector confirmation failed. A fresh guest cart has
+        // no unrelated items. Never invoke checkout or change fulfilment.
+        if store == "priceline" {
+            let remove = web.buttons["Remove Product from Cart"].firstMatch
+            XCTAssertTrue(remove.waitForExistence(timeout: 15), "Could not locate our test product for cleanup")
+            if remove.exists && remove.isHittable { remove.tap() }
+            let removed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: remove)
+            XCTAssertEqual(XCTWaiter.wait(for: [removed], timeout: 15), .completed)
+        } else {
+            let viewCart = web.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "View Cart")).firstMatch
+            XCTAssertTrue(viewCart.waitForExistence(timeout: 15), "Could not reach test-cart cleanup")
+            if viewCart.exists && viewCart.isHittable { viewCart.tap() }
+            let remove = web.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Remove")).firstMatch
+            XCTAssertTrue(remove.waitForExistence(timeout: 20))
+            if remove.exists && remove.isHittable { remove.tap() }
+            XCTAssertTrue(web.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "Shopping Cart is Empty")).firstMatch.waitForExistence(timeout: 20))
+        }
+        XCTAssertTrue(detected, "A website Add is not native ListRunner detector certification")
+        print("LIVE_CART_NATIVE_PROBE store=\(store), detected=\(detected), cleanupChecksCompleted=true")
     }
 
     func testExpansionStoreDiscoveryAndSeparateTargetBrands() {

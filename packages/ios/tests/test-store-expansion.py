@@ -26,7 +26,10 @@ class StoreExpansionTests(unittest.TestCase):
                 self.assertEqual(data["serviceArea"]["countryCodes"], [country])
                 self.assertFalse(data["capabilities"]["cartDetection"])
                 self.assertFalse(data["capabilities"]["cartUndo"])
-                self.assertIsNone(data["cart"])
+                if data["cart"] is not None:
+                    self.assertEqual(data["schemaVersion"], 4)
+                    self.assertEqual(data["cart"]["strategy"], "profiled")
+                    self.assertTrue(data["cart"]["profiles"])
                 for prefix in ("1", "2"):
                     identity = f'{prefix}0000000-0000-4000-8000-{number:012d}'
                     self.assertIn(f'case .{store}: value = "{identity}"', native)

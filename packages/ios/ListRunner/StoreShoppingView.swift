@@ -1312,6 +1312,10 @@ final class StoreBrowser: ObservableObject {
         }
         return null;
       };
+      const validProductIdentity = value => typeof value === 'string' &&
+        (config.schemaVersion === 4 && rules.identityStrategy === 'capturedURLComponent'
+          ? value.length <= 256 && /^[A-Za-z0-9]/.test(value) && !/[^A-Za-z0-9_-]/.test(value)
+          : value.length >= 1 && value.length <= 32 && !/[^0-9]/.test(value));
       const linkedProductIDs = root => {
         const ids = new Set();
         const links = deepQueryAll(root, rules.linkSelector);
@@ -1322,14 +1326,14 @@ final class StoreBrowser: ObservableObject {
             if (url.protocol !== 'https:' || !config.allowedHosts.includes(url.hostname.toLowerCase()) ||
                 (url.port && url.port !== '443') || url.username || url.password) continue;
             const match = url.pathname.match(productLinkPattern);
-            if (match && /^\d{1,32}$/.test(match[1])) ids.add(match[1]);
+            if (match && validProductIdentity(match[1])) ids.add(match[1]);
           } catch (_) {}
         }
         return ids;
       };
       const bunningsPageProductID = () => {
         const match = location.pathname.match(productLinkPattern);
-        return match && /^\d{1,32}$/.test(match[1]) ? match[1] : null;
+        return match && validProductIdentity(match[1]) ? match[1] : null;
       };
       const isPageBoundary = element => element === document.body || element === document.documentElement ||
         String(element.tagName || '').toLowerCase() === 'main';
@@ -1469,7 +1473,9 @@ final class StoreBrowser: ObservableObject {
       const profileName = (root, profile) => {
         // Responsive pages may duplicate the same heading. Different names are
         // ambiguous; never choose an arbitrary page title or seller badge.
-        const names = new Set(deepQueryAll(root, profile.titleSelector)
+        const titles = deepQueryAll(root, profile.titleSelector);
+        if (config.schemaVersion === 4 && root.matches?.(profile.titleSelector)) titles.unshift(root);
+        const names = new Set(titles
           .map(title => normalize(title.textContent)).filter(Boolean));
         return names.size === 1 ? [...names][0] : null;
       };
@@ -1503,12 +1509,45 @@ final class StoreBrowser: ObservableObject {
         // Overlapping profile rules fail closed rather than guessing precedence.
         return matches.length === 1 ? matches[0] : null;
       };
-      const profileReceipt = (profile, name) => {
+      const profileReceipt = (profile, name, id) => {
         for (const root of deepQueryAll(document, profile.receipt.selector)) {
           const text = normalize(root.innerText || root.textContent);
           const start = text.lastIndexOf(normalize(profile.receipt.successText));
           if (start < 0) continue;
           const receipt = text.slice(start);
+          if (config.schemaVersion === 4 && profile.receipt.productSelector && profile.receipt.quantitySelector) {
+            if (!root.getClientRects().length || getComputedStyle(root).visibility === 'hidden') continue;
+            if (deepQueryAll(root, profile.receipt.failureSelector).some(error => error.getClientRects().length &&
+                getComputedStyle(error).visibility !== 'hidden' && normalize(error.innerText || error.textContent))) continue;
+            const rows = deepQueryAll(root, profile.receipt.productSelector).filter(row => {
+              const ids = linkedProductIDs(row);
+              const imageRule = profile.receipt.imageIdentity;
+              if (imageRule) {
+                for (const image of deepQueryAll(row, imageRule.selector)) {
+                  try {
+                    const url = new URL(image.getAttribute('src'), location.href);
+                    if (url.protocol !== 'https:' || !imageRule.allowedHosts.includes(url.hostname.toLowerCase()) ||
+                        url.username || url.password || (url.port && url.port !== '443')) continue;
+                    const match = url.pathname.match(new RegExp(imageRule.productURLPattern));
+                    if (match && validProductIdentity(match[1])) ids.add(match[1]);
+                  } catch (_) {}
+                }
+              }
+              return row.getClientRects().length && getComputedStyle(row).visibility !== 'hidden'
+                && ids.size === 1 && ids.has(id) && normalize(row.innerText || row.textContent).includes(name);
+            });
+            if (rows.length !== 1) continue;
+            const inputs = deepQueryAll(rows[0], profile.receipt.quantitySelector)
+              .filter(input => input.getClientRects().length && getComputedStyle(input).visibility !== 'hidden');
+            if (!inputs.length) continue;
+            const values = inputs.map(input => input.value || input.getAttribute('aria-valuenow'));
+            if (values.some(value => value === null || value === '' || !/^\d{1,4}$/.test(String(value)))) continue;
+            const quantities = new Set(values.map(Number));
+            if (quantities.size !== 1) continue;
+            const value = [...quantities][0];
+            if (value > 0 && value <= 9999) return { text: `${receipt}|product:${id}|quantity:${value}`, quantity: value };
+            continue;
+          }
           const qty = receipt.match(new RegExp(profile.receipt.quantityPattern));
           if (!qty || !receipt.includes(name)) continue;
           const value = Number(qty[1]);
@@ -1592,7 +1631,7 @@ final class StoreBrowser: ObservableObject {
           if (candidate !== checkingCandidate) return;
           if (!candidateIsValid(checkingCandidate)) return;
           if (checkingCandidate.profile?.confirmation === 'productReceipt') {
-            const receipt = profileReceipt(checkingCandidate.profile, checkingCandidate.productName);
+            const receipt = profileReceipt(checkingCandidate.profile, checkingCandidate.productName, checkingCandidate.productID);
             if (receipt && receipt.text !== checkingCandidate.initialToast) {
               if (checkingCandidate.lastReceipt === receipt.text) checkingCandidate.stableCount++;
               else { checkingCandidate.lastReceipt = receipt.text; checkingCandidate.stableCount = 1; }
@@ -1717,6 +1756,9 @@ final class StoreBrowser: ObservableObject {
         // cannot arm add detection or recursively create an Undo record.
         reversal = null;
         if (!context) return;
+        // A second real action, including manually opening an old cart receipt,
+        // cannot complete a previous Add. Synthetic site updates do not arm it.
+        if (config.schemaVersion === 4) candidate = null;
         // Events from web components are retargeted at each shadow boundary. The
         // composed path retains the original trusted control for exact attribution.
         const origin = event.composedPath?.().find(node => node instanceof Element) || event.target;
@@ -1732,7 +1774,7 @@ final class StoreBrowser: ObservableObject {
           // guessed zero is allowed. Receipt profiles defer both bridge messages.
           if (profile.confirmation === 'quantityIncrease' && before === null) return;
           candidate = { ...resolved, control, before, pageURL: location.href,
-            initialToast: profile.confirmation === 'productReceipt' ? profileReceipt(profile, name)?.text || null : null,
+            initialToast: profile.confirmation === 'productReceipt' ? profileReceipt(profile, name, id)?.text || null : null,
             expires: Date.now() + profile.confirmationWindowMS,
             setupDeadline: Date.now() + (profile.setupPrompt?.maximumWaitMS || 0), stableCount: 0, checking: false };
           if (before !== null && !profile.setupPrompt) post('cartInteractionStarted', { productID: id, beforeQuantity: before, intent: before === 0 ? 'add' : 'increment' });
@@ -1768,7 +1810,29 @@ final class StoreBrowser: ObservableObject {
     })();
     """#
 
-    init(store: StoreDefinition, websiteDataStore: WKWebsiteDataStore, diagnostics: DiagnosticStore) {
+    private var isLiveCartProbe: Bool {
+        #if DEBUG
+        return uiTestMode && !websiteDataStore.isPersistent && store.schemaVersion == 4 && store.cart != nil &&
+            ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_CART_PROBE"] == store.id.rawValue
+        #else
+        return false
+        #endif
+    }
+
+    init(store suppliedStore: StoreDefinition, websiteDataStore: WKWebsiteDataStore, diagnostics: DiagnosticStore) {
+        var store = suppliedStore
+        #if DEBUG
+        // Prospective bundled profiles can be tested through the real native
+        // bridge without raising production ceilings. This requires BOTH an
+        // isolated UI-test UUID (therefore a nonpersistent data store) and an
+        // explicit single-store live opt-in. Ordinary/offline tests stay offline.
+        if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"].flatMap(UUID.init(uuidString:)) != nil,
+           ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_CART_PROBE"] == store.id.rawValue,
+           store.schemaVersion == 4, store.cart != nil, !websiteDataStore.isPersistent {
+            store.capabilities.cartDetection = true
+            store.capabilities.cartUndo = false
+        }
+        #endif
         self.store = store
         self.websiteDataStore = websiteDataStore
         self.intendedURL = store.homepage
@@ -1897,6 +1961,7 @@ final class StoreBrowser: ObservableObject {
     }
 
     func preloadSearch(itemID: UUID, searchTerm: String) {
+        guard !isLiveCartProbe else { return }
         cancelPreload()
         guard canPresentStore, storeRecovery == nil, !siteVerificationRequired else {
             logPreload("Skipped: store is unavailable or verification is active")
@@ -2278,7 +2343,7 @@ final class StoreBrowser: ObservableObject {
         #endif
         hasLoaded = true
         let navigation: WKNavigation?
-        if uiTestMode {
+        if uiTestMode && !isLiveCartProbe {
             // Deterministic UI fixtures never contact a retailer or a real account.
             let verificationFixture = ProcessInfo.processInfo.environment["LISTRUNNER_VERIFICATION_TEST_FIXTURE"] == "enabled"
             let html = verificationFixture
@@ -2547,7 +2612,7 @@ final class StoreBrowser: ObservableObject {
         let commonKeys: Set<String> = ["schemaVersion", "type", "storeID", "sessionID", "interactionID", "itemID", "documentGeneration", "pageURL"]
         if type == "cartInteractionStarted" {
             guard Set(object.keys) == commonKeys.union(["productID", "beforeQuantity", "intent"]),
-                  let productID = object["productID"] as? String, Self.validProductID(productID),
+                  let productID = object["productID"] as? String, store.acceptsProductIdentity(productID),
                   let before = object["beforeQuantity"] as? Int, (0...9999).contains(before),
                   let intent = object["intent"] as? String,
                   intent == (before == 0 ? "add" : "increment") else { return }

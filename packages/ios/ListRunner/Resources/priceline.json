@@ -1,9 +1,30 @@
 {
-  "schemaVersion": 2, "id": "priceline", "displayName": "Priceline",
+  "schemaVersion": 4, "id": "priceline", "displayName": "Priceline",
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.priceline.com.au",
   "allowedHosts": ["www.priceline.com.au", "priceline.com.au"],
   "search": {"strategy": "urlTemplate", "template": "https://www.priceline.com.au/search?query={query}"},
   "addedColor": {"red": 194, "green": 0, "blue": 105},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "cart": {
+    "strategy": "profiled", "identityStrategy": "numericURLSuffix",
+    "tileSelector": ".card", "linkSelector": "a[href*='/product/']",
+    "productURLPattern": "^/product/(\\d{1,32})/[^/]+/?$",
+    "addSelector": "api-add-to-cart button[type='submit']", "addLabelPatterns": ["^add to cart$"],
+    "quantitySelector": "input[aria-label='Quantity']", "emptyStatusSelector": "api-add-to-cart button[type='submit']",
+    "emptyStatusText": "Add to cart", "decrementLabelPattern": "^remove one$",
+    "profiles": [{
+      "id": "product-card", "scope": "productCard", "identity": "cardLink",
+      "containerSelector": ".card", "titleSelector": "a[href*='/product/']",
+      "addSelector": "api-add-to-cart button[type='submit']", "addLabelPatterns": ["^add to cart$"],
+      "confirmation": "productReceipt", "confirmationWindowMS": 15000,
+      "receipt": {
+        "selector": "ngb-modal-window.add-product-modal api-added-to-cart-dialog", "successText": "My Cart",
+        "productSelector": "api-cart-item", "quantitySelector": "input[aria-label='Quantity']",
+        "failureSelector": "cx-cart-validation-warnings,cx-cart-item-validation-warning",
+        "imageIdentity": {"selector": "cx-media[format='product'] img", "allowedHosts": ["api.priceline.com.au"],
+          "productURLPattern": "^/medias/[0-9]+Wx[0-9]+H-(\\d{1,32})\\.jpg$"}
+      }
+    }]
+  }
 }
