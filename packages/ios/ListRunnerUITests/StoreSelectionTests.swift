@@ -2,6 +2,84 @@ import XCTest
 import UIKit
 import WebKit
 
+// Search certification is independent of cart certification. These probes never
+// tap Add, use app cookies, set fulfilment details, or submit credentials.
+final class LiveExpansionSearchTests: XCTestCase {
+    @MainActor
+    func testReadOnlySearchRoutes() async throws {
+        guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_EXPANSION_SEARCH"] == "1" else {
+            throw XCTSkip("Live expansion search requires explicit opt-in")
+        }
+        let probes = [
+            ("chemistWarehouse", "https://www.chemistwarehouse.com.au/search?searchtext=shampoo", "shampoo"),
+            ("priceline", "https://www.priceline.com.au/search?query=shampoo", "shampoo"),
+            ("officeworks", "https://www.officeworks.com.au/shop/officeworks/search?q=pens", "pen"),
+            ("jbHiFi", "https://www.jbhifi.com.au/search?query=headphones", "headphone"),
+            ("targetAU", "https://www.target.com.au/search?text=towels", "towel"),
+            ("petbarn", "https://www.petbarn.com.au/search?q=dog%20food", "dog"),
+            ("supercheapAuto", "https://www.supercheapauto.com.au/search?q=car%20wash", "wash"),
+            ("bcf", "https://www.bcf.com.au/search?q=camping", "camp"),
+            ("bunningsNZ", "https://www.bunnings.co.nz/search/products?q=hammer", "hammer"),
+            ("theWarehouse", "https://www.thewarehouse.co.nz/search?q=towels", "towel"),
+            ("newWorld", "https://www.newworld.co.nz/shop/search?q=milk", "milk"),
+            ("paknsave", "https://www.paknsave.co.nz/shop/search?q=milk", "milk"),
+            ("sainsburys", "https://www.sainsburys.co.uk/gol-ui/SearchResults/milk", "milk"),
+            ("asda", "https://groceries.asda.com/search/milk", "milk"),
+            ("morrisons", "https://groceries.morrisons.com/search?entry=milk", "milk"),
+            ("ocado", "https://www.ocado.com/search?entry=milk", "milk"),
+            ("waitrose", "https://www.waitrose.com/ecom/shop/search?searchTerm=milk", "milk"),
+            ("boots", "https://www.boots.com/sitesearch?searchTerm=shampoo", "shampoo"),
+            ("walgreens", "https://www.walgreens.com/search/results.jsp?Ntt=shampoo", "shampoo"),
+            ("cvs", "https://www.cvs.com/search?searchTerm=shampoo", "shampoo")
+        ]
+        let selected = Set((ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_EXPANSION_ONLY"] ?? "")
+            .split(separator: ",").map(String.init))
+        let required = Set((ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_EXPANSION_REQUIRED"] ?? "")
+            .split(separator: ",").map(String.init))
+        XCTAssertTrue(required.isSubset(of: Set(probes.map { $0.0 })), "Unknown required store")
+        for (id, route, term) in probes where selected.isEmpty || selected.contains(id) {
+            let configuration = WKWebViewConfiguration()
+            configuration.websiteDataStore = .nonPersistent()
+            let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), configuration: configuration)
+            let policy = ReadOnlySearchPolicy(host: URL(string: route)!.host!)
+            webView.navigationDelegate = policy
+            webView.load(URLRequest(url: URL(string: route)!))
+            var products = 0
+            var paths: [String] = []
+            for _ in 0..<25 {
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+                let script = """
+                (() => {
+                    const links = [...document.querySelectorAll('a[href]')].filter(a => {
+                        const u = new URL(a.href);
+                        return a.getClientRects().length && u.host === location.host
+                            && /\\b\\w*\(term)\\w*\\b/i.test(a.textContent || a.getAttribute('aria-label') || '')
+                            && /(?:\\/p\\/|\\/product[s]?\\/|\\/shop\\/product\\/|_p[0-9]|\\.html$|\\.product|skuId|id=|prodid=)/i.test(u.pathname + u.search);
+                    });
+                    return {products: new Set(links.map(a => a.href)).size,
+                            paths: [...new Set(links.map(a => new URL(a.href).pathname))].slice(0, 3)};
+                })()
+                """
+                if let result = try? await webView.evaluateJavaScript(script) as? [String: Any] {
+                    products = result["products"] as? Int ?? 0
+                    paths = result["paths"] as? [String] ?? []
+                    if products > 0 { break }
+                }
+            }
+            let passed = products > 0 && webView.url?.host == policy.host
+            let result = "\(id): matchingProductLinks=\(products), sameHost=\(webView.url?.host == policy.host), paths=\(paths)"
+            print("EXPANSION_SEARCH_PROBE \(result)")
+            let attachment = XCTAttachment(string: result)
+            attachment.name = "Read-only expansion search: \(id)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            if required.contains(id) { XCTAssertTrue(passed, result) }
+            webView.stopLoading()
+            webView.navigationDelegate = nil
+        }
+    }
+}
+
 // Explicit opt-in only: ordinary UI tests remain offline. These read-only probes
 // use fresh iOS WebKit data stores, never app cookies, sign-in or cart actions.
 final class LiveUSSearchTests: XCTestCase {
