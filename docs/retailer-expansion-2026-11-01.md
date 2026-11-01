@@ -201,6 +201,22 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- User authorized preparing Waitrose/Sainsbury's sign-in handoffs and confirmed
+  access to the Mac Simulator. Separate DEBUG browsing-only opt-in uses a valid
+  UI-test UUID and nonpersistent WebKit; it does not enable unverified detectors.
+  Sainsbury's exact `account.sainsburys.co.uk` origin is browsing-only and is not
+  trusted by the cart bridge (six native allow/refusal checks).
+- Waitrose handoff `f94d743` failed before Sign in; no credentials or cart action.
+  Its hidden/off-screen header link is not proof of a login-ready form. At
+  `19a7079`, the isolated handoff can enter independently verified
+  `https://www.waitrose.com/ecom/login` directly, still enforcing navigation trust.
+  Mac recovery 1,455 checks + synthetic proof pass. Login readiness is pending;
+  do not ask the user to type credentials until the live form is verified.
+- `e0009b2` corrects remaining test navigation: Bunnings explicitly selects NZ;
+  Officeworks recognizes its icon-only location/cart labels; JB anchors its real
+  title text and excludes numeric price/rating links from product-contamination
+  guards. These fixes are not retailer detection certification.
+
 - **Chemist Warehouse native live PASS** at `101badc`: detected=true,
   cleanupVerified=true, exact authorized Sukin PDP Add and product decrement.
   Mac `~/Library/Logs/ListRunner-Finish-Cart-chemistWarehouse-101badc.*`.
