@@ -133,6 +133,30 @@ struct RecoveryTests {
             check(!sainsburys.allowsNavigation(URL(string: value)!), "Sainsbury's authentication exceptions remain exact and HTTPS-only")
         }
         let waitrose = expansionDefinitions.first { $0.id == .waitrose }!
+        check(waitrose.schemaVersion == 4 && waitrose.acceptsProductIdentity("053457-26759-26760")
+              && waitrose.cart?.profiles?.first?.quantityDraftSelector == "button[data-testid='trolleyUpdateButton']",
+              "Waitrose uses observed composite identity and rejects unapplied quantity drafts")
+        for value in ["", "053457", "053457-26759", "abc-def-ghi", "053457-26759-", "-1-2",
+                      "053457-26759-26760\n", String(repeating: "1", count: 17) + "-2-3"] {
+            check(!waitrose.acceptsProductIdentity(value), "Waitrose native identities require three bounded numeric components")
+        }
+        for mutation in ["legacyDraft", "emptyDraftSelector", "oversizedDraftSelector", "undoWithDraft", "receiptWithDraft"] {
+            let source = mutation == "legacyDraft" ? expansionDefinitions.first { $0.id == .morrisons }! : waitrose
+            var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(source)) as! [String: Any]
+            var cart = object["cart"] as! [String: Any]
+            var profiles = cart["profiles"] as! [[String: Any]]
+            profiles[0]["quantityDraftSelector"] = "button[data-testid='trolleyUpdateButton']"
+            switch mutation {
+            case "legacyDraft": object["schemaVersion"] = 3
+            case "emptyDraftSelector": profiles[0]["quantityDraftSelector"] = ""
+            case "oversizedDraftSelector": profiles[0]["quantityDraftSelector"] = String(repeating: "x", count: 1_025)
+            case "undoWithDraft": profiles[0]["undo"] = ["decrementSelector": "button", "decrementLabelPattern": "^remove$"]
+            default: profiles[0]["confirmation"] = "productReceipt"
+            }
+            cart["profiles"] = profiles; object["cart"] = cart
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: object))) == nil,
+                  "quantity-draft validation rejects \(mutation)")
+        }
         let waitroseLogin = URL(string: "https://auth.waitrose.com/oauth2/authorize")!
         check(waitrose.allowsNavigation(waitroseLogin) && !waitrose.allows(waitroseLogin),
               "Waitrose's observed OAuth redirect is browsing-only, not cart-bridge trusted")

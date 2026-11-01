@@ -330,6 +330,7 @@ struct StoreDefinition: Codable {
             var undo: Undo? = nil
             var setupPrompt: SetupPrompt? = nil
             var acknowledgement: Acknowledgement? = nil
+            var quantityDraftSelector: String? = nil
         }
         let strategy: Strategy
         let identityStrategy: IdentityStrategy
@@ -431,7 +432,7 @@ struct StoreDefinition: Codable {
                 || ([3, 4].contains(schemaVersion) && cart.strategy == .profiled && cart.profiles?.isEmpty == false) else { throw ConfigurationError.invalid }
             guard schemaVersion == 4 || cart.identityStrategy == .numericURLSuffix else { throw ConfigurationError.invalid }
             if cart.identityStrategy == .capturedURLComponent {
-                guard [.officeworks, .jbHiFi, .petbarn, .sainsburys, .walgreens, .boots, .theWarehouse].contains(id),
+                guard [.officeworks, .jbHiFi, .petbarn, .sainsburys, .walgreens, .boots, .theWarehouse, .waitrose].contains(id),
                       !capabilities.cartUndo else { throw ConfigurationError.invalid }
             }
             for selector in [cart.tileSelector, cart.linkSelector, cart.addSelector, cart.quantitySelector, cart.emptyStatusSelector] {
@@ -454,12 +455,16 @@ struct StoreDefinition: Codable {
                           (500...15_000).contains(profile.confirmationWindowMS),
                           !profile.addLabelPatterns.isEmpty else { throw ConfigurationError.invalid }
                     for selector in [profile.containerSelector, profile.titleSelector, profile.addSelector] + [profile.quantitySelector, profile.receipt?.selector, profile.receipt?.productSelector, profile.receipt?.quantitySelector, profile.receipt?.failureSelector,
-                        profile.acknowledgement?.selector, profile.acknowledgement?.successSelector, profile.acknowledgement?.titleSelector, profile.acknowledgement?.failureSelector].compactMap({ $0 }) {
+                        profile.acknowledgement?.selector, profile.acknowledgement?.successSelector, profile.acknowledgement?.titleSelector, profile.acknowledgement?.failureSelector, profile.quantityDraftSelector].compactMap({ $0 }) {
                         guard !selector.isEmpty, selector.utf8.count <= 1_024 else { throw ConfigurationError.invalid }
                     }
                     for pattern in profile.addLabelPatterns {
                         guard pattern.utf8.count <= 512 else { throw ConfigurationError.invalid }
                         _ = try NSRegularExpression(pattern: pattern)
+                    }
+                    if profile.quantityDraftSelector != nil {
+                        guard schemaVersion == 4, profile.confirmation == .quantityIncrease,
+                              profile.undo == nil, !capabilities.cartUndo else { throw ConfigurationError.invalid }
                     }
                     switch profile.confirmation {
                     case .productReceipt:
@@ -546,6 +551,12 @@ struct StoreDefinition: Codable {
 
     func acceptsProductIdentity(_ value: String) -> Bool {
         if schemaVersion == 4 && cart?.identityStrategy == .capturedURLComponent {
+            if id == .waitrose {
+                let components = value.split(separator: "-", omittingEmptySubsequences: false)
+                return components.count == 3 && components.allSatisfy {
+                    (1...16).contains($0.utf8.count) && $0.utf8.allSatisfy { (48...57).contains($0) }
+                }
+            }
             let bytes = Array(value.utf8)
             let isAlphanumeric: (UInt8) -> Bool = { (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0) }
             guard (1...256).contains(bytes.count), let first = bytes.first, isAlphanumeric(first) else { return false }
@@ -629,7 +640,7 @@ struct StoreDefinition: Codable {
             guard let profiles = rawProfiles as? [[String: Any]] else { throw ConfigurationError.invalid }
             for profile in profiles {
                 guard hasOnlyKeys(profile, ["id", "scope", "identity", "containerSelector", "titleSelector", "addSelector",
-                                           "addLabelPatterns", "confirmation", "confirmationWindowMS", "quantitySelector", "receipt", "emptyStatusText", "undo", "setupPrompt", "acknowledgement"]) else {
+                                           "addLabelPatterns", "confirmation", "confirmationWindowMS", "quantitySelector", "receipt", "emptyStatusText", "undo", "setupPrompt", "acknowledgement", "quantityDraftSelector"]) else {
                     throw ConfigurationError.invalid
                 }
                 if let receipt = profile["receipt"], !(receipt is NSNull),

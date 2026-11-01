@@ -1560,6 +1560,11 @@ final class StoreBrowser: ObservableObject {
       };
       const profileQuantity = (tile, profile) => {
         if (!tile?.isConnected) return null;
+        // Editable retailer quantities can be drafts awaiting an explicit Update.
+        // Never arm detection from, or confirm against, an unapplied draft.
+        if (config.schemaVersion === 4 && profile.quantityDraftSelector &&
+            deepQueryAll(tile, profile.quantityDraftSelector).some(element =>
+              element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')) return null;
         const inputs = deepQueryAll(tile, profile.quantitySelector);
         const values = new Set();
         for (const input of inputs) {

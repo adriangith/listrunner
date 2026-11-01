@@ -1,9 +1,27 @@
 {
-  "schemaVersion": 2, "id": "waitrose", "displayName": "Waitrose",
+  "schemaVersion": 4, "id": "waitrose", "displayName": "Waitrose",
   "serviceArea": {"countryCodes": ["GB"]},
   "homepage": "https://www.waitrose.com",
   "allowedHosts": ["www.waitrose.com", "waitrose.com"],
   "search": {"strategy": "urlTemplate", "template": "https://www.waitrose.com/ecom/shop/search?searchTerm={query}"},
   "addedColor": {"red": 69, "green": 96, "blue": 32},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "cart": {
+    "strategy": "profiled", "identityStrategy": "capturedURLComponent",
+    "tileSelector": "article[data-testid='product-pod']", "linkSelector": "a[href*='/ecom/products/']",
+    "productURLPattern": "^/ecom/products/[^/]+/([0-9]{1,16}-[0-9]{1,16}-[0-9]{1,16})/?$",
+    "addSelector": "button[data-testid='addButton'],button[data-testid='trolleyPlusButton']",
+    "addLabelPatterns": ["^add .+ to trolley$"],
+    "quantitySelector": "input[data-testid='inputProductAmount']", "emptyStatusSelector": "button[data-testid='addButton']",
+    "emptyStatusText": "Add", "decrementLabelPattern": "^remove .+ from trolley$",
+    "profiles": [{
+      "id": "product-card", "scope": "productCard", "identity": "cardLink",
+      "containerSelector": "article[data-testid='product-pod']", "titleSelector": "h2[data-testid='product-pod-name']",
+      "addSelector": "button[data-testid='addButton'],button[data-testid='trolleyPlusButton']",
+      "addLabelPatterns": ["^add .+ to trolley$"],
+      "confirmation": "quantityIncrease", "confirmationWindowMS": 15000,
+      "quantitySelector": "input[data-testid='inputProductAmount']", "emptyStatusText": "Add",
+      "quantityDraftSelector": "button[data-testid='trolleyUpdateButton']"
+    }]
+  }
 }

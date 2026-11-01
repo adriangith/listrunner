@@ -201,6 +201,23 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- Signed-in Waitrose research was performed in the existing nonpersistent app
+  without rebuilding or restarting it. A bounded, read-only own-app debugger
+  inspection emitted only the exact public milk card's DOM metadata, not account
+  forms, credentials, cookies, storage, addresses, payments or API data. Debugger
+  detached/resumed the app after every inspection. User's trusted tap added one
+  Essential British Free Range Semi-Skimmed Milk 4 Pints (£1.75), composite product
+  identity `053457-26759-26760`; observed actual card field value 1 with no unapplied
+  Update and trolley 1 item/£1.75. User's minus tap restored Add, no quantity field,
+  and trolley 0 items/£0.00. Cleanup verified, but **not native detector proof**.
+- Prospective Waitrose profile uses observed `article[data-testid='product-pod']`,
+  `h2[data-testid='product-pod-name']`, exact Add/plus test IDs and
+  `input[data-testid='inputProductAmount']`. Its composite identity requires three
+  bounded numeric components. Visible `trolleyUpdateButton` means an unapplied
+  draft and blocks both arming and confirmation. Favourites, intended quantities,
+  invalid identities and drafts have explicit negative fixtures. Production
+  detection and retailer-cart Undo remain off until real native proof.
+
 - Waitrose login-route check **passed** at `59cb76e`: reached a secure password
   field with no credential entry or cart action. However XCTest closed the app
   after completion even when explicit teardown was skipped. Its historical
