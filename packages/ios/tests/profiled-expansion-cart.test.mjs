@@ -340,6 +340,19 @@ for (const store of ['supercheapAuto', 'bunningsNZ', 'morrisons', 'ocado']) for 
   });
 }
 
+for (const store of ['supercheapAuto', 'chemistWarehouse', 'bunningsNZ', 'petbarn', 'morrisons', 'ocado']) {
+  for (const value of ['invalid', '', -1, 10000, 1.5, 1]) {
+    test(`${store} rejects invalid or non-increasing actual quantity ${JSON.stringify(value)}`, () => {
+      const p = fixture(store, { before: 2 }); p.tap(); p.quantity(value); p.tick();
+      assert.equal(p.additions.length, 0);
+    });
+  }
+  test(`${store} does not treat intended quantity as an actual cart increase`, () => {
+    const p = fixture(store); p.tap(); p.intended(9); p.tick();
+    assert.equal(p.additions.length, 0);
+  });
+}
+
 test('reviewed schema-4 captured URL component identifies bounded nonnumeric SKU', () => {
   const p = fixture('supercheapAuto', { captured: true });
   p.tap(); p.quantity(1); p.tick();

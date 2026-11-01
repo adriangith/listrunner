@@ -2370,7 +2370,19 @@ final class StoreBrowser: ObservableObject {
         activeSearchNavigation = nil
     }
 
-    private func loadStoreURL(_ url: URL) {
+    private func loadStoreURL(_ requestedURL: URL) {
+        var url = requestedURL
+        #if DEBUG
+        // Live PDP verification may enter an explicitly named product directly;
+        // search has its own live probes. Never expose this in normal sessions,
+        // persistent website stores, or Release builds, and keep host trust intact.
+        if isLiveCartProbe,
+           let raw = ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_CART_DETAIL_URL"],
+           let detailURL = URL(string: raw), store.allows(detailURL),
+           store.cart?.profiles?.contains(where: { $0.scope == .productPage }) == true {
+            url = detailURL
+        }
+        #endif
         guard canPresentStore, storeRecovery == nil else { return }
         navigationPacing.requested(at: ProcessInfo.processInfo.systemUptime)
         mainFrameResponseStatus = nil

@@ -228,6 +228,9 @@ final class StoreSelectionTests: XCTestCase {
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
             if store == "bunningsNZ" { app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "NZ" }
             if store == "ocado" { app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "GB" }
+            if store == "chemistWarehouse" {
+                app.launchEnvironment["LISTRUNNER_LIVE_CART_DETAIL_URL"] = "https://www.chemistwarehouse.com.au/buy/85510/sukin-natural-balance-shampoo-500ml"
+            }
         }
         if name.contains("FullyRevealed") || name.contains("AlreadyVisibleNewItem") || name.contains("FocusedProductEntry") {
             app.launchEnvironment["LISTRUNNER_REVEAL_TEST_FIXTURE"] = "enabled"
@@ -594,7 +597,12 @@ final class StoreSelectionTests: XCTestCase {
         let web = app.webViews.firstMatch
         XCTAssertTrue(web.waitForExistence(timeout: 10))
         let link = web.links[product].firstMatch
-        XCTAssertTrue(link.waitForExistence(timeout: 60), web.debugDescription)
+        let directDetail = store == "chemistWarehouse"
+        if directDetail {
+            XCTAssertTrue(web.staticTexts[product].firstMatch.waitForExistence(timeout: 60), web.debugDescription)
+        } else {
+            XCTAssertTrue(link.waitForExistence(timeout: 60), web.debugDescription)
+        }
         // Cookie dialogs can place their essential-only button underneath the
         // expanded native cards. Collapsing reserves real web layout space.
         let collapse = app.buttons["Collapse overlay"]
@@ -624,7 +632,7 @@ final class StoreSelectionTests: XCTestCase {
             XCTAssertTrue(proceed.waitForExistence(timeout: 10))
             proceed.tap()
         }
-        if detail {
+        if detail && !directDetail {
             for _ in 0..<8 {
                 if link.isHittable && link.frame.minY > web.frame.minY + 80 && link.frame.maxY < app.frame.maxY - 120 { break }
                 let origin = app.coordinate(withNormalizedOffset: .zero)

@@ -201,6 +201,27 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- Additional fixture checks reject invalid/fractional/negative/out-of-range or
+  decreasing actual quantities, and intended-quantity-only changes across all
+  six quantity profiles. Full DOM suite: 216 passing tests.
+- Ocado guest verification: Ocado British Semi Skimmed Milk 2 Pints (`78922011`,
+  £1.20), actual card quantity 0→1→0, final Add and £0.00 trolley verified.
+  No location selection/sign-in required. Independent prospective Ocado profile
+  records its `to trolley` action text, not Morrisons' `to basket` label.
+- Target AU hand-towel retry: initial Add disabled during stock loading, later
+  enabled without overriding attributes. A trusted Add did not establish success;
+  basket page explicitly reported 0 items. No product removal/checkout required;
+  browser closed. Stock panels still said unable to check stock.
+- Boots retry explicitly returned `Sorry, your access to this site is not possible
+  at this time`; browser closed. No search/detector capability raised.
+- JB native `b305bcf` stopped before Add after generic Close hit invalid geometry
+  and dismissed the store sheet. Consent handling is now store-specific and
+  rejects empty/infinite/out-of-safe-bounds frames.
+- Chemist native `38496f2` stopped before Add while waiting for PDP navigation.
+  A DEBUG-only direct-detail entry now lets a dual-gated, nonpersistent live probe
+  verify the exact authorized product separately from already-reviewed search.
+  Host trust is enforced; ordinary sessions and Release builds cannot use it.
+
 - **Supercheap Auto native live PASS** at `b305bcf`: detected=true and
   cleanupVerified=true; XCTest passed (not skipped), 173.609s. A trusted Add for
   SCA Car Wash Concentrate 1 Litre (`733022`, $7.99) triggered native confirmation.
