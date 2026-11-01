@@ -7,6 +7,26 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A30000000000000000000001 = {isa = PBXBuildFile; fileRef = B30000000000000000000001; };
+		A30000000000000000000002 = {isa = PBXBuildFile; fileRef = B30000000000000000000002; };
+		A30000000000000000000003 = {isa = PBXBuildFile; fileRef = B30000000000000000000003; };
+		A30000000000000000000004 = {isa = PBXBuildFile; fileRef = B30000000000000000000004; };
+		A30000000000000000000005 = {isa = PBXBuildFile; fileRef = B30000000000000000000005; };
+		A30000000000000000000006 = {isa = PBXBuildFile; fileRef = B30000000000000000000006; };
+		A30000000000000000000007 = {isa = PBXBuildFile; fileRef = B30000000000000000000007; };
+		A30000000000000000000008 = {isa = PBXBuildFile; fileRef = B30000000000000000000008; };
+		A30000000000000000000009 = {isa = PBXBuildFile; fileRef = B30000000000000000000009; };
+		A30000000000000000000010 = {isa = PBXBuildFile; fileRef = B30000000000000000000010; };
+		A30000000000000000000011 = {isa = PBXBuildFile; fileRef = B30000000000000000000011; };
+		A30000000000000000000012 = {isa = PBXBuildFile; fileRef = B30000000000000000000012; };
+		A30000000000000000000013 = {isa = PBXBuildFile; fileRef = B30000000000000000000013; };
+		A30000000000000000000014 = {isa = PBXBuildFile; fileRef = B30000000000000000000014; };
+		A30000000000000000000015 = {isa = PBXBuildFile; fileRef = B30000000000000000000015; };
+		A30000000000000000000016 = {isa = PBXBuildFile; fileRef = B30000000000000000000016; };
+		A30000000000000000000017 = {isa = PBXBuildFile; fileRef = B30000000000000000000017; };
+		A30000000000000000000018 = {isa = PBXBuildFile; fileRef = B30000000000000000000018; };
+		A30000000000000000000019 = {isa = PBXBuildFile; fileRef = B30000000000000000000019; };
+		A30000000000000000000020 = {isa = PBXBuildFile; fileRef = B30000000000000000000020; };
 		A10000000000000000000001 /* ListRunnerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* ListRunnerApp.swift */; };
 		A10000000000000000000002 /* GroceryListScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* GroceryListScreen.swift */; };
 		A10000000000000000000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* Assets.xcassets */; };
@@ -53,6 +73,26 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		B30000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/chemistWarehouse.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/priceline.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/officeworks.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/jbHiFi.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000005 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/targetAU.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/petbarn.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000007 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/supercheapAuto.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000008 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/bcf.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000009 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/bunningsNZ.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000010 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/theWarehouse.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000011 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/newWorld.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000012 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/paknsave.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000013 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/sainsburys.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000014 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/asda.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000015 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/morrisons.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000016 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/ocado.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000017 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/waitrose.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000018 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/boots.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000019 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/walgreens.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000020 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/cvs.json; sourceTree = SOURCE_ROOT; };
 		B10000000000000000000001 /* ListRunnerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListRunnerApp.swift; sourceTree = "<group>"; };
 		B10000000000000000000002 /* GroceryListScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceryListScreen.swift; sourceTree = "<group>"; };
 		B10000000000000000000003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -125,6 +165,26 @@
 				B10000000000000000000033 /* ListRunner/Resources/amazon.json */,
 				B10000000000000000000034 /* ListRunner/Resources/kroger.json */,
 				B10000000000000000000035 /* ListRunner/Resources/target.json */,
+				B30000000000000000000001,
+				B30000000000000000000002,
+				B30000000000000000000003,
+				B30000000000000000000004,
+				B30000000000000000000005,
+				B30000000000000000000006,
+				B30000000000000000000007,
+				B30000000000000000000008,
+				B30000000000000000000009,
+				B30000000000000000000010,
+				B30000000000000000000011,
+				B30000000000000000000012,
+				B30000000000000000000013,
+				B30000000000000000000014,
+				B30000000000000000000015,
+				B30000000000000000000016,
+				B30000000000000000000017,
+				B30000000000000000000018,
+				B30000000000000000000019,
+				B30000000000000000000020,
 			);
 			sourceTree = "<group>";
 		};
@@ -269,6 +329,26 @@
 				A10000000000000000000033 /* ListRunner/Resources/amazon.json in Resources */,
 				A10000000000000000000034 /* ListRunner/Resources/kroger.json in Resources */,
 				A10000000000000000000035 /* ListRunner/Resources/target.json in Resources */,
+				A30000000000000000000001,
+				A30000000000000000000002,
+				A30000000000000000000003,
+				A30000000000000000000004,
+				A30000000000000000000005,
+				A30000000000000000000006,
+				A30000000000000000000007,
+				A30000000000000000000008,
+				A30000000000000000000009,
+				A30000000000000000000010,
+				A30000000000000000000011,
+				A30000000000000000000012,
+				A30000000000000000000013,
+				A30000000000000000000014,
+				A30000000000000000000015,
+				A30000000000000000000016,
+				A30000000000000000000017,
+				A30000000000000000000018,
+				A30000000000000000000019,
+				A30000000000000000000020,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

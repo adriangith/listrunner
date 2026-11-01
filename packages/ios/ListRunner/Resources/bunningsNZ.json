@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 2, "id": "bunningsNZ", "displayName": "Bunnings New Zealand",
+  "serviceArea": {"countryCodes": ["NZ"]},
+  "homepage": "https://www.bunnings.co.nz",
+  "allowedHosts": ["www.bunnings.co.nz", "bunnings.co.nz"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.bunnings.co.nz/search/products?q={query}"},
+  "addedColor": {"red": 218, "green": 41, "blue": 28},
+  "brandColors": {"primary": {"red": 13, "green": 82, "blue": 87}, "highlight": {"red": 255, "green": 171, "blue": 0}},
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+}

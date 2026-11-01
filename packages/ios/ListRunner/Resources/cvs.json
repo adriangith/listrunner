@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2, "id": "cvs", "displayName": "CVS",
+  "serviceArea": {"countryCodes": ["US"]},
+  "homepage": "https://www.cvs.com",
+  "allowedHosts": ["www.cvs.com", "cvs.com"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.cvs.com/search?searchTerm={query}"},
+  "addedColor": {"red": 204, "green": 0, "blue": 0},
+  "capabilities": {"search": false, "cartDetection": false, "cartUndo": false}, "cart": null
+}

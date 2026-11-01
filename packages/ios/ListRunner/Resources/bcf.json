@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2, "id": "bcf", "displayName": "BCF",
+  "serviceArea": {"countryCodes": ["AU"]},
+  "homepage": "https://www.bcf.com.au",
+  "allowedHosts": ["www.bcf.com.au", "bcf.com.au"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.bcf.com.au/search?q={query}"},
+  "addedColor": {"red": 0, "green": 76, "blue": 151},
+  "capabilities": {"search": false, "cartDetection": false, "cartUndo": false}, "cart": null
+}

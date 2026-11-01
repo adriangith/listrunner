@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2, "id": "targetAU", "displayName": "Target Australia",
+  "serviceArea": {"countryCodes": ["AU"]},
+  "homepage": "https://www.target.com.au",
+  "allowedHosts": ["www.target.com.au", "target.com.au"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.target.com.au/search?text={query}"},
+  "addedColor": {"red": 204, "green": 0, "blue": 0},
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+}

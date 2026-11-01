@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2, "id": "walgreens", "displayName": "Walgreens",
+  "serviceArea": {"countryCodes": ["US"]},
+  "homepage": "https://www.walgreens.com",
+  "allowedHosts": ["www.walgreens.com", "walgreens.com"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.walgreens.com/search/results.jsp?Ntt={query}"},
+  "addedColor": {"red": 190, "green": 0, "blue": 35},
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+}

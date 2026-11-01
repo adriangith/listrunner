@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2, "id": "officeworks", "displayName": "Officeworks",
+  "serviceArea": {"countryCodes": ["AU"]},
+  "homepage": "https://www.officeworks.com.au",
+  "allowedHosts": ["www.officeworks.com.au", "officeworks.com.au"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.officeworks.com.au/shop/officeworks/search?q={query}"},
+  "addedColor": {"red": 0, "green": 81, "blue": 165},
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+}

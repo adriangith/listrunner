@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2, "id": "sainsburys", "displayName": "Sainsbury’s",
+  "serviceArea": {"countryCodes": ["GB"]},
+  "homepage": "https://www.sainsburys.co.uk",
+  "allowedHosts": ["www.sainsburys.co.uk", "sainsburys.co.uk"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.sainsburys.co.uk/gol-ui/SearchResults/{query}"},
+  "addedColor": {"red": 177, "green": 76, "blue": 0},
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+}

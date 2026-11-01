@@ -11,7 +11,7 @@ final class LiveExpansionSearchTests: XCTestCase {
             throw XCTSkip("Live expansion search requires explicit opt-in")
         }
         let probes = [
-            ("chemistWarehouse", "https://www.chemistwarehouse.com.au/search?searchtext=shampoo", "shampoo"),
+            ("chemistWarehouse", "https://www.chemistwarehouse.com.au/search?query=shampoo&contexts=default", "shampoo"),
             ("priceline", "https://www.priceline.com.au/search?query=shampoo", "shampoo"),
             ("officeworks", "https://www.officeworks.com.au/shop/officeworks/search?q=pens", "pen"),
             ("jbHiFi", "https://www.jbhifi.com.au/search?query=headphones", "headphone"),
@@ -54,7 +54,7 @@ final class LiveExpansionSearchTests: XCTestCase {
                         const u = new URL(a.href);
                         return a.getClientRects().length && u.host === location.host
                             && /\\b\\w*\(term)\\w*\\b/i.test(a.textContent || a.getAttribute('aria-label') || '')
-                            && /(?:\\/p\\/|\\/product[s]?\\/|\\/shop\\/product\\/|_p[0-9]|\\.html$|\\.product|skuId|id=|prodid=)/i.test(u.pathname + u.search);
+                            && /(?:\\/p\\/|\\/product[s]?\\/|\\/shop\\/product\\/|\\/buy\\/[0-9]|_p[0-9]|\\.html(?:[?]|$)|\\.product|skuId|id=|prodid=)/i.test(u.pathname + u.search);
                     });
                     return {products: new Set(links.map(a => a.href)).size,
                             paths: [...new Set(links.map(a => new URL(a.href).pathname))].slice(0, 3)};

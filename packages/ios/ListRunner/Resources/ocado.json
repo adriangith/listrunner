@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2, "id": "ocado", "displayName": "Ocado",
+  "serviceArea": {"countryCodes": ["GB"]},
+  "homepage": "https://www.ocado.com",
+  "allowedHosts": ["www.ocado.com", "ocado.com"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.ocado.com/search?entry={query}"},
+  "addedColor": {"red": 88, "green": 49, "blue": 127},
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+}

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2, "id": "waitrose", "displayName": "Waitrose",
+  "serviceArea": {"countryCodes": ["GB"]},
+  "homepage": "https://www.waitrose.com",
+  "allowedHosts": ["www.waitrose.com", "waitrose.com"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.waitrose.com/ecom/shop/search?searchTerm={query}"},
+  "addedColor": {"red": 69, "green": 96, "blue": 32},
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+}

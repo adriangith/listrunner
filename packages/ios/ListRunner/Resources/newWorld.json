@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2, "id": "newWorld", "displayName": "New World",
+  "serviceArea": {"countryCodes": ["NZ"]},
+  "homepage": "https://www.newworld.co.nz",
+  "allowedHosts": ["www.newworld.co.nz", "newworld.co.nz"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.newworld.co.nz/shop/search?q={query}"},
+  "addedColor": {"red": 200, "green": 16, "blue": 46},
+  "capabilities": {"search": false, "cartDetection": false, "cartUndo": false}, "cart": null
+}

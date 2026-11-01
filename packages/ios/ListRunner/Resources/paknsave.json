@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2, "id": "paknsave", "displayName": "PAK’nSAVE",
+  "serviceArea": {"countryCodes": ["NZ"]},
+  "homepage": "https://www.paknsave.co.nz",
+  "allowedHosts": ["www.paknsave.co.nz", "paknsave.co.nz"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.paknsave.co.nz/shop/search?q={query}"},
+  "addedColor": {"red": 135, "green": 100, "blue": 0},
+  "capabilities": {"search": false, "cartDetection": false, "cartUndo": false}, "cart": null
+}

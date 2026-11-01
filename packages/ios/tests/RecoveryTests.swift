@@ -66,7 +66,54 @@ struct RecoveryTests {
         let target = try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("target.json")))
         let usDefinitions = [amazon, costcoUS, kroger, target, walmart]
         let expandedDefinitions = brandDefinitions + [amazon, kroger, target]
-        check(Set(expandedDefinitions.map(\.id)) == Set(StoreID.allCases), "every production store has a canonical validated resource")
+        let expansionIDs: [StoreID] = [.chemistWarehouse, .priceline, .officeworks, .jbHiFi, .targetAU,
+            .petbarn, .supercheapAuto, .bcf, .bunningsNZ, .theWarehouse, .newWorld, .paknsave,
+            .sainsburys, .asda, .morrisons, .ocado, .waitrose, .boots, .walgreens, .cvs]
+        let expansionDefinitions = try expansionIDs.map {
+            try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent($0.rawValue + ".json")))
+        }
+        let allProductionDefinitions = expandedDefinitions + expansionDefinitions
+        check(expansionDefinitions.count == 20 && Set(allProductionDefinitions.map(\.id)) == Set(StoreID.allCases),
+              "all twenty additions and every legacy store have a canonical validated resource")
+        check(StoreBrand.catalogue(allProductionDefinitions).count == 30,
+              "32 regional destinations form 30 brands with isolated Costco and Bunnings regions")
+        for definition in expansionDefinitions {
+            let id = definition.id
+            check(definition.isConfigurationValid && definition.allows(id.home), "new store has a trusted fallback homepage")
+            check(definition.capabilities.search == id.permitsSearch,
+                  "new search configuration matches the independently reviewed native ceiling")
+            check(!definition.capabilities.cartUndo && !id.permitsCartUndo,
+                  "expansion never inherits retailer-cart Undo")
+            check(definition.capabilities.cartDetection == id.permitsCartDetection,
+                  "new detector configuration matches independent native certification")
+            let query = "tea & coffee + 50% / café #?"
+            let url = definition.searchURL(for: query)!
+            check(definition.allows(url) && url.fragment == nil && !url.absoluteString.contains(" "),
+                  "new store search query stays encoded on its exact approved host")
+            for raw in ["http://\(id.home.host!)", "https://\(id.home.host!):444", "https://user:secret@\(id.home.host!)",
+                        "https://\(id.home.host!).evil.test", "https://login.\(id.dataDomain)"] {
+                check(!definition.allowsNavigation(URL(string: raw)!), "new browsing trust rejects unreviewed origins")
+            }
+            for other in allProductionDefinitions where other.id != id {
+                check(!definition.allows(other.homepage) && !id.ownsDataDomain(other.id.dataDomain),
+                      "new store and regional browsing/reset scopes cannot leak across destinations")
+            }
+            for host in id.hosts {
+                check(DiagnosticEntry.Host(rawValue: host) != nil, "new hosts use the closed diagnostic allowlist")
+            }
+            for capability in ["cartDetection", "cartUndo"] where capability == "cartUndo" || !id.permitsCartDetection {
+                var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(definition)) as! [String: Any]
+                var capabilities = object["capabilities"] as! [String: Any]
+                capabilities[capability] = true
+                object["capabilities"] = capabilities
+                check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: object))) == nil,
+                      "new JSON cannot enable unreviewed cart capabilities")
+            }
+        }
+        check(StoreBrand.sections(allProductionDefinitions, countryCode: "AU", search: "Target").flatMap(\.brands).map(\.id) == ["targetAU", "target"],
+              "Australian Target and unrelated US Target remain separate brands and sessions")
+        check(StoreBrand.catalogue(allProductionDefinitions).first(where: { $0.id == "bunnings" })?.regions.map(\.id).sorted(by: { $0.rawValue < $1.rawValue }) == [.bunnings, .bunningsNZ],
+              "Bunnings has explicit independently isolated AU/NZ destinations")
         check(Set(StoreID.allCases.map(\.listID)).count == StoreID.allCases.count
               && Set(StoreID.allCases.map(\.websiteDataID)).count == StoreID.allCases.count,
               "all store and regional list/session identities remain unique")

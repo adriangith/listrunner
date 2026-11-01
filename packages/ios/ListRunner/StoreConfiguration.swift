@@ -4,20 +4,40 @@ import Combine
 
 enum StoreID: String, Codable, CaseIterable, Identifiable {
     case coles, woolworths, bunnings, costco, tesco, walmart, kmart, costcoUS, bigW, amazon, kroger, target
+    case chemistWarehouse, priceline, officeworks, jbHiFi, targetAU, petbarn, supercheapAuto, bcf
+    case bunningsNZ, theWarehouse, newWorld, paknsave, sainsburys, asda, morrisons, ocado, waitrose, boots, walgreens, cvs
     #if STORE_REGISTRY_PROOF
     // Only compiled by the standalone extensibility proof, never the app.
     case synthetic
     #endif
     var id: String { rawValue }
     // Reviewed native ceilings: bundled data cannot enable unreviewed store automation.
-    var permitsSearch: Bool { ![.tesco, .costcoUS, .amazon].contains(self) }
+    var permitsSearch: Bool {
+        [.coles, .woolworths, .bunnings, .costco, .walmart, .kmart, .bigW, .kroger, .target,
+         .priceline, .officeworks, .jbHiFi, .targetAU, .supercheapAuto, .bunningsNZ, .theWarehouse,
+         .sainsburys, .morrisons, .ocado, .waitrose, .walgreens].contains(self)
+    }
     // Brand grouping is reviewed native identity, never inferred from a name or host.
-    var brandID: String { self == .costcoUS ? StoreID.costco.rawValue : rawValue }
-    var brandName: String { self == .costcoUS ? "Costco" : displayName }
+    var brandID: String {
+        switch self {
+        case .costcoUS: StoreID.costco.rawValue
+        case .bunningsNZ: StoreID.bunnings.rawValue
+        default: rawValue
+        }
+    }
+    var brandName: String {
+        switch self {
+        case .costcoUS: "Costco"
+        case .bunningsNZ: "Bunnings"
+        default: displayName
+        }
+    }
     var regionalCountryCode: String? {
         switch self {
         case .costco: "AU"
         case .costcoUS: "US"
+        case .bunnings: "AU"
+        case .bunningsNZ: "NZ"
         default: nil
         }
     }
@@ -37,6 +57,26 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .amazon: "Amazon US"
         case .kroger: "Kroger"
         case .target: "Target US"
+        case .chemistWarehouse: "Chemist Warehouse"
+        case .priceline: "Priceline"
+        case .officeworks: "Officeworks"
+        case .jbHiFi: "JB Hi-Fi"
+        case .targetAU: "Target Australia"
+        case .petbarn: "Petbarn"
+        case .supercheapAuto: "Supercheap Auto"
+        case .bcf: "BCF"
+        case .bunningsNZ: "Bunnings New Zealand"
+        case .theWarehouse: "The Warehouse"
+        case .newWorld: "New World"
+        case .paknsave: "PAK’nSAVE"
+        case .sainsburys: "Sainsbury’s"
+        case .asda: "Asda"
+        case .morrisons: "Morrisons"
+        case .ocado: "Ocado"
+        case .waitrose: "Waitrose"
+        case .boots: "Boots"
+        case .walgreens: "Walgreens"
+        case .cvs: "CVS"
         #if STORE_REGISTRY_PROOF
         case .synthetic: "Example Hardware"
         #endif
@@ -56,6 +96,26 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .amazon: ["www.amazon.com", "amazon.com"]
         case .kroger: ["www.kroger.com", "kroger.com"]
         case .target: ["www.target.com", "target.com"]
+        case .chemistWarehouse: ["www.chemistwarehouse.com.au", "chemistwarehouse.com.au"]
+        case .priceline: ["www.priceline.com.au", "priceline.com.au"]
+        case .officeworks: ["www.officeworks.com.au", "officeworks.com.au"]
+        case .jbHiFi: ["www.jbhifi.com.au", "jbhifi.com.au"]
+        case .targetAU: ["www.target.com.au", "target.com.au"]
+        case .petbarn: ["www.petbarn.com.au", "petbarn.com.au"]
+        case .supercheapAuto: ["www.supercheapauto.com.au", "supercheapauto.com.au"]
+        case .bcf: ["www.bcf.com.au", "bcf.com.au"]
+        case .bunningsNZ: ["www.bunnings.co.nz", "bunnings.co.nz"]
+        case .theWarehouse: ["www.thewarehouse.co.nz", "thewarehouse.co.nz"]
+        case .newWorld: ["www.newworld.co.nz", "newworld.co.nz"]
+        case .paknsave: ["www.paknsave.co.nz", "paknsave.co.nz"]
+        case .sainsburys: ["www.sainsburys.co.uk", "sainsburys.co.uk"]
+        case .asda: ["groceries.asda.com"]
+        case .morrisons: ["groceries.morrisons.com"]
+        case .ocado: ["www.ocado.com", "ocado.com"]
+        case .waitrose: ["www.waitrose.com", "waitrose.com"]
+        case .boots: ["www.boots.com", "boots.com"]
+        case .walgreens: ["www.walgreens.com", "walgreens.com"]
+        case .cvs: ["www.cvs.com", "cvs.com"]
         #if STORE_REGISTRY_PROOF
         case .synthetic: ["www.store.example"]
         #endif
@@ -75,12 +135,34 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .amazon: "amazon.com"
         case .kroger: "kroger.com"
         case .target: "target.com"
+        case .chemistWarehouse: "chemistwarehouse.com.au"
+        case .priceline: "priceline.com.au"
+        case .officeworks: "officeworks.com.au"
+        case .jbHiFi: "jbhifi.com.au"
+        case .targetAU: "target.com.au"
+        case .petbarn: "petbarn.com.au"
+        case .supercheapAuto: "supercheapauto.com.au"
+        case .bcf: "bcf.com.au"
+        case .bunningsNZ: "bunnings.co.nz"
+        case .theWarehouse: "thewarehouse.co.nz"
+        case .newWorld: "newworld.co.nz"
+        case .paknsave: "paknsave.co.nz"
+        case .sainsburys: "sainsburys.co.uk"
+        case .asda: "groceries.asda.com"
+        case .morrisons: "groceries.morrisons.com"
+        case .ocado: "ocado.com"
+        case .waitrose: "waitrose.com"
+        case .boots: "boots.com"
+        case .walgreens: "walgreens.com"
+        case .cvs: "cvs.com"
         #if STORE_REGISTRY_PROOF
         case .synthetic: "store.example"
         #endif
         }
     }
-    var home: URL { URL(string: "https://www.\(dataDomain)")! }
+    var home: URL {
+        URL(string: "https://\([StoreID.asda, .morrisons].contains(self) ? dataDomain : "www." + dataDomain)")!
+    }
     var listID: UUID {
         let value: String
         switch self {
@@ -96,6 +178,26 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .amazon: value = "10000000-0000-4000-8000-000000000010"
         case .kroger: value = "10000000-0000-4000-8000-000000000011"
         case .target: value = "10000000-0000-4000-8000-000000000012"
+        case .chemistWarehouse: value = "10000000-0000-4000-8000-000000000013"
+        case .priceline: value = "10000000-0000-4000-8000-000000000014"
+        case .officeworks: value = "10000000-0000-4000-8000-000000000015"
+        case .jbHiFi: value = "10000000-0000-4000-8000-000000000016"
+        case .targetAU: value = "10000000-0000-4000-8000-000000000017"
+        case .petbarn: value = "10000000-0000-4000-8000-000000000018"
+        case .supercheapAuto: value = "10000000-0000-4000-8000-000000000019"
+        case .bcf: value = "10000000-0000-4000-8000-000000000020"
+        case .bunningsNZ: value = "10000000-0000-4000-8000-000000000021"
+        case .theWarehouse: value = "10000000-0000-4000-8000-000000000022"
+        case .newWorld: value = "10000000-0000-4000-8000-000000000023"
+        case .paknsave: value = "10000000-0000-4000-8000-000000000024"
+        case .sainsburys: value = "10000000-0000-4000-8000-000000000025"
+        case .asda: value = "10000000-0000-4000-8000-000000000026"
+        case .morrisons: value = "10000000-0000-4000-8000-000000000027"
+        case .ocado: value = "10000000-0000-4000-8000-000000000028"
+        case .waitrose: value = "10000000-0000-4000-8000-000000000029"
+        case .boots: value = "10000000-0000-4000-8000-000000000030"
+        case .walgreens: value = "10000000-0000-4000-8000-000000000031"
+        case .cvs: value = "10000000-0000-4000-8000-000000000032"
         #if STORE_REGISTRY_PROOF
         case .synthetic: value = "10000000-0000-4000-8000-000000000099"
         #endif
@@ -117,6 +219,26 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .amazon: value = "20000000-0000-4000-8000-000000000010"
         case .kroger: value = "20000000-0000-4000-8000-000000000011"
         case .target: value = "20000000-0000-4000-8000-000000000012"
+        case .chemistWarehouse: value = "20000000-0000-4000-8000-000000000013"
+        case .priceline: value = "20000000-0000-4000-8000-000000000014"
+        case .officeworks: value = "20000000-0000-4000-8000-000000000015"
+        case .jbHiFi: value = "20000000-0000-4000-8000-000000000016"
+        case .targetAU: value = "20000000-0000-4000-8000-000000000017"
+        case .petbarn: value = "20000000-0000-4000-8000-000000000018"
+        case .supercheapAuto: value = "20000000-0000-4000-8000-000000000019"
+        case .bcf: value = "20000000-0000-4000-8000-000000000020"
+        case .bunningsNZ: value = "20000000-0000-4000-8000-000000000021"
+        case .theWarehouse: value = "20000000-0000-4000-8000-000000000022"
+        case .newWorld: value = "20000000-0000-4000-8000-000000000023"
+        case .paknsave: value = "20000000-0000-4000-8000-000000000024"
+        case .sainsburys: value = "20000000-0000-4000-8000-000000000025"
+        case .asda: value = "20000000-0000-4000-8000-000000000026"
+        case .morrisons: value = "20000000-0000-4000-8000-000000000027"
+        case .ocado: value = "20000000-0000-4000-8000-000000000028"
+        case .waitrose: value = "20000000-0000-4000-8000-000000000029"
+        case .boots: value = "20000000-0000-4000-8000-000000000030"
+        case .walgreens: value = "20000000-0000-4000-8000-000000000031"
+        case .cvs: value = "20000000-0000-4000-8000-000000000032"
         #if STORE_REGISTRY_PROOF
         case .synthetic: value = "20000000-0000-4000-8000-000000000099"
         #endif
@@ -402,6 +524,10 @@ struct StoreDefinition: Codable {
                                         case .amazon: AddedColor(red: 35, green: 47, blue: 62)
                                         case .kroger: AddedColor(red: 0, green: 75, blue: 141)
                                         case .target: AddedColor(red: 204, green: 0, blue: 0)
+                                        case .chemistWarehouse, .priceline, .officeworks, .jbHiFi, .targetAU, .petbarn,
+                                             .supercheapAuto, .bcf, .bunningsNZ, .theWarehouse, .newWorld, .paknsave,
+                                             .sainsburys, .asda, .morrisons, .ocado, .waitrose, .boots, .walgreens, .cvs:
+                                            AddedColor(red: 64, green: 64, blue: 64)
                                         #if STORE_REGISTRY_PROOF
                                         case .synthetic: AddedColor(red: 64, green: 64, blue: 64)
                                         #endif

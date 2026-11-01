@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2, "id": "theWarehouse", "displayName": "The Warehouse",
+  "serviceArea": {"countryCodes": ["NZ"]},
+  "homepage": "https://www.thewarehouse.co.nz",
+  "allowedHosts": ["www.thewarehouse.co.nz", "thewarehouse.co.nz"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.thewarehouse.co.nz/search?q={query}"},
+  "addedColor": {"red": 202, "green": 0, "blue": 27},
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+}
