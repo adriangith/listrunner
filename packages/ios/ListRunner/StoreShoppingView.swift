@@ -1861,6 +1861,17 @@ final class StoreBrowser: ObservableObject {
         #endif
     }
 
+    private var isLiveWebsiteProbe: Bool {
+        #if DEBUG
+        // Browsing-only handoffs permit direct user authentication in an
+        // isolated UI-test session without pretending a detector is supported.
+        return isLiveCartProbe || (uiTestMode && !websiteDataStore.isPersistent &&
+            ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_BROWSE_PROBE"] == store.id.rawValue)
+        #else
+        return false
+        #endif
+    }
+
     init(store suppliedStore: StoreDefinition, websiteDataStore: WKWebsiteDataStore, diagnostics: DiagnosticStore) {
         var store = suppliedStore
         #if DEBUG
@@ -2003,7 +2014,7 @@ final class StoreBrowser: ObservableObject {
     }
 
     func preloadSearch(itemID: UUID, searchTerm: String) {
-        guard !isLiveCartProbe else { return }
+        guard !isLiveWebsiteProbe else { return }
         cancelPreload()
         guard canPresentStore, storeRecovery == nil, !siteVerificationRequired else {
             logPreload("Skipped: store is unavailable or verification is active")
@@ -2397,7 +2408,7 @@ final class StoreBrowser: ObservableObject {
         #endif
         hasLoaded = true
         let navigation: WKNavigation?
-        if uiTestMode && !isLiveCartProbe {
+        if uiTestMode && !isLiveWebsiteProbe {
             // Deterministic UI fixtures never contact a retailer or a real account.
             let verificationFixture = ProcessInfo.processInfo.environment["LISTRUNNER_VERIFICATION_TEST_FIXTURE"] == "enabled"
             let html = verificationFixture

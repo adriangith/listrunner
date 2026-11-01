@@ -59,6 +59,13 @@ cannot reverse the retailer cart. Opt-in `testLiveStoreCart…` tests require
 `TEST_RUNNER_LISTRUNNER_LIVE_CART_STORE=<store>` when launched through xcodebuild.
 They use isolated guest storage and must verify cleanup as well as automatic
 native status changes. Ordinary tests do not contact retailers.
+User-operated sign-in handoffs have a separate browsing-only opt-in:
+`TEST_RUNNER_LISTRUNNER_LIVE_LOGIN_STORE=waitrose` (or `sainsburys`) with
+`testLiveStoreLoginWaitroseHandoff` / `testLiveStoreLoginSainsburysHandoff`.
+These prepare a real login form in nonpersistent test storage and leave the app
+running for the person at the Mac. They never enter credentials, Add products,
+or certify authentication/detection. Sainsbury's exact account origin is allowed
+for browsing only; it is excluded from cart automation trust.
 Linux-compatible resource/probe/project consistency checks run with:
 
 ```sh

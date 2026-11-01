@@ -531,6 +531,7 @@ struct StoreDefinition: Codable {
         if id == .coles {
             return ["auth.colesgroupprofile.com.au", "id.colesgroupprofile.com.au"].contains(host)
         }
+        if id == .sainsburys { return host == "account.sainsburys.co.uk" }
         // Bunnings establishes its website session through a silent authorization
         // frame. This is browsing-only: `allows` and automation hosts stay closed.
         return id == .bunnings && host == "authorisation.api.bunnings.com.au"

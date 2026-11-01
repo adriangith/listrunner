@@ -212,12 +212,22 @@ private final class ReadOnlySearchPolicy: NSObject, WKNavigationDelegate {
 
 final class StoreSelectionTests: XCTestCase {
     private var app: XCUIApplication!
+    private var preserveLoginHandoff = false
 
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
+        if name.contains("LiveStoreLogin") {
+            let store = name.contains("Waitrose") ? "waitrose" : "sainsburys"
+            guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_LOGIN_STORE"] == store else {
+                throw XCTSkip("Preparing a real sign-in screen requires explicit single-store opt-in")
+            }
+            app.launchEnvironment["LISTRUNNER_LIVE_BROWSE_PROBE"] = store
+            app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
+            app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "GB"
+        }
         if name.contains("LiveStoreCart") {
             let probes = [("Priceline", "priceline"), ("Supercheap", "supercheapAuto"), ("ChemistWarehouse", "chemistWarehouse"), ("JBHiFi", "jbHiFi"), ("BunningsNZ", "bunningsNZ"), ("Officeworks", "officeworks"), ("Ocado", "ocado"), ("Morrisons", "morrisons")]
             guard let store = probes.first(where: { name.contains($0.0) })?.1 else { throw XCTSkip("Unknown live cart probe") }
@@ -291,7 +301,9 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
     }
 
-    override func tearDownWithError() throws { app.terminate() }
+    override func tearDownWithError() throws {
+        if !preserveLoginHandoff { app.terminate() }
+    }
 
     func testFirstStoreWelcomePersistsUntilStoreEnabled() {
         XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10), app.debugDescription)
@@ -556,6 +568,44 @@ final class StoreSelectionTests: XCTestCase {
     func testLiveStoreCartPriceline() throws {
         try liveStoreCart(store: "priceline", query: "shampoo",
                           product: "PRO:VOKE Touch Of Silver Brightening Shampoo 50mL")
+    }
+
+    func testLiveStoreLoginWaitroseHandoff() throws {
+        try prepareLoginHandoff(store: "waitrose", signInLabel: "Sign in")
+    }
+
+    func testLiveStoreLoginSainsburysHandoff() throws {
+        try prepareLoginHandoff(store: "sainsburys", signInLabel: "Log in / Register")
+    }
+
+    private func prepareLoginHandoff(store: String, signInLabel: String) throws {
+        // No credentials, Add, checkout, or account-setting actions. A passing
+        // preparation is NOT authentication or detector certification. Keep this
+        // app alive only after the login form is ready for the person at the Mac.
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility(store, shown: true)
+        tapNavigationBack()
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap(); input.typeText("milk")
+        app.buttons["Add Items"].tap()
+        app.buttons["Show Store"].tap()
+        let web = app.webViews.firstMatch
+        XCTAssertTrue(web.waitForExistence(timeout: 10))
+        let collapse = app.buttons["Collapse overlay"]
+        if collapse.exists && collapse.isHittable { collapse.tap() }
+        let consentLabel = store == "waitrose" ? "Reject all" : "Required only"
+        let consent = web.buttons.matching(NSPredicate(format: "label ==[c] %@", consentLabel)).firstMatch
+        if consent.waitForExistence(timeout: 15), consent.isHittable, !consent.frame.isEmpty,
+           !consent.frame.isInfinite, consent.frame.minY > web.frame.minY + 40 { consent.tap() }
+        let signIn = (store == "waitrose" ? web.links : web.buttons).matching(identifier: signInLabel).firstMatch
+        XCTAssertTrue(signIn.waitForExistence(timeout: 60))
+        XCTAssertTrue(signIn.isHittable && !signIn.frame.isEmpty && signIn.frame.minY > web.frame.minY + 40)
+        signIn.tap()
+        XCTAssertTrue(web.secureTextFields.firstMatch.waitForExistence(timeout: 60), "Stop only at a real login form")
+        preserveLoginHandoff = true
+        print("LOGIN_HANDOFF_READY store=\(store), authenticationPerformed=false, cartMutationAttempted=false")
     }
 
     func testLiveStoreCartSupercheap() throws {

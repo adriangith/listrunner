@@ -123,6 +123,15 @@ struct RecoveryTests {
               && !StoreID.morrisons.hosts.contains("www.morrisons.com"),
               "root-domain website data resets do not widen subdomain-only browsing trust")
         let prospectivePriceline = expansionDefinitions.first { $0.id == .priceline }!
+        let sainsburys = expansionDefinitions.first { $0.id == .sainsburys }!
+        let sainsburysLogin = URL(string: "https://account.sainsburys.co.uk/login-ui/gol/login")!
+        check(sainsburys.allowsNavigation(sainsburysLogin) && !sainsburys.allows(sainsburysLogin),
+              "Sainsbury's reviewed login origin is browsing-only, never cart-bridge trusted")
+        for value in ["https://evil.account.sainsburys.co.uk/login", "https://account.sainsburys.co.uk.evil.test/login",
+                      "https://account.sainsburys.co.uk:444/login", "http://account.sainsburys.co.uk/login",
+                      "https://user@account.sainsburys.co.uk/login"] {
+            check(!sainsburys.allowsNavigation(URL(string: value)!), "Sainsbury's authentication exceptions remain exact and HTTPS-only")
+        }
         let prospectiveSupercheap = expansionDefinitions.first { $0.id == .supercheapAuto }!
         check(prospectivePriceline.schemaVersion == 4 && prospectivePriceline.cart?.profiles?.first?.receipt?.imageIdentity?.allowedHosts == ["api.priceline.com.au"],
               "Priceline's linkless receipt has an explicitly bounded image-identity source")
