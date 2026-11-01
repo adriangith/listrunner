@@ -55,6 +55,12 @@ root-domain cookies are not missed. Data ownership is not navigation permission.
 
 ## Search verification
 
+**Final support decision:** search is enabled for sixteen new stores: Chemist
+Warehouse, Priceline, Officeworks, JB Hi-Fi, Target Australia, Petbarn, Supercheap
+Auto, BCF, Bunnings New Zealand, The Warehouse, Sainsbury’s, Asda, Morrisons, Ocado,
+Waitrose and Walgreens. New World, PAK’nSAVE, Boots and CVS remain manual/browsing
+registrations with search off. No new cart detection is enabled.
+
 `LiveExpansionSearchTests/testReadOnlySearchRoutes` is opt-in via
 `TEST_RUNNER_LISTRUNNER_LIVE_EXPANSION_SEARCH=1` in command-line Xcode runs. It uses
 fresh nonpersistent iOS WKWebViews, GET-only exact-host top-level navigation and
@@ -62,6 +68,13 @@ no app cookies. Ordinary tests skip it. `_ONLY` selects a comma-separated subset
 `_REQUIRED` makes named failures fail the test. Observational runs otherwise pass
 even when individual stores do not return products. Unknown/mismatched selections
 are rejected.
+
+Priceline clears its visible search field and labels the heading `All products`.
+Its separate opt-in `testPricelineDifferentialSearch` requires at least three
+matching products for each of two unrelated queries (shampoo/toothpaste), at least
+75% relevance in each complete named-product result set, the correct final query
+parameter, and less than 50% overlap between the complete result sets. Merely
+filtering a fixed general catalogue in the probe would not satisfy this check.
 
 At revision `a7c4a91df39d9ee66a94112a2ccfc39fea6c4f52`, iPhone 17/iOS 27.0
 returned matching product links for Priceline (43), Officeworks (21), JB Hi-Fi (33),
@@ -85,6 +98,29 @@ Evidence lives on the Mac outside the checkout:
 - `~/Library/Logs/ListRunner-Expansion-Search-a7c4a91.log` and `.xcresult`
 - `~/Library/Logs/ListRunner-Expansion-Search-d92df86.log` and `.xcresult`
 - `~/Library/Logs/ListRunner-Expansion-Search-eed5eec.log` and `.xcresult`
+- `~/Library/Logs/ListRunner-Expansion-Final-f15dfe2.log` and `.xcresult`
+
+The stricter `eed5eec` run verified query reflection plus matching products for
+Chemist Warehouse (20), Officeworks (21), JB Hi-Fi (30), Target AU (38), Supercheap
+Auto (13), Bunnings NZ (36), The Warehouse (32), Sainsbury’s (43), Waitrose (47) and
+Walgreens (24). It rejected obsolete Morrisons/Ocado routes rather than certifying
+their general catalogue, and left Priceline to its independent differential proof.
+
+At code revision `f15dfe2185b41a595f0b8bd1792a2821da1170c4`, all three focused iOS
+tests passed: Priceline differential search (12.188s, 36/36 relevant products for
+each query and sufficiently distinct complete result sets), corrected search
+routes (28.716s), and offline discovery of every new destination plus separate
+Australian/US Target rows (152.960s). Corrected routes returned Petbarn 29, BCF 28,
+Asda 3, Morrisons 49, and Ocado 46 matching products, all with reflected queries
+and exact trusted hosts. This is simulator search evidence, not cart, login,
+fulfilment or physical-device certification.
+
+At that revision, 1,423 native recovery/configuration/encoding/reset/diagnostic
+checks passed, and all 34 JSON files in the actual Debug simulator app byte-match
+canonical resources. Linux checks: 78 existing DOM/cart regression tests, 90 core
+tests plus TypeScript typecheck, 7 resource-verifier regression tests and 3 new
+expansion resource/probe/project consistency tests passed. The test screenshot
+`Separate Australian and US Target discovery` is retained in the xcresult.
 
 Desktop research established the following limitations/corrections; desktop
 observations alone do not enable iOS capabilities:

@@ -31,6 +31,31 @@ The verifier requires every canonical JSON file (including Bunnings) to be byte-
 
 ## Current implementation
 
+### Twenty-store expansion (1 November 2026 — partial delivery)
+
+Twenty additional AU/NZ/GB/US destinations are registered, disabled by default,
+with independent saved lists, website sessions and diagnostics/reset scopes.
+Bunnings has explicitly isolated AU/NZ regional destinations; Target Australia
+is separate from unrelated Target US. Existing store identities and lists are
+preserved. There are now 32 destinations and 30 brand rows.
+
+Automatic search is enabled only for independently reviewed routes. Unverified
+searches and **all twenty new cart-detection/cart-Undo capabilities remain off**;
+registration is not certification of the user's full search-and-detection request.
+Manual controls remain available. Evidence, corrected retailer routes, verification
+barriers and remaining cart implementation work are recorded in
+`../../docs/retailer-expansion-2026-11-01.md` and `VALIDATION.md`.
+
+`LiveExpansionSearchTests` uses opt-in, nonpersistent iOS WebKit probes. It checks
+real matching product links plus visible query reflection; Priceline has a separate
+two-query result-set check. Observational test success does not mean every retailer
+passed. `testExpansionStoreDiscoveryAndSeparateTargetBrands` is an offline UI check.
+Linux-compatible resource/probe/project consistency checks run with:
+
+```sh
+python3 -B packages/ios/tests/test-store-expansion.py
+```
+
 ### US retailer expansion (30 October 2026)
 
 The catalogue now contains the approved Walmart, Amazon US, Costco US, Kroger and Target US set. Amazon, Kroger and Target are new disabled-by-default registrations with independent saved lists, named persistent website-data stores, diagnostics/reset scopes and US country grouping. Costco US retains its existing regional identity and shares only the discovery brand with Costco Australia. Amazon US means Amazon.com, not a verified Amazon Fresh/Whole Foods integration; Kroger's other banners and Australian Target are not included.

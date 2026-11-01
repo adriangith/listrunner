@@ -5,5 +5,5 @@
   "allowedHosts": ["www.asda.com", "asda.com", "groceries.asda.com"],
   "search": {"strategy": "urlTemplate", "template": "https://www.asda.com/groceries/search/{query}"},
   "addedColor": {"red": 63, "green": 119, "blue": 0},
-  "capabilities": {"search": false, "cartDetection": false, "cartUndo": false}, "cart": null
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
 }

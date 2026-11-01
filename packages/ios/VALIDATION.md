@@ -1,5 +1,39 @@
 # Reusable store framework validation
 
+## Twenty-store expansion — 1 November 2026 (partial delivery)
+
+Twenty additional destinations are registered, disabled by default, with stable
+independent list/session identities. **Sixteen new searches are verified; all
+twenty new cart detectors and retailer-cart Undo remain disabled.** The full
+search-and-detection request is not complete. New World, PAK’nSAVE, Boots and CVS
+remain browsing/manual-only after unverified/blocked search observations.
+
+Live read-only iPhone 17/iOS 27.0 probes validate actual matching product links
+plus reflected query; Priceline instead passed an independent two-query relevance
+and distinct-result-set check. Corrected routes cover Petbarn's path search,
+Asda's new www grocery site and Morrisons/Ocado's `q=` parameter. The obsolete
+Morrisons/Ocado `entry=` observations are explicitly superseded, not certification.
+
+At `f15dfe2185b41a595f0b8bd1792a2821da1170c4`: **1,423 native checks, 3/3 focused
+iOS tests**, and byte-verification of **34 actual bundled JSON files** passed.
+The UI test found every new destination and independently exposed Target Australia
+and Target US; no retailer site was opened by that discovery test. Linux: 78 DOM
+regressions, 90 core tests plus typecheck, 7 verifier tests and 3 expansion contract
+tests passed. Evidence: Mac `~/Library/Logs/ListRunner-Expansion-Final-f15dfe2.log`
+and `.xcresult`, plus earlier search logs identified in the full evidence ledger.
+
+Isolated guest cart investigations confirmed website additions for Chemist
+Warehouse, Priceline and Supercheap Auto, not native automatic detection. Confirmed
+test quantities were removed; an unconfirmed Priceline retry is not evidence of
+either addition or cleanup. No checkout, purchase, credentials, address/fulfilment
+changes, security bypass or physical-phone installation occurred. Initial extra
+simulator interaction sessions failed to connect; their failures are not app UI
+evidence. The subsequent XCTest discovery run succeeded on the existing test sim.
+
+Full retailer list, exact capability decisions, cart observations, environment
+limitations, Mac identifier reconciliation and remaining work:
+`docs/retailer-expansion-2026-11-01.md` from the repository root.
+
 ## US retailer expansion — 30 October 2026
 
 **Phone deployed:** after Xcode MCP approval, Xcode built/signed/installed in place and launched `480e75ebebfcdcb09a8d34450fb57a8f3a965f78` on **Adrian’s iPhone / iOS 27.2**, with no build errors, PID `15521`, launch reference `80fdf5e00`. All 14 JSON resources in the actual `Debug-iphoneos/ListRunner.app` byte-match canonical sources; no legacy resource copies. No data reset, fixture launch, list/login/visibility change or retailer/cart interaction was performed. Phone UI was not directly inspected. Log: Mac `/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261030-180458.txt`. This supersedes the pending-phone-deployment status recorded below.
