@@ -4,8 +4,8 @@
 
 Twenty additional destinations are registered, disabled by default, with stable
 independent list/session identities. **Sixteen new searches are verified;
-Priceline, Supercheap Auto and Ocado automatic cart detection are live-verified and enabled. The other
-seventeen new detectors and all twenty retailer-cart Undo capabilities remain disabled.** The full
+Priceline, Supercheap Auto, Ocado and Chemist Warehouse automatic cart detection are live-verified and enabled. The other
+sixteen new detectors and all twenty retailer-cart Undo capabilities remain disabled.** The full
 search-and-detection request is not complete. New World, PAK’nSAVE, Boots and CVS
 remain browsing/manual-only after unverified/blocked search observations.
 
@@ -36,6 +36,18 @@ limitations, Mac identifier reconciliation and remaining work:
 `docs/retailer-expansion-2026-11-01.md` from the repository root.
 
 ### Detector follow-up — 2 November 2026
+
+- Chemist Warehouse native PASS at `101badcf143fcfb5bdcc3fd11e206cdf5f250134`:
+  detected=true, cleanupVerified=true. Direct PDP verification of the exact
+  authorized Sukin shampoo automatically triggered native confirmation, followed
+  by product decrement and restored Add state. Mac logs/results:
+  `~/Library/Logs/ListRunner-Finish-Cart-chemistWarehouse-101badc.*`.
+  All 34 built JSON resources byte-match sources at that revision. Production
+  detection enabled afterward; retailer-cart Undo remains off.
+- JB, Bunnings NZ and Officeworks at `101badc` failed before Add, not skipped:
+  JB flattened/duplicated link scoping; Bunnings selected AU fixture instead of NZ;
+  Officeworks location AX label `LocationIconRgbOl` lacks `Shopping method` text.
+  No cart changes in those three tests. Their detectors remain disabled.
 
 - Ocado native PASS at `38496f2`: detected=true, cleanupVerified=true,
   244.267s, not skipped. Exact test milk card automatically triggered native Undo;

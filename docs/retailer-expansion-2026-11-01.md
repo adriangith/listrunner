@@ -141,10 +141,10 @@ observations alone do not enable iOS capabilities:
 - CVS explicitly reports that the site is unavailable outside US/US territories.
   No geographic bypass was attempted.
 
-## Cart investigation — three certified; seventeen remain
+## Cart investigation — four certified; sixteen remain
 
-Priceline, Supercheap Auto and Ocado cart detection are certified and enabled in JSON and native ceilings.
-The other seventeen new destinations keep detection disabled; all twenty keep
+Priceline, Supercheap Auto, Ocado and Chemist Warehouse cart detection are certified and enabled in JSON and native ceilings.
+The other sixteen new destinations keep detection disabled; all twenty keep
 retailer-cart Undo disabled. The engine now supports schema-4 product-linked
 receipt quantities, tightly allowlisted Priceline image identity, bounded captured
 URL-component identities, and explicit quantity-free product acknowledgements.
@@ -200,6 +200,13 @@ certification follows from the failed sessions.
   sign-off. Do not install a build to a physical phone merely to claim testing.
 
 ### Follow-up implementation and live evidence
+
+- **Chemist Warehouse native live PASS** at `101badc`: detected=true,
+  cleanupVerified=true, exact authorized Sukin PDP Add and product decrement.
+  Mac `~/Library/Logs/ListRunner-Finish-Cart-chemistWarehouse-101badc.*`.
+  Four-store runtime follow-up: Chemist passed; JB/Bunnings NZ/Officeworks failed
+  before any Add due to test navigation. All 34 actual bundled resources matched.
+  Chemist production detection enabled afterward; retailer-cart Undo stays off.
 
 - **Ocado native live PASS** at `38496f2`: automatic native confirmation and
   cleanupVerified=true, not skipped, 244.267s. Exact Ocado milk test card restored

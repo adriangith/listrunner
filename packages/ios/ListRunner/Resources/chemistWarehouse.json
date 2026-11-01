@@ -5,7 +5,7 @@
   "allowedHosts": ["www.chemistwarehouse.com.au", "chemistwarehouse.com.au"],
   "search": {"strategy": "urlTemplate", "template": "https://www.chemistwarehouse.com.au/search?query={query}&contexts=default"},
   "addedColor": {"red": 205, "green": 0, "blue": 26},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "capabilities": {"search": true, "cartDetection": true, "cartUndo": false},
   "cart": {
     "strategy": "profiled", "identityStrategy": "numericURLSuffix",
     "tileSelector": "div.flex:has(h1)", "linkSelector": "a[href*='/buy/']",
