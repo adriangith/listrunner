@@ -578,10 +578,16 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(web.waitForExistence(timeout: 10))
         let link = web.links[product].firstMatch
         XCTAssertTrue(link.waitForExistence(timeout: 60), web.debugDescription)
+        // Cookie dialogs can place their essential-only button underneath the
+        // expanded native cards. Collapsing reserves real web layout space.
+        let collapse = app.buttons["Collapse overlay"]
+        if collapse.exists && collapse.isHittable { collapse.tap() }
         for text in ["Accept essential only", "Reject All", "CLOSE"] {
             let consent = web.buttons.matching(NSPredicate(format: "label ==[c] %@", text)).firstMatch
-            if consent.exists && consent.isHittable { consent.tap() }
+            if consent.waitForExistence(timeout: 2) && consent.isHittable { consent.tap() }
         }
+        let expand = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Expand overlay")).firstMatch
+        if expand.exists && expand.isHittable { expand.tap() }
         if detail { link.tap() }
         // Attribute the actual trusted tap to the smallest AX container holding
         // this exact title and a single Add button. Never choose a page-wide Add.
