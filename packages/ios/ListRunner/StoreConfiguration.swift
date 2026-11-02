@@ -883,7 +883,9 @@ final class StoreVisibilityPreferences: ObservableObject {
     @Published private(set) var visibleIDs: Set<StoreID>
     // Do not rewrite saved visibility: hidden stores can recover their previous
     // preferences when support improves. UI eligibility is a separate projection.
-    var shoppingVisibleIDs: Set<StoreID> { Set(visibleIDs.filter(\.permitsSearch)) }
+    func shoppingVisibleIDs(in definitions: [StoreDefinition]) -> Set<StoreID> {
+        Set(definitions.filter(\.isAvailableForShopping).map(\.id)).intersection(visibleIDs)
+    }
     @Published private(set) var hasCompletedStoreSetup: Bool
     @Published private(set) var shoppingCountryCode: String?
     @Published private(set) var useLocalIngredientNames: Bool
@@ -987,7 +989,7 @@ final class StoreVisibilityPreferences: ObservableObject {
     func selectionForList(current: StoreID, definitions: [StoreDefinition]) -> StoreID? {
         // Resolve only when returning to the list, never during management.
         // Reading persisted visibility also repairs an old disabled selection on launch.
-        let available = Set(definitions.filter(\.isAvailableForShopping).map(\.id)).intersection(shoppingVisibleIDs)
+        let available = shoppingVisibleIDs(in: definitions)
         let pending = (defaults.array(forKey: pendingSelectionKey) as? [String] ?? [])
             .compactMap(StoreID.init(rawValue:)).last(where: { available.contains($0) })
         // Consume on return, even when already active, so subsequent visits or

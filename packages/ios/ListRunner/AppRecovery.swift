@@ -49,7 +49,7 @@ struct SettingsScreen: View {
         Form {
             Section {
                 Toggle("Enable store", isOn: Binding(
-                    get: { brand.regions.contains { visibility.shoppingVisibleIDs.contains($0.id) } },
+                    get: { !visibility.shoppingVisibleIDs(in: brand.regions).isEmpty },
                     set: { visibility.setBrandVisible($0, brand: brand) }
                 ))
                 .accessibilityLabel("Enable \(brand.name)")
@@ -378,7 +378,7 @@ struct StoreVisibilityScreen: View {
 
     var body: some View {
         let sections = StoreBrand.sections(catalogueDefinitions, countryCode: visibility.shoppingCountryCode,
-                                               search: searchText, enabledIDs: visibility.shoppingVisibleIDs)
+                                               search: searchText, enabledIDs: visibility.shoppingVisibleIDs(in: catalogueDefinitions))
         ZStack {
             // Keep the native scroll controller attached during empty searches.
             // Replacing it with a non-scrolling view disconnects the large-title

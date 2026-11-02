@@ -25,6 +25,8 @@ struct ShoppingRootScreen: View {
         _sessions = StateObject(wrappedValue: StoreSessions(diagnostics: diagnostics, preferences: preferences))
     }
 
+    private var shoppingVisibleIDs: Set<StoreID> { visibility.shoppingVisibleIDs(in: sessions.definitions) }
+
     var body: some View {
         let storeID = StoreID(rawValue: activeStoreID) ?? .coles
         ZStack {
@@ -50,7 +52,7 @@ struct ShoppingRootScreen: View {
         }
             .background(WelcomeTransitionAnchor(transition: welcomeTransition))
             .sensoryFeedback(.success, trigger: welcomeCompletion)
-            .onChange(of: visibility.shoppingVisibleIDs) { previous, current in
+            .onChange(of: shoppingVisibleIDs) { previous, current in
                 // Opening management is not a choice. Keep the one-run welcome
                 // preview when backing out, and finish only on an enable action.
                 if !current.subtracting(previous).isEmpty {
@@ -176,6 +178,10 @@ struct GroceryListScreen: View {
 
     private var items: [GroceryItem] { allItems.filter { $0.listID == storeID.listID } }
     private var selectedList: GroceryList? { lists.first { $0.id == storeID.listID } }
+    private var shoppingVisibleIDs: Set<StoreID> { visibility.shoppingVisibleIDs(in: sessions.definitions) }
+    private var moveDestinations: [StoreDefinition] {
+        StoreCatalogue.ordered(sessions.definitions, countryCode: nil).filter { $0.id != storeID }
+    }
 
     private var pendingCount: Int { items.filter { $0.status == .pending }.count }
     private var addedCount: Int { items.filter { $0.status == .added }.count }
@@ -184,19 +190,19 @@ struct GroceryListScreen: View {
         #if DEBUG
         if previewingStoreWelcome { return true }
         #endif
-        return visibility.shoppingVisibleIDs.isEmpty && !visibility.hasCompletedStoreSetup
+        return shoppingVisibleIDs.isEmpty && !visibility.hasCompletedStoreSetup
     }
     // The storefront configuration is the single source of truth for the
     // selected store's visual identity, including all list-screen accents.
     private var storePrimaryColor: Color {
-        guard !visibility.shoppingVisibleIDs.isEmpty else { return .primary }
+        guard !shoppingVisibleIDs.isEmpty else { return .primary }
         let color = browser.store.brandColors?.primary ?? browser.store.addedColor
         return Color(red: Double(color.red) / 255,
                      green: Double(color.green) / 255,
                      blue: Double(color.blue) / 255)
     }
     private var storeHighlightColor: Color {
-        guard !visibility.shoppingVisibleIDs.isEmpty else { return .primary }
+        guard !shoppingVisibleIDs.isEmpty else { return .primary }
         guard let color = browser.store.brandColors?.highlight else { return storePrimaryColor }
         return Color(red: Double(color.red) / 255,
                      green: Double(color.green) / 255,
@@ -214,7 +220,7 @@ struct GroceryListScreen: View {
                     }
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-                } else if visibility.shoppingVisibleIDs.isEmpty {
+                } else if shoppingVisibleIDs.isEmpty {
                     ContentUnavailableView {
                         Label("No stores enabled", systemImage: "basket")
                     } description: {
@@ -407,10 +413,10 @@ struct GroceryListScreen: View {
                         .font(showingStoreWelcome ? .title3.weight(.bold) : .largeTitle.weight(.bold))
                         .foregroundStyle(.primary)
                     Spacer(minLength: 8)
-                    if !showingStoreWelcome && !visibility.shoppingVisibleIDs.isEmpty {
+                    if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty {
                         Menu {
                             ForEach(StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
-                                                            enabledIDs: visibility.shoppingVisibleIDs), id: \.id) { store in
+                                                            enabledIDs: shoppingVisibleIDs), id: \.id) { store in
                                 Button(store.displayName) { onSelectStore(store.id) }
                             }
                             Divider()
@@ -439,7 +445,7 @@ struct GroceryListScreen: View {
                 .background(Color(uiColor: .systemGroupedBackground))
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if !showingStoreWelcome && !visibility.shoppingVisibleIDs.isEmpty && !items.isEmpty {
+                if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty && !items.isEmpty {
                     Button {
                         presentStore()
                     } label: {
@@ -454,7 +460,7 @@ struct GroceryListScreen: View {
                         showStoreFrame = frame
                         revealFocusedProductEntry()
                     }
-                     .disabled(!browser.canPresentStore || !visibility.shoppingVisibleIDs.contains(storeID))
+                     .disabled(!browser.canPresentStore || !shoppingVisibleIDs.contains(storeID))
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
                     // Keep the action inside the adjusted safe area so it stays
@@ -492,7 +498,7 @@ struct GroceryListScreen: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if !showingStoreWelcome && !visibility.shoppingVisibleIDs.isEmpty && !items.isEmpty { EditButton() }
+                    if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty && !items.isEmpty { EditButton() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     if !showingStoreWelcome {
@@ -532,8 +538,8 @@ struct GroceryListScreen: View {
             }
             .confirmationDialog("Move item to another store?", isPresented: Binding(get: { itemToMove != nil }, set: { if !$0 { itemToMove = nil } }), titleVisibility: .visible) {
                 if let item = itemToMove {
-                    ForEach(StoreID.allCases.filter { $0 != storeID }) { destination in
-                        Button("Move to \(destination.displayName)") { moveItem(item, to: destination); itemToMove = nil }
+                    ForEach(moveDestinations, id: \.id) { destination in
+                        Button("Move to \(destination.displayName)") { moveItem(item, to: destination.id); itemToMove = nil }
                     }
                 }
                 Button("Cancel", role: .cancel) { itemToMove = nil }
@@ -579,7 +585,7 @@ struct GroceryListScreen: View {
             selectedList?.lastActiveDay = today
             saveChanges()
         }
-        .onChange(of: visibility.shoppingVisibleIDs) { _, visibleIDs in
+        .onChange(of: shoppingVisibleIDs) { _, visibleIDs in
             guard !visibleIDs.contains(storeID) else { return }
             browser.endInteraction()
             showingStore = false
@@ -671,7 +677,7 @@ struct GroceryListScreen: View {
         ForEach(items) { item in
             HStack(spacing: 12) {
                 Button {
-                    guard browser.canPresentStore, visibility.shoppingVisibleIDs.contains(storeID) else { return }
+                    guard browser.canPresentStore, shoppingVisibleIDs.contains(storeID) else { return }
                     selectedList?.selectedItemID = item.id
                     saveChanges()
                     presentStore()
@@ -1018,7 +1024,8 @@ struct GroceryListScreen: View {
     }
 
     private func moveItem(_ item: GroceryItem, to destination: StoreID) {
-        guard item.listID == storeID.listID, destination != storeID else { return }
+        guard item.listID == storeID.listID, destination != storeID,
+              sessions.definitions.first(where: { $0.id == destination })?.isAvailableForShopping == true else { return }
         if selectedList?.selectedItemID == item.id {
             selectedList?.selectedItemID = ShoppingLists.selection(afterRemoving: item.id, from: items)
         }

@@ -1759,6 +1759,19 @@ final class StoreSelectionTests: XCTestCase {
         add(screenshot)
     }
 
+    func testMoveDestinationsHideUnverifiedSearchStores() {
+        app.buttons["Actions for Coles fixture item"].tap()
+        app.buttons["Move to Another Store"].tap()
+        for name in ["Tesco", "Amazon US", "Costco US", "New World", "PAK’nSAVE", "Boots", "CVS"] {
+            XCTAssertFalse(app.buttons["Move to \(name)"].exists, name)
+        }
+        XCTAssertTrue(app.buttons["Move to Costco"].exists,
+                      "Search-verified/manual-cart stores remain valid destinations")
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").exists,
+                      "Inspecting destinations must not change the source item")
+    }
+
     func testExplicitMoveTransfersOnlySelectedRow() {
         app.buttons["Actions for Coles fixture item"].tap()
         app.buttons["Move to Another Store"].tap()

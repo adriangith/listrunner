@@ -174,8 +174,13 @@ struct RecoveryTests {
         retainedItem.status = .added
         retainedData.mainContext.insert(retainedItem); try retainedData.mainContext.save()
         let availability = StoreVisibilityPreferences(defaults: availabilityDefaults, suggestedCountryCode: "US")
-        check(availability.shoppingVisibleIDs == [.coles] && availability.visibleIDs == previouslyEnabled,
+        check(availability.shoppingVisibleIDs(in: allProductionDefinitions) == [.coles] && availability.visibleIDs == previouslyEnabled,
               "effective visibility hides unsupported enabled stores without rewriting saved visibility")
+        var disabledSearchConfiguration = coles
+        disabledSearchConfiguration.capabilities.search = false
+        check(availability.shoppingVisibleIDs(in: [disabledSearchConfiguration]).isEmpty
+              && availability.selectionForList(current: .coles, definitions: [disabledSearchConfiguration]) == nil,
+              "a native search ceiling alone cannot expose a loaded definition with search disabled")
         check(availability.selectionForList(current: .costcoUS, definitions: allProductionDefinitions) == .coles,
               "a hidden active region falls back to an available enabled store, never its sibling")
         check(availability.regionalChoices["costco"] == "costcoUS"
@@ -189,7 +194,7 @@ struct RecoveryTests {
               "Costco AU is offered without exposing US or silently changing the saved regional preference")
         availability.setVisible(false, for: .coles)
         let hiddenOnly = StoreVisibilityPreferences(defaults: availabilityDefaults)
-        check(hiddenOnly.shoppingVisibleIDs.isEmpty && hiddenOnly.hasCompletedStoreSetup
+        check(hiddenOnly.shoppingVisibleIDs(in: allProductionDefinitions).isEmpty && hiddenOnly.hasCompletedStoreSetup
               && hiddenOnly.visibleIDs == hiddenShoppingIDs
               && hiddenOnly.selectionForList(current: .tesco, definitions: allProductionDefinitions) == nil,
               "hidden-only installs show the returning-user no-stores state and retain every saved enable flag")
@@ -198,7 +203,7 @@ struct RecoveryTests {
               && $0.name == "Saved Tesco item" && $0.quantityAmount == 2 && $0.status == .added && $0.position == 3 },
               "hiding a destination leaves its saved row identity, quantity, status and position intact")
         hiddenOnly.setBrandVisible(true, brand: availableCostco)
-        check(hiddenOnly.shoppingVisibleIDs == [.costco] && !hiddenOnly.visibleIDs.contains(.costcoUS)
+        check(hiddenOnly.shoppingVisibleIDs(in: allProductionDefinitions) == [.costco] && !hiddenOnly.visibleIDs.contains(.costcoUS)
               && hiddenOnly.regionalChoices["costco"] == "costco",
               "only an explicit AU enable replaces the hidden US region's saved enable flag")
         for definition in expansionDefinitions {
