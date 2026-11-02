@@ -645,8 +645,9 @@ struct RecoveryTests {
               && !kmart.allows(URL(string: "https://login.kmart.com.au")!), "Kmart hosts are exact and Australia-only")
         let kmartCatalogue = StoreCatalogue.sections([coles, woolworths, bunnings, costco, tesco, walmart, kmart], countryCode: "AU")
         check(kmartCatalogue.first?.stores.map(\.id) == [.bunnings, .coles, .costco, .kmart, .woolworths]
-              && kmartCatalogue.dropFirst().map(\.indexTitle) == ["W"],
-               "Kmart joins Australia without exposing unverified Tesco")
+              && kmartCatalogue.dropFirst().map(\.indexTitle) == ["T", "W"]
+              && kmartCatalogue[1].stores.map(\.id) == [.tesco],
+               "Kmart joins Australia while Tesco appears in its verified other-store group")
         try coles.validate(); try woolworths.validate(); try bunnings.validate(); try costco.validate()
         for store in [woolworths, bunnings, costco] {
             var widened = store
