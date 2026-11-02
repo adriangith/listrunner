@@ -61,11 +61,15 @@ class StoreExpansionTests(unittest.TestCase):
         project = (BASE / "ListRunner.xcodeproj/project.pbxproj").read_text()
         phase = project.split("/* Begin PBXResourcesBuildPhase section */", 1)[1].split("/* End PBXResourcesBuildPhase section */", 1)[0]
         builds = project.split("/* Begin PBXBuildFile section */", 1)[1].split("/* End PBXBuildFile section */", 1)[0]
+        # Xcode adds descriptive comments beside object IDs when saving settings.
+        # Those comments and harmless whitespace must not change graph validation.
+        project, phase, builds = [re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+                                  for text in (project, phase, builds)]
         for store in COUNTRIES:
             with self.subTest(store=store):
-                refs = re.findall(r'([A-F0-9]{24}) = \{isa = PBXFileReference;[^\n]*path = ListRunner/Resources/' + store + r'\.json;', project)
+                refs = re.findall(r'([A-F0-9]{24})\s*=\s*\{\s*isa\s*=\s*PBXFileReference;[^\n]*\bpath\s*=\s*"?ListRunner/Resources/' + store + r'\.json"?\s*;', project)
                 self.assertEqual(len(refs), 1)
-                entries = re.findall(r'([A-F0-9]{24}) = \{isa = PBXBuildFile; fileRef = ' + refs[0] + r';', builds)
+                entries = re.findall(r'([A-F0-9]{24})\s*=\s*\{\s*isa\s*=\s*PBXBuildFile;\s*fileRef\s*=\s*' + refs[0] + r'\s*;', builds)
                 self.assertEqual(len(entries), 1)
                 self.assertEqual(phase.count(entries[0]), 1)
 

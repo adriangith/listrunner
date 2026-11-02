@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>ListRunner imports incomplete groceries from your Paprika Reminders list and updates linked reminders when you change an item in ListRunner.</string>
 	<key>UILaunchStoryboardName</key>
