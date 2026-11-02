@@ -2,7 +2,7 @@
 
 ## Release record
 
-- Status: **prepared; archive blocked at signing; not uploaded**.
+- Status: **signed archive verified; awaiting TestFlight upload**.
 - App identifier: `com.adrianzafir.listrunner`.
 - Version/build: **1.0 (2)**.
 - Comparison baseline: `testflight/revision-1` at `b01ff2835732d0940f1c8024b1cf74b1cfe7a832`.
@@ -11,6 +11,18 @@
   local time, but it contains no recorded Git revision. Its presence does not prove
   which source was uploaded, so the user-approved approximate baseline is retained.
 - Prepared source commit: `26654a7a2923f1f593b3bfb3f34242d46350d46a`.
+- User-created archive: Mac `~/Library/Developer/Xcode/Archives/2026-11-02/ListRunner 2-11-2026, 2.59 pm.xcarchive`
+  (Finder/actual filename uses a narrow space before `pm`). Created at
+  **2026-11-02 03:59:14 UTC / 14:59:14 Melbourne time**.
+- Checkout was observed clean at `9cf688f4baf1a9b810e85095ec244fedce1323d6`
+  before and after the user-operated archive. This is the source revision to
+  associate with this archive; the archive does not embed an independent Git SHA.
+- Completed archive independently verified: app identifier `com.adrianzafir.listrunner`,
+  version **1.0**, build **2**, strict/deep code-signature verification passed,
+  and all **34** JSON resources byte-match canonical sources.
+- Archive executable SHA-256 (before App Store export/re-signing):
+  `29709ec2354c03a9d9000ae513d85566f96e7d59c8e18c4d0dc6a8fbfbce8b01`.
+- Local verification manifest: Mac `~/Library/Logs/ListRunner-TestFlight-1.0-2-archive-manifest.json`.
 - Archive attempt: Mac `~/Library/Developer/Xcode/Archives/2026-11-02/ListRunner-1.0-2-26654a7.xcarchive`.
   This attempt failed at CodeSign with `errSecInternalComponent`; do not treat it
   as a completed signed archive. Compilation completed, and the staged app's
@@ -18,9 +30,10 @@
 - Archive log: Mac `~/Library/Logs/ListRunner-TestFlight-1.0-2-26654a7-archive.log`.
 - All 34 staged application JSON resources match canonical sources. Native 1,666,
   release-metadata 2 and expansion-contract 3 checks passed during preparation.
-- Next: authorise signing from the Mac GUI/keychain and create a successful archive;
-  verify its metadata/resources before uploading. Record the actual archive source,
-  path and App Store Connect result, then create the successful-upload tag.
+- The later user-created archive supersedes that failed CLI signing attempt.
+- Next: upload the verified 1.0 (2) archive to App Store Connect for TestFlight.
+  Record the actual uploaded build number/result (including any export-time version
+  management), then create the successful-upload tag at the archived source revision.
   No upload tag for revision 2 has been created.
 
 ## What to Test
