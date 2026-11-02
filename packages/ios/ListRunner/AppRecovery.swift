@@ -49,7 +49,7 @@ struct SettingsScreen: View {
         Form {
             Section {
                 Toggle("Enable store", isOn: Binding(
-                    get: { brand.regions.contains { visibility.visibleIDs.contains($0.id) } },
+                    get: { brand.regions.contains { visibility.shoppingVisibleIDs.contains($0.id) } },
                     set: { visibility.setBrandVisible($0, brand: brand) }
                 ))
                 .accessibilityLabel("Enable \(brand.name)")
@@ -378,7 +378,7 @@ struct StoreVisibilityScreen: View {
 
     var body: some View {
         let sections = StoreBrand.sections(catalogueDefinitions, countryCode: visibility.shoppingCountryCode,
-                                               search: searchText, enabledIDs: visibility.visibleIDs)
+                                               search: searchText, enabledIDs: visibility.shoppingVisibleIDs)
         ZStack {
             // Keep the native scroll controller attached during empty searches.
             // Replacing it with a non-scrolling view disconnects the large-title
@@ -431,6 +431,7 @@ private struct StoreRegionScreen: View {
     @ObservedObject var visibility: StoreVisibilityPreferences
     @Environment(\.dismiss) private var dismiss
     @State private var pendingRegion: StoreID?
+    private var availableRegions: [StoreDefinition] { brand.regions.filter(\.isAvailableForShopping) }
 
     var body: some View {
         List {
@@ -441,7 +442,7 @@ private struct StoreRegionScreen: View {
             }
             Section {
                 Text("Regional website").font(.headline).accessibilityAddTraits(.isHeader)
-                ForEach(brand.regions, id: \.id) { region in
+                ForEach(availableRegions, id: \.id) { region in
                     Button {
                         if region.id == visibility.selectedRegion(for: brand).id { dismiss() }
                         else { pendingRegion = region.id }

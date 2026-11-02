@@ -50,7 +50,7 @@ struct ShoppingRootScreen: View {
         }
             .background(WelcomeTransitionAnchor(transition: welcomeTransition))
             .sensoryFeedback(.success, trigger: welcomeCompletion)
-            .onChange(of: visibility.visibleIDs) { previous, current in
+            .onChange(of: visibility.shoppingVisibleIDs) { previous, current in
                 // Opening management is not a choice. Keep the one-run welcome
                 // preview when backing out, and finish only on an enable action.
                 if !current.subtracting(previous).isEmpty {
@@ -184,19 +184,19 @@ struct GroceryListScreen: View {
         #if DEBUG
         if previewingStoreWelcome { return true }
         #endif
-        return visibility.visibleIDs.isEmpty && !visibility.hasCompletedStoreSetup
+        return visibility.shoppingVisibleIDs.isEmpty && !visibility.hasCompletedStoreSetup
     }
     // The storefront configuration is the single source of truth for the
     // selected store's visual identity, including all list-screen accents.
     private var storePrimaryColor: Color {
-        guard !visibility.visibleIDs.isEmpty else { return .primary }
+        guard !visibility.shoppingVisibleIDs.isEmpty else { return .primary }
         let color = browser.store.brandColors?.primary ?? browser.store.addedColor
         return Color(red: Double(color.red) / 255,
                      green: Double(color.green) / 255,
                      blue: Double(color.blue) / 255)
     }
     private var storeHighlightColor: Color {
-        guard !visibility.visibleIDs.isEmpty else { return .primary }
+        guard !visibility.shoppingVisibleIDs.isEmpty else { return .primary }
         guard let color = browser.store.brandColors?.highlight else { return storePrimaryColor }
         return Color(red: Double(color.red) / 255,
                      green: Double(color.green) / 255,
@@ -214,7 +214,7 @@ struct GroceryListScreen: View {
                     }
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-                } else if visibility.visibleIDs.isEmpty {
+                } else if visibility.shoppingVisibleIDs.isEmpty {
                     ContentUnavailableView {
                         Label("No stores enabled", systemImage: "basket")
                     } description: {
@@ -407,10 +407,10 @@ struct GroceryListScreen: View {
                         .font(showingStoreWelcome ? .title3.weight(.bold) : .largeTitle.weight(.bold))
                         .foregroundStyle(.primary)
                     Spacer(minLength: 8)
-                    if !showingStoreWelcome && !visibility.visibleIDs.isEmpty {
+                    if !showingStoreWelcome && !visibility.shoppingVisibleIDs.isEmpty {
                         Menu {
                             ForEach(StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
-                                                           enabledIDs: visibility.visibleIDs), id: \.id) { store in
+                                                            enabledIDs: visibility.shoppingVisibleIDs), id: \.id) { store in
                                 Button(store.displayName) { onSelectStore(store.id) }
                             }
                             Divider()
@@ -439,7 +439,7 @@ struct GroceryListScreen: View {
                 .background(Color(uiColor: .systemGroupedBackground))
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if !showingStoreWelcome && !visibility.visibleIDs.isEmpty && !items.isEmpty {
+                if !showingStoreWelcome && !visibility.shoppingVisibleIDs.isEmpty && !items.isEmpty {
                     Button {
                         presentStore()
                     } label: {
@@ -454,7 +454,7 @@ struct GroceryListScreen: View {
                         showStoreFrame = frame
                         revealFocusedProductEntry()
                     }
-                     .disabled(!browser.canPresentStore || !visibility.visibleIDs.contains(storeID))
+                     .disabled(!browser.canPresentStore || !visibility.shoppingVisibleIDs.contains(storeID))
                     .padding(.horizontal, 20)
                     .padding(.top, 8)
                     // Keep the action inside the adjusted safe area so it stays
@@ -492,7 +492,7 @@ struct GroceryListScreen: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if !showingStoreWelcome && !visibility.visibleIDs.isEmpty && !items.isEmpty { EditButton() }
+                    if !showingStoreWelcome && !visibility.shoppingVisibleIDs.isEmpty && !items.isEmpty { EditButton() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     if !showingStoreWelcome {
@@ -579,7 +579,7 @@ struct GroceryListScreen: View {
             selectedList?.lastActiveDay = today
             saveChanges()
         }
-        .onChange(of: visibility.visibleIDs) { _, visibleIDs in
+        .onChange(of: visibility.shoppingVisibleIDs) { _, visibleIDs in
             guard !visibleIDs.contains(storeID) else { return }
             browser.endInteraction()
             showingStore = false
@@ -671,7 +671,7 @@ struct GroceryListScreen: View {
         ForEach(items) { item in
             HStack(spacing: 12) {
                 Button {
-                    guard browser.canPresentStore, visibility.visibleIDs.contains(storeID) else { return }
+                    guard browser.canPresentStore, visibility.shoppingVisibleIDs.contains(storeID) else { return }
                     selectedList?.selectedItemID = item.id
                     saveChanges()
                     presentStore()

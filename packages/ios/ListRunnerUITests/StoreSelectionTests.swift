@@ -1253,20 +1253,18 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.buttons["store-letter-menu"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["shopping-country"].firstMatch.exists)
 
-        setStoreVisibility("tesco", shown: true)
-        let tesco = manageRow("tesco")
+        setStoreVisibility("walmart", shown: true)
+        let walmart = manageRow("walmart")
         let costco = manageRow("costco")
-        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "manage-store-tesco").count, 1)
-        XCTAssertLessThan(tesco.frame.minY, costco.frame.minY,
-                          "Enabled Tesco moves above disabled Australian stores")
-        XCTAssertFalse(app.staticTexts["T"].exists, "Enabling Tesco removes its empty index group")
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "manage-store-walmart").count, 1)
+        XCTAssertLessThan(walmart.frame.minY, costco.frame.minY,
+                          "Enabled Walmart moves above disabled Australian stores")
 
-        setStoreVisibility("tesco", shown: false)
-        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "manage-store-tesco").count, 1)
-        XCTAssertLessThan(costco.frame.minY, tesco.frame.minY)
-        XCTAssertTrue(app.staticTexts["T"].exists)
-        openStoreSettings("tesco")
-        XCTAssertEqual(app.switches["store-visibility-tesco"].value as? String, "0")
+        setStoreVisibility("walmart", shown: false)
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "manage-store-walmart").count, 1)
+        XCTAssertLessThan(costco.frame.minY, walmart.frame.minY)
+        openStoreSettings("walmart")
+        XCTAssertEqual(app.switches["store-visibility-walmart"].value as? String, "0")
         XCTAssertTrue(app.staticTexts["Cart Undo, Not included"].exists,
                       "Disabled stores still expose their complete settings")
     }
@@ -1572,43 +1570,42 @@ final class StoreSelectionTests: XCTestCase {
         app.alerts["Reset Costco Session?"].buttons["Cancel"].tap()
     }
 
-    func testTescoBrowsingOnlyAppearsUnderOtherStores() {
+    func testUnverifiedSearchStoresAreHiddenFromManagementAndSearch() {
         app.buttons["Settings"].tap()
-        XCTAssertFalse(app.buttons["settings-store-tesco"].exists)
         app.buttons["Manage Stores"].tap()
-        XCTAssertTrue(app.staticTexts["STORES IN AUSTRALIA"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["OTHER STORES"].exists)
-        XCTAssertTrue(app.staticTexts["T"].exists)
-        let tesco = manageRow("tesco")
-        XCTAssertTrue(tesco.waitForExistence(timeout: 3))
-        XCTAssertEqual(app.switches.count, 0)
-        XCTAssertLessThan(manageRow("woolworths").frame.minY, tesco.frame.minY)
+        for (id, name) in [("tesco", "Tesco"), ("amazon", "Amazon"), ("costcoUS", "Costco US"),
+                           ("newWorld", "New World"), ("paknsave", "PAK’nSAVE"), ("boots", "Boots"), ("cvs", "CVS")] {
+            let search = app.searchFields.firstMatch
+            XCTAssertTrue(search.waitForExistence(timeout: 3))
+            search.tap(); search.typeText(name)
+            XCTAssertTrue(app.staticTexts["No stores found"].waitForExistence(timeout: 3), name)
+            XCTAssertFalse(manageRow(id).exists)
+            app.buttons["Clear Search"].tap()
+        }
+        XCTAssertTrue(manageRow("coles").exists)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "Manage Stores — Australia with browsing-only Tesco UK"
+        screenshot.name = "Manage Stores — unverified-search destinations hidden"
         screenshot.lifetime = .keepAlways
         add(screenshot)
-        setStoreVisibility("tesco", shown: true)
-        openStoreSettings("tesco")
-        XCTAssertEqual(app.staticTexts.matching(identifier: "Search, Not included").count, 2,
-                       "Tesco must not offer either bundled or session search automation")
-        XCTAssertEqual(app.staticTexts.matching(identifier: "Cart detection, Not included").count, 2)
-        XCTAssertTrue(app.staticTexts["Cart Undo, Not included"].exists)
     }
 
-    func testTescoMovesToLocalGroupWhenShoppingCountryIsUK() {
+    func testUnverifiedSearchStoresStayHiddenAfterCountryChange() {
         app.buttons["Settings"].tap()
         changeCountry("GB", name: "United Kingdom")
         app.buttons["Manage Stores"].tap()
         XCTAssertTrue(app.staticTexts["STORES IN UNITED KINGDOM"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["OTHER STORES"].exists)
-        let tesco = manageRow("tesco")
-        XCTAssertLessThan(manageRow("bunnings").frame.minY, tesco.frame.minY,
-                          "Enabled Bunnings stays ahead of the local disabled group")
-        openStoreSettings("tesco")
-        XCTAssertEqual(app.switches["store-visibility-tesco"].value as? String, "0")
+        let search = app.searchFields.firstMatch
+        search.tap(); search.typeText("Tesco")
+        XCTAssertTrue(app.staticTexts["No stores found"].waitForExistence(timeout: 3))
+        XCTAssertFalse(manageRow("tesco").exists)
+        app.buttons["Clear Search"].tap()
+        search.tap(); search.typeText("Sainsbury")
+        XCTAssertTrue(manageRow("sainsburys").waitForExistence(timeout: 3),
+                      "Verified-search stores remain available even when cart detection is unfinished")
     }
 
-    func testCostcoRegionalChoiceIsExplicitAndKeepsAustralianList() {
+    func testCostcoAustraliaListSurvivesRelaunchWhileUSIsHidden() {
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "manage-store-costco").count, 1)
@@ -1624,61 +1621,36 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
         openStoreSettings("costco")
-        app.buttons["store-region-picker-costco"].tap()
-        app.buttons["store-region-costcoUS"].tap()
-        XCTAssertTrue(app.alerts["Change Costco region?"].waitForExistence(timeout: 3))
-        app.alerts["Change Costco region?"].buttons["Cancel"].tap()
-        app.buttons["Done"].tap()
-        XCTAssertEqual(app.buttons["store-region-picker-costco"].value as? String, "Australia")
-        app.buttons["store-region-picker-costco"].tap()
-        app.buttons["store-region-costcoUS"].tap()
-        app.alerts["Change Costco region?"].buttons["Use this regional website"].tap()
-        XCTAssertTrue(app.navigationBars["Costco region"].waitForNonExistence(timeout: 5))
-        XCTAssertEqual(app.buttons["store-region-picker-costco"].value as? String, "United States")
-        XCTAssertTrue(app.buttons["Reset Costco US Session"].exists)
-        XCTAssertEqual(app.staticTexts.matching(identifier: "Search, Not included").count, 2,
-                       "Support and session status must refresh to the selected region")
+        XCTAssertFalse(app.buttons["store-region-picker-costco"].exists)
+        XCTAssertFalse(app.buttons["store-region-costcoUS"].exists)
+        XCTAssertTrue(app.buttons["Reset Costco Session"].exists)
+        XCTAssertTrue(app.staticTexts["Search, Included"].exists)
         let shot = XCTAttachment(screenshot: app.screenshot())
-        shot.name = "Costco settings — United States regional website"
+        shot.name = "Costco settings — only verified Australian website offered"
         shot.lifetime = .keepAlways
         add(shot)
         tapNavigationBack()
         app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(row("Bunnings fixture item", status: "Pending").waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"),
-                      "Bunnings is the alphabetically first enabled destination in this fixture")
-        XCTAssertFalse(row("Australian Costco item", status: "Pending").exists,
-                       "The now-disabled Australian region must not remain the displayed list")
-        choose("Costco US")
-        XCTAssertFalse(row("Australian Costco item", status: "Pending").exists, "US and AU lists remain separate")
-        app.buttons["store-picker"].tap()
-        app.buttons["Manage Stores"].tap()
-        openStoreSettings("costco")
-        app.buttons["store-region-picker-costco"].tap()
-        app.buttons["store-region-costco"].tap()
-        app.alerts["Change Costco region?"].buttons["Use this regional website"].tap()
-        XCTAssertTrue(app.navigationBars["Costco region"].waitForNonExistence(timeout: 5))
-        tapNavigationBack()
-        let managementBack = app.navigationBars["Manage Stores"].buttons.firstMatch
-        XCTAssertTrue(managementBack.waitForExistence(timeout: 5))
-        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: managementBack)
-        XCTAssertEqual(XCTWaiter.wait(for: [hittable], timeout: 5), .completed)
-        managementBack.tap()
-        choose("Costco")
         XCTAssertTrue(row("Australian Costco item", status: "Pending").waitForExistence(timeout: 3))
+        app.terminate(); app.launch()
+        XCTAssertTrue(row("Australian Costco item", status: "Pending").waitForExistence(timeout: 5))
+        app.buttons["store-picker"].tap()
+        XCTAssertFalse(app.buttons["Choose Costco US"].exists)
+        XCTAssertFalse(app.buttons["Choose Tesco"].exists)
     }
 
-    func testCostcoRegionalWebsitePickerAccessibility() throws {
+    func testBunningsRegionalWebsitePickerAccessibility() throws {
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
-        openStoreSettings("costco")
-        app.buttons["store-region-picker-costco"].tap()
-        let australian = app.buttons["store-region-costco"]
+        openStoreSettings("bunnings")
+        app.buttons["store-region-picker-bunnings"].tap()
+        let australian = app.buttons["store-region-bunnings"]
         XCTAssertTrue(australian.waitForExistence(timeout: 3))
         XCTAssertTrue(australian.isSelected)
-        XCTAssertFalse(app.buttons["store-region-costcoUS"].isSelected)
+        XCTAssertTrue(app.buttons["store-region-bunningsNZ"].exists)
+        XCTAssertFalse(app.buttons["store-region-bunningsNZ"].isSelected)
         let shot = XCTAttachment(screenshot: app.screenshot())
-        shot.name = "Costco — explicit regional website choices"
+        shot.name = "Bunnings — verified regional website choices"
         shot.lifetime = .keepAlways
         add(shot)
         try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription, .dynamicType, .contrast])
@@ -1693,13 +1665,15 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Manage Stores"].tap()
         openStoreSettings("costco")
         XCTAssertEqual(app.switches.matching(identifier: "store-visibility-costco").count, 1)
-        XCTAssertEqual(app.buttons["store-region-picker-costco"].value as? String, "Australia")
+        XCTAssertFalse(app.buttons["store-region-picker-costco"].exists)
+        XCTAssertTrue(app.buttons["Reset Costco Session"].exists)
         app.terminate()
         app.launch()
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
         openStoreSettings("costco")
-        XCTAssertEqual(app.buttons["store-region-picker-costco"].value as? String, "Australia")
+        XCTAssertFalse(app.buttons["store-region-picker-costco"].exists)
+        XCTAssertTrue(app.buttons["Reset Costco Session"].exists)
         XCTAssertEqual(app.switches["store-visibility-costco"].value as? String, "1")
     }
 
@@ -1757,10 +1731,10 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Settings"].tap()
         changeCountry("US", name: "United States")
         app.buttons["Manage Stores"].tap()
-        for (id, name) in [("amazon", "Amazon US"), ("kroger", "Kroger"), ("target", "Target US")] {
+        for (id, name) in [("kroger", "Kroger"), ("target", "Target US")] {
             openStoreSettings(id)
             XCTAssertEqual(app.switches["store-visibility-\(id)"].value as? String, "0")
-            XCTAssertTrue(app.staticTexts[id == "amazon" ? "Search, Not included" : "Search, Included"].exists)
+            XCTAssertTrue(app.staticTexts["Search, Included"].exists)
             XCTAssertTrue(app.staticTexts["Cart detection, Not included"].exists)
             XCTAssertTrue(app.staticTexts["Cart Undo, Not included"].exists)
             app.buttons["Reset \(name) Session"].tap()
@@ -1778,7 +1752,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["OTHER STORES"].exists)
         let walmart = manageRow("walmart")
         XCTAssertLessThan(manageRow("bunnings").frame.minY, walmart.frame.minY)
-        XCTAssertLessThan(walmart.frame.minY, manageRow("tesco").frame.minY)
+        XCTAssertFalse(manageRow("tesco").exists)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Manage Stores — United States with browsing-only Walmart"
         screenshot.lifetime = .keepAlways

@@ -54,6 +54,13 @@ passed. `testExpansionStoreDiscoveryAndSeparateTargetBrands` is an offline UI ch
 Schema-4 profiles cover Priceline, Supercheap Auto, Chemist Warehouse,
 JB Hi-Fi, Officeworks, Bunnings NZ, Petbarn, Morrisons and Waitrose; only Priceline,
 Supercheap Auto, Ocado, Chemist Warehouse, Waitrose, JB Hi-Fi, Bunnings NZ and Officeworks are production-enabled after native live proof.
+User-facing shopping lists offer only destinations with verified search enabled.
+Tesco, Amazon US, Costco US, New World, PAK’nSAVE, Boots and CVS are temporarily
+hidden from discovery/search, the chooser and regional options. Their registration,
+implementation, saved lists, website sessions and raw preferences remain intact.
+Costco AU stays available; a hidden active US region never silently changes to AU.
+An available enabled store is selected instead, or the returning-user no-stores
+state is shown. Saved flags can become effective again when support is improved.
 Quantity-free acknowledgements never invent before/after totals and
 cannot reverse the retailer cart. Opt-in `testLiveStoreCart…` tests require
 `TEST_RUNNER_LISTRUNNER_LIVE_CART_STORE=<store>` when launched through xcodebuild.

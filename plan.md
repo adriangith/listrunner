@@ -1,5 +1,21 @@
 ## ListRunner Build Specification
 
+### Temporarily hide unverified-search destinations (2 November 2026)
+
+* User-facing store discovery, management search, the active chooser, move targets
+  and regional website choices offer only valid configurations with verified search
+  enabled under the native ceiling. This currently hides Tesco, Amazon US, Costco
+  US, New World, PAK’nSAVE, Boots and CVS; Costco AU remains available.
+* Preserve all registrations, implementations, stable identities, saved lists,
+  website stores, saved enable flags and regional preferences for later work.
+  Hiding is an availability projection, not a deletion/reset or a list migration.
+* A saved active hidden destination resolves to another available enabled store,
+  or the existing returning-user no-stores state when none remain. Never silently
+  switch Costco US to Australia. Only an explicit subsequent regional/enable choice
+  may replace the old brand preference. Search-verified stores remain offered even
+  when their cart detector is not yet verified. The twenty-store verification goal
+  stays paused; this availability change does not certify additional stores.
+
 ### Twenty additional retailer destinations (1 November 2026)
 
 * The user requested search and cart-addition detection for twenty more popular stores and authorized test additions, but no checkout/purchase, sign-in, account/fulfilment changes or verification bypass. The chosen AU/NZ/GB/US set and evidence are recorded in `docs/retailer-expansion-2026-11-01.md`.

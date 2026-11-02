@@ -428,6 +428,9 @@ struct StoreDefinition: Codable {
     enum ConfigurationError: Error { case invalid }
 
     var isConfigurationValid: Bool { (try? validate()) != nil }
+    // Keep every destination registered for future work and data recovery, but
+    // offer shopping only after its item search has independent verification.
+    var isAvailableForShopping: Bool { id.permitsSearch && capabilities.search && isConfigurationValid }
 
     func validate() throws {
         let countries = serviceArea.countryCodes
@@ -778,7 +781,7 @@ enum StoreCatalogue {
 
     static func ordered(_ definitions: [StoreDefinition], countryCode: String?, enabledIDs: Set<StoreID>? = nil,
                         locale: Locale = .current) -> [StoreDefinition] {
-        let candidates = definitions.filter { enabledIDs?.contains($0.id) ?? true }
+        let candidates = definitions.filter { $0.isAvailableForShopping && (enabledIDs?.contains($0.id) ?? true) }
         return candidates.sorted { left, right in
             if countryCode != nil && left.isConfigurationValid != right.isConfigurationValid {
                 return left.isConfigurationValid
@@ -836,7 +839,7 @@ struct StoreBrand: Identifiable {
 
     static func sections(_ definitions: [StoreDefinition], countryCode: String?, search: String,
                          enabledIDs: Set<StoreID> = []) -> [Section] {
-        let brands = catalogue(definitions).filter { brand in
+        let brands = catalogue(definitions.filter(\.isAvailableForShopping)).filter { brand in
             search.isEmpty || brand.name.localizedCaseInsensitiveContains(search)
                 || brand.regions.contains { region in
                     region.displayName.localizedCaseInsensitiveContains(search)
@@ -878,6 +881,9 @@ struct StoreBrand: Identifiable {
 @MainActor
 final class StoreVisibilityPreferences: ObservableObject {
     @Published private(set) var visibleIDs: Set<StoreID>
+    // Do not rewrite saved visibility: hidden stores can recover their previous
+    // preferences when support improves. UI eligibility is a separate projection.
+    var shoppingVisibleIDs: Set<StoreID> { Set(visibleIDs.filter(\.permitsSearch)) }
     @Published private(set) var hasCompletedStoreSetup: Bool
     @Published private(set) var shoppingCountryCode: String?
     @Published private(set) var useLocalIngredientNames: Bool
@@ -981,15 +987,15 @@ final class StoreVisibilityPreferences: ObservableObject {
     func selectionForList(current: StoreID, definitions: [StoreDefinition]) -> StoreID? {
         // Resolve only when returning to the list, never during management.
         // Reading persisted visibility also repairs an old disabled selection on launch.
-        let available = Set(definitions.map(\.id)).intersection(visibleIDs)
+        let available = Set(definitions.filter(\.isAvailableForShopping).map(\.id)).intersection(shoppingVisibleIDs)
         let pending = (defaults.array(forKey: pendingSelectionKey) as? [String] ?? [])
             .compactMap(StoreID.init(rawValue:)).last(where: { available.contains($0) })
         // Consume on return, even when already active, so subsequent visits or
         // explicit picker choices are not overridden by an old enable action.
         defaults.removeObject(forKey: pendingSelectionKey)
         if let pending { return pending }
-        return visibleIDs.contains(current) ? current
-            : StoreCatalogue.ordered(definitions, countryCode: nil, enabledIDs: visibleIDs).first?.id
+        return available.contains(current) ? current
+            : StoreCatalogue.ordered(definitions, countryCode: nil, enabledIDs: available).first?.id
     }
 
     func setShoppingCountry(_ code: String?) {
@@ -1020,7 +1026,8 @@ final class StoreVisibilityPreferences: ObservableObject {
         choices[brand.id] = selected.id.rawValue
         regionalChoices = choices
         defaults.set(choices, forKey: regionalKey)
-        var updated = visibleIDs.subtracting(brand.regions.map(\.id))
+        let siblings = StoreID.allCases.filter { $0.brandID == brand.id }
+        var updated = visibleIDs.subtracting(siblings)
         if visible { updated.insert(selected.id) }
         saveVisibility(updated)
     }
@@ -1035,7 +1042,8 @@ final class StoreVisibilityPreferences: ObservableObject {
         // Called only after explicit confirmation. Hide siblings, never delete their
         // data or change activeStoreID here. The list screen resolves a disabled
         // active destination to an enabled store when management is dismissed.
-        var updated = visibleIDs.subtracting(brand.regions.map(\.id))
+        let siblings = StoreID.allCases.filter { $0.brandID == brand.id }
+        var updated = visibleIDs.subtracting(siblings)
         if enabled { updated.insert(id) }
         saveVisibility(updated)
     }
