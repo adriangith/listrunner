@@ -637,3 +637,17 @@ failure remains unexplained. Production detection and retailer Undo stay off.
 Temporary status-only observer is removed; no request bodies/headers were captured.
 User reported empty cart before the final diagnostic Add; final recheck pending.
 See expansion ledger for precise evidence and boundaries, not a passing claim.
+# Officeworks persistent-session native proof — 2026-11-02
+
+Build `b704794e160a927fe8e1419390c88b70b1b061b3` passed a human-operated Add for
+Keji Ballpoint Pens 1mm Assorted 10 Pack, guest location 3000, in an isolated named
+persistent store (verified exact test ID, never a normal retailer store). Visible
+receipt contained the exact title; user saw automatic Added. Native diagnostic
+sequence 4 and isolated SwiftData `Pens / Added` independently confirm detection.
+User removed the one pack and confirmed empty; final inspection was search/no
+receipt, so cleanup is user-confirmed rather than an independent empty-page check.
+Status-only trace recorded carts POST204, fallback GET200 and real-cart GET200;
+no bodies, headers, IDs or cookie values exported. Temporary observer removed.
+Production detection enabled, retailer Undo off; normal persistent-storage policy
+unchanged. This run passed where ephemeral runs failed, not proof of the precise
+underlying cause. Earlier Officeworks blocker below is historical test evidence.

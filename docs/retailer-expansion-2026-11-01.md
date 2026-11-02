@@ -201,6 +201,29 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- Officeworks native certification completed on simulator build
+  `b704794e160a927fe8e1419390c88b70b1b061b3`, in the explicitly isolated named
+  persistent test store `0BDE339A-A800-4D62-B5BC-17838D7B3823`, not a normal store.
+  Preflight verified persistent=true/exact data ID, schema 4, active detector,
+  exact Keji pen-pack card, guest location 3000 and no previous acknowledgement;
+  user confirmed empty cart. One trusted Add produced visible exact-product
+  confirmation and automatic Added, independently recorded by native diagnostic
+  `cartDetection/succeeded` sequence 4 and isolated SwiftData `Pens / Added`.
+  HTTP metadata: POST carts 204, initial fallback GET carts/111-fake **200** this
+  time, then a real-ID cart GET 200 (ID redacted). Thus the fake URL alone is not
+  sufficient to diagnose failure; earlier 404 plus empty receipt was the blocker.
+- User removed the one test pack and confirmed empty. Subsequent inspection was
+  back on search with no receipt, not an independently visible empty-cart page;
+  record cleanup as user-confirmed. Temporary HTTP observer stopped and any own
+  reload-injection script removed; original automation scripts preserved. Safari
+  comparison test pack was separately removed/user-confirmed empty before this
+  experiment. Production profile/native ceiling now enabled; retailer Undo stays
+  off. Eight of twenty expansion detectors certified. Normal ListRunner already
+  uses persistent retailer stores, so production storage policy is unchanged.
+  The persistent isolated run passed where ephemeral runs failed; exact underlying
+  cause of the ephemeral failure remains unproven. Earlier blockers below refer
+  to those prior test conditions and are not a current production-disable claim.
+
 - Officeworks same-device Safari comparison: user configured guest location 3000,
   confirmed empty, added the same Keji pen pack and saw one pack with non-zero
   price, then confirmed removal/empty cart. Thus the product/location works in
