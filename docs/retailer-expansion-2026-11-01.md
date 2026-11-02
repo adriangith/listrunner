@@ -201,6 +201,18 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- Officeworks same-device Safari comparison: user configured guest location 3000,
+  confirmed empty, added the same Keji pen pack and saw one pack with non-zero
+  price, then confirmed removal/empty cart. Thus the product/location works in
+  Safari on this simulator; the embedded-session difference remains unexplained.
+  Prepare a DEBUG-only isolated persistent-storage experiment, since live probes
+  normally use `.nonPersistent()` while ordinary production sessions are persistent.
+  A third Officeworks-only flag plus valid test namespace is required, canonical
+  website/list IDs and zero UUID are rejected, and actual store identity must match.
+  All other test retailers remain ephemeral. No production capability is raised,
+  no normal store is opened, and no cookies, browser identity or security controls
+  are copied/forced. Persistent storage is a hypothesis, not a proven fix.
+
 - Officeworks remains **website-cart blocked, not certified** on `d1b3c01`.
   User's first Add included a location-confirmation interaction; a later clean
   trusted Add after location 3000 was set matched the configured control but

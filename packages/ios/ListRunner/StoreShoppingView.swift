@@ -1874,8 +1874,10 @@ final class StoreBrowser: ObservableObject {
 
     private var isLiveCartProbe: Bool {
         #if DEBUG
-        return uiTestMode && !websiteDataStore.isPersistent && store.schemaVersion == 4 && store.cart != nil &&
-            ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_CART_PROBE"] == store.id.rawValue
+        return uiTestMode && store.schemaVersion == 4 && store.cart != nil &&
+            StoreProbeIsolation.permitsCartProbe(for: store.id, isPersistent: websiteDataStore.isPersistent,
+                                                identifier: websiteDataStore.identifier,
+                                                environment: ProcessInfo.processInfo.environment)
         #else
         return false
         #endif
@@ -1897,11 +1899,14 @@ final class StoreBrowser: ObservableObject {
         #if DEBUG
         // Prospective bundled profiles can be tested through the real native
         // bridge without raising production ceilings. This requires BOTH an
-        // isolated UI-test UUID (therefore a nonpersistent data store) and an
-        // explicit single-store live opt-in. Ordinary/offline tests stay offline.
-        if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"].flatMap(UUID.init(uuidString:)) != nil,
-           ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_CART_PROBE"] == store.id.rawValue,
-           store.schemaVersion == 4, store.cart != nil, !websiteDataStore.isPersistent {
+        // isolated UI-test UUID and an explicit single-store live opt-in. The
+        // Officeworks persistent experiment additionally requires its exact
+        // isolated store ID and a third flag, never any canonical website store.
+        // Ordinary/offline tests stay offline; release does not use this gate.
+        if StoreProbeIsolation.permitsCartProbe(for: store.id, isPersistent: websiteDataStore.isPersistent,
+                                               identifier: websiteDataStore.identifier,
+                                               environment: ProcessInfo.processInfo.environment),
+           store.schemaVersion == 4, store.cart != nil {
             store.capabilities.cartDetection = true
             store.capabilities.cartUndo = false
         }

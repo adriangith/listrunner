@@ -259,6 +259,30 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+// Pure validation shared by DEBUG-only live-probe call sites. Release browsing
+// never consults these environment flags. Tests can validate isolation without
+// opening a website or creating a persistent store.
+enum StoreProbeIsolation {
+    static func persistentIdentifier(for id: StoreID, environment: [String: String]) -> UUID? {
+        guard id == .officeworks,
+              environment["LISTRUNNER_LIVE_CART_PROBE"] == id.rawValue,
+              environment["LISTRUNNER_LIVE_PERSISTENT_PROBE"] == id.rawValue,
+              let raw = environment["LISTRUNNER_UI_TEST_SESSION"], let identifier = UUID(uuidString: raw),
+              identifier != UUID(uuidString: "00000000-0000-0000-0000-000000000000")!,
+              !StoreID.allCases.contains(where: { $0.websiteDataID == identifier || $0.listID == identifier }) else { return nil }
+        return identifier
+    }
+
+    static func permitsCartProbe(for id: StoreID, isPersistent: Bool, identifier: UUID?,
+                                 environment: [String: String]) -> Bool {
+        guard environment["LISTRUNNER_UI_TEST_SESSION"].flatMap(UUID.init(uuidString:)) != nil,
+              environment["LISTRUNNER_LIVE_CART_PROBE"] == id.rawValue else { return false }
+        if !isPersistent { return true }
+        guard let expected = persistentIdentifier(for: id, environment: environment) else { return false }
+        return identifier == expected
+    }
+}
+
 struct StoreDefinition: Codable {
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case schemaVersion, id, displayName, serviceArea, homepage, allowedHosts

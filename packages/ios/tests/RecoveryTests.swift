@@ -73,6 +73,47 @@ struct RecoveryTests {
             try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent($0.rawValue + ".json")))
         }
         let allProductionDefinitions = expandedDefinitions + expansionDefinitions
+        let persistentProbeID = UUID(uuidString: "0BDE339A-A800-4D62-B5BC-17838D7B3823")!
+        let persistentProbeEnvironment = ["LISTRUNNER_UI_TEST_SESSION": persistentProbeID.uuidString,
+            "LISTRUNNER_LIVE_CART_PROBE": "officeworks", "LISTRUNNER_LIVE_PERSISTENT_PROBE": "officeworks"]
+        check(StoreProbeIsolation.persistentIdentifier(for: .officeworks, environment: persistentProbeEnvironment) == persistentProbeID,
+              "Officeworks persistent probe resolves only its isolated test namespace")
+        check(StoreProbeIsolation.permitsCartProbe(for: .officeworks, isPersistent: true, identifier: persistentProbeID,
+                                                  environment: persistentProbeEnvironment), "exact isolated persistent probe can observe its prospective profile")
+        check(!StoreProbeIsolation.permitsCartProbe(for: .officeworks, isPersistent: true, identifier: nil,
+                                                   environment: persistentProbeEnvironment), "default persistent store cannot receive probe capabilities")
+        check(!StoreProbeIsolation.permitsCartProbe(for: .officeworks, isPersistent: true, identifier: UUID(),
+                                                   environment: persistentProbeEnvironment), "unrelated named store cannot receive probe capabilities")
+        for key in persistentProbeEnvironment.keys {
+            var environment = persistentProbeEnvironment; environment.removeValue(forKey: key)
+            check(StoreProbeIsolation.persistentIdentifier(for: .officeworks, environment: environment) == nil
+                  && !StoreProbeIsolation.permitsCartProbe(for: .officeworks, isPersistent: true, identifier: persistentProbeID, environment: environment),
+                  "persistent probe requires every explicit gate: \(key)")
+        }
+        for raw in ["invalid", "00000000-0000-0000-0000-000000000000"] {
+            var environment = persistentProbeEnvironment; environment["LISTRUNNER_UI_TEST_SESSION"] = raw
+            check(StoreProbeIsolation.persistentIdentifier(for: .officeworks, environment: environment) == nil,
+                  "persistent probe rejects invalid or zero identifiers")
+        }
+        for id in StoreID.allCases {
+            if id != .officeworks {
+                var environment = persistentProbeEnvironment
+                environment["LISTRUNNER_LIVE_CART_PROBE"] = id.rawValue
+                environment["LISTRUNNER_LIVE_PERSISTENT_PROBE"] = id.rawValue
+                check(StoreProbeIsolation.persistentIdentifier(for: id, environment: environment) == nil
+                      && !StoreProbeIsolation.permitsCartProbe(for: id, isPersistent: true, identifier: persistentProbeID, environment: environment),
+                      "persistent experiment cannot silently expand to another retailer")
+            }
+            for identifier in [id.websiteDataID, id.listID] {
+                var environment = persistentProbeEnvironment; environment["LISTRUNNER_UI_TEST_SESSION"] = identifier.uuidString
+                check(StoreProbeIsolation.persistentIdentifier(for: .officeworks, environment: environment) == nil
+                      && !StoreProbeIsolation.permitsCartProbe(for: .officeworks, isPersistent: true, identifier: identifier, environment: environment),
+                      "persistent experiment rejects every canonical website/list identifier")
+            }
+        }
+        var ephemeralProbeEnvironment = persistentProbeEnvironment; ephemeralProbeEnvironment.removeValue(forKey: "LISTRUNNER_LIVE_PERSISTENT_PROBE")
+        check(StoreProbeIsolation.permitsCartProbe(for: .officeworks, isPersistent: false, identifier: nil, environment: ephemeralProbeEnvironment),
+              "ordinary live probes remain nonpersistent with their original two explicit gates")
         let bunningsNZ = expansionDefinitions.first { $0.id == .bunningsNZ }!
         let nzAuthorization = URL(string: "https://authorisation.api.bunnings.co.nz/connect/authorize")!
         check(bunningsNZ.allowsNavigation(nzAuthorization)

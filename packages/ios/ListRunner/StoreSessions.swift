@@ -31,7 +31,13 @@ final class StoreSessions: ObservableObject {
         let dataStore: WKWebsiteDataStore
         #if DEBUG
         if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"].flatMap(UUID.init(uuidString:)) != nil {
-            dataStore = .nonPersistent()
+            if let identifier = StoreProbeIsolation.persistentIdentifier(for: id, environment: ProcessInfo.processInfo.environment) {
+                // Explicit Officeworks compatibility experiment only. The pure
+                // gate rejects every canonical data/list ID and all other stores.
+                dataStore = WKWebsiteDataStore(forIdentifier: identifier)
+            } else {
+                dataStore = .nonPersistent()
+            }
         } else {
             dataStore = id == .coles ? .default() : WKWebsiteDataStore(forIdentifier: id.websiteDataID)
         }

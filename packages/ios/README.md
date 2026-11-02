@@ -59,6 +59,16 @@ cannot reverse the retailer cart. Opt-in `testLiveStoreCart…` tests require
 `TEST_RUNNER_LISTRUNNER_LIVE_CART_STORE=<store>` when launched through xcodebuild.
 They use isolated guest storage and must verify cleanup as well as automatic
 native status changes. Ordinary tests do not contact retailers.
+For the explicit Officeworks storage-compatibility experiment only, a DEBUG
+launch may also set `LISTRUNNER_LIVE_PERSISTENT_PROBE=officeworks` alongside
+`LISTRUNNER_LIVE_CART_PROBE=officeworks` and a valid `LISTRUNNER_UI_TEST_SESSION`.
+Only Officeworks gets a named persistent website store identified by that test
+UUID; canonical website/list IDs and the zero UUID are rejected. Probe activation
+also verifies the actual store identifier, rejecting the default or any unrelated
+persistent store. Other test retailers remain nonpersistent; Release behaviour is
+unchanged. This experiment is not evidence that temporary storage caused the bug.
+Do not sign in or leave test items behind; retain the isolated identifier for any
+later targeted test-store cleanup, never clear normal retailer stores as cleanup.
 User-operated sign-in handoffs have a separate browsing-only opt-in:
 `TEST_RUNNER_LISTRUNNER_LIVE_LOGIN_STORE=waitrose` (or `sainsburys`) with
 `testLiveStoreLoginWaitroseHandoff` / `testLiveStoreLoginSainsburysHandoff`.
