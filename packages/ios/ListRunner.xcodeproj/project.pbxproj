@@ -7,26 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A30000000000000000000001 = {isa = PBXBuildFile; fileRef = B30000000000000000000001; };
-		A30000000000000000000002 = {isa = PBXBuildFile; fileRef = B30000000000000000000002; };
-		A30000000000000000000003 = {isa = PBXBuildFile; fileRef = B30000000000000000000003; };
-		A30000000000000000000004 = {isa = PBXBuildFile; fileRef = B30000000000000000000004; };
-		A30000000000000000000005 = {isa = PBXBuildFile; fileRef = B30000000000000000000005; };
-		A30000000000000000000006 = {isa = PBXBuildFile; fileRef = B30000000000000000000006; };
-		A30000000000000000000007 = {isa = PBXBuildFile; fileRef = B30000000000000000000007; };
-		A30000000000000000000008 = {isa = PBXBuildFile; fileRef = B30000000000000000000008; };
-		A30000000000000000000009 = {isa = PBXBuildFile; fileRef = B30000000000000000000009; };
-		A30000000000000000000010 = {isa = PBXBuildFile; fileRef = B30000000000000000000010; };
-		A30000000000000000000011 = {isa = PBXBuildFile; fileRef = B30000000000000000000011; };
-		A30000000000000000000012 = {isa = PBXBuildFile; fileRef = B30000000000000000000012; };
-		A30000000000000000000013 = {isa = PBXBuildFile; fileRef = B30000000000000000000013; };
-		A30000000000000000000014 = {isa = PBXBuildFile; fileRef = B30000000000000000000014; };
-		A30000000000000000000015 = {isa = PBXBuildFile; fileRef = B30000000000000000000015; };
-		A30000000000000000000016 = {isa = PBXBuildFile; fileRef = B30000000000000000000016; };
-		A30000000000000000000017 = {isa = PBXBuildFile; fileRef = B30000000000000000000017; };
-		A30000000000000000000018 = {isa = PBXBuildFile; fileRef = B30000000000000000000018; };
-		A30000000000000000000019 = {isa = PBXBuildFile; fileRef = B30000000000000000000019; };
-		A30000000000000000000020 = {isa = PBXBuildFile; fileRef = B30000000000000000000020; };
 		A10000000000000000000001 /* ListRunnerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* ListRunnerApp.swift */; };
 		A10000000000000000000002 /* GroceryListScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* GroceryListScreen.swift */; };
 		A10000000000000000000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* Assets.xcassets */; };
@@ -60,6 +40,26 @@
 		A10000000000000000000034 /* ListRunner/Resources/kroger.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000034 /* ListRunner/Resources/kroger.json */; };
 		A10000000000000000000035 /* ListRunner/Resources/target.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000035 /* ListRunner/Resources/target.json */; };
 		A20000000000000000000001 /* StoreSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* StoreSelectionTests.swift */; };
+		A30000000000000000000001 /* ListRunner/Resources/chemistWarehouse.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* ListRunner/Resources/chemistWarehouse.json */; };
+		A30000000000000000000002 /* ListRunner/Resources/priceline.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000002 /* ListRunner/Resources/priceline.json */; };
+		A30000000000000000000003 /* ListRunner/Resources/officeworks.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000003 /* ListRunner/Resources/officeworks.json */; };
+		A30000000000000000000004 /* ListRunner/Resources/jbHiFi.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000004 /* ListRunner/Resources/jbHiFi.json */; };
+		A30000000000000000000005 /* ListRunner/Resources/targetAU.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000005 /* ListRunner/Resources/targetAU.json */; };
+		A30000000000000000000006 /* ListRunner/Resources/petbarn.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000006 /* ListRunner/Resources/petbarn.json */; };
+		A30000000000000000000007 /* ListRunner/Resources/supercheapAuto.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000007 /* ListRunner/Resources/supercheapAuto.json */; };
+		A30000000000000000000008 /* ListRunner/Resources/bcf.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000008 /* ListRunner/Resources/bcf.json */; };
+		A30000000000000000000009 /* ListRunner/Resources/bunningsNZ.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000009 /* ListRunner/Resources/bunningsNZ.json */; };
+		A30000000000000000000010 /* ListRunner/Resources/theWarehouse.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000010 /* ListRunner/Resources/theWarehouse.json */; };
+		A30000000000000000000011 /* ListRunner/Resources/newWorld.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000011 /* ListRunner/Resources/newWorld.json */; };
+		A30000000000000000000012 /* ListRunner/Resources/paknsave.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000012 /* ListRunner/Resources/paknsave.json */; };
+		A30000000000000000000013 /* ListRunner/Resources/sainsburys.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000013 /* ListRunner/Resources/sainsburys.json */; };
+		A30000000000000000000014 /* ListRunner/Resources/asda.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000014 /* ListRunner/Resources/asda.json */; };
+		A30000000000000000000015 /* ListRunner/Resources/morrisons.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000015 /* ListRunner/Resources/morrisons.json */; };
+		A30000000000000000000016 /* ListRunner/Resources/ocado.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000016 /* ListRunner/Resources/ocado.json */; };
+		A30000000000000000000017 /* ListRunner/Resources/waitrose.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000017 /* ListRunner/Resources/waitrose.json */; };
+		A30000000000000000000018 /* ListRunner/Resources/boots.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000018 /* ListRunner/Resources/boots.json */; };
+		A30000000000000000000019 /* ListRunner/Resources/walgreens.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000019 /* ListRunner/Resources/walgreens.json */; };
+		A30000000000000000000020 /* ListRunner/Resources/cvs.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000020 /* ListRunner/Resources/cvs.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -73,26 +73,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		B30000000000000000000001 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/chemistWarehouse.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000002 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/priceline.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/officeworks.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/jbHiFi.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000005 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/targetAU.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/petbarn.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000007 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/supercheapAuto.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000008 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/bcf.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000009 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/bunningsNZ.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000010 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/theWarehouse.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000011 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/newWorld.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000012 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/paknsave.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000013 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/sainsburys.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000014 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/asda.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000015 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/morrisons.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000016 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/ocado.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000017 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/waitrose.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000018 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/boots.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000019 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/walgreens.json; sourceTree = SOURCE_ROOT; };
-		B30000000000000000000020 = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/cvs.json; sourceTree = SOURCE_ROOT; };
 		B10000000000000000000001 /* ListRunnerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListRunnerApp.swift; sourceTree = "<group>"; };
 		B10000000000000000000002 /* GroceryListScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceryListScreen.swift; sourceTree = "<group>"; };
 		B10000000000000000000003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -130,6 +110,26 @@
 		B10000000000000000000035 /* ListRunner/Resources/target.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/target.json; sourceTree = SOURCE_ROOT; };
 		B20000000000000000000001 /* StoreSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreSelectionTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* ListRunnerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ListRunnerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B30000000000000000000001 /* ListRunner/Resources/chemistWarehouse.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/chemistWarehouse.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000002 /* ListRunner/Resources/priceline.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/priceline.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000003 /* ListRunner/Resources/officeworks.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/officeworks.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000004 /* ListRunner/Resources/jbHiFi.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/jbHiFi.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000005 /* ListRunner/Resources/targetAU.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/targetAU.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000006 /* ListRunner/Resources/petbarn.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/petbarn.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000007 /* ListRunner/Resources/supercheapAuto.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/supercheapAuto.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000008 /* ListRunner/Resources/bcf.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/bcf.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000009 /* ListRunner/Resources/bunningsNZ.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/bunningsNZ.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000010 /* ListRunner/Resources/theWarehouse.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/theWarehouse.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000011 /* ListRunner/Resources/newWorld.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/newWorld.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000012 /* ListRunner/Resources/paknsave.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/paknsave.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000013 /* ListRunner/Resources/sainsburys.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/sainsburys.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000014 /* ListRunner/Resources/asda.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/asda.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000015 /* ListRunner/Resources/morrisons.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/morrisons.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000016 /* ListRunner/Resources/ocado.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/ocado.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000017 /* ListRunner/Resources/waitrose.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/waitrose.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000018 /* ListRunner/Resources/boots.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/boots.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000019 /* ListRunner/Resources/walgreens.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/walgreens.json; sourceTree = SOURCE_ROOT; };
+		B30000000000000000000020 /* ListRunner/Resources/cvs.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/cvs.json; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -165,26 +165,26 @@
 				B10000000000000000000033 /* ListRunner/Resources/amazon.json */,
 				B10000000000000000000034 /* ListRunner/Resources/kroger.json */,
 				B10000000000000000000035 /* ListRunner/Resources/target.json */,
-				B30000000000000000000001,
-				B30000000000000000000002,
-				B30000000000000000000003,
-				B30000000000000000000004,
-				B30000000000000000000005,
-				B30000000000000000000006,
-				B30000000000000000000007,
-				B30000000000000000000008,
-				B30000000000000000000009,
-				B30000000000000000000010,
-				B30000000000000000000011,
-				B30000000000000000000012,
-				B30000000000000000000013,
-				B30000000000000000000014,
-				B30000000000000000000015,
-				B30000000000000000000016,
-				B30000000000000000000017,
-				B30000000000000000000018,
-				B30000000000000000000019,
-				B30000000000000000000020,
+				B30000000000000000000001 /* ListRunner/Resources/chemistWarehouse.json */,
+				B30000000000000000000002 /* ListRunner/Resources/priceline.json */,
+				B30000000000000000000003 /* ListRunner/Resources/officeworks.json */,
+				B30000000000000000000004 /* ListRunner/Resources/jbHiFi.json */,
+				B30000000000000000000005 /* ListRunner/Resources/targetAU.json */,
+				B30000000000000000000006 /* ListRunner/Resources/petbarn.json */,
+				B30000000000000000000007 /* ListRunner/Resources/supercheapAuto.json */,
+				B30000000000000000000008 /* ListRunner/Resources/bcf.json */,
+				B30000000000000000000009 /* ListRunner/Resources/bunningsNZ.json */,
+				B30000000000000000000010 /* ListRunner/Resources/theWarehouse.json */,
+				B30000000000000000000011 /* ListRunner/Resources/newWorld.json */,
+				B30000000000000000000012 /* ListRunner/Resources/paknsave.json */,
+				B30000000000000000000013 /* ListRunner/Resources/sainsburys.json */,
+				B30000000000000000000014 /* ListRunner/Resources/asda.json */,
+				B30000000000000000000015 /* ListRunner/Resources/morrisons.json */,
+				B30000000000000000000016 /* ListRunner/Resources/ocado.json */,
+				B30000000000000000000017 /* ListRunner/Resources/waitrose.json */,
+				B30000000000000000000018 /* ListRunner/Resources/boots.json */,
+				B30000000000000000000019 /* ListRunner/Resources/walgreens.json */,
+				B30000000000000000000020 /* ListRunner/Resources/cvs.json */,
 			);
 			sourceTree = "<group>";
 		};
@@ -329,26 +329,26 @@
 				A10000000000000000000033 /* ListRunner/Resources/amazon.json in Resources */,
 				A10000000000000000000034 /* ListRunner/Resources/kroger.json in Resources */,
 				A10000000000000000000035 /* ListRunner/Resources/target.json in Resources */,
-				A30000000000000000000001,
-				A30000000000000000000002,
-				A30000000000000000000003,
-				A30000000000000000000004,
-				A30000000000000000000005,
-				A30000000000000000000006,
-				A30000000000000000000007,
-				A30000000000000000000008,
-				A30000000000000000000009,
-				A30000000000000000000010,
-				A30000000000000000000011,
-				A30000000000000000000012,
-				A30000000000000000000013,
-				A30000000000000000000014,
-				A30000000000000000000015,
-				A30000000000000000000016,
-				A30000000000000000000017,
-				A30000000000000000000018,
-				A30000000000000000000019,
-				A30000000000000000000020,
+				A30000000000000000000001 /* ListRunner/Resources/chemistWarehouse.json in Resources */,
+				A30000000000000000000002 /* ListRunner/Resources/priceline.json in Resources */,
+				A30000000000000000000003 /* ListRunner/Resources/officeworks.json in Resources */,
+				A30000000000000000000004 /* ListRunner/Resources/jbHiFi.json in Resources */,
+				A30000000000000000000005 /* ListRunner/Resources/targetAU.json in Resources */,
+				A30000000000000000000006 /* ListRunner/Resources/petbarn.json in Resources */,
+				A30000000000000000000007 /* ListRunner/Resources/supercheapAuto.json in Resources */,
+				A30000000000000000000008 /* ListRunner/Resources/bcf.json in Resources */,
+				A30000000000000000000009 /* ListRunner/Resources/bunningsNZ.json in Resources */,
+				A30000000000000000000010 /* ListRunner/Resources/theWarehouse.json in Resources */,
+				A30000000000000000000011 /* ListRunner/Resources/newWorld.json in Resources */,
+				A30000000000000000000012 /* ListRunner/Resources/paknsave.json in Resources */,
+				A30000000000000000000013 /* ListRunner/Resources/sainsburys.json in Resources */,
+				A30000000000000000000014 /* ListRunner/Resources/asda.json in Resources */,
+				A30000000000000000000015 /* ListRunner/Resources/morrisons.json in Resources */,
+				A30000000000000000000016 /* ListRunner/Resources/ocado.json in Resources */,
+				A30000000000000000000017 /* ListRunner/Resources/waitrose.json in Resources */,
+				A30000000000000000000018 /* ListRunner/Resources/boots.json in Resources */,
+				A30000000000000000000019 /* ListRunner/Resources/walgreens.json in Resources */,
+				A30000000000000000000020 /* ListRunner/Resources/cvs.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -403,7 +403,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "\"ListRunner/Preview Content\"";
 				DEVELOPMENT_TEAM = KWV4SPU7LX;
 				ENABLE_PREVIEWS = YES;
@@ -428,7 +428,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = KWV4SPU7LX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ListRunner/Info.plist;
