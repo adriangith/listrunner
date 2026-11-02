@@ -1635,8 +1635,8 @@ final class StoreSelectionTests: XCTestCase {
         app.terminate(); app.launch()
         XCTAssertTrue(row("Australian Costco item", status: "Pending").waitForExistence(timeout: 5))
         app.buttons["store-picker"].tap()
-        XCTAssertFalse(app.buttons["Choose Costco US"].exists)
-        XCTAssertFalse(app.buttons["Choose Tesco"].exists)
+        XCTAssertFalse(app.buttons["Costco US"].exists)
+        XCTAssertFalse(app.buttons["Tesco"].exists)
     }
 
     func testBunningsRegionalWebsitePickerAccessibility() throws {
@@ -1760,6 +1760,8 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testMoveDestinationsHideUnverifiedSearchStores() {
+        choose("Coles")
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
         app.buttons["Actions for Coles fixture item"].tap()
         app.buttons["Move to Another Store"].tap()
         for name in ["Tesco", "Amazon US", "Costco US", "New World", "PAK’nSAVE", "Boots", "CVS"] {
@@ -1773,6 +1775,8 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testExplicitMoveTransfersOnlySelectedRow() {
+        choose("Coles")
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
         app.buttons["Actions for Coles fixture item"].tap()
         app.buttons["Move to Another Store"].tap()
         app.buttons["Move to Woolworths"].tap()
