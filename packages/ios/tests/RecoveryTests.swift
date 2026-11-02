@@ -728,9 +728,9 @@ struct RecoveryTests {
                "Australia offers verified-search Tesco and Walmart in separate other-store groups")
         let usStores = StoreCatalogue.sections(allStores, countryCode: "US")
         check(usStores.first?.stores.map(\.id) == [.walmart]
-              && usStores.dropFirst().flatMap(\.stores).map(\.id).contains(.walmart) == false
-              && usStores.dropFirst().flatMap(\.stores).count == 4,
-              "Walmart moves to the US local group without duplicating or hiding other stores")
+               && usStores.dropFirst().flatMap(\.stores).map(\.id).contains(.walmart) == false
+               && usStores.dropFirst().flatMap(\.stores).count == 5,
+               "Walmart moves to the US local group without duplicating or hiding other stores")
         check(walmart.allows(walmart.homepage) && walmart.allows(URL(string: "https://walmart.com")!)
               && !walmart.allows(URL(string: "https://www.walmart.ca")!)
               && !walmart.allows(URL(string: "https://www.walmart.com.evil.test")!)
