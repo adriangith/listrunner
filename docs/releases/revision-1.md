@@ -14,11 +14,17 @@ the exact source revision uploaded to App Store Connect.
 - Commit subject: `Locate flattened retailer AX buttons without losing product scope`.
 - Git tag: **`testflight/revision-1`** (annotated as an approximate baseline).
 
-The version/build metadata and actual upload time have not been independently
-confirmed. Do not describe this tag as proof of what was shipped. If revision 1
+At the time this tag was created, version/build metadata and upload time had not
+been confirmed. Do not describe this tag as proof of what was shipped. If revision 1
 was uploaded earlier on 1 November, this end-of-day estimate may include work
 that was not in that upload, and a comparison may consequently omit those changes.
 Correct the baseline explicitly if archive or upload records later establish it.
+
+Update during revision-2 upload: the user's App Store Connect screenshot confirms
+the previous build was **1.0 (1)**, created **1 November 2026 at 10:47 am** as
+displayed. This establishes its displayed upload time, but not the source commit.
+The already-published date-based tag has not been silently moved. Its end-of-day
+cutoff remains approximate and can omit changes made after that morning's upload.
 
 ## Capture changes for the next build
 

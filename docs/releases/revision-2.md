@@ -2,7 +2,13 @@
 
 ## Release record
 
-- Status: **signed archive verified; awaiting TestFlight upload**.
+- Status: **uploaded; Apple processing complete; Ready to Submit for testing**.
+- Upload confirmed by the user's App Store Connect screenshots: **1.0 (2)**,
+  created **2 November 2026 at 3:03 pm** as displayed. A later screenshot shows
+  the upload status **Complete**, beta status **Ready to Submit**, and no assigned
+  testing group. Do not describe this as Testing or publicly released yet.
+- Successful-upload source tag: **`testflight/revision-2`**, pointing to
+  `9cf688f4baf1a9b810e85095ec244fedce1323d6` (the archived source, not later notes).
 - App identifier: `com.adrianzafir.listrunner`.
 - Version/build: **1.0 (2)**.
 - Comparison baseline: `testflight/revision-1` at `b01ff2835732d0940f1c8024b1cf74b1cfe7a832`.
@@ -31,10 +37,11 @@
 - All 34 staged application JSON resources match canonical sources. Native 1,666,
   release-metadata 2 and expansion-contract 3 checks passed during preparation.
 - The later user-created archive supersedes that failed CLI signing attempt.
-- Next: upload the verified 1.0 (2) archive to App Store Connect for TestFlight.
-  Record the actual uploaded build number/result (including any export-time version
-  management), then create the successful-upload tag at the archived source revision.
-  No upload tag for revision 2 has been created.
+- Export/upload retained build number 2, confirmed in App Store Connect.
+- Next: enter/review What to Test, complete any required compliance information,
+  assign the intended TestFlight group and submit for beta review if required.
+  Previous build 1 is Testing in group LB; build 2 has not yet been shown assigned
+  to that group or available to testers. No public App Store submission authorised.
 
 ## What to Test
 
