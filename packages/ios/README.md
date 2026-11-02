@@ -4,6 +4,10 @@ Native SwiftUI app targeting iPhone on iOS 17 or later.
 
 Open `ListRunner.xcodeproj` in Xcode, choose an iPhone simulator, and run the `ListRunner` scheme. This is a native SwiftUI/SwiftData iOS 17 app, not the removed Capacitor app.
 
+Nightly cloud archive configuration, offline gates and first-run caveats are in
+`XCODE-CLOUD.md`. The cloud workflow remains disabled until explicitly enabled;
+repository scripts alone do not activate a schedule or distribute to testers.
+
 ## Keeping the Linux and Mac checkouts aligned
 
 Use Git commits and `git pull --ff-only` to transfer changes, not whole-folder overwrites. Both working checkouts should use `main` at the same commit before further work; commit or otherwise preserve local edits before pulling. The canonical store JSON files are under `ListRunner/Resources`, and the shared Xcode project references these directly. Do not recreate the old duplicate `Resources 2`–`Resources 5` or `*-v2.json` copies. The signing team and app bundle ID remain in the shared project; certificates, provisioning profiles and Xcode user state remain machine-local.
