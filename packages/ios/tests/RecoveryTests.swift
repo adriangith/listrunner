@@ -141,12 +141,12 @@ struct RecoveryTests {
               "all twenty additions and every legacy store have a canonical validated resource")
         check(StoreBrand.catalogue(allProductionDefinitions).count == 30,
                "32 regional destinations form 30 brands with isolated Costco and Bunnings regions")
-        let hiddenShoppingIDs: Set<StoreID> = [.tesco, .amazon, .costcoUS, .newWorld, .paknsave, .boots, .cvs]
+        let hiddenShoppingIDs: Set<StoreID> = [.amazon, .costcoUS, .newWorld, .paknsave, .boots, .cvs]
         check(Set(allProductionDefinitions.filter { !$0.isAvailableForShopping }.map(\.id)) == hiddenShoppingIDs,
               "only destinations without verified search are hidden, without deleting registrations")
-        check(StoreCatalogue.ordered(allProductionDefinitions, countryCode: nil).count == 25
-              && StoreBrand.sections(allProductionDefinitions, countryCode: nil, search: "").flatMap(\.brands).count == 24,
-              "shopping catalogue has 25 verified destinations grouped into 24 brands")
+        check(StoreCatalogue.ordered(allProductionDefinitions, countryCode: nil).count == 26
+               && StoreBrand.sections(allProductionDefinitions, countryCode: nil, search: "").flatMap(\.brands).count == 25,
+               "shopping catalogue has 26 verified destinations grouped into 25 brands")
         for country in [nil, "AU", "US", "NZ", "GB"] as [String?] {
             let stores = StoreCatalogue.sections(allProductionDefinitions, countryCode: country).flatMap(\.stores)
             let brands = StoreBrand.sections(allProductionDefinitions, countryCode: country, search: "",
@@ -378,7 +378,7 @@ struct RecoveryTests {
         let usBrands = StoreBrand.sections(expandedDefinitions, countryCode: "US", search: "")
         check(usBrands.first?.brands.map(\.id) == ["kroger", "target", "walmart"],
               "only verified-search US destinations appear in the local group")
-        check(usBrands.flatMap(\.brands).count == 9, "unverified destinations stay registered but are absent from discovery")
+        check(usBrands.flatMap(\.brands).count == 10, "unverified destinations stay registered but are absent from discovery")
         check(StoreBrand.sections(expandedDefinitions, countryCode: "AU", search: "Target").flatMap(\.brands).map(\.id) == ["target"],
               "US Target is searchable without inventing an Australian Target integration")
         let usSuite = "ListRunner.USStores.\(UUID().uuidString)"
@@ -475,12 +475,12 @@ struct RecoveryTests {
             let enabled: Set<StoreID> = [.coles, .costcoUS, .tesco]
             let groups = StoreBrand.sections(brandDefinitions, countryCode: country, search: "", enabledIDs: enabled)
             check(groups.first?.title == "Enabled stores"
-                  && groups.first?.brands.map(\.id) == ["coles"],
+                  && groups.first?.brands.map(\.id) == ["coles", "tesco"],
                    "only verified enabled destinations lead the shopping catalogue")
             check(groups.dropFirst().flatMap(\.brands).allSatisfy { brand in
                 !brand.regions.contains { enabled.contains($0.id) }
             }, "enabled brands never appear in local or other stores")
-            check(groups.flatMap(\.brands).count == 7,
+            check(groups.flatMap(\.brands).count == 8,
                    "enabled-first grouping preserves every available brand exactly once")
             check(groups.compactMap(\.indexTitle).allSatisfy { letter in
                 groups.contains { $0.indexTitle == letter && !$0.brands.isEmpty }
@@ -692,20 +692,21 @@ struct RecoveryTests {
         check(fourStores.count == 1 && fourStores[0].stores.map(\.id) == [.bunnings, .coles, .costco, .woolworths],
               "Costco joins the Australian group once, alphabetically, even while disabled")
         check(tesco.isConfigurationValid && tesco.serviceArea.countryCodes == ["GB"]
-              && !tesco.capabilities.search && !tesco.capabilities.cartDetection && !tesco.capabilities.cartUndo && tesco.cart == nil,
-              "Tesco UK is a valid browsing-only definition with all automation off")
-        check(!StoreID.tesco.permitsSearch && !StoreID.tesco.permitsCartDetection && !StoreID.tesco.permitsCartUndo,
-              "native Tesco policy disallows all store automation")
+               && tesco.capabilities.search && !tesco.capabilities.cartDetection && !tesco.capabilities.cartUndo && tesco.cart == nil,
+               "Tesco UK supports verified search without unreviewed cart automation")
+        check(StoreID.tesco.permitsSearch && !StoreID.tesco.permitsCartDetection && !StoreID.tesco.permitsCartUndo,
+               "native Tesco policy permits search but prohibits unreviewed cart automation")
         var widenedTesco = tesco
-        widenedTesco.capabilities.search = true
-        check(!widenedTesco.isConfigurationValid, "JSON cannot turn on Tesco search automation")
+        widenedTesco.capabilities.cartDetection = true
+        check(!widenedTesco.isConfigurationValid, "JSON cannot turn on Tesco cart automation")
         let fiveStores = StoreCatalogue.sections([coles, woolworths, bunnings, costco, tesco], countryCode: "AU")
-        check(fiveStores.count == 1 && fiveStores[0].stores.count == 4,
-               "Tesco stays registered but is hidden until verified search is enabled")
+        check(fiveStores.count == 2 && fiveStores[0].stores.count == 4
+               && fiveStores[1].stores.map(\.id) == [.tesco],
+               "Tesco appears in the other-store group when search is verified")
         let britishStores = StoreCatalogue.sections([coles, woolworths, bunnings, costco, tesco], countryCode: "GB")
-        check(!britishStores.flatMap(\.stores).contains { $0.id == .tesco }
-              && britishStores.flatMap(\.stores).count == 4,
-               "changing country cannot reveal an unavailable store")
+        check(britishStores.first?.stores.map(\.id) == [.tesco]
+               && britishStores.dropFirst().flatMap(\.stores).count == 4,
+               "changing country promotes Tesco to the local store group")
         check(tesco.allows(tesco.homepage) && !tesco.allows(URL(string: "https://www.tesco.ie")!)
               && !tesco.allows(URL(string: "https://www.tesco.com.evil.test")!)
               && !tesco.allows(coles.homepage), "Tesco UK browsing hosts remain exact and isolated")
@@ -719,10 +720,11 @@ struct RecoveryTests {
         check(!widenedWalmart.isConfigurationValid, "JSON cannot enable Walmart cart detection")
         let allStores = [coles, woolworths, bunnings, costco, tesco, walmart]
         let auWithUS = StoreCatalogue.sections(allStores, countryCode: "AU")
-        check(auWithUS.count == 2 && auWithUS[0].stores.count == 4
-              && auWithUS.dropFirst().map(\.indexTitle) == ["W"]
-              && auWithUS.last?.stores.map(\.id) == [.walmart],
-               "Australia offers verified-search Walmart without unverified Tesco")
+        check(auWithUS.count == 3 && auWithUS[0].stores.count == 4
+               && auWithUS.dropFirst().map(\.indexTitle) == ["T", "W"]
+               && auWithUS[1].stores.map(\.id) == [.tesco]
+               && auWithUS.last?.stores.map(\.id) == [.walmart],
+               "Australia offers verified-search Tesco and Walmart in separate other-store groups")
         let usStores = StoreCatalogue.sections(allStores, countryCode: "US")
         check(usStores.first?.stores.map(\.id) == [.walmart]
               && usStores.dropFirst().flatMap(\.stores).map(\.id).contains(.walmart) == false

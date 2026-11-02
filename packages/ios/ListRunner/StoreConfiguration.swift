@@ -16,7 +16,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         #if STORE_REGISTRY_PROOF
         if self == .synthetic { return true }
         #endif
-        return [.coles, .woolworths, .bunnings, .costco, .walmart, .kmart, .bigW, .kroger, .target,
+        return [.coles, .woolworths, .bunnings, .costco, .tesco, .walmart, .kmart, .bigW, .kroger, .target,
          .chemistWarehouse, .priceline, .officeworks, .jbHiFi, .targetAU, .petbarn, .supercheapAuto, .bcf,
          .bunningsNZ, .theWarehouse, .sainsburys, .asda, .morrisons, .ocado, .waitrose, .walgreens].contains(self)
     }
