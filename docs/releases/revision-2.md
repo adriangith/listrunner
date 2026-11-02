@@ -2,7 +2,7 @@
 
 ## Release record
 
-- Status: **preparing; not yet uploaded**.
+- Status: **prepared; archive blocked at signing; not uploaded**.
 - App identifier: `com.adrianzafir.listrunner`.
 - Version/build: **1.0 (2)**.
 - Comparison baseline: `testflight/revision-1` at `b01ff2835732d0940f1c8024b1cf74b1cfe7a832`.
@@ -10,8 +10,18 @@
   revision. The Mac also contains a 1.0 (1) archive created on 1 November at 10:41
   local time, but it contains no recorded Git revision. Its presence does not prove
   which source was uploaded, so the user-approved approximate baseline is retained.
-- Exact source commit, archive path and upload result: to be recorded after the
-  archive/upload steps. Do not create the successful-upload tag before verification.
+- Prepared source commit: `26654a7a2923f1f593b3bfb3f34242d46350d46a`.
+- Archive attempt: Mac `~/Library/Developer/Xcode/Archives/2026-11-02/ListRunner-1.0-2-26654a7.xcarchive`.
+  This attempt failed at CodeSign with `errSecInternalComponent`; do not treat it
+  as a completed signed archive. Compilation completed, and the staged app's
+  plist independently reports `com.adrianzafir.listrunner`, version 1.0, build 2.
+- Archive log: Mac `~/Library/Logs/ListRunner-TestFlight-1.0-2-26654a7-archive.log`.
+- All 34 staged application JSON resources match canonical sources. Native 1,666,
+  release-metadata 2 and expansion-contract 3 checks passed during preparation.
+- Next: authorise signing from the Mac GUI/keychain and create a successful archive;
+  verify its metadata/resources before uploading. Record the actual archive source,
+  path and App Store Connect result, then create the successful-upload tag.
+  No upload tag for revision 2 has been created.
 
 ## What to Test
 
