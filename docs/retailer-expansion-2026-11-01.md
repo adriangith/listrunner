@@ -201,6 +201,18 @@ certification follows from the failed sessions.
 
 ### Follow-up implementation and live evidence
 
+- User paused the full twenty-store verification while Petbarn's exact single
+  100g PDP (`138813`) was ready; no Petbarn Add was subsequently reported. Separate
+  availability request hides unverified-search destinations from user-facing lists
+  without removing any registration, resource, implementation, saved list/session
+  or raw preference. Hidden original-expansion stores: New World, PAK’nSAVE, Boots,
+  CVS; hidden earlier destinations: Tesco, Amazon US, Costco US. Costco AU remains
+  available; a saved US region is not silently changed. Availability code at
+  `4f3907d` passed native/data-preservation, page fixtures, focused UI checks across
+  runs and Debug/Release resource audits; detailed caveats in VALIDATION.md.
+  This UI availability change does not certify any additional cart detector:
+  eight of twenty remain verified, and the original goal remains paused.
+
 - Officeworks native certification completed on simulator build
   `b704794e160a927fe8e1419390c88b70b1b061b3`, in the explicitly isolated named
   persistent test store `0BDE339A-A800-4D62-B5BC-17838D7B3823`, not a normal store.

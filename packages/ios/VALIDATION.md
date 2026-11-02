@@ -651,3 +651,40 @@ no bodies, headers, IDs or cookie values exported. Temporary observer removed.
 Production detection enabled, retailer Undo off; normal persistent-storage policy
 unchanged. This run passed where ephemeral runs failed, not proof of the precise
 underlying cause. Earlier Officeworks blocker below is historical test evidence.
+# Hide unverified-search destinations — 2 November 2026
+
+App code at `4f3907d480bb843f1da4cb6006ba5d968e5974fa` hides Tesco, Amazon US,
+Costco US, New World, PAK’nSAVE, Boots and CVS from management/discovery search,
+the active chooser, move destinations and regional choices. Costco AU remains
+available. All 32 registrations, stable IDs, resources and implementations remain;
+the available catalogue has 25 destinations in 24 brands. Raw enabled flags and
+regional preferences are not rewritten just because a destination becomes hidden.
+Hidden active destinations resolve to another available enabled list or the existing
+returning-user no-stores state, never silently to a different regional website.
+
+Final validation: **1,666 native checks**, **249 DOM/page-behaviour tests**, expansion
+contracts and synthetic registration proof passed. Both Debug and unsigned Release
+simulator builds passed; all **34 bundled JSON resources** byte-match the canonical
+files in each configuration. No retailer resource changed in this task.
+
+Six focused offline UI scenarios passed across runs, **not one clean final 6/6 run**:
+- `ListRunner-Availability-d8ee622.xcresult`: 4/5 passed (no-stores recovery,
+  Costco AU list/relaunch, seven hidden-name searches, and country changes). Move
+  check failed before its menu because setup had selected another fixture store.
+- `ListRunner-Availability-8d9f8e2.xcresult`: 2/3 passed (Costco AU/relaunch and real
+  local item transfer). Move-menu filtering assertions passed, but its dismissal
+  assumed a Cancel button absent from iOS 27's adaptive native menu.
+- `ListRunner-Availability-4f3907d.xcresult`: corrected read-only move-menu test
+  **1/1 passed**. The two follow-ups changed tests only, not application behaviour.
+The preliminary `e175842` run had three passes plus a three-minute timeout in the
+older no-stores regression; that regression passed in the bounded follow-up run.
+Logs/result bundles are under Mac `~/Library/Logs/ListRunner-Availability-*`.
+
+Verification used a dedicated iPhone 17/iOS 27 simulator
+`35E7A8A4-76B2-4C8F-B161-F7F82E78A3CB`, not the paused retailer-test simulator.
+Representative preliminary screenshots (management and AU-only Costco settings)
+were inspected without new layout issues; this is not broad accessibility sign-off.
+The paused Petbarn process PID 8801 remained running on its original simulator.
+No retailer pages/cart mutations, website resets, physical-phone installs or normal
+store-data changes occurred during this availability task. The original twenty-store
+verification goal remains paused at eight certified detectors.
