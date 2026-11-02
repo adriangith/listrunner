@@ -78,6 +78,19 @@ investigate rather than guessing. Keep external distribution post-actions empty.
 The workflow must be enabled to use it; enabling also enables its nightly schedule.
 Disable it again if that diagnostic fails, until the failure is fixed.
 
+## Local validation before first cloud run
+
+The complete `ci_post_clone.sh` hook passed on the Mac at
+`a3c2c3d0487cac1af0fef09053db0cf8faf4dbfb`, with Node 22 and local Xcode 27.2:
+22 Python checks, 249 Node page-behaviour tests, 449 parser checks, 195 regional
+search checks, synthetic store-registry proof, and 1,666 native recovery checks.
+Hook syntax and the Python/Node checks also passed on Linux. Post-xcodebuild
+failure paths and resource auditing were tested with synthetic archives; no cloud
+archive or upload was produced by this validation. It does not establish Xcode
+27.1 cloud compatibility or resolve the workflow editor's scheme warning.
+
+Mac log: `~/Library/Logs/ListRunner-cloud-offline-a3c2c3d.log`.
+
 ## Apple references
 
 https://developer.apple.com/documentation/xcode/writing-custom-build-scripts
