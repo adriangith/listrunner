@@ -297,7 +297,7 @@ struct GroceryListScreen: View {
                                 }
                             } label: {
                                 Label(paprikaReminders.importing ? "Importing…" :
-                                        GroceryImportSource(rawValue: importSourceID) == .paprika ? "Import from Paprika" : "Import",
+                                        GroceryImportSource(rawValue: importSourceID) == .paprika ? "Import from Paprika" : "Import items...",
                                       systemImage: paprikaReminders.importing ? "hourglass" : "checklist")
                                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                                     .contentShape(Rectangle())
