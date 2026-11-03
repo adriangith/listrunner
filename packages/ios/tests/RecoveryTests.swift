@@ -143,7 +143,25 @@ struct RecoveryTests {
                "32 regional destinations form 30 brands with isolated Costco and Bunnings regions")
         let hiddenShoppingIDs: Set<StoreID> = [.amazon, .costcoUS, .newWorld, .paknsave, .boots, .cvs]
         check(Set(allProductionDefinitions.filter { !$0.isAvailableForShopping }.map(\.id)) == hiddenShoppingIDs,
-              "only destinations without verified search are hidden, without deleting registrations")
+               "only destinations without verified search are hidden, without deleting registrations")
+        let shoppingAvailability = StoreShoppingAvailability(definitions: allProductionDefinitions)
+        check(shoppingAvailability.availableIDs == Set(StoreID.allCases).subtracting(hiddenShoppingIDs),
+              "one immutable registry snapshot preserves fully validated shopping eligibility")
+        for enabled in [Set<StoreID>(), [.coles], [.coles, .amazon, .costcoUS], Set(StoreID.allCases)] {
+            check(shoppingAvailability.visibleIDs(in: enabled)
+                  == Set(allProductionDefinitions.filter(\.isAvailableForShopping).map(\.id)).intersection(enabled),
+                  "cached eligibility follows every current enabled set without changing saved visibility")
+        }
+        var disabledColes = coles
+        disabledColes.capabilities.search = false
+        let replacedAvailability = StoreShoppingAvailability(definitions: [disabledColes])
+        check(replacedAvailability.availableIDs.isEmpty && shoppingAvailability.availableIDs.contains(.coles),
+              "a replacement registry is revalidated without mutating the original snapshot")
+        var malformedColes = coles
+        malformedColes.capabilities.cartDetection = false
+        malformedColes.capabilities.cartUndo = true
+        check(StoreShoppingAvailability(definitions: [malformedColes]).availableIDs.isEmpty,
+              "availability snapshots never bypass malformed configuration or native capability policy")
         check(StoreCatalogue.ordered(allProductionDefinitions, countryCode: nil).count == 26
                && StoreBrand.sections(allProductionDefinitions, countryCode: nil, search: "").flatMap(\.brands).count == 25,
                "shopping catalogue has 26 verified destinations grouped into 25 brands")

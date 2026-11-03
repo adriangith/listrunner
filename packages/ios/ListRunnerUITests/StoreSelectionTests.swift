@@ -250,7 +250,7 @@ final class StoreSelectionTests: XCTestCase {
                 app.launchEnvironment["LISTRUNNER_LIVE_CART_DETAIL_URL"] = "https://www.chemistwarehouse.com.au/buy/85510/sukin-natural-balance-shampoo-500ml"
             }
         }
-        if name.contains("FullyRevealed") || name.contains("AlreadyVisibleNewItem") || name.contains("FocusedProductEntry") {
+        if name.contains("FullyRevealed") || name.contains("AlreadyVisibleNewItem") || name.contains("FocusedProductEntry") || name.contains("ManualScrolling") {
             app.launchEnvironment["LISTRUNNER_REVEAL_TEST_FIXTURE"] = "enabled"
         }
         if name.contains("KeyboardDismissalAnimation") {
@@ -2029,6 +2029,27 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(pears.exists)
         XCTAssertLessThan(apples.frame.minY, pears.frame.minY)
         XCTAssertLessThan(pears.frame.minY, existing.frame.minY)
+    }
+
+    func testManualScrollingDoesNotTrackIdleRowFrames() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("scroll fixture alpha; scroll fixture bravo; scroll fixture charlie; scroll fixture delta; scroll fixture echo; scroll fixture foxtrot")
+        app.buttons["Add Items"].tap()
+        XCTAssertTrue(row("scroll fixture alpha", status: "Pending").waitForExistence(timeout: 5))
+        input.typeText("\n") // Empty Return dismisses the keyboard without adding a row.
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        let list = app.collectionViews.firstMatch
+        list.swipeUp()
+        list.swipeDown()
+        let status = app.staticTexts["item-reveal-status"]
+        let idle = NSPredicate { _, _ in
+            status.label.contains("target=none") && status.label.contains("trackedRows=0")
+                && status.label.contains("pending=false")
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: idle, object: app)], timeout: 3), .completed,
+                       "Manual scrolling must cancel reveal once and stop measuring unrelated rows")
+        XCTAssertTrue(row("scroll fixture alpha", status: "Pending").exists)
     }
 
     func testRepeatedNewItemsAreFullyRevealedInExistingList() {

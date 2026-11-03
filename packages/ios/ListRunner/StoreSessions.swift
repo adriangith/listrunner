@@ -6,13 +6,16 @@ import WebKit
 final class StoreSessions: ObservableObject {
     let diagnostics: DiagnosticStore
     let definitions: [StoreDefinition]
+    let shoppingAvailability: StoreShoppingAvailability
     private var browsers: [StoreID: StoreBrowser] = [:]
     private var searchContext: IngredientSearchContext = .unchanged
     private var preferenceSubscription: AnyCancellable?
 
     init(diagnostics: DiagnosticStore, preferences: StoreVisibilityPreferences? = nil) {
         self.diagnostics = diagnostics
-        definitions = StoreID.allCases.map { StoreDefinition.load($0) }
+        let loadedDefinitions = StoreID.allCases.map { StoreDefinition.load($0) }
+        definitions = loadedDefinitions
+        shoppingAvailability = StoreShoppingAvailability(definitions: loadedDefinitions)
         if let preferences {
             searchContext = preferences.ingredientSearchContext
             preferenceSubscription = preferences.$ingredientSearchContext.removeDuplicates().sink { [weak self] context in

@@ -25,7 +25,7 @@ struct ShoppingRootScreen: View {
         _sessions = StateObject(wrappedValue: StoreSessions(diagnostics: diagnostics, preferences: preferences))
     }
 
-    private var shoppingVisibleIDs: Set<StoreID> { visibility.shoppingVisibleIDs(in: sessions.definitions) }
+    private var shoppingVisibleIDs: Set<StoreID> { sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs) }
 
     var body: some View {
         let storeID = StoreID(rawValue: activeStoreID) ?? .coles
@@ -159,6 +159,7 @@ struct GroceryListScreen: View {
     @State private var groceryInputFrame: CGRect = .zero
     @State private var addItemsButtonFrame: CGRect = .zero
     @State private var isListScreenVisible = false
+    @GestureState private var isDraggingList = false
     #if DEBUG
     @State private var entryDismissalAnimationStatus = "not-dismissed"
     #endif
@@ -178,7 +179,7 @@ struct GroceryListScreen: View {
 
     private var items: [GroceryItem] { allItems.filter { $0.listID == storeID.listID } }
     private var selectedList: GroceryList? { lists.first { $0.id == storeID.listID } }
-    private var shoppingVisibleIDs: Set<StoreID> { visibility.shoppingVisibleIDs(in: sessions.definitions) }
+    private var shoppingVisibleIDs: Set<StoreID> { sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs) }
     private var moveDestinations: [StoreDefinition] {
         StoreCatalogue.ordered(sessions.definitions, countryCode: nil).filter { $0.id != storeID }
     }
@@ -278,9 +279,10 @@ struct GroceryListScreen: View {
                             }
                             .contentShape(Rectangle())
                             .simultaneousGesture(TapGesture().onEnded { groceryInputFocused = true })
-                            .onGeometryChange(for: CGRect.self) { geometry in
-                                geometry.frame(in: .global)
+                            .onGeometryChange(for: CGRect?.self) { geometry in
+                                groceryInputFocused ? geometry.frame(in: .global) : nil
                              } action: { frame in
+                                 guard let frame else { return }
                                  let heightChanged = abs(groceryInputFrame.height - frame.height) > 0.5
                                  groceryInputFrame = frame
                                  if heightChanged { revealFocusedProductEntry() }
@@ -318,17 +320,19 @@ struct GroceryListScreen: View {
                             }
                                 .buttonStyle(.borderedProminent)
                                 .disabled(IngredientParser.application.parseProductEntry(rawInput).isEmpty)
-                                .onGeometryChange(for: CGRect.self) { geometry in
-                                    geometry.frame(in: .global)
+                                .onGeometryChange(for: CGRect?.self) { geometry in
+                                    groceryInputFocused ? geometry.frame(in: .global) : nil
                                 } action: { frame in
+                                    guard let frame else { return }
                                     addItemsButtonFrame = frame
                                 }
                         }
                         .padding(.vertical, 4)
                         .id("product-entry-actions")
-                        .onGeometryChange(for: CGRect.self) { geometry in
-                            geometry.frame(in: .global)
+                        .onGeometryChange(for: CGRect?.self) { geometry in
+                            groceryInputFocused ? geometry.frame(in: .global) : nil
                         } action: { frame in
+                            guard let frame else { return }
                             productActionsFrame = frame
                         }
                         // Trim List's default 15 pt vertical insets without
@@ -387,13 +391,19 @@ struct GroceryListScreen: View {
             .contentMargins(.top, 0, for: .scrollContent)
             .listSectionSpacing(.compact)
             .scrollDismissesKeyboard(isRevealingProductEntry ? .never : .interactively)
-            .simultaneousGesture(DragGesture(minimumDistance: 10).onChanged { _ in
+            .simultaneousGesture(DragGesture(minimumDistance: 10).updating($isDraggingList) { _, dragging, _ in
+                if !dragging { dragging = true }
+            })
+            .onChange(of: isDraggingList) { _, dragging in
+                guard dragging else { return }
                 // A deliberate manual scroll takes precedence over positioning
-                // the most recently submitted item.
+                // the most recently submitted item. Cancel once at drag start,
+                // not on every finger movement; GestureState also resets on cancel.
                 cancelAddedItemScroll()
                 productEntryRevealTask?.cancel()
                 scrollTargetItemID = nil
-            })
+                itemFrames.removeAll(keepingCapacity: true)
+            }
             .onGeometryChange(for: CGRect.self) { geometry in
                 // The surrounding safeAreaInsets already reduce this layout
                 // frame for the header, Show Store and keyboard. Subtracting
@@ -551,7 +561,7 @@ struct GroceryListScreen: View {
         #if DEBUG
         .overlay(alignment: .topLeading) {
             if ProcessInfo.processInfo.environment["LISTRUNNER_REVEAL_TEST_FIXTURE"] == "enabled" {
-                Text(verbatim: "target=\(scrollTargetItemID?.uuidString ?? "none"); frame=\(scrollTargetItemID.flatMap { itemFrames[$0] }.debugDescription); viewport=\(listViewportFrame); pending=\(addedItemScrollTask != nil); editor=\(groceryInputFrame); actions=\(productActionsFrame); focused=\(groceryInputFocused); entryReveal=\(productEntryRevealStatus)")
+                Text(verbatim: "target=\(scrollTargetItemID?.uuidString ?? "none"); trackedRows=\(itemFrames.count); frame=\(scrollTargetItemID.flatMap { itemFrames[$0] }.debugDescription); viewport=\(listViewportFrame); pending=\(addedItemScrollTask != nil); editor=\(groceryInputFrame); actions=\(productActionsFrame); focused=\(groceryInputFocused); entryReveal=\(productEntryRevealStatus)")
                     .accessibilityIdentifier("item-reveal-status")
                     .frame(width: 1, height: 1)
                     .opacity(0.01)
@@ -726,11 +736,11 @@ struct GroceryListScreen: View {
                     .accessibilityHint("Removes this item from ListRunner only, not the store cart")
             }
             .id(item.id)
-            .onGeometryChange(for: CGRect.self) { geometry in
-                geometry.frame(in: .global)
+            .onGeometryChange(for: CGRect?.self) { geometry in
+                scrollTargetItemID == item.id ? geometry.frame(in: .global) : nil
             } action: { frame in
+                guard let frame, scrollTargetItemID == item.id else { return }
                 itemFrames[item.id] = frame
-                guard scrollTargetItemID == item.id else { return }
                 // UIKit may restore the field's scroll position after Return.
                 // Correct a clipped row after that layout, with room for insets.
                 scrollToAddedItem(item.id, using: scrollProxy, animated: false)
@@ -830,6 +840,9 @@ struct GroceryListScreen: View {
                 item.position = position
             }
             recentlyAddedItemIDs.formUnion(newlyAddedIDs)
+            // Idle rows no longer track geometry. Never reuse a frame captured
+            // for an earlier reveal of a reactivated item.
+            itemFrames.removeAll(keepingCapacity: true)
             scrollTargetItemID = promotedItems.first?.id
             rawInput = ""
             groceryInputFocused = keepingInputFocused
@@ -930,6 +943,7 @@ struct GroceryListScreen: View {
     }
 
     private func cancelAddedItemScroll() {
+        guard addedItemScrollTask != nil else { return }
         addedItemScrollTask?.cancel()
         addedItemScrollTask = nil
         addedItemScrollRequestID = UUID()
@@ -1385,10 +1399,12 @@ private struct ProductEntryEditor: UIViewRepresentable {
 
     func updateUIView(_ view: EntryTextView, context: Context) {
         context.coordinator.parent = self
-        if view.text != text { view.text = text }
+        if view.text != text {
+            view.text = text
+            view.invalidateIntrinsicContentSize()
+        }
         view.updatePlaceholder()
         context.coordinator.synchronizeFocus(for: view)
-        view.invalidateIntrinsicContentSize()
     }
 
     static func dismantleUIView(_ view: EntryTextView, coordinator: Coordinator) {
@@ -1476,7 +1492,9 @@ private struct ProductEntryEditor: UIViewRepresentable {
         required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
         func updatePlaceholder() {
-            placeholder.isHidden = !text.isEmpty
+            let hidden = !text.isEmpty
+            guard placeholder.isHidden != hidden || placeholder.font != font else { return }
+            placeholder.isHidden = hidden
             placeholder.font = font
             setNeedsLayout()
         }

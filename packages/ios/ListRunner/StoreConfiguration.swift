@@ -950,6 +950,21 @@ struct StoreBrand: Identifiable {
     }
 }
 
+// A snapshot belongs to one immutable, loaded registry. Keep full validation at
+// this boundary; visibility toggles only intersect IDs and never recompile every
+// retailer's validation expressions during SwiftUI rendering.
+struct StoreShoppingAvailability {
+    let availableIDs: Set<StoreID>
+
+    init(definitions: [StoreDefinition]) {
+        availableIDs = Set(definitions.filter(\.isAvailableForShopping).map(\.id))
+    }
+
+    func visibleIDs(in enabledIDs: Set<StoreID>) -> Set<StoreID> {
+        availableIDs.intersection(enabledIDs)
+    }
+}
+
 @MainActor
 final class StoreVisibilityPreferences: ObservableObject {
     @Published private(set) var visibleIDs: Set<StoreID>
