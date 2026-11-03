@@ -752,3 +752,35 @@ Initial evidence:
 All Mac source handoffs use exact pushed Git commits in a separate detached task
 worktree at `/Users/adrianzafir/Projects/listrunner-ikea-au`. The normal Mac checkout
 and its untracked Xcode Cloud settings are preserved. No physical iPhone was used.
+
+Final implementation check at `51d324702255aea25a1d3adba32e5d32aebc399f`:
+**1,755 standalone native checks passed**, workspace-backed simulator build,
+install and launch succeeded, and all **35 JSON resources plus the bundled
+automation JavaScript byte-match** committed source. Linux checks passed **342
+DOM/cart tests, 24 Python checks and 90 core tests plus core type-checking**.
+The interceptor installs at document start before retailer event handlers; each
+Undo decrement now also requires a fresh persisted-cart read. Confirmation
+provenance retains quantity maps rather than old iframe DOM documents, and
+cancelling an in-progress snapshot Undo shows the existing warning.
+
+Live grid and detail sessions on the dedicated simulator reached the exact
+DRAGON Spoon (`40515525`) controls, but IKEA's `You are in control of cookies used`
+dialog covered shopping controls. No consent choice or bypass was attempted.
+**No Add was sent; native detection and retailer Undo were not exercised or
+certified.** No test-product removal was needed; an independently displayed empty
+bag was not verified while blocked. Interaction sessions ended. Further live
+testing requires an authorized isolated-session cookie-consent choice. Production
+detection/Undo remain off. Evidence: Mac
+`/tmp/listrunner-ikea-au-51d3247-recovery.log` and
+`/tmp/listrunner-ikea-au-51d3247-device-evidence/`; Linux screenshots
+`/tmp/opencode/ikea-final-grid-consent.png` and
+`/tmp/opencode/ikea-final-detail-consent.png`.
+
+The intermediate `f6fedb9c4d33a7211d5b1c8ba89ae38208a22b8c` XCTest run also
+failed before retailer interaction: both cases expected Back while Manage Stores
+search exposed Close. These are test-navigation failures, not engine evidence.
+Logs/results remain on Mac at `/tmp/listrunner-ikea-au-f6fedb9-cart.log` and
+`/tmp/listrunner-ikea-au-f6fedb9-cart-results`; exported attachments are under
+`/tmp/listrunner-ikea-au-f6fedb9-attachments/`. Manual device verification on the
+final source revision avoided that test-navigation path but encountered the
+separate consent blocker described above.
