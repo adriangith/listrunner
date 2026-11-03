@@ -1238,7 +1238,8 @@ enum StoreBridge {
         case "automationUnavailable":
             guard Set(object.keys) == common.union(["capability", "scope", "reason"]),
                   object["capability"] as? String == "cartDetection", object["scope"] as? String == "interaction",
-                  ["productIdUnavailable", "quantityUnavailable", "confirmationTimedOut"].contains(object["reason"] as? String ?? "") else { return nil }
+                   ["productIdUnavailable", "quantityUnavailable", "confirmationTimedOut", "cartPreflightUnavailable"].contains(object["reason"] as? String ?? ""),
+                   object["reason"] as? String != "cartPreflightUnavailable" || store.cart?.strategy == .verifiedCartSnapshot else { return nil }
         default: return nil
         }
         return object

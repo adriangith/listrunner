@@ -179,6 +179,7 @@
     const op = { context: key(context), pageURL: location.href, deadline: Date.now() + 45000 };
     operation = op;
     (async () => {
+      let replayed = false;
       try {
         load();
         const before = await stable(op, () => true);
@@ -187,7 +188,7 @@
         if (!current || JSON.stringify(current) !== JSON.stringify(product)) throw new Error('changed product');
         // Exact same still-connected control, exactly once. Never retry Add.
         discardFrame();
-        bypass = control; control.click(); bypass = null;
+        bypass = control; replayed = true; control.click(); bypass = null;
         if (!valid(op)) return;
         // Let the retailer complete its Add before taking a new cart document.
         // Repeated reads below never repeat the retailer mutation.
@@ -218,7 +219,8 @@
           // Preserve ordinary website shopping after an unsupported preflight.
           // Do not replay an unverified or already-attempted Add as a fallback.
           disabled = true;
-          post('automationUnavailable', { capability: 'cartDetection', reason: 'quantityUnavailable', scope: 'interaction' });
+          post('automationUnavailable', { capability: 'cartDetection',
+            reason: replayed ? 'quantityUnavailable' : 'cartPreflightUnavailable', scope: 'interaction' });
         }
       } finally {
         if (operation === op) { operation = null; discardFrame(); }

@@ -1076,9 +1076,12 @@ final class StoreSelectionTests: XCTestCase {
         // XCTest considers even a sliver of a clipped cell hittable. Require
         // the whole row inside the table before tapping its centre.
         func fullyVisible() -> Bool {
-            entry.exists && entry.isHittable && entry.frame.height > 0
+            // iOS 27 can throw while evaluating hittability for a virtualized
+            // zero-frame row, rather than simply returning false.
+            entry.exists && entry.frame.height > 0 && !entry.frame.isInfinite && !entry.frame.isNull
                 && entry.frame.minY >= table.frame.minY
                 && entry.frame.maxY <= table.frame.maxY
+                && entry.isHittable
         }
         for _ in 0..<5 {
             if fullyVisible() { break }

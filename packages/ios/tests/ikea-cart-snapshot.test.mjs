@@ -52,10 +52,16 @@ function fixture({ before = 0, detail = false, amount = 1, fault = '', productio
         const input = Object.assign(new Element({ value: String(quantity) }), { value: fault === 'invalidQuantity' ? 'NaN' : String(quantity) });
         row.map[c.quantitySelector] = [input]; inputs.push(input);
         const decrease = new Element();
-        decrease.click = () => { changes.push(['decrease', article]); server.set(article, server.get(article) - 1); render(); };
+        decrease.click = () => {
+          const previous = server.get(article);
+          changes.push(['decrease', article]); server.set(article, previous - 1); render();
+          if (fault === 'optimisticOnly') server.set(article, previous);
+          if (fault === 'cancelAfterDecrement') window.__listRunnerCancelUndo();
+        };
         const remove = new Element();
         remove.click = () => { changes.push(['remove', article]); server.delete(article); render(); };
         if (fault === 'disabledDecrement') decrease.disabled = true;
+        if (fault === 'disabledRemove') remove.disabled = true;
         row.map[c.decrementSelector] = [decrease]; row.map[c.removeSelector] = [remove];
         rows.push(row);
       }
@@ -95,12 +101,13 @@ function fixture({ before = 0, detail = false, amount = 1, fault = '', productio
     for (let i = 0; i < 1500; i++) {
       for (let j = 0; j < 8; j++) await Promise.resolve();
       if (!timers.length) return;
-      timers.sort((a, b) => a.at - b.at); const timer = timers.shift(); now = timer.at; timer.callback();
+      timers.sort((a, b) => a.at - b.at); const timer = timers.shift(); now = Math.max(now, timer.at); timer.callback();
     }
     throw new Error('Timer loop did not settle');
   };
   const detected = () => messages.find(m => m.type === 'addDetected');
-  return { server, messages, changes, window, context, document, control, tile,
+  return { server, messages, changes, window, context, document, control, tile, location,
+    expire: () => { now += 46000; },
     click: (trusted = true) => listeners.click?.(clickEvent(trusted)), flush, detected,
     get loads() { return loads; }, get frameDocument() { return activeDocument; },
     undo: () => window.__listRunnerUndoAdd({ ...context, storeID: 'ikeaAU', ...detected() }) };
@@ -122,6 +129,9 @@ for (const fault of ['articleMismatch', 'invalidQuantity', 'duplicateRow', 'erro
     const f = fixture({ fault }); f.click(); await f.flush();
     assert.equal(f.detected(), undefined); assert.equal(await f.undo(), false);
     if (!['noIncrease', 'unexpectedOther'].includes(fault)) assert.deepEqual(f.changes, []);
+    if (['articleMismatch', 'invalidQuantity', 'duplicateRow', 'error', 'frameRedirect'].includes(fault)) {
+      assert.equal(f.messages.find(m => m.type === 'automationUnavailable')?.reason, 'cartPreflightUnavailable');
+    }
   });
 }
 test('synthetic taps and intended draft changes do not arm snapshot verification', async () => {
@@ -145,4 +155,54 @@ test('Undo refuses disabled decrement without removing pre-existing quantity', a
 });
 test('backgrounding cancels pending preflight and all delayed mutations', async () => {
   const f = fixture(); f.click(); f.document.visibilityState = 'hidden'; await f.flush(); assert.deepEqual(f.changes, []);
+});
+test('multi-unit Add and Undo retain the observed original basket', async () => {
+  const f = fixture({ detail: true, before: 2, amount: 4 }); f.click(); await f.flush();
+  assert.equal(f.detected()?.beforeQuantity, 2); assert.equal(f.detected()?.resultingQuantity, 6);
+  const promise = f.undo(); await f.flush(); assert.equal(await promise, true);
+  assert.equal(f.server.get('40515525'), 2); assert.equal(f.server.get('80515528'), 2);
+  assert.equal(f.changes.filter(([type]) => type === 'decrease').length, 4);
+  assert.equal(f.changes.filter(([type]) => type === 'remove').length, 0);
+});
+for (const changed of ['draft', 'detached', 'navigation', 'expired']) {
+  test(`preflight never replays a ${changed} intent`, async () => {
+    const f = fixture({ detail: true }); f.click();
+    if (changed === 'draft') f.tile.map.input[0].value = '2';
+    if (changed === 'detached') f.control.isConnected = false;
+    if (changed === 'navigation') f.location.pathname = '/au/en/search/';
+    if (changed === 'expired') f.expire();
+    await f.flush(); assert.deepEqual(f.changes, []); assert.equal(f.detected(), undefined);
+  });
+}
+test('forged store, item, quantity and context cannot authorize Undo', async () => {
+  for (const extra of [{ storeID: 'coles' }, { itemID: 'other' }, { beforeQuantity: 5 }, { resultingQuantity: 8 }, { documentGeneration: 9 }]) {
+    const f = fixture(); f.click(); await f.flush();
+    const record = { ...f.context, storeID: 'ikeaAU', ...f.detected(), ...extra };
+    assert.equal(await f.window.__listRunnerUndoAdd(record), false); assert.equal(f.changes.length, 1);
+  }
+});
+test('navigation and background after confirmation prevent all Undo clicks', async () => {
+  for (const change of ['navigation', 'background']) {
+    const f = fixture(); f.click(); await f.flush();
+    if (change === 'navigation') f.location.pathname = '/au/en/p/other-80515528/';
+    else f.document.visibilityState = 'hidden';
+    const promise = f.undo(); await f.flush(); assert.equal(await promise, false); assert.equal(f.changes.length, 1);
+  }
+});
+test('cancelling during Undo stops after the already-issued single decrement', async () => {
+  const f = fixture({ detail: true, amount: 3, fault: 'cancelAfterDecrement' }); f.click(); await f.flush();
+  const promise = f.undo(); await f.flush(); assert.equal(await promise, false);
+  assert.equal(f.changes.filter(([type]) => type === 'decrease').length, 1);
+  assert.equal(f.server.get('40515525'), 2);
+});
+test('an optimistic decrement is not persisted-cart Undo confirmation', async () => {
+  const f = fixture({ before: 2, fault: 'optimisticOnly' }); f.click(); await f.flush();
+  const promise = f.undo(); await f.flush(); assert.equal(await promise, false);
+  assert.equal(f.server.get('40515525'), 3);
+  assert.equal(f.changes.filter(([type]) => type === 'decrease').length, 1);
+});
+test('a disabled Remove cannot erase the final confirmed unit', async () => {
+  const f = fixture({ fault: 'disabledRemove' }); f.click(); await f.flush();
+  const promise = f.undo(); await f.flush(); assert.equal(await promise, false);
+  assert.equal(f.server.get('40515525'), 1); assert.equal(f.changes.length, 1);
 });

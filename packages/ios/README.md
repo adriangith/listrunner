@@ -35,13 +35,51 @@ The verifier requires every canonical JSON file (including Bunnings) to be byte-
 
 ## Current implementation
 
+### IKEA Australia
+
+IKEA (`ikeaAU`) joins the shared store catalogue with Australian discovery,
+blue/yellow branding, its own persistent list and website-data IDs ending
+`000033`, and the existing enable/settings/diagnostics/reset flow. It starts
+disabled. Search uses `https://www.ikea.com/au/en/search/?q={query}`. Only exact
+Australian `/au/en/` HTTPS destinations on `www.ikea.com`/`ikea.com` are trusted;
+other countries and unreviewed authentication origins are not integrated.
+
+Its schema-5 `verifiedCartSnapshot` engine is bundled separately in
+`Resources/CartSnapshotAutomation.js`. Unlike the older passive detectors, this
+engine holds an exactly identified real Add tap while it reads a fresh rendered
+cart, then sends that same requested control once. It verifies eight-digit article
+numbers, linked identities and stable actual basket quantities, not the intended
+quantity or IKEA's family-only toast. Complete before/after snapshots must differ
+only by the requested article quantity. Cart reads use a sandboxed, off-screen,
+same-origin frame; there are no private API calls or background polling. An
+unsupported preflight reports that Add was **not sent** and allows subsequent
+ordinary website shopping with manual status controls. It never retries an Add.
+
+Undo requires a fresh unchanged basket and single-use confirmation provenance. It
+decrements only the exact article and newly added quantity, preserving original
+and unrelated quantities. Removing the last unit is permitted only with a proved
+zero original baseline. A new cart document must confirm the full restored basket.
+The native progress indicator remains visible during reversal; uncertainty uses
+the existing cart-Undo warning. Composite/multi-article bundles and unsupported
+layouts fall back to manual shopping. Other retailers retain their current engines.
+
+Production detection and retailer-cart Undo remain disabled pending the separate
+native live checks recorded in `VALIDATION.md`. Search has passed the read-only
+iPhone WebKit probe. Offline coverage is in `tests/ikea-cart-snapshot.test.mjs` and
+`tests/RecoveryTests.swift`; ordinary tests never contact IKEA. The explicit
+`testLiveStoreCartIKEAGrid`/`testLiveStoreCartIKEADetail` probes require
+`TEST_RUNNER_LISTRUNNER_LIVE_CART_STORE=ikeaAU` through xcodebuild and use isolated
+guest storage. Resource/archive verification audits the JavaScript byte-for-byte
+as well as every canonical JSON file.
+
 ### Twenty-store expansion (1 November 2026 — partial delivery)
 
 Twenty additional AU/NZ/GB/US destinations are registered, disabled by default,
 with independent saved lists, website sessions and diagnostics/reset scopes.
 Bunnings has explicitly isolated AU/NZ regional destinations; Target Australia
 is separate from unrelated Target US. Existing store identities and lists are
-preserved. There are now 32 destinations and 30 brand rows.
+preserved. That expansion introduced 32 destinations and 30 brand rows; IKEA
+Australia brings the current catalogue to 33 destinations and 31 brand rows.
 
 Automatic search is enabled only for independently reviewed routes. Unverified
 searches remain off. **Priceline, Supercheap Auto, Ocado and Chemist Warehouse cart detection are live-verified and enabled;

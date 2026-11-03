@@ -991,6 +991,8 @@ final class StoreBrowser: ObservableObject {
             return "Automatic cart detection isn't included for \(store.displayName) in this app version."
         }
         switch cartDetectionIssue {
+        case .cartPreflightUnavailable:
+            return String(localized: "ListRunner couldn't verify your cart before adding. That Add was not sent. Tap Add on the store website again to shop manually, then use Mark Added when you've checked your cart.")
         case .productIDUnavailable:
             return "ListRunner couldn't identify which store product was tapped, so it couldn't safely match a cart update to this item."
         case .quantityUnavailable:
@@ -3039,11 +3041,12 @@ final class StoreBrowser: ObservableObject {
         }
         if type == "automationUnavailable" {
             guard Set(object.keys) == commonKeys.union(["capability", "reason", "scope"]),
-                  ["productIdUnavailable", "quantityUnavailable", "confirmationTimedOut"].contains(object["reason"] as? String ?? ""),
+                  ["productIdUnavailable", "quantityUnavailable", "confirmationTimedOut", "cartPreflightUnavailable"].contains(object["reason"] as? String ?? ""),
                   object["capability"] as? String == "cartDetection",
                   object["scope"] as? String == "interaction" else { return }
             cartDetectionUnavailable = true
             switch object["reason"] as? String {
+            case "cartPreflightUnavailable": cartDetectionIssue = .cartPreflightUnavailable
             case "productIdUnavailable": cartDetectionIssue = .productIDUnavailable
             case "confirmationTimedOut": cartDetectionIssue = .confirmationTimedOut
             default: cartDetectionIssue = .quantityUnavailable

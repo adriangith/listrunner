@@ -10,7 +10,7 @@ enum GroceryImportSource: String {
 
 enum SessionResetPhase: Equatable { case ready, resetting, failed }
 enum StoreRecovery: Equatable { case loadFailed, processTerminated }
-enum CartDetectionIssue { case productIDUnavailable, quantityUnavailable, confirmationTimedOut }
+enum CartDetectionIssue { case productIDUnavailable, quantityUnavailable, confirmationTimedOut, cartPreflightUnavailable }
 
 // Limits app-initiated requests, not the retailer's own verification redirects.
 // The latest requested search replaces earlier queued searches in StoreBrowser.

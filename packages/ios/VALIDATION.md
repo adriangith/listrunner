@@ -710,3 +710,45 @@ The paused Petbarn process PID 8801 remained running on its original simulator.
 No retailer pages/cart mutations, website resets, physical-phone installs or normal
 store-data changes occurred during this availability task. The original twenty-store
 verification goal remains paused at eight certified detectors.
+## IKEA Australia — implementation and verification (4 November 2026)
+
+The user selected full exact-product cart verification and authorized controlled
+isolated guest-cart tests, with no purchase, credentials, account/payment or
+fulfilment-setting changes. New `ikeaAU` IDs end `000033`; existing identities,
+lists, preferences and sessions are unchanged. Registration uses the shared store
+UI and exact Australian `/au/en/` HTTPS destinations only. Schema 5's separately
+bundled snapshot engine holds an attributed Add tap until a fresh rendered cart
+baseline exists, revalidates the same control and requested amount, replays once,
+and verifies the exact article delta while preserving all unrelated quantities.
+Undo uses fresh full-cart equality, single-use context-bound provenance, verified
+single decrements and a final fresh persisted-cart check. A preflight failure
+explicitly reports that Add was not sent; there is no blind Add retry. The native
+Undo timeout/progress accommodates the new cart document reads without changing
+other retailers' four-second boundary.
+
+Initial evidence:
+
+* At `6e85e7637a91a6e63a285612569263ef059af468`, **1,747 standalone native checks
+  passed**. A dedicated iPhone 17 / iOS 27.2 simulator
+  (`9BEEF1A5-4AAD-4EB4-9C40-27B221A817FC`, ListRunner IKEA AU) built successfully
+  and passed **2/2** focused tests: read-only matching spoon search with visible
+  query reflection, and IKEA discovery/settings/reset-cancel. Evidence on Mac:
+  `/tmp/listrunner-ikea-au-search.log` and `/tmp/listrunner-ikea-au-search-results`.
+* Separate Linux browser experiments passed grid and product-page DRAGON Spoon
+  (`40515525`, $4.99/4 pack) 0→1→0 cycles with the new engine. The page's intended
+  quantity and family-only toast were not used as actual cart quantities. Both
+  engine Undo calls returned true after a fresh empty-cart check. Independent
+  final navigation displayed `Your shopping bag is empty`; the isolated browser
+  session was then closed. This is browser evidence, not native certification.
+* At `bf22e9bde3137017dbcebb900aa7d03006b79a89`, both native cart tests failed
+  **before retailer interaction** in shared first-store setup: XCTest queried
+  hittability on a virtualized Coles row and reported an invalid activation point.
+  No IKEA Add/Undo was attempted. Evidence: Mac
+  `/tmp/listrunner-ikea-au-cart.log` and `/tmp/listrunner-ikea-au-cart-results`.
+  The subsequent test guard checks finite, nonzero, fully visible row bounds
+  before querying hittability. Live native cart certification remains pending;
+  production detection/Undo remain disabled until it passes.
+
+All Mac source handoffs use exact pushed Git commits in a separate detached task
+worktree at `/Users/adrianzafir/Projects/listrunner-ikea-au`. The normal Mac checkout
+and its untracked Xcode Cloud settings are preserved. No physical iPhone was used.
