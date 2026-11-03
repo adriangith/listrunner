@@ -196,9 +196,9 @@ struct RecoveryTests {
         malformedColes.capabilities.cartUndo = true
         check(StoreShoppingAvailability(definitions: [malformedColes]).availableIDs.isEmpty,
               "availability snapshots never bypass malformed configuration or native capability policy")
-        check(StoreCatalogue.ordered(allProductionDefinitions, countryCode: nil).count == 26
-               && StoreBrand.sections(allProductionDefinitions, countryCode: nil, search: "").flatMap(\.brands).count == 25,
-               "shopping catalogue has 26 verified destinations grouped into 25 brands")
+        check(StoreCatalogue.ordered(allProductionDefinitions, countryCode: nil).count == 27
+               && StoreBrand.sections(allProductionDefinitions, countryCode: nil, search: "").flatMap(\.brands).count == 26,
+                "shopping catalogue has 27 verified destinations grouped into 26 brands")
         for country in [nil, "AU", "US", "NZ", "GB"] as [String?] {
             let stores = StoreCatalogue.sections(allProductionDefinitions, countryCode: country).flatMap(\.stores)
             let brands = StoreBrand.sections(allProductionDefinitions, countryCode: country, search: "",
