@@ -2,6 +2,37 @@ import XCTest
 import UIKit
 import WebKit
 
+final class LiveIKEASearchTests: XCTestCase {
+    @MainActor
+    func testAustralianSearch() async throws {
+        guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_IKEA_SEARCH"] == "1" else {
+            throw XCTSkip("IKEA live search requires explicit read-only opt-in")
+        }
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent()
+        let web = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), configuration: configuration)
+        let policy = ReadOnlySearchPolicy(host: "www.ikea.com")
+        web.navigationDelegate = policy
+        defer { web.stopLoading(); web.navigationDelegate = nil }
+        web.load(URLRequest(url: URL(string: "https://www.ikea.com/au/en/search/?q=spoon")!))
+        var result: [String: Any] = [:]
+        for _ in 0..<40 {
+            try await Task.sleep(for: .seconds(1))
+            result = (try? await web.evaluateJavaScript("""
+                (() => ({matching: [...document.querySelectorAll('[data-testid="plp-product-card"]')].filter(card =>
+                  /spoon/i.test(card.innerText) && [...card.querySelectorAll('a[href]')].some(a =>
+                    new URL(a.href).host === 'www.ikea.com' && /^\\/au\\/en\\/p\\/.*-\\d{8}\\/$/.test(new URL(a.href).pathname))).length,
+                  query: [...document.querySelectorAll('input,h1')].some(e => /spoon/i.test(e.value || e.innerText || ''))}))()
+                """) as? [String: Any]) ?? [:]
+            if (result["matching"] as? Int ?? 0) > 0 && result["query"] as? Bool == true { break }
+        }
+        XCTAssertGreaterThan(result["matching"] as? Int ?? 0, 0)
+        XCTAssertEqual(result["query"] as? Bool, true)
+        XCTAssertEqual(web.url?.path, "/au/en/search")
+        print("IKEA_SEARCH_PROBE matching=\(result["matching"] ?? 0), queryReflected=\(result["query"] ?? false)")
+    }
+}
+
 // Search certification is independent of cart certification. These probes never
 // tap Add, use app cookies, set fulfilment details, or submit credentials.
 final class LiveExpansionSearchTests: XCTestCase {
@@ -231,13 +262,19 @@ final class StoreSelectionTests: XCTestCase {
             }
         }
         if name.contains("LiveStoreCart") {
-            let probes = [("Priceline", "priceline"), ("Supercheap", "supercheapAuto"), ("ChemistWarehouse", "chemistWarehouse"), ("JBHiFi", "jbHiFi"), ("BunningsNZ", "bunningsNZ"), ("Officeworks", "officeworks"), ("Ocado", "ocado"), ("Morrisons", "morrisons")]
+            let probes = [("Priceline", "priceline"), ("Supercheap", "supercheapAuto"), ("ChemistWarehouse", "chemistWarehouse"), ("JBHiFi", "jbHiFi"), ("BunningsNZ", "bunningsNZ"), ("Officeworks", "officeworks"), ("Ocado", "ocado"), ("Morrisons", "morrisons"), ("IKEA", "ikeaAU")]
             guard let store = probes.first(where: { name.contains($0.0) })?.1 else { throw XCTSkip("Unknown live cart probe") }
             guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_CART_STORE"] == store else {
                 throw XCTSkip("Live cart mutation requires explicit single-store opt-in")
             }
             app.launchEnvironment["LISTRUNNER_LIVE_CART_PROBE"] = store
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
+            if store == "ikeaAU" {
+                app.launchEnvironment["LISTRUNNER_LIVE_UNDO_PROBE"] = store
+                if name.contains("Detail") {
+                    app.launchEnvironment["LISTRUNNER_LIVE_CART_DETAIL_URL"] = "https://www.ikea.com/au/en/p/dragon-spoon-stainless-steel-40515525/"
+                }
+            }
             if store == "bunningsNZ" { app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "NZ" }
             if ["ocado", "morrisons"].contains(store) { app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "GB" }
             if store == "morrisons" {
@@ -635,6 +672,63 @@ final class StoreSelectionTests: XCTestCase {
     func testLiveStoreCartBunningsNZ() throws {
         try liveStoreCart(store: "bunningsNZ", query: "craftright hammer",
                           product: "CRAFTRIGHT Craftright 8oz Steel Claw Hammer")
+    }
+
+    func testIKEAAustraliaDiscoveryAndCapabilities() {
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        openStoreSettings("ikeaAU")
+        XCTAssertTrue(app.staticTexts["IKEA"].firstMatch.exists || app.navigationBars["IKEA"].exists)
+        XCTAssertTrue(app.buttons["Reset IKEA Session"].exists)
+        app.buttons["Reset IKEA Session"].tap()
+        XCTAssertTrue(app.alerts["Reset IKEA Session?"].waitForExistence(timeout: 3))
+        app.alerts["Reset IKEA Session?"].buttons["Cancel"].tap()
+    }
+
+    func testLiveStoreCartIKEAGrid() throws { try liveIKEACart(detail: false) }
+    func testLiveStoreCartIKEADetail() throws { try liveIKEACart(detail: true) }
+
+    private func liveIKEACart(detail: Bool) throws {
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility("ikeaAU", shown: true)
+        tapNavigationBack()
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap(); input.typeText("dragon spoon")
+        app.buttons["Add Items"].tap()
+        app.buttons["Show Store"].tap()
+        let web = app.webViews.firstMatch
+        XCTAssertTrue(web.waitForExistence(timeout: 10))
+        let collapse = app.buttons["Collapse overlay"]
+        if collapse.exists && collapse.isHittable { collapse.tap() }
+        let add = web.buttons[detail ? "Add to bag" : "Add \"DRAGON Spoon\" to cart"].firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 60), web.debugDescription)
+        // Do not alter consent, account, postcode, store or fulfilment settings.
+        // Scroll only inside the unobscured retailer portion of the sheet.
+        for _ in 0..<12 {
+            if add.isHittable && add.frame.minY > web.frame.minY + 60 && add.frame.maxY < app.frame.maxY - 130 { break }
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            origin.withOffset(CGVector(dx: web.frame.midX, dy: app.frame.maxY - 180))
+                .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: web.frame.midX, dy: web.frame.minY + 120)))
+        }
+        XCTAssertTrue(add.isHittable && add.frame.minY > web.frame.minY + 40 && add.frame.maxY < app.frame.maxY - 100)
+        add.tap()
+        // No Mark Added: require the real native bridge to acknowledge the cart.
+        let expand = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Expand overlay")).firstMatch
+        if expand.exists && expand.isHittable { expand.tap() }
+        let undo = app.buttons["Undo"]
+        let detected = undo.waitForExistence(timeout: 60)
+        let evidence = XCTAttachment(screenshot: app.screenshot())
+        evidence.name = "IKEA \(detail ? "detail" : "grid") native detection: \(detected)"
+        evidence.lifetime = .keepAlways
+        self.add(evidence)
+        if detected { undo.tap() }
+        let pending = app.buttons["Mark Added"]
+        let restored = pending.waitForExistence(timeout: 60)
+        print("IKEA_NATIVE_CART_PROBE detail=\(detail), detected=\(detected), localRestored=\(restored)")
+        XCTAssertTrue(detected, "Do not certify cart support without native automatic detection")
+        XCTAssertTrue(restored, "Undo must restore the local row; engine also requires a fresh persisted-cart proof")
+        XCTAssertFalse(app.staticTexts["Couldn’t undo in store"].exists)
     }
 
     func testLiveStoreCartOfficeworks() throws {

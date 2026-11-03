@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 5,
+  "id": "ikeaAU",
+  "displayName": "IKEA",
+  "serviceArea": {"countryCodes": ["AU"]},
+  "homepage": "https://www.ikea.com/au/en/",
+  "allowedHosts": ["www.ikea.com", "ikea.com"],
+  "search": {"strategy": "urlTemplate", "template": "https://www.ikea.com/au/en/search/?q={query}"},
+  "addedColor": {"red": 0, "green": 88, "blue": 163},
+  "brandColors": {"primary": {"red": 0, "green": 88, "blue": 163}, "highlight": {"red": 255, "green": 219, "blue": 0}},
+  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "cart": {
+    "strategy": "verifiedCartSnapshot", "identityStrategy": "numericURLSuffix",
+    "tileSelector": "[data-testid='plp-product-card'],[data-testid='listing-product-card']",
+    "linkSelector": "a[href*='/au/en/p/']",
+    "productURLPattern": "^/au/en/p/[a-z0-9-]*-(\\d{8})/?$",
+    "addSelector": "button[aria-label^='Add '],button[aria-label='Add to bag']",
+    "addLabelPatterns": ["^add \".+\" to cart$", "^add to bag$"],
+    "quantitySelector": "input[aria-label^='Enter quantity of ']",
+    "emptyStatusSelector": "main h1", "emptyStatusText": "Your shopping bag is empty",
+    "decrementLabelPattern": "^decrease quantity of .+$",
+    "profiles": [
+      {"id": "product-card", "scope": "productCard", "identity": "cardLink",
+       "containerSelector": "[data-testid='plp-product-card'],[data-testid='listing-product-card']",
+       "titleSelector": "a[aria-label]", "addSelector": "button[aria-label^='Add '][aria-label$=' to cart']",
+       "addLabelPatterns": ["^add \".+\" to cart$"], "confirmation": "cartSnapshot", "confirmationWindowMS": 15000},
+      {"id": "product-page", "scope": "productPage", "identity": "pageURL",
+       "containerSelector": ".js-add-to-cart-section", "titleSelector": "h1",
+       "addSelector": "button[aria-label='Add to bag']", "addLabelPatterns": ["^add to bag$"],
+       "confirmation": "cartSnapshot", "confirmationWindowMS": 15000}
+    ],
+    "snapshot": {
+      "path": "/au/en/shoppingcart/", "rowSelector": "main [itemtype='http://schema.org/Product']",
+      "articleSelector": "[aria-label^='Product article number ']",
+      "quantitySelector": "input[aria-label^='Enter quantity of ']",
+      "emptySelector": "main h1", "emptyText": "Your shopping bag is empty",
+      "decrementSelector": "button[aria-label^='Decrease quantity of ']",
+      "removeSelector": "button[aria-label^='Remove ']"
+    }
+  }
+}

@@ -6,6 +6,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
     case coles, woolworths, bunnings, costco, tesco, walmart, kmart, costcoUS, bigW, amazon, kroger, target
     case chemistWarehouse, priceline, officeworks, jbHiFi, targetAU, petbarn, supercheapAuto, bcf
     case bunningsNZ, theWarehouse, newWorld, paknsave, sainsburys, asda, morrisons, ocado, waitrose, boots, walgreens, cvs
+    case ikeaAU
     #if STORE_REGISTRY_PROOF
     // Only compiled by the standalone extensibility proof, never the app.
     case synthetic
@@ -18,7 +19,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         #endif
         return [.coles, .woolworths, .bunnings, .costco, .tesco, .walmart, .kmart, .bigW, .kroger, .target,
          .chemistWarehouse, .priceline, .officeworks, .jbHiFi, .targetAU, .petbarn, .supercheapAuto, .bcf,
-         .bunningsNZ, .theWarehouse, .sainsburys, .asda, .morrisons, .ocado, .waitrose, .walgreens].contains(self)
+         .bunningsNZ, .theWarehouse, .sainsburys, .asda, .morrisons, .ocado, .waitrose, .walgreens, .ikeaAU].contains(self)
     }
     // Brand grouping is reviewed native identity, never inferred from a name or host.
     var brandID: String {
@@ -80,6 +81,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .boots: "Boots"
         case .walgreens: "Walgreens"
         case .cvs: "CVS"
+        case .ikeaAU: "IKEA"
         #if STORE_REGISTRY_PROOF
         case .synthetic: "Example Hardware"
         #endif
@@ -119,6 +121,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .boots: ["www.boots.com", "boots.com"]
         case .walgreens: ["www.walgreens.com", "walgreens.com"]
         case .cvs: ["www.cvs.com", "cvs.com"]
+        case .ikeaAU: ["www.ikea.com", "ikea.com"]
         #if STORE_REGISTRY_PROOF
         case .synthetic: ["www.store.example"]
         #endif
@@ -158,12 +161,14 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .boots: "boots.com"
         case .walgreens: "walgreens.com"
         case .cvs: "cvs.com"
+        case .ikeaAU: "ikea.com"
         #if STORE_REGISTRY_PROOF
         case .synthetic: "store.example"
         #endif
         }
     }
     var home: URL {
+        if self == .ikeaAU { return URL(string: "https://www.ikea.com/au/en/")! }
         if self == .asda { return URL(string: "https://www.asda.com/groceries")! }
         if self == .morrisons { return URL(string: "https://groceries.morrisons.com")! }
         return URL(string: "https://www.\(dataDomain)")!
@@ -203,6 +208,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .boots: value = "10000000-0000-4000-8000-000000000030"
         case .walgreens: value = "10000000-0000-4000-8000-000000000031"
         case .cvs: value = "10000000-0000-4000-8000-000000000032"
+        case .ikeaAU: value = "10000000-0000-4000-8000-000000000033"
         #if STORE_REGISTRY_PROOF
         case .synthetic: value = "10000000-0000-4000-8000-000000000099"
         #endif
@@ -244,6 +250,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .boots: value = "20000000-0000-4000-8000-000000000030"
         case .walgreens: value = "20000000-0000-4000-8000-000000000031"
         case .cvs: value = "20000000-0000-4000-8000-000000000032"
+        case .ikeaAU: value = "20000000-0000-4000-8000-000000000033"
         #if STORE_REGISTRY_PROOF
         case .synthetic: value = "20000000-0000-4000-8000-000000000099"
         #endif
@@ -367,12 +374,12 @@ struct StoreDefinition: Codable {
         let template: String
     }
     struct Cart: Codable {
-        enum Strategy: String, Codable { case trustedTileQuantity, profiled }
+        enum Strategy: String, Codable { case trustedTileQuantity, profiled, verifiedCartSnapshot }
         enum IdentityStrategy: String, Codable { case numericURLSuffix, capturedURLComponent }
         struct DetectionProfile: Codable {
             enum Scope: String, Codable { case productCard, productPage }
             enum Identity: String, Codable { case cardLink, pageURL }
-            enum Confirmation: String, Codable { case productReceipt, quantityIncrease, productAcknowledgement }
+            enum Confirmation: String, Codable { case productReceipt, quantityIncrease, productAcknowledgement, cartSnapshot }
             struct Acknowledgement: Codable {
                 let selector: String
                 let successSelector: String
@@ -435,6 +442,17 @@ struct StoreDefinition: Codable {
         let emptyStatusText: String
         let decrementLabelPattern: String
         var profiles: [DetectionProfile]? = nil
+        struct Snapshot: Codable {
+            let path: String
+            let rowSelector: String
+            let articleSelector: String
+            let quantitySelector: String
+            let emptySelector: String
+            let emptyText: String
+            let decrementSelector: String
+            let removeSelector: String
+        }
+        var snapshot: Snapshot? = nil
     }
     struct AddedColor: Codable {
         let red: Int
@@ -502,7 +520,7 @@ struct StoreDefinition: Codable {
     func validate() throws {
         let countries = serviceArea.countryCodes
         let supportedCountryCodes = Set(Locale.Region.isoRegions.map(\.identifier))
-        guard [2, 3, 4].contains(schemaVersion), displayName == id.displayName,
+        guard [2, 3, 4, 5].contains(schemaVersion), displayName == id.displayName,
               !countries.isEmpty, Set(countries).count == countries.count,
               countries.allSatisfy({ $0.range(of: "^[A-Z]{2}$", options: .regularExpression) != nil
                   && supportedCountryCodes.contains($0) }),
@@ -522,8 +540,25 @@ struct StoreDefinition: Codable {
                !capabilities.cartUndo || id.permitsCartUndo,
               !capabilities.cartDetection || cart != nil else { throw ConfigurationError.invalid }
         if let cart {
+            // Snapshot verification is a separately reviewed engine, not a way
+            // for a data file to upgrade an existing retailer's capabilities.
+            if cart.strategy == .verifiedCartSnapshot {
+                guard schemaVersion == 5, id == .ikeaAU,
+                      cart.identityStrategy == .numericURLSuffix,
+                      let snapshot = cart.snapshot,
+                      snapshot.path == "/au/en/shoppingcart/",
+                      cart.profiles?.isEmpty == false else { throw ConfigurationError.invalid }
+                for selector in [snapshot.rowSelector, snapshot.articleSelector, snapshot.quantitySelector,
+                                 snapshot.emptySelector, snapshot.decrementSelector, snapshot.removeSelector] {
+                    guard !selector.isEmpty, selector.utf8.count <= 1_024 else { throw ConfigurationError.invalid }
+                }
+                guard !snapshot.emptyText.isEmpty, snapshot.emptyText.utf8.count <= 256 else { throw ConfigurationError.invalid }
+            } else {
+                guard schemaVersion != 5, cart.snapshot == nil else { throw ConfigurationError.invalid }
+            }
             guard (schemaVersion == 2 && cart.strategy == .trustedTileQuantity && cart.profiles == nil)
-                || ([3, 4].contains(schemaVersion) && cart.strategy == .profiled && cart.profiles?.isEmpty == false) else { throw ConfigurationError.invalid }
+                || ([3, 4].contains(schemaVersion) && cart.strategy == .profiled && cart.profiles?.isEmpty == false)
+                || (schemaVersion == 5 && cart.strategy == .verifiedCartSnapshot) else { throw ConfigurationError.invalid }
             guard schemaVersion == 4 || cart.identityStrategy == .numericURLSuffix else { throw ConfigurationError.invalid }
             if cart.identityStrategy == .capturedURLComponent {
                 guard [.officeworks, .jbHiFi, .petbarn, .sainsburys, .walgreens, .boots, .theWarehouse, .waitrose].contains(id),
@@ -566,7 +601,14 @@ struct StoreDefinition: Codable {
                               profile.quantitySelector != nil else { throw ConfigurationError.invalid }
                     }
                     switch profile.confirmation {
+                    case .cartSnapshot:
+                        guard schemaVersion == 5, cart.strategy == .verifiedCartSnapshot,
+                              profile.quantitySelector == nil, profile.receipt == nil,
+                              profile.acknowledgement == nil, profile.undo == nil,
+                              profile.emptyStatusText == nil, profile.setupPrompt == nil,
+                              profile.quantityDraftSelector == nil, profile.quantityText == nil else { throw ConfigurationError.invalid }
                     case .productReceipt:
+                        guard schemaVersion != 5 else { throw ConfigurationError.invalid }
                         guard let receipt = profile.receipt, profile.acknowledgement == nil, profile.quantitySelector == nil, profile.emptyStatusText == nil, profile.undo == nil,
                                !receipt.successText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                                receipt.successText.utf8.count <= 256 else { throw ConfigurationError.invalid }
@@ -587,6 +629,7 @@ struct StoreDefinition: Codable {
                                   try NSRegularExpression(pattern: image.productURLPattern).numberOfCaptureGroups == 1 else { throw ConfigurationError.invalid }
                         }
                     case .quantityIncrease:
+                        guard schemaVersion != 5 else { throw ConfigurationError.invalid }
                         guard profile.quantitySelector != nil, profile.receipt == nil, profile.acknowledgement == nil else { throw ConfigurationError.invalid }
                     case .productAcknowledgement:
                         guard schemaVersion == 4, let acknowledgement = profile.acknowledgement,
@@ -603,7 +646,7 @@ struct StoreDefinition: Codable {
                               !undo.decrementLabelPattern.isEmpty, undo.decrementLabelPattern.utf8.count <= 512 else { throw ConfigurationError.invalid }
                         _ = try NSRegularExpression(pattern: undo.decrementLabelPattern)
                     }
-                    if capabilities.cartUndo {
+                    if capabilities.cartUndo && cart.strategy != .verifiedCartSnapshot {
                         guard profile.confirmation == .quantityIncrease, profile.undo != nil, profile.emptyStatusText != nil else { throw ConfigurationError.invalid }
                     }
                     if let setup = profile.setupPrompt {
@@ -615,14 +658,21 @@ struct StoreDefinition: Codable {
                     }
                 }
             }
-        } else if [3, 4].contains(schemaVersion) {
+        } else if [3, 4, 5].contains(schemaVersion) {
             throw ConfigurationError.invalid
         }
     }
 
     func allows(_ url: URL) -> Bool {
         url.scheme?.lowercased() == "https" && url.user == nil && url.password == nil &&
-        (url.port == nil || url.port == 443) && allowedHosts.contains(url.host?.lowercased() ?? "")
+        (url.port == nil || url.port == 443) && allowedHosts.contains(url.host?.lowercased() ?? "") &&
+        (id != .ikeaAU || Self.isAustralianIKEAPath(url))
+    }
+
+    private static func isAustralianIKEAPath(_ url: URL) -> Bool {
+        let path = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedPath ?? ""
+        return path.hasPrefix("/au/en/") && !path.contains("\\") &&
+            path.range(of: "%25|%2e|%2f|%5c|(?:^|/)\\.{1,2}(?:/|$)", options: [.regularExpression, .caseInsensitive]) == nil
     }
 
     // Authentication is browsing-only. Never extend the cart bridge or bundled
@@ -650,6 +700,7 @@ struct StoreDefinition: Codable {
     }
 
     func acceptsProductIdentity(_ value: String) -> Bool {
+        if id == .ikeaAU { return value.utf8.count == 8 && value.utf8.allSatisfy { (48...57).contains($0) } }
         if schemaVersion == 4 && cart?.identityStrategy == .capturedURLComponent {
             if id == .waitrose {
                 let components = value.split(separator: "-", omittingEmptySubsequences: false)
@@ -695,6 +746,7 @@ struct StoreDefinition: Codable {
                                         case .amazon: AddedColor(red: 35, green: 47, blue: 62)
                                         case .kroger: AddedColor(red: 0, green: 75, blue: 141)
                                         case .target: AddedColor(red: 204, green: 0, blue: 0)
+                                        case .ikeaAU: AddedColor(red: 0, green: 88, blue: 163)
                                         case .chemistWarehouse, .priceline, .officeworks, .jbHiFi, .targetAU, .petbarn,
                                              .supercheapAuto, .bcf, .bunningsNZ, .theWarehouse, .newWorld, .paknsave,
                                              .sainsburys, .asda, .morrisons, .ocado, .waitrose, .boots, .walgreens, .cvs:
@@ -733,7 +785,11 @@ struct StoreDefinition: Codable {
         if let cart = root["cart"] as? [String: Any],
            !hasOnlyKeys(cart, ["strategy", "identityStrategy", "tileSelector", "linkSelector", "productURLPattern",
                                "addSelector", "addLabelPatterns", "quantitySelector", "emptyStatusSelector",
-                                "emptyStatusText", "decrementLabelPattern", "profiles"]) {
+                                 "emptyStatusText", "decrementLabelPattern", "profiles", "snapshot"]) {
+            throw ConfigurationError.invalid
+        }
+        if let cart = root["cart"] as? [String: Any], let snapshot = cart["snapshot"], !(snapshot is NSNull),
+           !hasOnlyKeys(snapshot as? [String: Any], ["path", "rowSelector", "articleSelector", "quantitySelector", "emptySelector", "emptyText", "decrementSelector", "removeSelector"]) {
             throw ConfigurationError.invalid
         }
         if let cart = root["cart"] as? [String: Any], let rawProfiles = cart["profiles"] {

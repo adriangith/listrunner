@@ -1999,7 +1999,7 @@ final class StoreBrowser: ObservableObject {
 
     private var isLiveCartProbe: Bool {
         #if DEBUG
-        return uiTestMode && store.schemaVersion == 4 && store.cart != nil &&
+        return uiTestMode && [4, 5].contains(store.schemaVersion) && store.cart != nil &&
             StoreProbeIsolation.permitsCartProbe(for: store.id, isPersistent: websiteDataStore.isPersistent,
                                                 identifier: websiteDataStore.identifier,
                                                 environment: ProcessInfo.processInfo.environment)
@@ -2031,14 +2031,14 @@ final class StoreBrowser: ObservableObject {
         if StoreProbeIsolation.permitsCartProbe(for: store.id, isPersistent: websiteDataStore.isPersistent,
                                                identifier: websiteDataStore.identifier,
                                                environment: ProcessInfo.processInfo.environment),
-           store.schemaVersion == 4, store.cart != nil {
+           [4, 5].contains(store.schemaVersion), store.cart != nil {
             store.capabilities.cartDetection = true
             // Reversal needs its own explicit opt-in in the already isolated
             // single-store probe, plus a complete quantity/decrement contract.
             store.capabilities.cartUndo = ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_UNDO_PROBE"] == store.id.rawValue
-                && store.cart?.profiles?.allSatisfy {
+                && (store.cart?.strategy == .verifiedCartSnapshot || store.cart?.profiles?.allSatisfy {
                     $0.confirmation == .quantityIncrease && $0.undo != nil && $0.emptyStatusText != nil
-                } == true
+                } == true)
         }
         #endif
         self.store = store
@@ -2067,7 +2067,15 @@ final class StoreBrowser: ObservableObject {
         #else
         let debugSource = ""
         #endif
-        configuration.userContentController.addUserScript(WKUserScript(source: debugSource + "window.__listRunnerStoreConfig = \(json);\n" + Self.automationScript,
+        let script: String
+        if store.cart?.strategy == .verifiedCartSnapshot {
+            // Missing engine means manual shopping, never intended-quantity detection.
+            script = Bundle.main.url(forResource: "CartSnapshotAutomation", withExtension: "js")
+                .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+        } else {
+            script = Self.automationScript
+        }
+        configuration.userContentController.addUserScript(WKUserScript(source: debugSource + "window.__listRunnerStoreConfig = \(json);\n" + script,
                                                                          injectionTime: .atDocumentEnd,
                                                                          forMainFrameOnly: true,
                                                                          in: world))

@@ -72,7 +72,41 @@ struct RecoveryTests {
         let expansionDefinitions = try expansionIDs.map {
             try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent($0.rawValue + ".json")))
         }
-        let allProductionDefinitions = expandedDefinitions + expansionDefinitions
+        let ikea = try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("ikeaAU.json")))
+        let allProductionDefinitions = expandedDefinitions + expansionDefinitions + [ikea]
+        check(ikea.isConfigurationValid && ikea.serviceArea.countryCodes == ["AU"] && ikea.id == .ikeaAU,
+              "IKEA AU has its own reviewed registration")
+        check(ikea.id.home == ikea.homepage && ikea.id.listID.uuidString.hasSuffix("000033")
+              && ikea.id.websiteDataID.uuidString.hasSuffix("000033"), "IKEA fallback and stable identities stay Australian")
+        check(ikea.cart?.strategy == .verifiedCartSnapshot && ikea.cart?.profiles?.count == 2,
+              "IKEA grid and detail opt into the separately bundled cart snapshot engine")
+        check(ikea.acceptsProductIdentity("00428484") && !ikea.acceptsProductIdentity("428484")
+              && !ikea.acceptsProductIdentity("004.284.84"), "IKEA keeps exact eight-digit article IDs, including leading zeroes")
+        check(ikea.allows(URL(string: "https://www.ikea.com/au/en/search/?q=spoon")!)
+              && ikea.allows(URL(string: "https://ikea.com/au/en/p/dragon-spoon-40515525/")!), "IKEA accepts exact Australian HTTPS URLs")
+        for raw in ["https://www.ikea.com/us/en/", "https://www.ikea.com/au/enough/", "https://www.ikea.com/",
+                    "http://www.ikea.com/au/en/", "https://www.ikea.com:444/au/en/",
+                    "https://user:password@www.ikea.com/au/en/", "https://www.ikea.com.evil.test/au/en/",
+                    "https://login.ikea.com/au/en/", "https://www.ikea.com/au/en/../../us/en/",
+                    "https://www.ikea.com/au/en/%2e%2e/us/en/", "https://www.ikea.com/au/en/%252e%252e/us/en/",
+                    "https://www.ikea.com/au/en/%2f..%2fus/en/"] {
+            check(!ikea.allows(URL(string: raw)!) && !ikea.allowsNavigation(URL(string: raw)!), "IKEA locale and origin boundaries fail closed")
+        }
+        check(ikea.searchURL(for: "table & café + #?")?.query?.contains("q=table") == true
+              && ikea.searchURL(for: "table & café + #?")?.fragment == nil, "IKEA searches encode query values safely")
+        for change in ["strategy", "path", "unknown"] {
+            var object = try JSONSerialization.jsonObject(with: Data(contentsOf: resources.appendingPathComponent("ikeaAU.json"))) as! [String: Any]
+            var cart = object["cart"] as! [String: Any]
+            if change == "strategy" { cart["strategy"] = "profiled" }
+            else {
+                var snapshot = cart["snapshot"] as! [String: Any]
+                snapshot[change == "path" ? "path" : "script"] = "/us/en/shoppingcart/"
+                cart["snapshot"] = snapshot
+            }
+            object["cart"] = cart
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: object))) == nil,
+                  "IKEA snapshot contract rejects incompatible engines, foreign locales and unknown keys")
+        }
         let persistentProbeID = UUID(uuidString: "0BDE339A-A800-4D62-B5BC-17838D7B3823")!
         let persistentProbeEnvironment = ["LISTRUNNER_UI_TEST_SESSION": persistentProbeID.uuidString,
             "LISTRUNNER_LIVE_CART_PROBE": "officeworks", "LISTRUNNER_LIVE_PERSISTENT_PROBE": "officeworks"]
@@ -139,8 +173,8 @@ struct RecoveryTests {
               "NZ authorization data belongs only to the NZ session reset boundary")
         check(expansionDefinitions.count == 20 && Set(allProductionDefinitions.map(\.id)) == Set(StoreID.allCases),
               "all twenty additions and every legacy store have a canonical validated resource")
-        check(StoreBrand.catalogue(allProductionDefinitions).count == 30,
-               "32 regional destinations form 30 brands with isolated Costco and Bunnings regions")
+        check(StoreBrand.catalogue(allProductionDefinitions).count == 31,
+               "33 regional destinations form 31 brands with isolated Costco and Bunnings regions")
         let hiddenShoppingIDs: Set<StoreID> = [.amazon, .costcoUS, .newWorld, .paknsave, .boots, .cvs]
         check(Set(allProductionDefinitions.filter { !$0.isAvailableForShopping }.map(\.id)) == hiddenShoppingIDs,
                "only destinations without verified search are hidden, without deleting registrations")
