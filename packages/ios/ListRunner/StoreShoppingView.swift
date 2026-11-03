@@ -1249,6 +1249,13 @@ final class StoreBrowser: ObservableObject {
     private var loginReplayUserScript: WKUserScript?
     private var loginReplayTimeoutTask: Task<Void, Never>?
     private var loginReplayReceiptInFlight = false
+    // Fixed state labels only: never retain authentication URLs, credentials,
+    // account identifiers or basket bodies in replay diagnostics.
+    private enum LoginReplayState: String {
+        case idle, awaitingReturn, awaitingReceipt, checkingQuantity, confirmed
+        case cancelled, rejectedNavigation, expired, quantityNotConfirmed
+    }
+    private var loginReplayState: LoginReplayState = .idle
     private var lastAcknowledgedSequence: (generation: Int, value: UInt64)?
     private var candidateTimeoutTask: Task<Void, Never>?
     private var pendingSearchTask: Task<Void, Never>?
@@ -2305,7 +2312,11 @@ final class StoreBrowser: ObservableObject {
         [sessionID, interactionID, itemID?.uuidString ?? ""].joined(separator: "|")
     }
 
-    private func cancelLoginReplay() {
+    private func cancelLoginReplay(reason: LoginReplayState = .cancelled) {
+        if loginReplay != nil {
+            loginReplayState = reason
+            Self.recoveryLogger.info("Login replay: \(reason.rawValue, privacy: .public)")
+        }
         loginReplay = nil
         loginReplayReceiptInFlight = false
         loginReplayTimeoutTask?.cancel()
@@ -2322,10 +2333,11 @@ final class StoreBrowser: ObservableObject {
         let now = ProcessInfo.processInfo.systemUptime
         if var replay = loginReplay {
             guard replay.visit(url, store: store, context: loginReplayContext, now: now) else {
-                cancelLoginReplay()
+                cancelLoginReplay(reason: .rejectedNavigation)
                 return
             }
             loginReplay = replay
+            loginReplayState = StoreLoginReplay.isAuthentication(url) ? .awaitingReturn : .awaitingReceipt
             return
         }
         guard interactionEnabled, !siteVerificationRequired, storeRecovery == nil,
@@ -2345,6 +2357,8 @@ final class StoreBrowser: ObservableObject {
         let script = WKUserScript(source: "window.__listRunnerReplayRule = \(json);\n" + Self.loginReplayObserver,
                                   injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .page)
         loginReplay = replay
+        loginReplayState = .awaitingReturn
+        Self.recoveryLogger.info("Login replay: trusted intent retained")
         loginReplayUserScript = script
         webView.configuration.userContentController.addUserScript(script)
         candidateTimeoutTask?.cancel()
@@ -2354,7 +2368,7 @@ final class StoreBrowser: ObservableObject {
         loginReplayTimeoutTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(300))
             guard !Task.isCancelled, let self, self.loginReplay?.nonce == nonce else { return }
-            self.cancelLoginReplay()
+            self.cancelLoginReplay(reason: .expired)
         }
     }
 
@@ -2371,6 +2385,8 @@ final class StoreBrowser: ObservableObject {
                                             now: ProcessInfo.processInfo.systemUptime),
               !loginReplayReceiptInFlight else { return }
         loginReplayReceiptInFlight = true
+        loginReplayState = .checkingQuantity
+        Self.recoveryLogger.info("Login replay: product receipt received; checking quantity")
         let generation = documentGeneration
         let view = webView
         // The page adapter cannot itself mark a native item Added. Pair its
@@ -2390,8 +2406,12 @@ final class StoreBrowser: ObservableObject {
                   self.storeRecovery == nil, !self.siteVerificationRequired,
                   let currentURL = self.webView.url, let itemID = self.itemID,
                   replay.accepts(object, url: currentURL, context: self.loginReplayContext,
-                                 now: ProcessInfo.processInfo.systemUptime) != nil else { return }
-            self.cancelLoginReplay()
+                                 now: ProcessInfo.processInfo.systemUptime) != nil else {
+                self.loginReplayState = .quantityNotConfirmed
+                Self.recoveryLogger.info("Login replay: returned product quantity not confirmed")
+                return
+            }
+            self.cancelLoginReplay(reason: .confirmed)
             self.activeCandidate = nil
             self.candidateTimeoutTask?.cancel()
             self.cartDetectionUnavailable = false

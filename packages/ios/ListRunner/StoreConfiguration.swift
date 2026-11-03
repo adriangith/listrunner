@@ -295,7 +295,11 @@ struct StoreLoginReplay {
     private(set) var visitedAuthentication = false
 
     static func isAuthentication(_ url: URL) -> Bool {
-        url.path.hasPrefix("/account/auth/en-GB/")
+        // Tesco's observed first-party flow crosses both route families before
+        // returning to the original search. Do not allow arbitrary /account pages.
+        ["/account/auth/en-GB", "/account/login/en-GB"].contains { prefix in
+            url.path == prefix || url.path.hasPrefix(prefix + "/")
+        }
     }
 
     init?(store: StoreDefinition, productID: String, context: String, nonce: String,

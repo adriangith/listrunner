@@ -710,6 +710,17 @@ struct RecoveryTests {
               "basket acknowledgements cannot create a login continuation without authentication navigation")
         check(replay.visit(replayLogin, store: replayStore, context: "selected-item", now: 101),
               "a retained trusted product intent can enter the exact reviewed authentication route")
+        check(replay.visit(URL(string: "https://www.tesco.com/account/auth/en-GB/authorize")!,
+                           store: replayStore, context: "selected-item", now: 101)
+              && replay.visit(URL(string: "https://www.tesco.com/account/login/en-GB/continue")!,
+                              store: replayStore, context: "selected-item", now: 101),
+              "observed auth-to-login continuation keeps the original trusted intent before returning")
+        for path in ["/account/auth/en-GB", "/account/login/en-GB", "/account/login/en-GB/"] {
+            var copy = replay
+            check(copy.visit(URL(string: "https://www.tesco.com" + path)!, store: replayStore,
+                             context: "selected-item", now: 101),
+                  "reviewed authentication roots accept their optional trailing slash")
+        }
         check(replay.visit(replaySource, store: replayStore, context: "selected-item", now: 102)
               && replay.accepts(replayReceipt, url: replaySource, context: "selected-item", now: 102) == 4,
               "post-auth product acknowledgement is accepted without inventing a pre-auth account baseline")
@@ -727,6 +738,8 @@ struct RecoveryTests {
               "login acknowledgement cannot cross item/session context or outlive its bounded deadline")
         for raw in ["https://www.tesco.com/shop/en-GB/search?query=bread", "https://www.tesco.com/shop/en-GB/trolley",
                     "https://www.tesco.com/account/profile", "http://www.tesco.com/account/auth/en-GB/login",
+                    "https://www.tesco.com/account/login/en-IE/continue", "https://www.tesco.com/account/login/en-GB-evil/continue",
+                    "https://www.tesco.com/account/auth/en-GB-evil/login", "https://www.tesco.com/account/settings/en-GB",
                     "https://www.tesco.com:444/account/auth/en-GB/login", "https://tesco.com/account/auth/en-GB/login",
                     "https://www.tesco.com.evil.test/account/auth/en-GB/login"] {
             var copy = replay
