@@ -1568,7 +1568,14 @@ final class StoreBrowser: ObservableObject {
         const inputs = deepQueryAll(tile, profile.quantitySelector);
         const values = new Set();
         for (const input of inputs) {
-          const raw = input.value || input.getAttribute('aria-valuenow');
+          const textQuantity = config.schemaVersion === 4 && profile.quantityText === true;
+          // Text quantities must be non-editable visible labels, never intended
+          // quantities, hidden templates, or arbitrary text coerced by Number().
+          if (textQuantity && (!['SPAN', 'OUTPUT'].includes(input.tagName) ||
+              input.getAttribute('contenteditable') !== null || !input.getClientRects().length ||
+              getComputedStyle(input).visibility === 'hidden')) return null;
+          const raw = textQuantity ? input.textContent.trim() : input.value || input.getAttribute('aria-valuenow');
+          if (textQuantity && !/^(0|[1-9][0-9]{0,3})$/.test(raw)) return null;
           if (raw === null || raw === '') return null;
           const value = Number(raw);
           if (!Number.isInteger(value) || value < 0 || value > 9999) return null;
@@ -1908,7 +1915,12 @@ final class StoreBrowser: ObservableObject {
                                                environment: ProcessInfo.processInfo.environment),
            store.schemaVersion == 4, store.cart != nil {
             store.capabilities.cartDetection = true
-            store.capabilities.cartUndo = false
+            // Reversal needs its own explicit opt-in in the already isolated
+            // single-store probe, plus a complete quantity/decrement contract.
+            store.capabilities.cartUndo = ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_UNDO_PROBE"] == store.id.rawValue
+                && store.cart?.profiles?.allSatisfy {
+                    $0.confirmation == .quantityIncrease && $0.undo != nil && $0.emptyStatusText != nil
+                } == true
         }
         #endif
         self.store = store

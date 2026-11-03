@@ -9,7 +9,11 @@ const config = JSON.parse(readFileSync(new URL('../ListRunner/Resources/bigW.jso
 
 // Semantic DOM captured from BIG W mobile: article/product links on the grid,
 // scoped main/sticky detail controls, React Add→quantity-control replacement.
-function fixture({ detail = false, sticky = false, before = 0, foreign = false } = {}) {
+function fixture({ detail = false, sticky = false, before = 0, foreign = false, tesco = false } = {}) {
+  const storeConfig = tesco ? JSON.parse(readFileSync(new URL('../ListRunner/Resources/tesco.json', import.meta.url), 'utf8')) : config;
+  if (tesco) storeConfig.capabilities = { search: true, cartDetection: true, cartUndo: true };
+  const selectedID = tesco ? '254656543' : '6060359';
+  const host = tesco ? 'www.tesco.com' : 'www.bigw.com.au';
   const messages = [], timers = [];
   let click, mutation, now = 0, decrementClicks = 0;
   class Element {
@@ -27,10 +31,12 @@ function fixture({ detail = false, sticky = false, before = 0, foreign = false }
       return selector.split(',').some(raw => {
         const s = raw.trim();
         if (s === '*') return true;
-        const m = s.match(/^(\w+)?(?:#([\w-]+))?(?:\[([\w-]+)(\*=|=)["']([^"']*)["']\])?$/);
+        if (s === 'h2 a[href*=\'/products/\']') return this.tagName === 'A' && this.parentElement?.tagName === 'H2' && this.href?.includes('/products/');
+        if (s === 'li[data-auto-available]') return this.tagName === 'LI' && this.getAttribute('data-auto-available') !== null;
+        const m = s.match(/^(\w+)?(?:#([\w-]+))?(?:\[([\w-]+)(\*=|\^=|=)["']([^"']*)["']\])?$/);
         return !!m && (!m[1] || this.tagName === m[1].toUpperCase()) &&
           (!m[2] || this.attributes.id === m[2]) && (!m[3] ||
-            (m[4] === '*=' ? this.getAttribute(m[3])?.includes(m[5]) : this.getAttribute(m[3]) === m[5]));
+            (m[4] === '*=' ? this.getAttribute(m[3])?.includes(m[5]) : m[4] === '^=' ? this.getAttribute(m[3])?.startsWith(m[5]) : this.getAttribute(m[3]) === m[5]));
       });
     }
     querySelectorAll(selector) {
@@ -53,15 +59,19 @@ function fixture({ detail = false, sticky = false, before = 0, foreign = false }
   const setupDialog = document.body.append(new Element('div', { role: 'dialog' }, 'Enter your postcode for delivery and availability'));
   setupDialog.hidden = true;
   const heading = main.append(new Element('h1', { id: detail ? 'product-title' : 'search-title' }, detail ? 'Contempo 2 Slice Toaster - White' : 'toaster'));
-  const name = 'Contempo 2 Slice Toaster - White';
+  const name = tesco ? 'Tesco British Semi Skimmed Milk 2.272L, 4 Pints' : 'Contempo 2 Slice Toaster - White';
   function makeTile(id, page, hidden = false) {
-    const tile = main.append(new Element(page ? 'div' : 'article', page
+    const tile = main.append(new Element(tesco ? 'li' : page ? 'div' : 'article', tesco
+      ? { 'data-testid': id, 'data-auto-available': 'true' } : page
       ? { class: 'ProductActionButtons_ButtonsGrid__oQTcr' } : { 'data-testid': 'product-tile' }));
     tile.hidden = hidden;
     if (!page) {
-      const href = `${foreign ? 'https://evil.test' : 'https://www.bigw.com.au'}/product/toaster/p/${id}`;
-      tile.append(new Element('a', { href })); // image link
-      tile.append(new Element('a', { href })).append(new Element('p', { 'data-optly-product-tile-name': 'true' }, name));
+      const href = `${foreign ? 'https://evil.test' : 'https://' + host}${tesco ? '/shop/en-GB/products/' : '/product/toaster/p/'}${id}`;
+      if (tesco) tile.append(new Element('h2')).append(new Element('a', { href }, name));
+      else {
+        tile.append(new Element('a', { href })); // image link
+        tile.append(new Element('a', { href })).append(new Element('p', { 'data-optly-product-tile-name': 'true' }, name));
+      }
     }
     const controls = tile.append(new Element('div'));
     return { tile, controls, id, page, value: 0 };
@@ -72,31 +82,32 @@ function fixture({ detail = false, sticky = false, before = 0, foreign = false }
     state.controls.children = [];
     if (value === 0) {
       state.control = state.controls.append(new Element('button', {
+        ...(tesco ? { 'aria-label': 'add 1 ' + name } : {}),
         'data-di-id': state.page ? 'pdp--add-to-cart' : 'plp--add-to-cart',
         'data-optly-add-to-cart-button': 'true',
-      }, 'Add to cart'));
+      }, tesco ? 'Add' : 'Add to cart'));
     } else {
       const decrease = state.controls.append(new Element('button', {
-        'aria-label': 'decrease quantity by 1', 'data-optly-decrease-quantity-button': 'true',
+        'aria-label': tesco ? 'remove 1 ' + name + ' from trolley' : 'decrease quantity by 1', 'data-optly-decrease-quantity-button': 'true',
       }));
       decrease.click = () => { decrementClicks++; setState(state, state.value - 1); mutation(); };
-      const input = state.controls.append(new Element('input', { 'aria-label': 'update quantity', type: 'number' }));
-      input.value = String(value);
+      const input = state.controls.append(new Element(tesco ? 'span' : 'input', { 'aria-label': tesco ? 'Quantity of ' + name : 'update quantity', type: 'number' }));
+      if (tesco) input.textContent = String(value); else input.value = String(value);
       state.control = state.controls.append(new Element('button', {
-        'aria-label': 'increase quantity by 1', 'data-optly-increase-quantity-button': 'true',
+        'aria-label': tesco ? 'add 1 ' + name : 'increase quantity by 1', 'data-optly-increase-quantity-button': 'true',
       }));
     }
   }
-  let selected = makeTile('6060359', detail);
+  let selected = makeTile(selectedID, detail);
   const duplicate = detail && sticky ? makeTile('6060359', true, true) : null;
   const other = makeTile('6072804', false);
   setState(selected, before); if (duplicate) setState(duplicate, before); setState(other, 0);
   const path = detail ? '/product/contempo-2-slice-toaster-white/p/6060359' : '/search';
-  const location = { protocol: 'https:', hostname: 'www.bigw.com.au', pathname: path, href: 'https://www.bigw.com.au' + path };
+  const location = { protocol: 'https:', hostname: host, pathname: path, href: 'https://' + host + path };
   const context = vm.createContext({
     URL, Element, Date: { now: () => now }, document, location,
     getComputedStyle: element => ({ visibility: element.hidden ? 'hidden' : 'visible' }),
-    window: { __listRunnerStoreConfig: config, webkit: { messageHandlers: { listRunner: {
+    window: { __listRunnerStoreConfig: storeConfig, webkit: { messageHandlers: { listRunner: {
       postMessage: value => { if (value !== 'automationReady') messages.push(JSON.parse(value)); },
     } } } },
     setTimeout(fn, ms) { timers.push(() => { now += ms; fn(); }); },
@@ -113,7 +124,7 @@ function fixture({ detail = false, sticky = false, before = 0, foreign = false }
     setQuantity(value) { setState(selected, value); if (duplicate) setState(duplicate, value); mutation(); },
     setOtherQuantity(value) { setState(other, value); mutation(); },
     setDuplicateQuantity(value) { setState(duplicate, value); mutation(); },
-    replaceCard(value = 1, id = '6060359') {
+    replaceCard(value = 1, id = selectedID) {
       selected.tile.isConnected = false;
       main.children = main.children.filter(child => child !== selected.tile);
       selected = makeTile(id, false); setState(selected, value); mutation();
@@ -139,6 +150,48 @@ function fixture({ detail = false, sticky = false, before = 0, foreign = false }
       return result;
     },
   };
+}
+
+for (const before of [0, 2]) {
+  test(`Tesco text quantity detects trusted ${before}→${before + 1} and Undo restores only the delta`, async () => {
+    const page = fixture({ tesco: true, before });
+    page.click(); page.setQuantity(before + 1); page.tick(8);
+    assert.equal(page.record().productID, '254656543');
+    assert.equal(page.record().beforeQuantity, before);
+    assert.equal(page.record().resultingQuantity, before + 1);
+    assert.equal(await page.settle(page.undo(page.record())), true);
+    assert.equal(page.clicks, 1);
+    assert.equal(await page.undo(page.record()), false);
+  });
+}
+test('Tesco text quantity detects a React-replaced card', () => {
+  const page = fixture({ tesco: true }); page.click(); page.replaceCard(); page.tick(8);
+  assert.equal(page.record().productID, '254656543');
+});
+for (const mode of ['passive', 'synthetic', 'foreign', 'unrelated', 'expiry', 'navigation', 'context']) {
+  test(`Tesco rejects ${mode} quantity changes`, () => {
+    const page = fixture({ tesco: true, foreign: mode === 'foreign' });
+    if (mode !== 'passive') page.click(mode !== 'synthetic');
+    if (mode === 'unrelated') page.setOtherQuantity(1); else page.setQuantity(1);
+    if (mode === 'expiry') page.expire();
+    if (mode === 'navigation') page.navigate();
+    if (mode === 'context') page.clearContext();
+    page.tick(8); assert.equal(page.record().productID, undefined);
+  });
+}
+for (const mode of ['quantity', 'disabled', 'missing', 'context', 'forged', 'navigation']) {
+  test(`Tesco Undo refuses ${mode} records without clicking`, async () => {
+    const page = fixture({ tesco: true }); page.click(); page.setQuantity(1); page.tick(8);
+    const record = page.record();
+    if (mode === 'quantity') page.setQuantity(2);
+    if (mode === 'disabled') page.disableDecrease();
+    if (mode === 'missing') page.removeDecrease();
+    if (mode === 'context') page.clearContext();
+    if (mode === 'forged') record.productID = '9999999';
+    if (mode === 'navigation') page.navigate();
+    assert.equal(await page.settle(page.undo(record)), false);
+    assert.equal(page.clicks, 0);
+  });
 }
 
 for (const options of [{}, { detail: true }, { detail: true, sticky: true }]) {

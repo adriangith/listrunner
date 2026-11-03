@@ -355,6 +355,9 @@ struct StoreDefinition: Codable {
             var setupPrompt: SetupPrompt? = nil
             var acknowledgement: Acknowledgement? = nil
             var quantityDraftSelector: String? = nil
+            // Explicit opt-in for a retailer's read-only, product-scoped basket count.
+            // Existing profiles continue to read input values/aria-valuenow only.
+            var quantityText: Bool? = nil
         }
         let strategy: Strategy
         let identityStrategy: IdentityStrategy
@@ -492,6 +495,11 @@ struct StoreDefinition: Codable {
                     if profile.quantityDraftSelector != nil {
                         guard schemaVersion == 4, profile.confirmation == .quantityIncrease,
                               profile.undo == nil, !capabilities.cartUndo else { throw ConfigurationError.invalid }
+                    }
+                    if profile.quantityText != nil {
+                        guard schemaVersion == 4, profile.quantityText == true,
+                              profile.confirmation == .quantityIncrease,
+                              profile.quantitySelector != nil else { throw ConfigurationError.invalid }
                     }
                     switch profile.confirmation {
                     case .productReceipt:
@@ -668,7 +676,7 @@ struct StoreDefinition: Codable {
             guard let profiles = rawProfiles as? [[String: Any]] else { throw ConfigurationError.invalid }
             for profile in profiles {
                 guard hasOnlyKeys(profile, ["id", "scope", "identity", "containerSelector", "titleSelector", "addSelector",
-                                           "addLabelPatterns", "confirmation", "confirmationWindowMS", "quantitySelector", "receipt", "emptyStatusText", "undo", "setupPrompt", "acknowledgement", "quantityDraftSelector"]) else {
+                                           "addLabelPatterns", "confirmation", "confirmationWindowMS", "quantitySelector", "receipt", "emptyStatusText", "undo", "setupPrompt", "acknowledgement", "quantityDraftSelector", "quantityText"]) else {
                     throw ConfigurationError.invalid
                 }
                 if let receipt = profile["receipt"], !(receipt is NSNull),

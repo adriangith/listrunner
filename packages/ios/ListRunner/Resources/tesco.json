@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 4,
   "id": "tesco",
   "displayName": "Tesco",
   "serviceArea": {"countryCodes": ["GB"]},
@@ -12,5 +12,37 @@
     "highlight": {"red": 238, "green": 28, "blue": 46}
   },
   "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
-  "cart": null
+  "cart": {
+    "strategy": "profiled",
+    "identityStrategy": "numericURLSuffix",
+    "tileSelector": "li[data-auto-available]",
+    "linkSelector": "h2 a[href*='/products/']",
+    "productURLPattern": "/(?:shop|groceries)/en-GB/products/(\\d{1,32})(?:[/?#]|$)",
+    "addSelector": "button[aria-label^='add 1 ']",
+    "addLabelPatterns": ["^add 1 .+$"],
+    "quantitySelector": "span[aria-label^='Quantity of ']",
+    "emptyStatusSelector": "button[aria-label^='add 1 ']",
+    "emptyStatusText": "Add",
+    "decrementLabelPattern": "^remove 1 .+ from trolley$",
+    "profiles": [
+      {
+        "id": "product-card",
+        "scope": "productCard",
+        "identity": "cardLink",
+        "containerSelector": "li[data-auto-available]",
+        "titleSelector": "h2 a[href*='/products/']",
+        "addSelector": "button[aria-label^='add 1 ']",
+        "addLabelPatterns": ["^add 1 .+$"],
+        "confirmation": "quantityIncrease",
+        "confirmationWindowMS": 8000,
+        "quantitySelector": "span[aria-label^='Quantity of ']",
+        "quantityText": true,
+        "emptyStatusText": "Add",
+        "undo": {
+          "decrementSelector": "button[aria-label^='remove 1 ']",
+          "decrementLabelPattern": "^remove 1 .+ from trolley$"
+        }
+      }
+    ]
+  }
 }

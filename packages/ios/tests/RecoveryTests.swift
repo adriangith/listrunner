@@ -693,10 +693,22 @@ struct RecoveryTests {
         check(fourStores.count == 1 && fourStores[0].stores.map(\.id) == [.bunnings, .coles, .costco, .woolworths],
               "Costco joins the Australian group once, alphabetically, even while disabled")
         check(tesco.isConfigurationValid && tesco.serviceArea.countryCodes == ["GB"]
-               && tesco.capabilities.search && !tesco.capabilities.cartDetection && !tesco.capabilities.cartUndo && tesco.cart == nil,
+               && tesco.capabilities.search && !tesco.capabilities.cartDetection && !tesco.capabilities.cartUndo
+               && tesco.cart?.profiles?.first?.quantityText == true,
                "Tesco UK supports verified search without unreviewed cart automation")
         check(StoreID.tesco.permitsSearch && !StoreID.tesco.permitsCartDetection && !StoreID.tesco.permitsCartUndo,
                "native Tesco policy permits search but prohibits unreviewed cart automation")
+        for (field, value) in [("quantityText", false as Any), ("confirmation", "productReceipt" as Any),
+                               ("quantitySelector", NSNull() as Any)] {
+            var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(tesco)) as! [String: Any]
+            var cart = object["cart"] as! [String: Any]
+            var profiles = cart["profiles"] as! [[String: Any]]
+            profiles[0][field] = value
+            cart["profiles"] = profiles
+            object["cart"] = cart
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: object))) == nil,
+                  "text quantity contracts reject invalid configuration: \(field)")
+        }
         var widenedTesco = tesco
         widenedTesco.capabilities.cartDetection = true
         check(!widenedTesco.isConfigurationValid, "JSON cannot turn on Tesco cart automation")
