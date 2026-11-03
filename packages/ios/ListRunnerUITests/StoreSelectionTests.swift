@@ -301,6 +301,13 @@ final class StoreSelectionTests: XCTestCase {
             tapNavigationBack()
         }
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
+        // These list-layout cases assert the Coles fixture specifically. First
+        // store setup enables Woolworths last, which intentionally selects it;
+        // make the test's starting list explicit rather than depending on order.
+        if ["AlreadyVisibleNewItem", "FocusedProductEntry", "GroceryInputEmptyReturn", "RepeatedNewItemsAreFullyRevealed"]
+            .contains(where: { name.contains($0) }) {
+            choose("Coles")
+        }
     }
 
     override func tearDownWithError() throws { app.terminate() }
@@ -2053,7 +2060,7 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testRepeatedNewItemsAreFullyRevealedInExistingList() {
-        let existingCell = app.collectionViews.cells.containing(.button, identifier: "Actions for Coles fixture item").firstMatch
+        let existingCell = app.collectionViews.cells.containing(.any, identifier: "Actions for Coles fixture item").firstMatch
         XCTAssertEqual(existingCell.frame.height, 78, accuracy: 1, "Reveal geometry must not add extra cell padding")
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
@@ -2083,7 +2090,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
         input.typeText("household cleaning supplies with a deliberately long wrapping product description and extra details to fill several lines in the product entry field")
         let editorCell = app.collectionViews.cells.containing(.textView, identifier: "grocery-input").firstMatch
-        let actionsCell = app.collectionViews.cells.containing(.button, identifier: "import-from-paprika").firstMatch
+        let actionsCell = app.collectionViews.cells.containing(.any, identifier: "set-import-source").firstMatch
         let visible = NSPredicate { _, _ in
             editorCell.frame.minY >= self.app.buttons["store-picker"].frame.maxY
                 && actionsCell.frame.maxY <= self.app.buttons["Show Store"].frame.minY
@@ -2103,7 +2110,7 @@ final class StoreSelectionTests: XCTestCase {
         input.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
         let editorCell = app.collectionViews.cells.containing(.textView, identifier: "grocery-input").firstMatch
-        let actionsCell = app.collectionViews.cells.containing(.button, identifier: "import-from-paprika").firstMatch
+        let actionsCell = app.collectionViews.cells.containing(.any, identifier: "set-import-source").firstMatch
         let visible = NSPredicate { _, _ in
             editorCell.frame.minY >= self.app.buttons["store-picker"].frame.maxY
                 && actionsCell.frame.maxY <= self.app.buttons["Show Store"].frame.minY
@@ -2137,7 +2144,7 @@ final class StoreSelectionTests: XCTestCase {
         for letter in "toaster" {
             app.keys.matching(NSPredicate(format: "label ==[c] %@", String(letter))).firstMatch.tap()
         }
-        let existingCell = app.collectionViews.cells.containing(.button, identifier: "Actions for kettle").firstMatch
+        let existingCell = app.collectionViews.cells.containing(.any, identifier: "Actions for kettle").firstMatch
         let showStore = app.buttons["Show Store"]
         let keyboardLayout = NSPredicate { _, _ in
             showStore.frame.maxY < self.app.frame.height * 0.65
