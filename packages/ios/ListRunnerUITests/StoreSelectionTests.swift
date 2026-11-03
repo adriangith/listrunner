@@ -1573,7 +1573,7 @@ final class StoreSelectionTests: XCTestCase {
     func testUnverifiedSearchStoresAreHiddenFromManagementAndSearch() {
         app.buttons["Settings"].tap()
         app.buttons["Manage Stores"].tap()
-        for (id, name) in [("tesco", "Tesco"), ("amazon", "Amazon"), ("costcoUS", "Costco US"),
+        for (id, name) in [("amazon", "Amazon"), ("costcoUS", "Costco US"),
                            ("newWorld", "New World"), ("paknsave", "PAK’nSAVE"), ("boots", "Boots"), ("cvs", "CVS")] {
             let search = app.searchFields.firstMatch
             XCTAssertTrue(search.waitForExistence(timeout: 3))
@@ -1589,7 +1589,7 @@ final class StoreSelectionTests: XCTestCase {
         add(screenshot)
     }
 
-    func testUnverifiedSearchStoresStayHiddenAfterCountryChange() {
+    func testVerifiedTescoAppearsAfterCountryChange() {
         app.buttons["Settings"].tap()
         changeCountry("GB", name: "United Kingdom")
         app.buttons["Manage Stores"].tap()
@@ -1597,8 +1597,8 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["OTHER STORES"].exists)
         let search = app.searchFields.firstMatch
         search.tap(); search.typeText("Tesco")
-        XCTAssertTrue(app.staticTexts["No stores found"].waitForExistence(timeout: 3))
-        XCTAssertFalse(manageRow("tesco").exists)
+        XCTAssertTrue(manageRow("tesco").waitForExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts["No stores found"].exists)
         app.buttons["Clear Search"].tap()
         search.tap(); search.typeText("Sainsbury")
         XCTAssertTrue(manageRow("sainsburys").waitForExistence(timeout: 3),
@@ -1764,7 +1764,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
         app.buttons["Actions for Coles fixture item"].tap()
         app.buttons["Move to Another Store"].tap()
-        for name in ["Tesco", "Amazon US", "Costco US", "New World", "PAK’nSAVE", "Boots", "CVS"] {
+        for name in ["Amazon US", "Costco US", "New World", "PAK’nSAVE", "Boots", "CVS"] {
             XCTAssertFalse(app.buttons["Move to \(name)"].exists, name)
         }
         XCTAssertTrue(app.buttons["Move to Costco"].exists,

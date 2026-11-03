@@ -11,7 +11,7 @@
     "primary": {"red": 0, "green": 83, "blue": 159},
     "highlight": {"red": 238, "green": 28, "blue": 46}
   },
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
+  "capabilities": {"search": true, "cartDetection": true, "cartUndo": true},
   "cart": {
     "strategy": "profiled",
     "identityStrategy": "numericURLSuffix",

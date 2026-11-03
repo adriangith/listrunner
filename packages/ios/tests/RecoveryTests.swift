@@ -693,13 +693,12 @@ struct RecoveryTests {
         check(fourStores.count == 1 && fourStores[0].stores.map(\.id) == [.bunnings, .coles, .costco, .woolworths],
               "Costco joins the Australian group once, alphabetically, even while disabled")
         check(tesco.isConfigurationValid && tesco.serviceArea.countryCodes == ["GB"]
-               && tesco.capabilities.search && !tesco.capabilities.cartDetection && !tesco.capabilities.cartUndo
+               && tesco.capabilities.search && tesco.capabilities.cartDetection && tesco.capabilities.cartUndo
                && tesco.cart?.profiles?.first?.quantityText == true,
-               "Tesco UK supports verified search without unreviewed cart automation")
-        check(StoreID.tesco.permitsSearch && !StoreID.tesco.permitsCartDetection && !StoreID.tesco.permitsCartUndo,
-               "native Tesco policy permits search but prohibits unreviewed cart automation")
-        var replayStore = tesco
-        replayStore.capabilities.cartDetection = true // isolated prospective probe, not a production ceiling
+               "Tesco UK supports verified search, text-quantity detection and normal signed-in cart Undo")
+        check(StoreID.tesco.permitsSearch && StoreID.tesco.permitsCartDetection && StoreID.tesco.permitsCartUndo,
+               "native Tesco policy matches independently verified search, detection and reversal")
+        let replayStore = tesco
         let replaySource = URL(string: "https://www.tesco.com/shop/en-GB/search?query=milk")!
         let replayLogin = URL(string: "https://www.tesco.com/account/auth/en-GB/login")!
         let replayReceipt: [String: Any] = ["nonce": "test-nonce", "productID": "254656543", "successful": true,
@@ -761,8 +760,8 @@ struct RecoveryTests {
                   "text quantity contracts reject invalid configuration: \(field)")
         }
         var widenedTesco = tesco
-        widenedTesco.capabilities.cartDetection = true
-        check(!widenedTesco.isConfigurationValid, "JSON cannot turn on Tesco cart automation")
+        widenedTesco.capabilities.cartDetection = false
+        check(!widenedTesco.isConfigurationValid, "Tesco cart Undo cannot be enabled without detection")
         let fiveStores = StoreCatalogue.sections([coles, woolworths, bunnings, costco, tesco], countryCode: "AU")
         check(fiveStores.count == 2 && fiveStores[0].stores.count == 4
                && fiveStores[1].stores.map(\.id) == [.tesco],

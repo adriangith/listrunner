@@ -24,9 +24,9 @@ function label(text, options = {}) {
   };
 }
 
-test('Tesco prospective profile keeps production detection and Undo disabled', () => {
-  assert.equal(config.capabilities.cartDetection, false);
-  assert.equal(config.capabilities.cartUndo, false);
+test('Tesco profile enables verified detection and normal signed-in Undo', () => {
+  assert.equal(config.capabilities.cartDetection, true);
+  assert.equal(config.capabilities.cartUndo, true);
   assert.equal(profile.quantityText, true);
 });
 for (const value of ['0', '1', '2', '9999']) {

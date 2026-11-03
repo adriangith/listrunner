@@ -44,8 +44,8 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         default: nil
         }
     }
-    var permitsCartUndo: Bool { [.coles, .bigW].contains(self) }
-    var permitsCartDetection: Bool { [.coles, .woolworths, .bunnings, .kmart, .bigW, .priceline, .supercheapAuto, .ocado, .chemistWarehouse, .waitrose, .jbHiFi, .bunningsNZ, .officeworks].contains(self) }
+    var permitsCartUndo: Bool { [.coles, .bigW, .tesco].contains(self) }
+    var permitsCartDetection: Bool { [.coles, .woolworths, .bunnings, .tesco, .kmart, .bigW, .priceline, .supercheapAuto, .ocado, .chemistWarehouse, .waitrose, .jbHiFi, .bunningsNZ, .officeworks].contains(self) }
     var displayName: String {
         switch self {
         case .coles: "Coles"
