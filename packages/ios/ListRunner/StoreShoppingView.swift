@@ -162,6 +162,12 @@ struct StoreShoppingView: View {
                     CartUndoWarning(storeName: browser.store.displayName) { browser.dismissCartUndoWarning() }
                         .padding(.horizontal, 20)
                 }
+                if browser.store.cart?.strategy == .verifiedCartSnapshot && browser.cartUndoInProgress {
+                    ProgressView("Undoing store cart change…")
+                        .font(.caption)
+                        .padding(.horizontal, 20)
+                        .accessibilityIdentifier("store-cart-undo-progress")
+                }
                 ZStack(alignment: .bottom) {
                     expandedPanel(bottomSafeAreaInset: geometry.safeAreaInsets.bottom)
                         .offset(y: reduceMotion ? 0 : 250 * collapseProgress)
@@ -1236,7 +1242,10 @@ final class StoreBrowser: ObservableObject {
     var addedStatusGradient: [Color] { Self.addedGradient(for: store.addedColor) }
     private(set) var lastDetectedAdd: CartAddRecord?
     private var consumedUndoRecords: Set<UUID> = []
-    private var undoOperationID: UUID?
+    @Published private(set) var cartUndoInProgress = false
+    private var undoOperationID: UUID? {
+        didSet { cartUndoInProgress = undoOperationID != nil }
+    }
     private var undoTimeoutTask: Task<Void, Never>?
     private var hasLoaded = false
     private var sessionID = UUID().uuidString
@@ -2938,8 +2947,9 @@ final class StoreBrowser: ObservableObject {
                 self.showCartUndoWarning()
             }
         }
+        let timeout: Duration = store.cart?.strategy == .verifiedCartSnapshot ? .seconds(46) : .seconds(4)
         undoTimeoutTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(4))
+            try? await Task.sleep(for: timeout)
             guard !Task.isCancelled, let self, self.undoOperationID == operationID else { return }
             self.undoOperationID = nil
             self.webView.evaluateJavaScript("window.__listRunnerCancelUndo?.();", in: nil, in: self.automationWorld)

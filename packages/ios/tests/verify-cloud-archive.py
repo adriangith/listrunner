@@ -36,6 +36,7 @@ def audit(archive: Path) -> dict:
         "archiveVersion": version,
         "archiveBuild": build,
         "canonicalResources": len(list((base / "ListRunner/Resources").glob("*.json"))),
+        "automationResources": len(list((base / "ListRunner/Resources").glob("*.js"))),
         "status": "archive-resources-verified-not-upload-confirmation",
     }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that a built app contains every canonical JSON resource unchanged."""
+"""Verify canonical JSON and bundled automation JavaScript byte-for-byte."""
 
 import hashlib
 from pathlib import Path
@@ -7,7 +7,7 @@ import sys
 
 
 def verify_resources(source: Path, app: Path) -> list[str]:
-    resources = sorted(source.glob("*.json"))
+    resources = sorted([*source.glob("*.json"), *source.glob("*.js")])
     errors = []
     if not resources:
         errors.append(f"No canonical JSON resources found in {source}")
@@ -35,7 +35,7 @@ def main() -> int:
         print(f"FAIL: {error}", file=sys.stderr)
     if errors:
         return 1
-    print(f"PASS: all {len(list(source.glob('*.json')))} bundled JSON resources match canonical files; no legacy -v2 resources")
+    print(f"PASS: all {len(list(source.glob('*.json')))} JSON and {len(list(source.glob('*.js')))} JavaScript resources match canonical files; no legacy -v2 resources")
     return 0
 
 

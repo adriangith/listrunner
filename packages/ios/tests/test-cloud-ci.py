@@ -25,7 +25,8 @@ class CloudCITests(unittest.TestCase):
         archive = self.root / "Build with spaces.xcarchive"
         app = archive / "Products/Applications/ListRunner.app"
         app.mkdir(parents=True)
-        for resource in (BASE / "ListRunner/Resources").glob("*.json"):
+        resources = BASE / "ListRunner/Resources"
+        for resource in [*resources.glob("*.json"), *resources.glob("*.js")]:
             shutil.copy(resource, app / resource.name)
         info = {"CFBundleIdentifier": "com.adrianzafir.listrunner",
                 "CFBundleShortVersionString": "1.0", "CFBundleVersion": "3"}
@@ -47,6 +48,7 @@ class CloudCITests(unittest.TestCase):
         self.assertEqual(len(manifest["sourceCommit"]), 40)
         self.assertEqual(manifest["archiveBuild"], "3")
         self.assertEqual(manifest["canonicalResources"], len(list((BASE / "ListRunner/Resources").glob("*.json"))))
+        self.assertEqual(manifest["automationResources"], len(list((BASE / "ListRunner/Resources").glob("*.js"))))
         self.assertIn("not-upload-confirmation", manifest["status"])
 
     def test_failed_xcodebuild_cannot_report_archive_success(self):

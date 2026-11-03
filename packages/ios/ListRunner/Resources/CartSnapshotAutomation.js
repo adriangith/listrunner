@@ -28,8 +28,11 @@
   const enabled = element => element?.isConnected && !element.disabled && element.getAttribute('aria-disabled') !== 'true';
   const visible = element => {
     if (!element?.getClientRects().length) return false;
-    const style = element.ownerDocument.defaultView.getComputedStyle(element);
-    return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) !== 0;
+    for (let current = element; current; current = current.parentElement) {
+      const style = element.ownerDocument.defaultView.getComputedStyle(current);
+      if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+    }
+    return true;
   };
   const resolve = control => {
     if (!enabled(control) || !visible(control)) return null;

@@ -20,7 +20,7 @@ class BundledResourceTests(unittest.TestCase):
         self.app = self.root / "ListRunner.app"
         self.source.mkdir()
         self.app.mkdir()
-        for name in ["bunnings.json", "ingredients.json", "ingredient-regional-names.json"]:
+        for name in ["bunnings.json", "ingredients.json", "ingredient-regional-names.json", "CartSnapshotAutomation.js"]:
             (self.source / name).write_text('{"version":1}')
             (self.app / name).write_text('{"version":1}')
 
@@ -45,6 +45,14 @@ class BundledResourceTests(unittest.TestCase):
 
     def test_missing_app_is_reported(self):
         self.assertTrue(verifier.verify_resources(self.source, self.root / "absent.app"))
+
+    def test_missing_cart_engine_is_reported(self):
+        (self.app / "CartSnapshotAutomation.js").unlink()
+        self.assertIn("Missing bundled resource: CartSnapshotAutomation.js", verifier.verify_resources(self.source, self.app))
+
+    def test_changed_cart_engine_is_reported(self):
+        (self.app / "CartSnapshotAutomation.js").write_text("changed engine")
+        self.assertIn("Bundled resource differs from canonical file: CartSnapshotAutomation.js", verifier.verify_resources(self.source, self.app))
 
     def test_empty_canonical_folder_is_reported(self):
         empty = self.root / "Empty"

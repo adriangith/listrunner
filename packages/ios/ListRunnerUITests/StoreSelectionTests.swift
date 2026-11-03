@@ -677,6 +677,8 @@ final class StoreSelectionTests: XCTestCase {
     func testIKEAAustraliaDiscoveryAndCapabilities() {
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
+        let search = app.searchFields.firstMatch
+        search.tap(); search.typeText("IKEA")
         openStoreSettings("ikeaAU")
         XCTAssertTrue(app.staticTexts["IKEA"].firstMatch.exists || app.navigationBars["IKEA"].exists)
         XCTAssertTrue(app.buttons["Reset IKEA Session"].exists)
@@ -691,8 +693,11 @@ final class StoreSelectionTests: XCTestCase {
     private func liveIKEACart(detail: Bool) throws {
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
+        let search = app.searchFields.firstMatch
+        search.tap(); search.typeText("IKEA")
         setStoreVisibility("ikeaAU", shown: true)
         tapNavigationBack()
+        choose("IKEA")
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap(); input.typeText("dragon spoon")
         app.buttons["Add Items"].tap()
@@ -722,13 +727,44 @@ final class StoreSelectionTests: XCTestCase {
         evidence.name = "IKEA \(detail ? "detail" : "grid") native detection: \(detected)"
         evidence.lifetime = .keepAlways
         self.add(evidence)
-        if detected { undo.tap() }
+        if detected {
+            undo.tap()
+            let progress = app.descendants(matching: .any)["store-cart-undo-progress"].firstMatch
+            if progress.waitForExistence(timeout: 3) {
+                let finished = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: progress)
+                XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 60), .completed)
+            }
+        }
         let pending = app.buttons["Mark Added"]
         let restored = pending.waitForExistence(timeout: 60)
         print("IKEA_NATIVE_CART_PROBE detail=\(detail), detected=\(detected), localRestored=\(restored)")
+        let undoFailed = app.staticTexts["Could not undo store cart change"].exists
+        if collapse.exists && collapse.isHittable { collapse.tap() }
+        // Independently open the actual bag and prove cleanup, even after a
+        // detector/Undo failure. Never confuse local Pending with an empty bag.
+        let close = web.buttons.matching(identifier: "Close").allElementsBoundByIndex.first { $0.isHittable }
+        if let close, close.frame.minY > web.frame.minY + 40 { close.tap() }
+        for _ in 0..<8 {
+            let bag = web.links.matching(NSPredicate(format: "label BEGINSWITH %@", "Shopping bag")).firstMatch
+            if bag.exists && bag.isHittable && bag.frame.minY > web.frame.minY + 40 { bag.tap(); break }
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            origin.withOffset(CGVector(dx: web.frame.midX, dy: web.frame.minY + 120))
+                .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: web.frame.midX, dy: app.frame.maxY - 180)))
+        }
+        let empty = web.staticTexts["Your shopping bag is empty"].firstMatch
+        let alreadyEmpty = empty.waitForExistence(timeout: 15)
+        if !alreadyEmpty {
+            let quantity = web.textFields["Enter quantity of DRAGON, stainless steel, 19 cm"].firstMatch
+            let remove = web.buttons["Remove DRAGON, stainless steel, 19 cm"].firstMatch
+            if quantity.waitForExistence(timeout: 10), quantity.value as? String == "1",
+               remove.exists, remove.isHittable { remove.tap() }
+        }
+        XCTAssertTrue(empty.waitForExistence(timeout: 20), "The exact guest test product must be removed before finishing")
+        print("IKEA_NATIVE_CLEANUP detail=\(detail), undoVerifiedEmpty=\(alreadyEmpty), cleanupVerified=\(empty.exists)")
         XCTAssertTrue(detected, "Do not certify cart support without native automatic detection")
-        XCTAssertTrue(restored, "Undo must restore the local row; engine also requires a fresh persisted-cart proof")
-        XCTAssertFalse(app.staticTexts["Couldn’t undo in store"].exists)
+        XCTAssertTrue(restored)
+        XCTAssertFalse(undoFailed)
+        XCTAssertTrue(alreadyEmpty, "Manual cleanup is not proof that automatic retailer Undo worked")
     }
 
     func testLiveStoreCartOfficeworks() throws {
