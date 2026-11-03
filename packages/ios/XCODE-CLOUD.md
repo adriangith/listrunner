@@ -14,6 +14,11 @@ Configured by the user in Xcode on 2 November 2026 (cloud execution still pendin
   internal-testing-only. A separate Build action is unnecessary.
 - Next cloud build number set to **3**, following uploaded manual 1.0 (2).
   Recheck the highest uploaded build if another manual upload intervenes.
+  On 3 November, local archive **1.0 (3)** was uploaded successfully as **1.0 (4)**
+  by Xcode's automatic build-number management. Before any later cloud run, recheck
+  App Store Connect and set the next cloud build to **at least 5**. The saved
+  workflow is unchanged; Apple processing is not yet verified. See
+  `docs/releases/revision-3.md`.
 - No TestFlight group post-action: promote selected successful builds to external
   testers manually, completing beta-review/export-compliance requirements as needed.
   App Store Connect preparation does not publish the app publicly. Verify actual
