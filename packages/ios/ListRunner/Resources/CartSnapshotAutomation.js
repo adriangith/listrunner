@@ -210,7 +210,10 @@
         if (!after || !valid(op)) throw new Error('confirmation');
         const fields = { confirmationID: String(++sequence), productID: product.id,
           beforeQuantity: before.quantities.get(product.id) || 0, resultingQuantity: after.quantities.get(product.id) };
-        confirmations.set(fields.confirmationID, { ...fields, context: op.context, pageURL: op.pageURL, before, after });
+        // Retain quantities only, not product DOM nodes/iframe documents. The
+        // final-item Undo may remain available for a long shopping pause.
+        confirmations.set(fields.confirmationID, { ...fields, context: op.context, pageURL: op.pageURL,
+          before: { quantities: new Map(before.quantities) }, after: { quantities: new Map(after.quantities) } });
         post('cartInteractionStarted', { productID: product.id, beforeQuantity: fields.beforeQuantity,
           intent: fields.beforeQuantity === 0 ? 'add' : 'increment' });
         post('addDetected', fields);
@@ -259,7 +262,12 @@
         const next = await stable(op, s => sameOthers(state, s, saved.productID) &&
           (s.quantities.get(saved.productID) || 0) === expected - 1);
         if (!next) return false;
-        state = next; expected--;
+        // Do not send another decrement based on an optimistic local update.
+        // Re-open the rendered cart and prove persistence after EACH step.
+        load();
+        const persisted = await stable(op, s => fingerprint(s) === fingerprint(next));
+        if (!persisted) return false;
+        state = persisted; expected--;
       }
       if (!valid(op) || fingerprint(state) !== fingerprint(saved.before)) return false;
       // Verify persistence in a fresh cart, not just an optimistic local stepper.

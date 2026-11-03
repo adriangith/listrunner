@@ -1109,6 +1109,32 @@ struct RecoveryTests {
         }
         check(StoreBridge.decode(String(repeating: "é", count: 4_097), store: coles) == nil, "UTF-8 bridge size bound")
         check(StoreBridge.decode("not json", store: coles) == nil, "malformed bridge rejected")
+        var ikeaBridge = bridge
+        ikeaBridge["storeID"] = "ikeaAU"
+        ikeaBridge["pageURL"] = "https://www.ikea.com/au/en/search/?q=spoon"
+        ikeaBridge["productID"] = "40515525"
+        let ikeaBridgeRaw = try bridgeRaw(ikeaBridge)
+        check(StoreBridge.decode(ikeaBridgeRaw, store: ikea) != nil,
+              "IKEA exact article quantity confirmation uses the existing bounded native bridge")
+        for (field, value) in [("productID", "405.155.25" as Any), ("productID", "4051552" as Any),
+                               ("beforeQuantity", false as Any), ("resultingQuantity", true as Any),
+                               ("pageURL", "https://www.ikea.com/us/en/search/?q=spoon" as Any)] {
+            var invalid = ikeaBridge; invalid[field] = value
+            let raw = try bridgeRaw(invalid)
+            check(StoreBridge.decode(raw, store: ikea) == nil, "IKEA bridge rejects non-article, coercible or foreign-locale evidence")
+        }
+        var preflight = ikeaBridge
+        for field in ["productID", "confirmationID", "beforeQuantity", "resultingQuantity"] { preflight.removeValue(forKey: field) }
+        preflight["type"] = "automationUnavailable"
+        preflight["capability"] = "cartDetection"
+        preflight["scope"] = "interaction"
+        preflight["reason"] = "cartPreflightUnavailable"
+        let ikeaPreflightRaw = try bridgeRaw(preflight)
+        check(StoreBridge.decode(ikeaPreflightRaw, store: ikea) != nil, "IKEA distinguishes an unsent Add from an unconfirmed Add")
+        preflight["storeID"] = "coles"; preflight["pageURL"] = "https://www.coles.com.au/search?q=milk"
+        let passivePreflightRaw = try bridgeRaw(preflight)
+        check(StoreBridge.decode(passivePreflightRaw, store: coles) == nil,
+              "passive retailers cannot claim that their original Add was intercepted")
         let prospectiveJB = expansionDefinitions.first { $0.id == .jbHiFi }!
         var acknowledgementBridge = bridge
         acknowledgementBridge["storeID"] = "jbHiFi"

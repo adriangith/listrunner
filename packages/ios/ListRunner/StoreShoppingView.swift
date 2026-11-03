@@ -2086,8 +2086,14 @@ final class StoreBrowser: ObservableObject {
         } else {
             script = Self.automationScript
         }
+        // The snapshot engine intercepts a user-requested Add before replaying
+        // it. Install its window capture listener before retailer scripts: a
+        // prior retailer window-capture handler must never send the original
+        // Add as well as our one replay. Existing passive engines stay unchanged.
+        let injectionTime: WKUserScriptInjectionTime = store.cart?.strategy == .verifiedCartSnapshot
+            ? .atDocumentStart : .atDocumentEnd
         configuration.userContentController.addUserScript(WKUserScript(source: debugSource + "window.__listRunnerStoreConfig = \(json);\n" + script,
-                                                                         injectionTime: .atDocumentEnd,
+                                                                         injectionTime: injectionTime,
                                                                          forMainFrameOnly: true,
                                                                          in: world))
         }
@@ -2903,6 +2909,11 @@ final class StoreBrowser: ObservableObject {
         undoOperationID = nil
         undoTimeoutTask?.cancel()
         webView.evaluateJavaScript("window.__listRunnerCancelUndo?.();", in: nil, in: automationWorld)
+        if store.cart?.strategy == .verifiedCartSnapshot {
+            // A multi-step reversal may already have issued one decrement. Do
+            // not leave a restored local row looking like full retailer success.
+            showCartUndoWarning()
+        }
     }
 
     private func showCartUndoWarning() {

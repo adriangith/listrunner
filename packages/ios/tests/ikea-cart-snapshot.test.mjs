@@ -6,6 +6,12 @@ import vm from 'node:vm';
 const source = readFileSync(new URL('../ListRunner/Resources/CartSnapshotAutomation.js', import.meta.url), 'utf8');
 const bundled = JSON.parse(readFileSync(new URL('../ListRunner/Resources/ikeaAU.json', import.meta.url)));
 
+test('intercepting engine installs before retailer handlers; passive engines retain document-end injection', () => {
+  const native = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
+  assert.match(native, /let injectionTime: WKUserScriptInjectionTime = store\.cart\?\.strategy == \.verifiedCartSnapshot\s*\? \.atDocumentStart : \.atDocumentEnd/);
+  assert.match(native, /injectionTime: injectionTime,\s*forMainFrameOnly: true/);
+});
+
 // Deterministic semantic DOM. Every cart document is a new server snapshot,
 // independent of the purchase draft and family-only success toast.
 function fixture({ before = 0, detail = false, amount = 1, fault = '', production = false } = {}) {
