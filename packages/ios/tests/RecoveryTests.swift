@@ -698,6 +698,44 @@ struct RecoveryTests {
                "Tesco UK supports verified search without unreviewed cart automation")
         check(StoreID.tesco.permitsSearch && !StoreID.tesco.permitsCartDetection && !StoreID.tesco.permitsCartUndo,
                "native Tesco policy permits search but prohibits unreviewed cart automation")
+        var replayStore = tesco
+        replayStore.capabilities.cartDetection = true // isolated prospective probe, not a production ceiling
+        let replaySource = URL(string: "https://www.tesco.com/shop/en-GB/search?query=milk")!
+        let replayLogin = URL(string: "https://www.tesco.com/account/auth/en-GB/login")!
+        let replayReceipt: [String: Any] = ["nonce": "test-nonce", "productID": "254656543", "successful": true,
+                                           "requestedQuantity": 4, "resultingQuantity": 4]
+        var replay = StoreLoginReplay(store: replayStore, productID: "254656543", context: "selected-item",
+                                      nonce: "test-nonce", sourceURL: replaySource, now: 100)!
+        check(replay.accepts(replayReceipt, url: replaySource, context: "selected-item", now: 101) == nil,
+              "basket acknowledgements cannot create a login continuation without authentication navigation")
+        check(replay.visit(replayLogin, store: replayStore, context: "selected-item", now: 101),
+              "a retained trusted product intent can enter the exact reviewed authentication route")
+        check(replay.visit(replaySource, store: replayStore, context: "selected-item", now: 102)
+              && replay.accepts(replayReceipt, url: replaySource, context: "selected-item", now: 102) == 4,
+              "post-auth product acknowledgement is accepted without inventing a pre-auth account baseline")
+        for (field, value) in [("nonce", "foreign" as Any), ("productID", "111111" as Any),
+                               ("successful", "true" as Any), ("successful", 1 as Any), ("successful", false as Any),
+                               ("requestedQuantity", 3 as Any), ("resultingQuantity", 0 as Any),
+                               ("resultingQuantity", true as Any), ("resultingQuantity", 1.5 as Any),
+                               ("extra", "unrecognized" as Any)] {
+            var object = replayReceipt; object[field] = value
+            check(replay.accepts(object, url: replaySource, context: "selected-item", now: 103) == nil,
+                  "login continuation rejects forged, ambiguous and malformed acknowledgement: \(field)")
+        }
+        check(replay.accepts(replayReceipt, url: replaySource, context: "other-item", now: 103) == nil
+              && replay.accepts(replayReceipt, url: replaySource, context: "selected-item", now: 401) == nil,
+              "login acknowledgement cannot cross item/session context or outlive its bounded deadline")
+        for raw in ["https://www.tesco.com/shop/en-GB/search?query=bread", "https://www.tesco.com/shop/en-GB/trolley",
+                    "https://www.tesco.com/account/profile", "http://www.tesco.com/account/auth/en-GB/login",
+                    "https://www.tesco.com:444/account/auth/en-GB/login", "https://tesco.com/account/auth/en-GB/login",
+                    "https://www.tesco.com.evil.test/account/auth/en-GB/login"] {
+            var copy = replay
+            check(!copy.visit(URL(string: raw)!, store: replayStore, context: "selected-item", now: 103),
+                  "login continuation refuses unrelated search/cart/account pages and unreviewed origins")
+        }
+        check(StoreLoginReplay(store: coles, productID: "254656543", context: "selected-item", nonce: "n",
+                               sourceURL: replaySource, now: 100) == nil,
+              "login continuation cannot be enabled for an unreviewed retailer")
         for (field, value) in [("quantityText", false as Any), ("confirmation", "productReceipt" as Any),
                                ("quantitySelector", NSNull() as Any)] {
             var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(tesco)) as! [String: Any]

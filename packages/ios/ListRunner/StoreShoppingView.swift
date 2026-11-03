@@ -1244,6 +1244,11 @@ final class StoreBrowser: ObservableObject {
     private var itemID: UUID?
     private var documentGeneration = 0
     private var activeCandidate: (productID: String, before: Int, deadline: TimeInterval)?
+    private var candidatePageURL: URL?
+    private var loginReplay: StoreLoginReplay?
+    private var loginReplayUserScript: WKUserScript?
+    private var loginReplayTimeoutTask: Task<Void, Never>?
+    private var loginReplayReceiptInFlight = false
     private var lastAcknowledgedSequence: (generation: Int, value: UInt64)?
     private var candidateTimeoutTask: Task<Void, Never>?
     private var pendingSearchTask: Task<Void, Never>?
@@ -1257,6 +1262,97 @@ final class StoreBrowser: ObservableObject {
         }
         return store.id == .woolworths ? 8 : 3
     }
+
+    // The isolated detector remains the authority for the original trusted tap.
+    // This narrowly scoped page-world adapter observes Tesco's normal Apollo
+    // promise, not the optimistic UI, and never initiates a basket operation.
+    private static let loginReplayObserver = #"""
+    (() => {
+      'use strict';
+      const rule = window.__listRunnerReplayRule;
+      if (!rule || window.__listRunnerReplayObserver || location.protocol !== 'https:' ||
+          location.hostname !== rule.host || !/^\d{1,32}$/.test(rule.productID)) return;
+      window.__listRunnerReplayObserver = true;
+      const canonicalPath = path => path.replace('/groceries/en-GB/', '/shop/en-GB/');
+      if (canonicalPath(location.pathname) !== rule.path || location.search !== rule.search) return;
+      const target = value => value === rule.productID ||
+        (typeof value === 'number' && Number.isSafeInteger(value) && String(value) === rule.productID);
+      const quantity = value => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 9999;
+      const clients = new WeakSet();
+      let finished = false;
+      const started = Date.now();
+      const valid = () => !finished && Date.now() - started <= 300000 &&
+        canonicalPath(location.pathname) === rule.path && location.search === rule.search;
+      const metadata = options => {
+        const document = options?.mutation;
+        if (document?.kind !== 'Document' || !Array.isArray(document.definitions) || document.definitions.length > 20) return null;
+        const operations = document.definitions.filter(value => value.kind === 'OperationDefinition');
+        if (operations.length !== 1 || operations[0].operation !== 'mutation' || operations[0].name?.value !== 'UpdateBasket' ||
+            !operations[0].selectionSet?.selections?.some(value => value.kind === 'Field' && value.name?.value === 'basket')) return null;
+        const items = options.variables?.items;
+        if (!Array.isArray(items) || items.length > 200) return null;
+        const matches = items.filter(value => target(value?.id));
+        return matches.length === 1 && quantity(matches[0].newValue) && matches[0].newValue > 0 ? matches[0].newValue : null;
+      };
+      const receive = (result, requested) => {
+        if (!valid() || result?.error || (Array.isArray(result?.errors) && result.errors.length)) return;
+        const basket = result?.data?.basket;
+        const updates = basket?.updates?.items;
+        if (!Array.isArray(updates) || updates.length > 1000) return;
+        const matches = updates.filter(value => target(value?.id));
+        if (matches.length !== 1 || matches[0].successful !== true) return;
+        const values = new Set();
+        let ambiguous = false;
+        const scan = items => {
+          if (!Array.isArray(items) || items.length > 1000) { ambiguous = true; return; }
+          for (const item of items) if (target(item?.product?.id)) {
+            if (quantity(item.quantity)) values.add(item.quantity); else ambiguous = true;
+          }
+        };
+        if (Array.isArray(basket.items)) scan(basket.items);
+        if (Array.isArray(basket.splitView)) {
+          if (basket.splitView.length > 20) return;
+          for (const group of basket.splitView) scan(group?.items);
+        }
+        if (ambiguous || values.size !== 1 || !values.has(requested)) return;
+        finished = true;
+        window.webkit?.messageHandlers?.listRunnerLoginReplay?.postMessage({
+          nonce: rule.nonce, productID: rule.productID, successful: true,
+          requestedQuantity: requested, resultingQuantity: requested
+        });
+      };
+      const attach = orchestrator => {
+        if (!valid() || typeof orchestrator?.resolveProps !== 'function') return false;
+        try {
+          // No account configuration is read. This public accessor returns the
+          // existing client; it does not query, mutate or inspect the Apollo cache.
+          const client = orchestrator.resolveProps({ name: 'ListRunnerLoginReplay' }).client;
+          if (typeof client?.mutate !== 'function') return false;
+          if (clients.has(client)) return true;
+          const original = client.mutate;
+          client.mutate = function(options) {
+            let requested = null;
+            try { if (valid()) requested = metadata(options); } catch (_) {}
+            const promise = Reflect.apply(original, this, arguments);
+            if (requested !== null && typeof promise?.then === 'function') {
+              promise.then(result => { try { receive(result, requested); } catch (_) {} }, () => {}).catch(() => {});
+            }
+            return promise;
+          };
+          clients.add(client);
+          return true;
+        } catch (_) { return false; }
+      };
+      if (!attach(window.Orchestrator)) {
+        const descriptor = Object.getOwnPropertyDescriptor(window, 'Orchestrator');
+        if (!descriptor || (descriptor.configurable && !descriptor.get && !descriptor.set)) {
+          let current = descriptor?.value;
+          Object.defineProperty(window, 'Orchestrator', { configurable: true, enumerable: descriptor?.enumerable ?? true,
+            get: () => current, set: value => { current = value; attach(value); } });
+        }
+      }
+    })();
+    """#
 
     private static let automationScript = #"""
     (() => {
@@ -1768,6 +1864,21 @@ final class StoreBrowser: ObservableObject {
         confirmedAdds.clear();
       };
       window.__listRunnerCancelUndo = () => { reversal = null; };
+      window.__listRunnerConfirmLoginQuantity = async (id, expected) => {
+        // A replay acknowledgement cannot create a quantity baseline or Undo
+        // record. Require the exact product to agree in the isolated DOM world.
+        const fingerprint = contextFingerprint(context);
+        if (!context || !profiles || !Number.isInteger(expected) || expected < 1 || expected > 9999) return false;
+        for (let attempt = 0, stable = 0; attempt < 20; attempt++) {
+          if (contextFingerprint(context) !== fingerprint || document.visibilityState === 'hidden') return false;
+          const states = profiles.filter(profile => profile.confirmation === 'quantityIncrease')
+            .map(profile => findProfileState(id, profile)).filter(Boolean);
+          if (states.length && states.every(state => state.quantity === expected)) stable++; else stable = 0;
+          if (stable >= 2) return true;
+          await new Promise(resolve => setTimeout(resolve, 180));
+        }
+        return false;
+      };
       window.__listRunnerUndoAdd = async record => {
         const saved = confirmedAdds.get(record.confirmationID);
         const profile = saved?.profileID ? profiles?.find(value => value.id === saved.profileID) : null;
@@ -1940,6 +2051,9 @@ final class StoreBrowser: ObservableObject {
     private static func makeWebView(coordinator: Coordinator, world: WKContentWorld, store: StoreDefinition, dataStore: WKWebsiteDataStore) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(coordinator, contentWorld: world, name: "listRunner")
+        if store.id == .tesco, store.capabilities.cartDetection {
+            configuration.userContentController.add(coordinator, contentWorld: .page, name: "listRunnerLoginReplay")
+        }
         if store.capabilities.cartDetection, let data = try? JSONEncoder().encode(store), let json = String(data: data, encoding: .utf8) {
         #if DEBUG
         let debugSource = "window.__listRunnerDebug = true;\n"
@@ -2009,6 +2123,7 @@ final class StoreBrowser: ObservableObject {
         guard canPresentStore, storeRecovery == nil else { return }
         guard !needsIdleBrowserRebuild || browsingActive else { return }
         prepareIdleBrowserIfNeeded()
+        cancelLoginReplay()
         cancelCartUndo()
         dismissCartUndoWarning()
         candidateTimeoutTask?.cancel()
@@ -2186,6 +2301,113 @@ final class StoreBrowser: ObservableObject {
                                    in: nil, in: automationWorld)
     }
 
+    private var loginReplayContext: String {
+        [sessionID, interactionID, itemID?.uuidString ?? ""].joined(separator: "|")
+    }
+
+    private func cancelLoginReplay() {
+        loginReplay = nil
+        loginReplayReceiptInFlight = false
+        loginReplayTimeoutTask?.cancel()
+        if let script = loginReplayUserScript {
+            let controller = webView.configuration.userContentController
+            let retained = controller.userScripts.filter { $0 !== script }
+            controller.removeAllUserScripts()
+            retained.forEach(controller.addUserScript)
+            loginReplayUserScript = nil
+        }
+    }
+
+    fileprivate func observeLoginNavigation(_ url: URL) {
+        let now = ProcessInfo.processInfo.systemUptime
+        if var replay = loginReplay {
+            guard replay.visit(url, store: store, context: loginReplayContext, now: now) else {
+                cancelLoginReplay()
+                return
+            }
+            loginReplay = replay
+            return
+        }
+        guard interactionEnabled, !siteVerificationRequired, storeRecovery == nil,
+              StoreLoginReplay.isAuthentication(url), let activeCandidate,
+              now <= activeCandidate.deadline, let sourceURL = candidatePageURL,
+              var replay = StoreLoginReplay(store: store, productID: activeCandidate.productID,
+                                           context: loginReplayContext, nonce: UUID().uuidString,
+                                           sourceURL: sourceURL, now: now),
+              replay.visit(url, store: store, context: loginReplayContext, now: now),
+              let components = URLComponents(url: sourceURL, resolvingAgainstBaseURL: false),
+              let host = sourceURL.host,
+              let data = try? JSONSerialization.data(withJSONObject: [
+                "productID": replay.productID, "nonce": replay.nonce, "host": host,
+                "path": components.path.replacingOccurrences(of: "/groceries/en-GB/", with: "/shop/en-GB/"),
+                "search": components.percentEncodedQuery.map { "?" + $0 } ?? ""
+              ]), let json = String(data: data, encoding: .utf8) else { return }
+        let script = WKUserScript(source: "window.__listRunnerReplayRule = \(json);\n" + Self.loginReplayObserver,
+                                  injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .page)
+        loginReplay = replay
+        loginReplayUserScript = script
+        webView.configuration.userContentController.addUserScript(script)
+        candidateTimeoutTask?.cancel()
+        self.activeCandidate = nil
+        cartDetectionIssue = nil
+        let nonce = replay.nonce
+        loginReplayTimeoutTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(300))
+            guard !Task.isCancelled, let self, self.loginReplay?.nonce == nonce else { return }
+            self.cancelLoginReplay()
+        }
+    }
+
+    private func receiveLoginReplay(_ message: WKScriptMessage) {
+        guard store.id == .tesco, store.capabilities.cartDetection, interactionEnabled,
+              canPresentStore, storeRecovery == nil, !siteVerificationRequired,
+              message.frameInfo.isMainFrame, message.webView === webView,
+              message.frameInfo.securityOrigin.protocol == "https",
+              store.allowedHosts.contains(message.frameInfo.securityOrigin.host.lowercased()),
+              [0, 443].contains(message.frameInfo.securityOrigin.port),
+              let url = webView.url, store.allows(url), let replay = loginReplay,
+              let object = message.body as? [String: Any],
+              let quantity = replay.accepts(object, url: url, context: loginReplayContext,
+                                            now: ProcessInfo.processInfo.systemUptime),
+              !loginReplayReceiptInFlight else { return }
+        loginReplayReceiptInFlight = true
+        let generation = documentGeneration
+        let view = webView
+        // The page adapter cannot itself mark a native item Added. Pair its
+        // product-specific receipt with the retained trusted intent and a stable
+        // exact-product observation in the separate automation content world.
+        view.callAsyncJavaScript("""
+            for (let attempt = 0; attempt < 20; attempt++) {
+                if (window.__listRunnerConfirmLoginQuantity) return await window.__listRunnerConfirmLoginQuantity(productID, quantity);
+                await new Promise(resolve => setTimeout(resolve, 180));
+            }
+            return false;
+            """, arguments: ["productID": replay.productID, "quantity": quantity], in: nil, in: automationWorld) { [weak self] result in
+            guard let self, self.webView === view, self.loginReplay?.nonce == replay.nonce else { return }
+            self.loginReplayReceiptInFlight = false
+            guard case .success(let value) = result, value as? Bool == true,
+                  self.documentGeneration == generation, self.interactionEnabled,
+                  self.storeRecovery == nil, !self.siteVerificationRequired,
+                  let currentURL = self.webView.url, let itemID = self.itemID,
+                  replay.accepts(object, url: currentURL, context: self.loginReplayContext,
+                                 now: ProcessInfo.processInfo.systemUptime) != nil else { return }
+            self.cancelLoginReplay()
+            self.activeCandidate = nil
+            self.candidateTimeoutTask?.cancel()
+            self.cartDetectionUnavailable = false
+            self.cartDetectionIssue = nil
+            self.lastDetectedItemID = itemID
+            // The authenticated baseline was not observed before this Add.
+            // Acknowledgement grants local status progression, NOT cart reversal.
+            self.lastDetectedAdd = CartAddRecord(storeID: self.store.id, sessionID: self.sessionID,
+                interactionID: self.interactionID, documentGeneration: self.documentGeneration,
+                itemID: itemID, confirmationID: replay.nonce, productID: replay.productID, before: nil, after: nil)
+            self.diagnostics.record(.automation, .cartDetection, outcome: .succeeded, host: self.diagnosticHost)
+            self.detectedAddSequence += 1
+            self.automationLog("Post-login product acknowledgement confirmed; no inferred cart baseline")
+        }
+    }
+
     fileprivate func navigationStarted(_ navigation: WKNavigation) {
         guard canPresentStore, storeRecovery == nil, !retiredNavigations.contains(navigation), pendingSearchTask == nil else { return }
         // A stale start callback from a replaced search must not reclaim ownership.
@@ -2234,6 +2456,7 @@ final class StoreBrowser: ObservableObject {
     }
 
     private func pauseForSiteVerification() {
+        cancelLoginReplay()
         siteVerificationRequired = true
         cancelPreload()
         navigationPacing.blocked(at: ProcessInfo.processInfo.systemUptime)
@@ -2467,6 +2690,7 @@ final class StoreBrowser: ObservableObject {
     }
 
     func endInteraction() {
+        cancelLoginReplay()
         cancelPreload()
         interactionEnabled = false
         interactionID = UUID().uuidString
@@ -2564,6 +2788,9 @@ final class StoreBrowser: ObservableObject {
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "listRunner", contentWorld: automationWorld)
+        if store.id == .tesco {
+            webView.configuration.userContentController.removeScriptMessageHandler(forName: "listRunnerLoginReplay", contentWorld: .page)
+        }
         webView.configuration.userContentController.removeAllUserScripts()
         webView = Self.makeWebView(coordinator: coordinator, world: automationWorld, store: store, dataStore: websiteDataStore)
         documentGeneration += 1
@@ -2693,6 +2920,10 @@ final class StoreBrowser: ObservableObject {
     }
 
     fileprivate func receive(_ message: WKScriptMessage) {
+        if message.name == "listRunnerLoginReplay" {
+            receiveLoginReplay(message)
+            return
+        }
         guard store.capabilities.cartDetection, canPresentStore, storeRecovery == nil, !siteVerificationRequired,
               message.name == "listRunner", message.frameInfo.isMainFrame,
               message.webView === webView, let url = webView.url, store.allows(url),
@@ -2749,7 +2980,9 @@ final class StoreBrowser: ObservableObject {
                   let before = object["beforeQuantity"] as? Int, (0...9999).contains(before),
                   let intent = object["intent"] as? String,
                   intent == (before == 0 ? "add" : "increment") else { return }
+            cancelLoginReplay()
             activeCandidate = (productID, before, ProcessInfo.processInfo.systemUptime + cartConfirmationTimeout)
+            candidatePageURL = pageURL
             automationLog("Trusted cart tap armed quantity confirmation")
             let candidateInteraction = interactionID
             let timeout = cartConfirmationTimeout
@@ -2791,6 +3024,7 @@ final class StoreBrowser: ObservableObject {
               (1...9999).contains(resulting), resulting > activeCandidate.before,
               let itemID, let parsedItemID = UUID(uuidString: itemText), parsedItemID == itemID else { return }
         self.activeCandidate = nil
+        cancelLoginReplay()
         candidateTimeoutTask?.cancel()
         cartDetectionUnavailable = false
         cartDetectionIssue = nil
@@ -2892,12 +3126,14 @@ final class StoreBrowser: ObservableObject {
                 return
             }
             if !browser.store.allowsNavigation(url) {
+                if navigationAction.targetFrame?.isMainFrame != false { browser.cancelLoginReplay() }
                 if navigationAction.targetFrame?.isMainFrame != false, ["https", "http"].contains(url.scheme?.lowercased() ?? "") {
                     UIApplication.shared.open(url)
                 }
                 decisionHandler(.cancel)
                 return
             }
+            if navigationAction.targetFrame?.isMainFrame != false { browser.observeLoginNavigation(url) }
             if navigationAction.targetFrame?.isMainFrame == true,
                [.linkActivated, .formSubmitted, .backForward, .reload, .formResubmitted].contains(navigationAction.navigationType) {
                 browser.intendedURL = url

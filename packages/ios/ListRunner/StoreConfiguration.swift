@@ -283,6 +283,66 @@ enum StoreProbeIsolation {
     }
 }
 
+// In-memory provenance for one trusted Add interrupted by the reviewed Tesco
+// authentication route. A guest quantity is deliberately NOT carried into the
+// account basket, and this receipt never grants retailer-cart Undo permission.
+struct StoreLoginReplay {
+    let productID: String
+    let context: String
+    let nonce: String
+    let sourceURL: URL
+    let deadline: TimeInterval
+    private(set) var visitedAuthentication = false
+
+    static func isAuthentication(_ url: URL) -> Bool {
+        url.path.hasPrefix("/account/auth/en-GB/")
+    }
+
+    init?(store: StoreDefinition, productID: String, context: String, nonce: String,
+          sourceURL: URL, now: TimeInterval) {
+        guard store.id == .tesco, store.capabilities.cartDetection,
+              store.allows(sourceURL), Self.isStorefront(sourceURL),
+              store.acceptsProductIdentity(productID), !context.isEmpty, !nonce.isEmpty else { return nil }
+        self.productID = productID
+        self.context = context
+        self.nonce = nonce
+        self.sourceURL = sourceURL
+        self.deadline = now + 300
+    }
+
+    private static func isStorefront(_ url: URL) -> Bool {
+        url.path.hasPrefix("/shop/en-GB/") || url.path.hasPrefix("/groceries/en-GB/")
+    }
+
+    func isReturn(_ url: URL) -> Bool {
+        guard var expected = URLComponents(url: sourceURL, resolvingAgainstBaseURL: false),
+              var actual = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return false }
+        expected.fragment = nil; actual.fragment = nil
+        // Tesco's reviewed legacy route redirects to /shop without changing query.
+        expected.path = expected.path.replacingOccurrences(of: "/groceries/en-GB/", with: "/shop/en-GB/")
+        actual.path = actual.path.replacingOccurrences(of: "/groceries/en-GB/", with: "/shop/en-GB/")
+        return expected == actual
+    }
+
+    mutating func visit(_ url: URL, store: StoreDefinition, context: String, now: TimeInterval) -> Bool {
+        guard context == self.context, now <= deadline, store.id == .tesco,
+              store.allows(url), url.host == sourceURL.host else { return false }
+        if Self.isAuthentication(url) { visitedAuthentication = true; return true }
+        return visitedAuthentication && isReturn(url)
+    }
+
+    func accepts(_ object: [String: Any], url: URL, context: String, now: TimeInterval) -> Int? {
+        guard context == self.context, now <= deadline, visitedAuthentication, isReturn(url),
+              Set(object.keys) == ["nonce", "productID", "successful", "requestedQuantity", "resultingQuantity"],
+              object["nonce"] as? String == nonce, object["productID"] as? String == productID,
+              let success = object["successful"] as? NSNumber, CFGetTypeID(success) == CFBooleanGetTypeID(), success.boolValue,
+              let requested = StoreBridge.integer(object["requestedQuantity"]),
+              let resulting = StoreBridge.integer(object["resultingQuantity"]),
+              (1...9999).contains(resulting), requested == resulting else { return nil }
+        return resulting
+    }
+}
+
 struct StoreDefinition: Codable {
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case schemaVersion, id, displayName, serviceArea, homepage, allowedHosts
