@@ -10,6 +10,8 @@ Earlier signed-in Add and native Undo were independently confirmed by `cartDetec
 
 Evidence on Linux: `/tmp/opencode/tesco-login-native-success.png`, `/tmp/opencode/tesco-login-native-success.md`; investigation sequence `/tmp/opencode/tesco-v3-after-replay.json`; failure report `/tmp/opencode/tesco-native-login-failure.md`. The verified runtime was PID 54145, left running. On `56e73d3`, all **313 DOM tests**, **1,694 native checks**, and the simulator build passed. Production configuration is enabled in the follow-up commit, separately from the DEBUG-only verification flags. Broader UI/physical-device, product-detail, variant and fulfilment paths are not certified by this one grid test. First post-login acknowledgement permits local Undo only, with a check-cart warning; ordinary signed-in quantity-confirmed additions retain retailer Undo.
 
+Production configuration revision `857052944fca4993173981e29fd304dd866ddd70` was pushed and checked out on the Mac. All **313 DOM tests**, **1,694 native checks**, **3 expansion consistency tests** and **2 release-metadata tests** passed. Xcode's simulator build-for-testing succeeded, compiling the updated UI tests; those UI tests were not rerun. All **34 JSON resources** in the actual built Debug simulator app byte-match canonical source files, with no legacy `-v2` resources. The existing live test process was not replaced or restarted after success; no merge, phone deployment or TestFlight upload was performed.
+
 ## Twenty-store expansion — 1 November 2026 (partial delivery)
 
 Twenty additional destinations are registered, disabled by default, with stable
