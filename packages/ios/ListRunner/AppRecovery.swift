@@ -207,6 +207,7 @@ struct SettingsOverviewScreen: View {
     @State private var notice: String?
     @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
     let importInProgress: Bool
+    let importDestinationName: String
     let onImportSourceSelected: () -> Void
 
     var body: some View {
@@ -234,12 +235,11 @@ struct SettingsOverviewScreen: View {
             }
             Section("Importing") {
                 NavigationLink {
-                    ImportSourceSelectionScreen(selectedSourceID: importSourceID) { source in
-                        importSourceID = source.rawValue
+                    ImportSourceSelectionScreen(selectedSourceID: importSourceID, destinationName: importDestinationName) { _ in
                         onImportSourceSelected()
                     }
                 } label: {
-                    LabeledContent("Import source", value: GroceryImportSource(rawValue: importSourceID) == .paprika ? "Paprika" : "Not set")
+                    LabeledContent("Import source", value: GroceryImportSource(rawValue: importSourceID) == .paprika ? "Paprika" : "Choose source")
                 }
                 .accessibilityIdentifier("import-source-setting")
                 .disabled(importInProgress)
@@ -271,23 +271,31 @@ struct SettingsOverviewScreen: View {
 
 struct ImportSourceSelectionScreen: View {
     let selectedSourceID: String
+    let destinationName: String
     let onUseSource: (GroceryImportSource) -> Void
 
     var body: some View {
         List {
             Section {
-                Text("Choose the app your groceries come from. You can have one source active at a time. You can change this later in Settings.")
+                Text("Choose where to import your groceries from. Your last successful source is remembered for next time. You can choose a different source in Settings.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Section("Sources") {
                 NavigationLink {
-                    PaprikaImportInstructionsScreen {
+                    PaprikaImportInstructionsScreen(destinationName: destinationName) {
                         onUseSource(.paprika)
                     }
                 } label: {
                     HStack {
-                        Label("Paprika", systemImage: "checklist")
+                        Label {
+                            VStack(alignment: .leading) {
+                                Text("Paprika")
+                                Text("Via Apple Reminders").font(.subheadline).foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "checklist")
+                        }
                         Spacer()
                         if GroceryImportSource(rawValue: selectedSourceID) == .paprika {
                             Image(systemName: "checkmark").accessibilityHidden(true)
@@ -296,35 +304,49 @@ struct ImportSourceSelectionScreen: View {
                     .frame(minHeight: 44)
                 }
                 .accessibilityIdentifier("import-source-paprika")
-                .accessibilityValue(GroceryImportSource(rawValue: selectedSourceID) == .paprika ? "Active" : "Not selected")
+                .accessibilityValue(GroceryImportSource(rawValue: selectedSourceID) == .paprika ? "Last used" : "Not used yet")
             }
         }
-        .navigationTitle("Set import source")
+        .navigationTitle("Import items")
         .navigationBarTitleDisplayMode(.large)
     }
 }
 
 struct PaprikaImportInstructionsScreen: View {
+    let destinationName: String
     let onUse: () -> Void
 
     var body: some View {
         List {
-            Section("How to import") {
+            Section {
+                Text("Bring your Paprika groceries into ListRunner using Apple Reminders. No Paprika account connection is needed.")
+                Text("Items will be added to your \(destinationName) list. Existing items stay unchanged.")
+            }
+            Section("How to export from Paprika") {
                 PaprikaImportInstructions()
             }
             Section {
                 Button(action: onUse) {
-                    Text("Use Paprika")
+                    Text("Import groceries")
                         .font(.headline)
                         .frame(maxWidth: .infinity, minHeight: 52)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderedProminent)
                 .buttonBorderShape(.capsule)
-                .accessibilityIdentifier("use-paprika")
-                .accessibilityHint("Sets Paprika as your import source and returns to your list. Does not import items yet.")
+                .accessibilityIdentifier("import-paprika-groceries")
+                .accessibilityHint("Imports unchecked groceries from Apple Reminders into your selected store list. Requests Reminders access if needed.")
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
+            }
+            Section {
+                Text("ListRunner needs full Reminders access to read your groceries and update linked reminders. Access is requested only when you tap Import groceries.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                DisclosureGroup("How updates work") {
+                    Text("Export from Paprika again, then import to add new groceries. Changes in Paprika or Apple Reminders won’t update items already imported into this store’s list.")
+                    Text("Marking an imported item Added checks off its linked Apple reminder. Pending or Skipped unchecks it. Editing the item in ListRunner also updates its linked reminder’s name and quantity. These updates are best effort, not ongoing sync with Paprika.")
+                }
+                Link("Paprika’s iOS export guide", destination: URL(string: "https://www.paprikaapp.com/help/ios/#groceries")!)
             }
         }
         .navigationTitle("Import from Paprika")
@@ -335,10 +357,11 @@ struct PaprikaImportInstructionsScreen: View {
 private struct PaprikaImportInstructions: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("1. Open your groceries in Paprika.")
-            Text("2. Export them to Apple Reminders.")
-            Text("3. Tap Import from Paprika when adding items to your grocery list.")
-            Text("We read incomplete items from the Reminders list named ‘Paprika’.")
+            Text("1. In Paprika, open Groceries and select the list you want to export.")
+            Text("2. Tap Actions in the grocery toolbar, then Export to Reminders.")
+            Text("3. Make sure the export’s Reminders list is named exactly ‘Paprika’. You can change the export list name in Paprika’s grocery-list options.")
+            Text("4. Return here and tap Import groceries.")
+            Text("Only unchecked items from the Apple Reminders list named ‘Paprika’ are imported. Checked items are not imported.")
                 .padding(.top, 8)
         }
         .foregroundStyle(.secondary)

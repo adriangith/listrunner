@@ -1202,6 +1202,14 @@ struct RecoveryTests {
             PaprikaReminderSnapshot(id: "undated", title: "apples", creationDate: nil)
         ]
         let paprikaStaged = PaprikaImportPlanner.stage(reminders: paprikaSnapshot, existingIDs: ["existing"], parser: ingredientParser)
+        check(PaprikaImportPlanner.emptyImportError(reminders: [], existingIDs: [], parser: ingredientParser) == .noUncheckedItems,
+              "empty Paprika snapshot explains unchecked groceries rather than duplicates")
+        check(PaprikaImportPlanner.emptyImportError(reminders: [paprikaSnapshot[0]], existingIDs: ["late"], parser: ingredientParser) == .noNewItems,
+              "already imported Paprika snapshot explains duplicate reminder identities")
+        check(PaprikaImportPlanner.emptyImportError(reminders: [paprikaSnapshot[0], paprikaSnapshot[3]], existingIDs: ["late"], parser: ingredientParser) == .noNewItems,
+              "ignored blank reminders do not obscure an already-imported outcome")
+        check(PaprikaImportPlanner.emptyImportError(reminders: [paprikaSnapshot[3]], existingIDs: ["existing"], parser: ingredientParser) == .noReadableItems,
+              "blank titles have a distinct no-readable-groceries outcome")
         check(paprikaStaged.map(\.grocery.name) == ["Milk", "Bread", "Apples"], "Paprika import is creation-ordered, duplicate-safe and ignores blank titles: \(paprikaStaged.map(\.grocery.name))")
         check(paprikaStaged.first?.grocery.amount == 2 && paprikaStaged.first?.grocery.unit == "l", "Paprika title uses grocery quantity parser")
         let mayonnaise = PaprikaImportPlanner.stage(

@@ -1,5 +1,15 @@
 # Reusable store framework validation
 
+## Guided Paprika import — implementation awaiting Mac validation, 4 November 2026
+
+Branch `feat/improve-paprika-importing-experience` replaces setup-only confirmation with **Import groceries**, including from Settings. The chooser is retained as **Import items**, with **Paprika — Via Apple Reminders**; no nearby Change source action is added. The last-used source is saved only after committed rows. Repeat imports remain immediate. Instructions explain the export path, exact list name, selected store, permission purpose and snapshot/best-effort writeback limits. Success confirms count/destination; failures distinguish permission denial, generic access, missing/ambiguous lists, no unchecked groceries, already-imported identities, unreadable titles and local-save failure. Recovery has instructions/retry and permission-specific Open Settings.
+
+The existing OpenPencil audit/flow documentation was consulted; no live design service was available, so the saved boards were not edited or visually revalidated. Paprika's published iOS guide search result confirms Groceries → Actions → Export to Reminders and per-list export-name customisation: https://www.paprikaapp.com/help/ios/ . No third-party screen artwork was invented.
+
+Added native empty-outcome classification checks and updated fixture UI scenarios for immediate import, remembered-source persistence, cancellation/draft preservation, Settings import/help, store-local deduplication, no automatic retailer presentation and actionable failures. **These Swift changes/tests have not been compiled or run.** Linux recovery runner stops with `xcrun: command not found`; no local Swift compiler is installed. Mac SSH `adrianzafir@192.168.4.94` failed with `No route to host`. `git diff --check` passed. No real Reminders, retailer sessions, carts, physical devices or TestFlight builds were touched. This implementation is prepared for Git-based handoff on the task branch; pushing it does not establish Mac build or runtime validation.
+
+Next: preserve/recheck Mac status and fetch the exact pushed task revision into an isolated task checkout. Run `packages/ios/tests/run-recovery-tests.sh`, build-for-testing, focused Paprika UI tests (including error fixtures) and a Release simulator build. Review light/dark, larger text and VoiceOver on instructions/recovery before claiming runtime completion. Preserve existing Mac work and app data; do not mirror files or test against real reminders.
+
 ## Your list scrolling — phone preview installed, 3 November 2026
 
 Application revision `cf0c17d3ec588542b4054e70f254d4a72448d7a2` removes repeated store-configuration validation from list rendering, tracks row geometry only for the active added-row reveal, tracks entry/action geometry only while focused, cancels positioning once per manual drag, and avoids unchanged native-editor intrinsic-size/placeholder invalidation. The session-owned availability snapshot retains full validation at the immutable registry boundary and reflects enabled-ID changes without revalidating every definition. Details and benchmark limitations: `docs/your-list-scroll-performance.md`.

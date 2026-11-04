@@ -13,15 +13,48 @@ struct StagedPaprikaItem {
     let grocery: ParsedGrocery
 }
 
-enum PaprikaImportError: Error {
+enum PaprikaImportError: Error, Equatable {
     case access
+    case permissionDenied
     case listNotFound
     case multipleLists
     case noNewItems
+    case noUncheckedItems
+    case noReadableItems
     case transaction
+
+    var message: LocalizedStringResource {
+        switch self {
+        case .access:
+            "Could not access Apple Reminders. Try again. Your list is unchanged. You can still type or paste groceries."
+        case .permissionDenied:
+            "Allow full Reminders access in Settings so ListRunner can read your groceries and update linked reminders. Your list is unchanged."
+        case .listNotFound:
+            "We couldn’t find a Reminders list called ‘Paprika’. Export your groceries from Paprika first, using that exact list name. Your list is unchanged."
+        case .multipleLists:
+            "More than one Apple Reminders list is named ‘Paprika’. Rename the others so only your grocery export list has that name, then try again. Your list is unchanged."
+        case .noNewItems:
+            "These items are already in your list. Export new groceries from Paprika to Apple Reminders, then import again. Existing items aren’t refreshed."
+        case .noUncheckedItems:
+            "No unchecked groceries found in the ‘Paprika’ Reminders list. Export your groceries from Paprika first. Checked items aren’t imported."
+        case .noReadableItems:
+            "No readable new groceries found. Check that your exported Apple reminders have grocery names, then try again. Your list is unchanged."
+        case .transaction:
+            "Could not save the imported groceries. Your list is unchanged. Try importing again."
+        }
+    }
 }
 
 enum PaprikaImportPlanner {
+    /// Used only when staging produced no rows. Do not call a blank title
+    /// "already imported" just because it was ignored by the parser.
+    static func emptyImportError(reminders: [PaprikaReminderSnapshot], existingIDs: Set<String>, parser: IngredientParser = .application) -> PaprikaImportError {
+        if reminders.isEmpty { return .noUncheckedItems }
+        let readable = reminders.filter { !$0.id.isEmpty && !parser.parseGroceries($0.title).isEmpty }
+        if !readable.isEmpty && readable.allSatisfy({ existingIDs.contains($0.id) }) { return .noNewItems }
+        return .noReadableItems
+    }
+
     static func stage(reminders: [PaprikaReminderSnapshot], existingIDs: Set<String>, parser: IngredientParser = .application) -> [StagedPaprikaItem] {
         let ordered = reminders.sorted { lhs, rhs in
             switch (lhs.creationDate, rhs.creationDate) {
@@ -118,15 +151,21 @@ final class PaprikaReminders: ObservableObject {
             switch fixture {
             case "missing": throw PaprikaImportError.listNotFound
             case "multiple": throw PaprikaImportError.multipleLists
-            case "accessDenied": throw PaprikaImportError.access
+            case "accessDenied": throw PaprikaImportError.permissionDenied
+            case "accessError": throw PaprikaImportError.access
             case "empty": return []
+            case "blank": return [PaprikaReminderSnapshot(id: "blank", title: " • ", creationDate: nil)]
             default: break
             }
-            return [
+            var reminders = [
                 PaprikaReminderSnapshot(id: "test-milk-reminder", title: "2L milk", creationDate: Date(timeIntervalSince1970: 1)),
                 PaprikaReminderSnapshot(id: "test-bread-reminder", title: "bread", creationDate: Date(timeIntervalSince1970: 2)),
                 PaprikaReminderSnapshot(id: "test-blank-reminder", title: " •  ", creationDate: Date(timeIntervalSince1970: 3))
             ]
+            if fixture == "additional" {
+                reminders.append(PaprikaReminderSnapshot(id: "test-apples-reminder", title: "apples", creationDate: Date(timeIntervalSince1970: 4)))
+            }
+            return reminders
         }
         #endif
 
@@ -173,12 +212,16 @@ final class PaprikaReminders: ObservableObject {
         case .fullAccess, .authorized:
             return
         case .notDetermined:
+            let granted: Bool
             do {
-                guard try await eventStore.requestFullAccessToReminders() else { throw PaprikaImportError.access }
+                granted = try await eventStore.requestFullAccessToReminders()
             } catch {
                 throw PaprikaImportError.access
             }
-        case .writeOnly, .denied, .restricted:
+            guard granted else { throw PaprikaImportError.permissionDenied }
+        case .writeOnly, .denied:
+            throw PaprikaImportError.permissionDenied
+        case .restricted:
             throw PaprikaImportError.access
         @unknown default:
             throw PaprikaImportError.access
