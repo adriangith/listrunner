@@ -20,6 +20,8 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>ListRunner imports groceries from the Apple Reminders list you choose. By default it removes imported reminders from that list after saving your groceries. If you turn this off in Settings, it keeps and updates linked reminders instead.</string>
 	<key>UILaunchStoryboardName</key>

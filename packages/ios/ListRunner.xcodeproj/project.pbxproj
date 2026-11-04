@@ -39,6 +39,8 @@
 		A10000000000000000000033 /* ListRunner/Resources/amazon.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000033 /* ListRunner/Resources/amazon.json */; };
 		A10000000000000000000034 /* ListRunner/Resources/kroger.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000034 /* ListRunner/Resources/kroger.json */; };
 		A10000000000000000000035 /* ListRunner/Resources/target.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000035 /* ListRunner/Resources/target.json */; };
+		A10000000000000000000036 /* ListRunner/Resources/ikeaAU.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000036 /* ListRunner/Resources/ikeaAU.json */; };
+		A10000000000000000000037 /* ListRunner/Resources/CartSnapshotAutomation.js in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000037 /* ListRunner/Resources/CartSnapshotAutomation.js */; };
 		A20000000000000000000001 /* StoreSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* StoreSelectionTests.swift */; };
 		A30000000000000000000001 /* ListRunner/Resources/chemistWarehouse.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000001 /* ListRunner/Resources/chemistWarehouse.json */; };
 		A30000000000000000000002 /* ListRunner/Resources/priceline.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000002 /* ListRunner/Resources/priceline.json */; };
@@ -60,8 +62,6 @@
 		A30000000000000000000018 /* ListRunner/Resources/boots.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000018 /* ListRunner/Resources/boots.json */; };
 		A30000000000000000000019 /* ListRunner/Resources/walgreens.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000019 /* ListRunner/Resources/walgreens.json */; };
 		A30000000000000000000020 /* ListRunner/Resources/cvs.json in Resources */ = {isa = PBXBuildFile; fileRef = B30000000000000000000020 /* ListRunner/Resources/cvs.json */; };
-		A10000000000000000000036 /* ikeaAU.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000036; };
-		A10000000000000000000037 /* CartSnapshotAutomation.js in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000037; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -110,6 +110,8 @@
 		B10000000000000000000033 /* ListRunner/Resources/amazon.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/amazon.json; sourceTree = SOURCE_ROOT; };
 		B10000000000000000000034 /* ListRunner/Resources/kroger.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/kroger.json; sourceTree = SOURCE_ROOT; };
 		B10000000000000000000035 /* ListRunner/Resources/target.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/target.json; sourceTree = SOURCE_ROOT; };
+		B10000000000000000000036 /* ListRunner/Resources/ikeaAU.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/ikeaAU.json; sourceTree = SOURCE_ROOT; };
+		B10000000000000000000037 /* ListRunner/Resources/CartSnapshotAutomation.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = ListRunner/Resources/CartSnapshotAutomation.js; sourceTree = SOURCE_ROOT; };
 		B20000000000000000000001 /* StoreSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreSelectionTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* ListRunnerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ListRunnerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B30000000000000000000001 /* ListRunner/Resources/chemistWarehouse.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/chemistWarehouse.json; sourceTree = SOURCE_ROOT; };
@@ -132,8 +134,6 @@
 		B30000000000000000000018 /* ListRunner/Resources/boots.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/boots.json; sourceTree = SOURCE_ROOT; };
 		B30000000000000000000019 /* ListRunner/Resources/walgreens.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/walgreens.json; sourceTree = SOURCE_ROOT; };
 		B30000000000000000000020 /* ListRunner/Resources/cvs.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/cvs.json; sourceTree = SOURCE_ROOT; };
-		B10000000000000000000036 /* ikeaAU.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ListRunner/Resources/ikeaAU.json; sourceTree = SOURCE_ROOT; };
-		B10000000000000000000037 /* CartSnapshotAutomation.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = ListRunner/Resources/CartSnapshotAutomation.js; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -169,8 +169,8 @@
 				B10000000000000000000033 /* ListRunner/Resources/amazon.json */,
 				B10000000000000000000034 /* ListRunner/Resources/kroger.json */,
 				B10000000000000000000035 /* ListRunner/Resources/target.json */,
-				B10000000000000000000036 /* ikeaAU.json */,
-				B10000000000000000000037 /* CartSnapshotAutomation.js */,
+				B10000000000000000000036 /* ListRunner/Resources/ikeaAU.json */,
+				B10000000000000000000037 /* ListRunner/Resources/CartSnapshotAutomation.js */,
 				B30000000000000000000001 /* ListRunner/Resources/chemistWarehouse.json */,
 				B30000000000000000000002 /* ListRunner/Resources/priceline.json */,
 				B30000000000000000000003 /* ListRunner/Resources/officeworks.json */,
@@ -335,8 +335,8 @@
 				A10000000000000000000033 /* ListRunner/Resources/amazon.json in Resources */,
 				A10000000000000000000034 /* ListRunner/Resources/kroger.json in Resources */,
 				A10000000000000000000035 /* ListRunner/Resources/target.json in Resources */,
-				A10000000000000000000036 /* ikeaAU.json in Resources */,
-				A10000000000000000000037 /* CartSnapshotAutomation.js in Resources */,
+				A10000000000000000000036 /* ListRunner/Resources/ikeaAU.json in Resources */,
+				A10000000000000000000037 /* ListRunner/Resources/CartSnapshotAutomation.js in Resources */,
 				A30000000000000000000001 /* ListRunner/Resources/chemistWarehouse.json in Resources */,
 				A30000000000000000000002 /* ListRunner/Resources/priceline.json in Resources */,
 				A30000000000000000000003 /* ListRunner/Resources/officeworks.json in Resources */,
