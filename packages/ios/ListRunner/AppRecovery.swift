@@ -207,6 +207,7 @@ struct SettingsOverviewScreen: View {
     @State private var notice: String?
     @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
     let importInProgress: Bool
+    let importDestinationName: String
     let onImportSourceSelected: () -> Void
 
     var body: some View {
@@ -245,12 +246,11 @@ struct SettingsOverviewScreen: View {
             }
             Section("Importing") {
                 NavigationLink {
-                    ImportSourceSelectionScreen(selectedSourceID: importSourceID) { source in
-                        importSourceID = source.rawValue
+                    ImportSourceSelectionScreen(selectedSourceID: importSourceID, destinationName: importDestinationName) { _ in
                         onImportSourceSelected()
                     }
                 } label: {
-                    LabeledContent("Import source", value: GroceryImportSource(rawValue: importSourceID) == .paprika ? "Paprika" : "Not set")
+                    LabeledContent("Import source", value: GroceryImportSource(rawValue: importSourceID) == .paprika ? "Paprika" : "Choose source")
                 }
                 .accessibilityIdentifier("import-source-setting")
                 .disabled(importInProgress)
@@ -282,23 +282,31 @@ struct SettingsOverviewScreen: View {
 
 struct ImportSourceSelectionScreen: View {
     let selectedSourceID: String
+    let destinationName: String
     let onUseSource: (GroceryImportSource) -> Void
 
     var body: some View {
         List {
             Section {
-                Text("Choose the app your groceries come from. You can have one source active at a time. You can change this later in Settings.")
+                Text("Choose where to import your groceries from. Your last successful source is remembered for next time. You can choose a different source in Settings.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Section("Sources") {
                 NavigationLink {
-                    PaprikaImportInstructionsScreen {
+                    PaprikaImportInstructionsScreen(destinationName: destinationName) {
                         onUseSource(.paprika)
                     }
                 } label: {
                     HStack {
-                        Label("Paprika", systemImage: "checklist")
+                        Label {
+                            VStack(alignment: .leading) {
+                                Text("Paprika")
+                                Text("Via Apple Reminders").font(.subheadline).foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: "checklist")
+                        }
                         Spacer()
                         if GroceryImportSource(rawValue: selectedSourceID) == .paprika {
                             Image(systemName: "checkmark").accessibilityHidden(true)
@@ -307,35 +315,74 @@ struct ImportSourceSelectionScreen: View {
                     .frame(minHeight: 44)
                 }
                 .accessibilityIdentifier("import-source-paprika")
-                .accessibilityValue(GroceryImportSource(rawValue: selectedSourceID) == .paprika ? "Active" : "Not selected")
+                .accessibilityValue(GroceryImportSource(rawValue: selectedSourceID) == .paprika ? "Last used" : "Not used yet")
             }
         }
-        .navigationTitle("Set import source")
+        .navigationTitle("Import items")
         .navigationBarTitleDisplayMode(.large)
     }
 }
 
 struct PaprikaImportInstructionsScreen: View {
+    @AppStorage(GroceryImportSource.remindersListIDKey) private var remindersListID = ""
+    @AppStorage(GroceryImportSource.remindersListNameKey) private var remindersListName = ""
+    @AppStorage(GroceryImportSource.removeRemindersKey) private var removeRemindersAfterImport = true
+    let destinationName: String
     let onUse: () -> Void
 
     var body: some View {
         List {
-            Section("How to import") {
+            Section("Export first") {
                 PaprikaImportInstructions()
             }
             Section {
+                NavigationLink {
+                    PaprikaRemindersListScreen { list in
+                        remindersListID = list.id
+                        remindersListName = list.name
+                    }
+                } label: {
+                    LabeledContent("Reminders list", value: remindersListID.isEmpty ? "Choose list" : remindersListName)
+                }
+                .accessibilityIdentifier("paprika-reminders-list-setting")
+                Toggle("Remove reminders after import", isOn: $removeRemindersAfterImport)
+                    .accessibilityIdentifier("remove-reminders-after-import")
+            } footer: {
+                if removeRemindersAfterImport {
+                    if remindersListID.isEmpty {
+                        Text("Imported reminders are removed after saving. Paprika is unchanged.")
+                    } else {
+                        Text("Imported reminders are removed from ‘\(remindersListName)’ after saving. Paprika is unchanged.")
+                    }
+                } else {
+                    Text("Reminders are kept and updated as you shop. Paprika is unchanged.")
+                }
+            }
+            Section {
                 Button(action: onUse) {
-                    Text("Use Paprika")
+                    Text("Import to \(destinationName)")
                         .font(.headline)
                         .frame(maxWidth: .infinity, minHeight: 52)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderedProminent)
                 .buttonBorderShape(.capsule)
-                .accessibilityIdentifier("use-paprika")
-                .accessibilityHint("Sets Paprika as your import source and returns to your list. Does not import items yet.")
+                .accessibilityIdentifier("import-paprika-groceries")
+                .accessibilityHint("Imports unchecked groceries from Apple Reminders into your selected store list. Requests Reminders access if needed.")
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
+            }
+            Section {
+                DisclosureGroup("More about importing") {
+                    Text("Only unchecked reminders are imported. ListRunner asks for Reminders access when you choose a list or import.")
+                    if removeRemindersAfterImport {
+                        Text("Reminders are removed only after groceries are saved. If removal fails, import again to retry without duplicating those saved reminders.")
+                    } else {
+                        Text("Marking an item Added checks its linked reminder. Pending or Skipped unchecks it. Editing an item updates its linked reminder. These updates are best effort, not ongoing sync with Paprika.")
+                    }
+                    Text("Paprika’s default list exports to ‘Paprika’; named lists usually use their own name. Re-exporting the same groceries may create duplicates. Existing ListRunner items aren’t refreshed.")
+                    Link("Paprika’s export guide", destination: URL(string: "https://www.paprikaapp.com/help/ios/#grocerylistactions")!)
+                }
             }
         }
         .navigationTitle("Import from Paprika")
@@ -343,14 +390,84 @@ struct PaprikaImportInstructionsScreen: View {
     }
 }
 
+struct PaprikaRemindersListScreen: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var reminders = PaprikaReminders()
+    @AppStorage(GroceryImportSource.removeRemindersKey) private var removeAfterImport = true
+    @State private var lists: [PaprikaReminders.SourceList] = []
+    @State private var loading = true
+    @State private var errorMessage: String?
+    @State private var permissionDenied = false
+    let onSelect: (PaprikaReminders.SourceList) -> Void
+
+    var body: some View {
+        List {
+            Section {
+                Text("Choose the list you exported from Paprika.")
+                if removeAfterImport {
+                    Text("Imported reminders will be removed only from the list you choose, after your groceries are saved.")
+                }
+            }
+            if loading { ProgressView("Loading Reminders lists…") }
+            if let errorMessage {
+                Text(errorMessage)
+                if permissionDenied {
+                    Button("Open Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                    }
+                }
+                Button("Try again") { Task { await loadLists() } }
+            } else if !loading && lists.isEmpty {
+                Text("No Reminders lists are available. Export your groceries from Paprika, then try again.")
+                Button("Refresh lists") { Task { await loadLists() } }
+            }
+            Section("Reminders lists") {
+                ForEach(lists) { list in
+                    Button {
+                        onSelect(list)
+                        dismiss()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(list.name)
+                            Text(list.account).font(.caption).foregroundStyle(.secondary)
+                            if list.name == "Paprika" {
+                                Text("Suggested for Paprika’s default grocery list").font(.caption).foregroundStyle(.secondary)
+                            }
+                            if removeAfterImport && !list.allowsRemoval {
+                                Text("Read-only. Go back and turn off removal to import from this list.").font(.caption)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    }
+                    .disabled(removeAfterImport && !list.allowsRemoval)
+                    .accessibilityIdentifier("paprika-reminders-list-" + list.id)
+                }
+            }
+        }
+        .navigationTitle("Choose Reminders list")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await loadLists() }
+    }
+
+    @MainActor private func loadLists() async {
+        loading = true
+        errorMessage = nil
+        permissionDenied = false
+        defer { loading = false }
+        do { lists = try await reminders.availableLists() }
+        catch let error as PaprikaImportError {
+            permissionDenied = error == .permissionDenied
+            errorMessage = String(localized: error.message)
+        }
+        catch { errorMessage = String(localized: PaprikaImportError.access.message) }
+    }
+}
+
 private struct PaprikaImportInstructions: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("1. Open your groceries in Paprika.")
-            Text("2. Export them to Apple Reminders.")
-            Text("3. Tap Import from Paprika when adding items to your grocery list.")
-            Text("We read incomplete items from the Reminders list named ‘Paprika’.")
-                .padding(.top, 8)
+            Text("In Paprika, open your grocery list and choose Actions → Export to Reminders.")
+            Text("Then choose that Reminders list below and import.")
         }
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)

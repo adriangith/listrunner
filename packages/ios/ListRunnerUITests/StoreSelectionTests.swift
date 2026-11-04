@@ -503,7 +503,7 @@ final class StoreSelectionTests: XCTestCase {
         // These list-layout cases assert the Coles fixture specifically. First
         // store setup enables Woolworths last, which intentionally selects it;
         // make the test's starting list explicit rather than depending on order.
-        if ["AlreadyVisibleNewItem", "FocusedProductEntry", "GroceryInputEmptyReturn", "RepeatedNewItemsAreFullyRevealed", "ResultsScroll"]
+        if ["AlreadyVisibleNewItem", "FocusedProductEntry", "GroceryInputEmptyReturn", "RepeatedNewItemsAreFullyRevealed", "ResultsScroll", "Paprika"]
             .contains(where: { name.contains($0) }) {
             choose("Coles")
         }
@@ -2902,19 +2902,58 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     private func selectPaprikaSource() {
+        // Existing scenarios exercise the retained linked-reminder mode.
         app.buttons["set-import-source"].tap()
-        XCTAssertTrue(app.navigationBars["Set import source"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Import items"].waitForExistence(timeout: 5))
         app.buttons["import-source-paprika"].tap()
-        XCTAssertTrue(app.buttons["use-paprika"].waitForExistence(timeout: 5))
-        app.buttons["use-paprika"].tap()
-        XCTAssertTrue(app.buttons["import-from-paprika"].waitForExistence(timeout: 5))
+        let removal = app.switches["remove-reminders-after-import"]
+        XCTAssertTrue(removal.waitForExistence(timeout: 5))
+        if removal.value as? String == "1" {
+            removal.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        }
+        confirmPaprikaImport()
+        if app.buttons["paprika-reminders-list-fixture-paprika"].waitForExistence(timeout: 2) {
+            app.buttons["paprika-reminders-list-fixture-paprika"].tap()
+        }
     }
 
-    func testPaprikaSourceSetupReturnsWithoutImportingAndPersists() {
+    private func importNotice(_ message: String) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(format: "label == %@", message)).firstMatch
+    }
+
+    private func openPaprikaOptionsFromSettings() {
+        app.buttons["Settings"].tap()
+        XCTAssertFalse(app.switches["remove-reminders-after-import"].exists)
+        XCTAssertFalse(app.buttons["paprika-reminders-list-setting"].exists)
+        app.buttons["import-source-setting"].tap()
+        app.buttons["import-source-paprika"].tap()
+        XCTAssertTrue(app.navigationBars["Import from Paprika"].waitForExistence(timeout: 5))
+    }
+
+    private func confirmPaprikaImport() {
+        let button = app.buttons["import-paprika-groceries"]
+        XCTAssertTrue(app.navigationBars["Import from Paprika"].waitForExistence(timeout: 5))
+        for _ in 0..<5 {
+            if button.exists && button.isHittable { break }
+            app.collectionViews.firstMatch.swipeUp()
+        }
+        XCTAssertTrue(button.waitForExistence(timeout: 5))
+        button.tap()
+    }
+
+    private func chooseRemindersList(_ id: String) {
+        let button = app.buttons["paprika-reminders-list-" + id]
+        XCTAssertTrue(button.waitForExistence(timeout: 5))
+        button.tap()
+    }
+
+    func testPaprikaGuidedImportReturnsWithGroceriesAndPersists() {
         selectPaprikaSource()
+        XCTAssertTrue(app.buttons["import-from-paprika"].waitForExistence(timeout: 5))
         XCTAssertTrue(row("Coles fixture item", status: "Pending").exists)
-        XCTAssertFalse(row("milk", status: "Pending").exists, "Choosing a source must not import")
-        XCTAssertFalse(app.buttons["use-paprika"].exists)
+        XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 5), "The final instruction action must import")
+        XCTAssertTrue(app.staticTexts["Added 2 items to your Coles list."].exists)
+        XCTAssertFalse(app.buttons["Change source"].exists)
         choose("Woolworths")
         XCTAssertTrue(app.buttons["import-from-paprika"].exists, "Import source is app-wide")
         XCTAssertTrue(row("Woolworths fixture item", status: "Pending").exists)
@@ -2925,7 +2964,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["import-from-paprika"].tap()
         XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 5))
         choose("Coles")
-        XCTAssertFalse(row("milk", status: "Pending").exists, "Import targets only the selected store")
+        XCTAssertTrue(row("milk", status: "Pending").exists, "Each store keeps its own imported rows")
     }
 
     func testPaprikaSourceSetupCanBeCancelledAndReopenedFromSettings() {
@@ -2943,25 +2982,29 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Settings"].tap()
         app.buttons["import-source-setting"].tap()
         app.buttons["import-source-paprika"].tap()
-        XCTAssertTrue(app.staticTexts["2. Export them to Apple Reminders."].exists)
-        app.buttons["use-paprika"].tap()
+        app.switches["remove-reminders-after-import"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["In Paprika, open your grocery list and choose Actions → Export to Reminders."].exists)
+        confirmPaprikaImport()
+        app.buttons["paprika-reminders-list-fixture-paprika"].tap()
         XCTAssertTrue(app.buttons["import-from-paprika"].waitForExistence(timeout: 5), "Settings setup returns all the way to the list")
         XCTAssertTrue(row("Coles fixture item", status: "Pending").exists)
-        XCTAssertFalse(row("milk", status: "Pending").exists)
+        XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 5))
         XCTAssertEqual(input.value as? String, "Draft groceries")
 
         app.buttons["Settings"].tap()
         app.buttons["import-source-setting"].tap()
         app.buttons["import-source-paprika"].tap()
-        XCTAssertTrue(app.buttons["use-paprika"].exists, "Instructions remain available after setup")
+        XCTAssertTrue(app.navigationBars["Import from Paprika"].waitForExistence(timeout: 5), "Instructions remain available after importing")
+        app.swipeUp()
+        app.buttons["More about importing"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "best effort, not ongoing sync")).firstMatch.exists)
     }
 
     func testPaprikaSourceSetupFromEmptyList() {
         selectPaprikaSource()
-        XCTAssertTrue(app.staticTexts["Your list is empty"].exists)
-        XCTAssertFalse(app.buttons["Show Store"].exists)
-        app.buttons["import-from-paprika"].tap()
         XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Show Store"].exists)
+        XCTAssertFalse(app.buttons["Dismiss store"].exists, "Import does not automatically open the store")
     }
 
     func testPaprikaImportUsesSelectedStoreAndIsIdempotent() {
@@ -2974,7 +3017,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("bread", status: "Pending").exists)
 
         app.buttons["Import from Paprika"].tap()
-        XCTAssertTrue(app.staticTexts["No new Paprika items"].waitForExistence(timeout: 5))
+        XCTAssertTrue(importNotice("These items are already in your list. Export new groceries from Paprika to Apple Reminders, then import again. Existing items aren’t refreshed.").waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label CONTAINS[cd] %@", "milk, quantity 2 l")).count, 1)
 
         app.buttons.matching(NSPredicate(format: "label CONTAINS[cd] %@", "Actions for milk")).firstMatch.tap()
@@ -2988,17 +3031,101 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testPaprikaImportFailuresKeepTheCurrentList() {
-        for (fixture, expectedNotice) in [("missing", "Paprika list not found"),
-                                          ("multiple", "Multiple Paprika lists found"),
-                                          ("accessDenied", "Could not access Paprika reminders")] {
+        for (fixture, expectedNotice) in [("accessDenied", "Allow full Reminders access in Settings so ListRunner can read and manage your imported reminders. Your list is unchanged."),
+                                          ("accessError", "Could not access Apple Reminders. Try again. Your list is unchanged. You can still type or paste groceries."),
+                                          ("empty", "No unchecked groceries found in your selected Reminders list. Export your groceries from Paprika first. Checked items aren’t imported."),
+                                          ("blank", "No readable new groceries found. Check that your exported Apple reminders have grocery names, then try again. Your list is unchanged.")] {
             app.terminate()
             app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
+            app.launchEnvironment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] = "enabled"
+            app.launch()
+            openPaprikaOptionsFromSettings()
+            app.buttons["paprika-reminders-list-setting"].tap()
+            app.buttons["paprika-reminders-list-fixture-paprika"].tap()
+            app.terminate()
             app.launchEnvironment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] = fixture
             app.launch()
             selectPaprikaSource()
-            app.buttons["Import from Paprika"].tap()
-            XCTAssertTrue(app.staticTexts[expectedNotice].waitForExistence(timeout: 5))
+            XCTAssertTrue(importNotice(expectedNotice).waitForExistence(timeout: 5))
             XCTAssertTrue(row("Coles fixture item", status: "Pending").exists)
+            XCTAssertTrue(app.buttons["set-import-source"].exists, "Failed imports do not remember a source")
+            XCTAssertTrue(app.buttons["paprika-retry"].exists)
+            XCTAssertEqual(app.buttons["paprika-open-settings"].exists, fixture == "accessDenied")
+            app.buttons["paprika-view-instructions"].tap()
+            XCTAssertTrue(app.navigationBars["Import from Paprika"].waitForExistence(timeout: 5))
+            tapNavigationBack()
+            app.buttons["paprika-retry"].tap()
+            XCTAssertTrue(importNotice(expectedNotice).waitForExistence(timeout: 5))
         }
+    }
+
+    func testPaprikaImportReportsNewAndAlreadyImportedCounts() {
+        selectPaprikaSource()
+        XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 5))
+        app.terminate()
+        app.launchEnvironment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] = "additional"
+        app.launch()
+        app.buttons["import-from-paprika"].tap()
+        XCTAssertTrue(app.staticTexts["Added 1 item to your Coles list. Already-imported reminders skipped: 2."].waitForExistence(timeout: 5))
+        XCTAssertTrue(row("apples", status: "Pending").exists)
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label CONTAINS[cd] %@", "milk, quantity 2 l")).count, 1)
+
+        app.terminate()
+        app.launchEnvironment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] = "missing"
+        app.launch()
+        app.buttons["import-from-paprika"].tap()
+        XCTAssertTrue(app.navigationBars["Choose Reminders list"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No Reminders lists are available. Export your groceries from Paprika, then try again."].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.buttons["import-from-paprika"].exists, "A failed retry keeps the last successful source")
+        XCTAssertTrue(row("apples", status: "Pending").exists)
+    }
+
+    func testPaprikaRemovalDefaultsOnAndInstructionsFollowSetting() {
+        app.buttons["set-import-source"].tap()
+        app.buttons["import-source-paprika"].tap()
+        let removal = app.switches["remove-reminders-after-import"]
+        XCTAssertTrue(removal.waitForExistence(timeout: 5))
+        XCTAssertEqual(removal.value as? String, "1")
+        XCTAssertTrue(importNotice("Imported reminders are removed after saving. Paprika is unchanged.").waitForExistence(timeout: 5))
+        confirmPaprikaImport()
+        app.buttons["paprika-reminders-list-fixture-paprika"].tap()
+        XCTAssertTrue(importNotice("Groceries added to your Coles list: 2. Removed their reminders from ‘Paprika’. Paprika is unchanged.").waitForExistence(timeout: 5))
+        openPaprikaOptionsFromSettings()
+        removal.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        let disabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "0"), object: removal)
+        XCTAssertEqual(XCTWaiter.wait(for: [disabled], timeout: 5), .completed)
+        XCTAssertTrue(app.navigationBars["Import from Paprika"].waitForExistence(timeout: 5))
+        XCTAssertTrue(importNotice("Reminders are kept and updated as you shop. Paprika is unchanged.").waitForExistence(timeout: 5))
+        app.terminate()
+        app.launch()
+        openPaprikaOptionsFromSettings()
+        XCTAssertEqual(removal.value as? String, "0")
+    }
+
+    func testPaprikaNamedRemindersListSelectionPersistsAndCanChange() {
+        app.buttons["set-import-source"].tap()
+        app.buttons["import-source-paprika"].tap()
+        confirmPaprikaImport()
+        XCTAssertTrue(app.navigationBars["Choose Reminders list"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+        XCTAssertFalse(row("eggs", status: "Pending").exists)
+        app.buttons["set-import-source"].tap()
+        app.buttons["import-source-paprika"].tap()
+        confirmPaprikaImport()
+        chooseRemindersList("fixture-weekly")
+        XCTAssertTrue(row("eggs", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertFalse(row("milk", status: "Pending").exists, "Only the selected named list is imported")
+        XCTAssertTrue(importNotice("Groceries added to your Coles list: 1. Removed their reminders from ‘Weekly Shopping’. Paprika is unchanged.").waitForExistence(timeout: 5))
+        app.terminate()
+        app.launch()
+        openPaprikaOptionsFromSettings()
+        let setting = app.buttons["paprika-reminders-list-setting"]
+        XCTAssertTrue(setting.label.contains("Weekly Shopping"))
+        setting.tap()
+        app.buttons["paprika-reminders-list-fixture-paprika"].tap()
+        confirmPaprikaImport()
+        XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(row("eggs", status: "Pending").exists)
     }
 }

@@ -1236,6 +1236,26 @@ struct RecoveryTests {
             PaprikaReminderSnapshot(id: "undated", title: "apples", creationDate: nil)
         ]
         let paprikaStaged = PaprikaImportPlanner.stage(reminders: paprikaSnapshot, existingIDs: ["existing"], parser: ingredientParser)
+        check(PaprikaImportPlanner.canRemove(calendarID: "named-list", selectedCalendarID: "named-list", title: "milk", originalTitle: "milk", isCompleted: false),
+              "named Reminders list can be cleaned up by stable identity")
+        check(!PaprikaImportPlanner.canRemove(calendarID: "other-list", selectedCalendarID: "named-list", title: "milk", originalTitle: "milk", isCompleted: false),
+              "same-title reminder moved to another list cannot be removed")
+        check(!PaprikaImportPlanner.canRemove(calendarID: "named-list", selectedCalendarID: "named-list", title: "changed", originalTitle: "milk", isCompleted: false),
+              "externally changed reminder cannot be removed")
+        check(!PaprikaImportPlanner.canRemove(calendarID: "named-list", selectedCalendarID: "named-list", title: "milk", originalTitle: "milk", isCompleted: true),
+              "externally completed reminder cannot be removed")
+        check(PaprikaImportPlanner.removalCandidates(reminders: paprikaSnapshot, savedIDs: [], parser: ingredientParser).isEmpty,
+              "no committed reminder identities means no destructive cleanup")
+        let removalIDs = PaprikaImportPlanner.removalCandidates(reminders: paprikaSnapshot, savedIDs: ["late", "blank", "existing"], parser: ingredientParser).map(\.id)
+        check(removalIDs == ["late", "existing"], "cleanup only targets saved, readable, unique reminders")
+        check(PaprikaImportPlanner.emptyImportError(reminders: [], existingIDs: [], parser: ingredientParser) == .noUncheckedItems,
+              "empty Paprika snapshot explains unchecked groceries rather than duplicates")
+        check(PaprikaImportPlanner.emptyImportError(reminders: [paprikaSnapshot[0]], existingIDs: ["late"], parser: ingredientParser) == .noNewItems,
+              "already imported Paprika snapshot explains duplicate reminder identities")
+        check(PaprikaImportPlanner.emptyImportError(reminders: [paprikaSnapshot[0], paprikaSnapshot[3]], existingIDs: ["late"], parser: ingredientParser) == .noNewItems,
+              "ignored blank reminders do not obscure an already-imported outcome")
+        check(PaprikaImportPlanner.emptyImportError(reminders: [paprikaSnapshot[3]], existingIDs: ["existing"], parser: ingredientParser) == .noReadableItems,
+              "blank titles have a distinct no-readable-groceries outcome")
         check(paprikaStaged.map(\.grocery.name) == ["Milk", "Bread", "Apples"], "Paprika import is creation-ordered, duplicate-safe and ignores blank titles: \(paprikaStaged.map(\.grocery.name))")
         check(paprikaStaged.first?.grocery.amount == 2 && paprikaStaged.first?.grocery.unit == "l", "Paprika title uses grocery quantity parser")
         let mayonnaise = PaprikaImportPlanner.stage(
@@ -1436,6 +1456,17 @@ struct RecoveryTests {
               "unset import source requires explicit setup")
         check(GroceryImportSource(rawValue: "future-source") == nil,
               "unknown import source returns to setup rather than importing Paprika")
+        defaults.set("paprika", forKey: GroceryImportSource.preferenceKey)
+        defaults.set(false, forKey: GroceryImportSource.removeRemindersKey)
+        defaults.set("weekly-list-id", forKey: GroceryImportSource.remindersListIDKey)
+        defaults.set("Weekly Shopping", forKey: GroceryImportSource.remindersListNameKey)
+        defaults.set("preserve", forKey: "unrelated-import-reset-test")
+        GroceryImportSource.resetSetup(in: defaults)
+        check([GroceryImportSource.preferenceKey, GroceryImportSource.removeRemindersKey,
+               GroceryImportSource.remindersListIDKey, GroceryImportSource.remindersListNameKey]
+            .allSatisfy { defaults.object(forKey: $0) == nil }, "import setup reset clears only its four preferences")
+        check(defaults.string(forKey: "unrelated-import-reset-test") == "preserve",
+              "import setup reset preserves unrelated preferences")
         defaults.set(GroceryImportSource.paprika.rawValue, forKey: GroceryImportSource.preferenceKey)
         check(GroceryImportSource(rawValue: UserDefaults(suiteName: suiteName)!.string(forKey: GroceryImportSource.preferenceKey)!) == .paprika,
               "explicit Paprika selection survives preferences reload")

@@ -117,6 +117,7 @@ private struct WelcomeTransitionAnchor: UIViewRepresentable {
 struct GroceryListScreen: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \GroceryItem.position) private var allItems: [GroceryItem]
     @Query private var lists: [GroceryList]
     @StateObject private var browser: StoreBrowser
@@ -138,8 +139,14 @@ struct GroceryListScreen: View {
     @State private var showingImportSetup = false
     @State private var showingSettings = false
     @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
+    @AppStorage(GroceryImportSource.removeRemindersKey) private var removeRemindersAfterImport = true
+    @AppStorage(GroceryImportSource.remindersListIDKey) private var remindersListID = ""
+    @AppStorage(GroceryImportSource.remindersListNameKey) private var remindersListName = ""
+    @State private var showingRemindersListPicker = false
     @State private var showingClearConfirmation = false
     @State private var notice: String?
+    @State private var importFailure: PaprikaImportError?
+    @State private var showingPaprikaInstructions = false
     @State private var saveFailed = false
     @State private var pendingReminderWrites: [UUID: ReminderWriteback] = [:]
     // The native editor owns first-responder focus; mirror it as view state.
@@ -240,7 +247,10 @@ struct GroceryListScreen: View {
                             .padding(.bottom, 20)
                             .contentShape(Rectangle())
                             .onTapGesture { groceryInputFocused = false }
-                        if let notice { messageBanner(notice) }
+                        if let notice {
+                            messageBanner(notice)
+                                .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                        }
                         if saveFailed { PersistenceWarning() }
                         if browser.cartUndoWarning {
                             CartUndoWarning(storeName: storeID.displayName) { browser.dismissCartUndoWarning() }
@@ -248,6 +258,9 @@ struct GroceryListScreen: View {
                     }
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 0, trailing: 20))
+                    // Animate only notice visibility, not typing, item statuses,
+                    // or the rest of the grocery list's frequent updates.
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: notice != nil)
 
                     Section("Add products") {
                         ProductEntryEditor(text: $rawInput,
@@ -311,7 +324,7 @@ struct GroceryListScreen: View {
                             .disabled(paprikaReminders.importing)
                             .accessibilityIdentifier(GroceryImportSource(rawValue: importSourceID) == .paprika ? "import-from-paprika" : "set-import-source")
                             .accessibilityHint(GroceryImportSource(rawValue: importSourceID) == .paprika ?
-                                "Imports incomplete reminders from the Paprika list in Apple Reminders" : "Choose your grocery import source")
+                                (removeRemindersAfterImport ? "Imports unchecked Paprika reminders and removes them after saving groceries" : "Imports unchecked Paprika reminders and keeps them linked") : "Choose your grocery import source")
 
                             Spacer(minLength: 8)
 
@@ -495,15 +508,23 @@ struct GroceryListScreen: View {
                 if !presented { managingWelcomeStores = false }
             }
             .navigationDestination(isPresented: $showingImportSetup) {
-                ImportSourceSelectionScreen(selectedSourceID: importSourceID) { source in
-                    importSourceID = source.rawValue
+                ImportSourceSelectionScreen(selectedSourceID: importSourceID, destinationName: browser.store.displayName) { _ in
                     showingImportSetup = false
+                    importPaprika()
+                }
+            }
+            .navigationDestination(isPresented: $showingPaprikaInstructions) {
+                PaprikaImportInstructionsScreen(destinationName: browser.store.displayName) {
+                    showingPaprikaInstructions = false
+                    importPaprika()
                 }
             }
             .navigationDestination(isPresented: $showingSettings) {
                 SettingsOverviewScreen(sessions: sessions, visibility: visibility,
-                                       importInProgress: paprikaReminders.importing) {
+                                        importInProgress: paprikaReminders.importing,
+                                        importDestinationName: browser.store.displayName) {
                     showingSettings = false
+                    importPaprika()
                 }
             }
             .toolbar {
@@ -519,6 +540,21 @@ struct GroceryListScreen: View {
                             Image(systemName: "gearshape")
                         }
                         .accessibilityLabel("Settings")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingRemindersListPicker) {
+                NavigationStack {
+                    PaprikaRemindersListScreen { list in
+                        remindersListID = list.id
+                        remindersListName = list.name
+                        showingRemindersListPicker = false
+                        importPaprika()
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { showingRemindersListPicker = false }
+                        }
                     }
                 }
             }
@@ -768,15 +804,40 @@ struct GroceryListScreen: View {
     }
 
     private func messageBanner(_ message: String) -> some View {
-        HStack(spacing: 12) {
-            Label(message, systemImage: "info.circle")
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-            Spacer(minLength: 4)
-            Button("Dismiss") { notice = nil }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Label(message, systemImage: "info.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 4)
+                Button("Dismiss") { notice = nil; importFailure = nil }
+                    .buttonStyle(.borderless)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .accessibilityLabel("Dismiss notice")
+            }
+            if let importFailure {
+                VStack(alignment: .leading, spacing: 0) {
+                    Button("View instructions") { showingPaprikaInstructions = true }
+                        .frame(minHeight: 44)
+                        .accessibilityIdentifier("paprika-view-instructions")
+                    if importFailure == .permissionDenied {
+                        Button("Open Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                        .frame(minHeight: 44)
+                        .accessibilityIdentifier("paprika-open-settings")
+                    }
+                    Button("Try again") { importPaprika() }
+                        .frame(minHeight: 44)
+                        .disabled(paprikaReminders.importing)
+                        .accessibilityIdentifier("paprika-retry")
+                }
                 .buttonStyle(.borderless)
-                .frame(minWidth: 44, minHeight: 44)
-                .accessibilityLabel("Dismiss notice")
+                .font(.footnote)
+            }
         }
     }
 
@@ -1050,6 +1111,7 @@ struct GroceryListScreen: View {
     }
 
     private func stageReminderWriteback(for item: GroceryItem) {
+        guard !removeRemindersAfterImport else { return }
         if let write = paprikaReminders.desiredWriteback(for: item) {
             pendingReminderWrites[item.id] = write
         }
@@ -1057,18 +1119,44 @@ struct GroceryListScreen: View {
 
     private func importPaprika() {
         guard !paprikaReminders.importing else { return }
+        guard !remindersListID.isEmpty else {
+            showingRemindersListPicker = true
+            return
+        }
+        let sourceListID = remindersListID
         notice = nil
+        importFailure = nil
+        let removeAfterImport = removeRemindersAfterImport
         Task { @MainActor in
+            defer {
+                paprikaReminders.finishImport()
+                if let notice { UIAccessibility.post(notification: .announcement, argument: notice) }
+            }
             do {
                 // Keep the import transaction isolated from any earlier failed
                 // save. The existing local list must be durable before staging
                 // a second, all-or-nothing transaction.
                 saveChanges()
                 guard !saveFailed else { throw PaprikaImportError.transaction }
-                let snapshot = try await paprikaReminders.fetchPaprikaSnapshot()
+                let snapshot = try await paprikaReminders.fetchPaprikaSnapshot(calendarID: sourceListID)
+                let sourceListName = paprikaReminders.snapshotListName ?? remindersListName
+                remindersListName = sourceListName
                 let linkedIDs = Set(items.compactMap(\.paprikaReminderID))
                 let staged = PaprikaImportPlanner.stage(reminders: snapshot, existingIDs: linkedIDs)
-                guard !staged.isEmpty else { throw PaprikaImportError.noNewItems }
+                guard !staged.isEmpty else {
+                    if removeAfterImport {
+                        let cleanup = PaprikaImportPlanner.removalCandidates(reminders: snapshot, savedIDs: linkedIDs)
+                        if !cleanup.isEmpty {
+                            let failed = paprikaReminders.removeImportedReminders(cleanup, calendarID: sourceListID)
+                            notice = failed == 0
+                                ? String(localized: "These groceries are already in your list. Their Apple reminders have now been removed. Paprika is unchanged.")
+                                : String(localized: "Your groceries are already saved. Some Apple reminders could not be removed. Import again to retry; your saved groceries won’t be duplicated.")
+                            return
+                        }
+                    }
+                    throw PaprikaImportPlanner.emptyImportError(reminders: snapshot, existingIDs: linkedIDs)
+                }
+                let alreadyImportedCount = Set(snapshot.map(\.id)).intersection(linkedIDs).count
 
                 do {
                     try modelContext.transaction {
@@ -1089,19 +1177,36 @@ struct GroceryListScreen: View {
                     modelContext.rollback()
                     throw PaprikaImportError.transaction
                 }
-                // Successful imports are shown in the list without a toast.
-            } catch let error as PaprikaImportError {
-                switch error {
-                case .access: notice = "Could not access Paprika reminders"
-                case .listNotFound: notice = "Paprika list not found"
-                case .multipleLists: notice = "Multiple Paprika lists found"
-                case .noNewItems: notice = "No new Paprika items"
-                case .transaction: notice = "Could not import Paprika reminders"
+                importSourceID = GroceryImportSource.paprika.rawValue
+                if removeAfterImport {
+                    let savedIDs = linkedIDs.union(staged.compactMap(\.reminderID))
+                    let failed = paprikaReminders.removeImportedReminders(PaprikaImportPlanner.removalCandidates(reminders: snapshot, savedIDs: savedIDs), calendarID: sourceListID)
+                    notice = failed == 0
+                        ? String(localized: "Groceries added to your \(browser.store.displayName) list: \(staged.count). Removed their reminders from ‘\(sourceListName)’. Paprika is unchanged.")
+                        : String(localized: "Added \(staged.count) groceries to your \(browser.store.displayName) list. Some Apple reminders could not be removed. Import again to retry; your saved groceries won’t be duplicated.")
+                    return
                 }
+                if alreadyImportedCount > 0 && staged.count == 1 {
+                    notice = String(localized: "Added 1 item to your \(browser.store.displayName) list. Already-imported reminders skipped: \(alreadyImportedCount).")
+                } else if alreadyImportedCount > 0 {
+                    notice = String(localized: "Added \(staged.count) items to your \(browser.store.displayName) list. Already-imported reminders skipped: \(alreadyImportedCount).")
+                } else if staged.count == 1 {
+                    notice = String(localized: "Added 1 item to your \(browser.store.displayName) list.")
+                } else {
+                    notice = String(localized: "Added \(staged.count) items to your \(browser.store.displayName) list.")
+                }
+            } catch let error as PaprikaImportError {
+                if error == .listNotFound {
+                    remindersListID = ""
+                    remindersListName = ""
+                    showingRemindersListPicker = true
+                }
+                importFailure = error
+                notice = String(localized: error.message)
             } catch {
-                notice = "Could not import Paprika reminders"
+                importFailure = .transaction
+                notice = String(localized: PaprikaImportError.transaction.message)
             }
-            paprikaReminders.finishImport()
         }
     }
 

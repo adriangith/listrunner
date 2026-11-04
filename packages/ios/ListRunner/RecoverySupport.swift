@@ -6,6 +6,15 @@ enum GroceryImportSource: String {
     case paprika
 
     static let preferenceKey = "groceryImportSource.v1"
+    static let removeRemindersKey = "removeRemindersAfterImport.v1"
+    static let remindersListIDKey = "paprikaRemindersListID.v1"
+    static let remindersListNameKey = "paprikaRemindersListName.v1"
+
+    static func resetSetup(in defaults: UserDefaults) {
+        for key in [preferenceKey, removeRemindersKey, remindersListIDKey, remindersListNameKey] {
+            defaults.removeObject(forKey: key)
+        }
+    }
 }
 
 enum SessionResetPhase: Equatable { case ready, resetting, failed }

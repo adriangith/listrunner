@@ -13,15 +13,56 @@ struct StagedPaprikaItem {
     let grocery: ParsedGrocery
 }
 
-enum PaprikaImportError: Error {
+enum PaprikaImportError: Error, Equatable {
     case access
+    case permissionDenied
     case listNotFound
-    case multipleLists
     case noNewItems
+    case noUncheckedItems
+    case noReadableItems
     case transaction
+
+    var message: LocalizedStringResource {
+        switch self {
+        case .access:
+            "Could not access Apple Reminders. Try again. Your list is unchanged. You can still type or paste groceries."
+        case .permissionDenied:
+            "Allow full Reminders access in Settings so ListRunner can read and manage your imported reminders. Your list is unchanged."
+        case .listNotFound:
+            "Your selected Reminders list is no longer available. Choose the list you exported from Paprika. Your list is unchanged."
+        case .noNewItems:
+            "These items are already in your list. Export new groceries from Paprika to Apple Reminders, then import again. Existing items aren’t refreshed."
+        case .noUncheckedItems:
+            "No unchecked groceries found in your selected Reminders list. Export your groceries from Paprika first. Checked items aren’t imported."
+        case .noReadableItems:
+            "No readable new groceries found. Check that your exported Apple reminders have grocery names, then try again. Your list is unchanged."
+        case .transaction:
+            "Could not save the imported groceries. Your list is unchanged. Try importing again."
+        }
+    }
 }
 
 enum PaprikaImportPlanner {
+    static func canRemove(calendarID: String, selectedCalendarID: String, title: String?, originalTitle: String, isCompleted: Bool) -> Bool {
+        !selectedCalendarID.isEmpty && calendarID == selectedCalendarID && title == originalTitle && !isCompleted
+    }
+    static func removalCandidates(reminders: [PaprikaReminderSnapshot], savedIDs: Set<String>, parser: IngredientParser = .application) -> [PaprikaReminderSnapshot] {
+        var seen = Set<String>()
+        return reminders.filter {
+            savedIDs.contains($0.id) && !$0.id.isEmpty && seen.insert($0.id).inserted
+                && !parser.parseGroceries($0.title).isEmpty
+        }
+    }
+
+    /// Used only when staging produced no rows. Do not call a blank title
+    /// "already imported" just because it was ignored by the parser.
+    static func emptyImportError(reminders: [PaprikaReminderSnapshot], existingIDs: Set<String>, parser: IngredientParser = .application) -> PaprikaImportError {
+        if reminders.isEmpty { return .noUncheckedItems }
+        let readable = reminders.filter { !$0.id.isEmpty && !parser.parseGroceries($0.title).isEmpty }
+        if !readable.isEmpty && readable.allSatisfy({ existingIDs.contains($0.id) }) { return .noNewItems }
+        return .noReadableItems
+    }
+
     static func stage(reminders: [PaprikaReminderSnapshot], existingIDs: Set<String>, parser: IngredientParser = .application) -> [StagedPaprikaItem] {
         let ordered = reminders.sorted { lhs, rhs in
             switch (lhs.creationDate, rhs.creationDate) {
@@ -91,6 +132,7 @@ final class ReminderWritebackQueue {
 @MainActor
 final class PaprikaReminders: ObservableObject {
     @Published private(set) var importing = false
+    private(set) var snapshotListName: String?
     private let eventStore: EKEventStore
     private let writeQueue: ReminderWritebackQueue
 
@@ -109,33 +151,71 @@ final class PaprikaReminders: ObservableObject {
         }
     }
 
-    func fetchPaprikaSnapshot() async throws -> [PaprikaReminderSnapshot] {
+    struct SourceList: Identifiable {
+        let id: String
+        let name: String
+        let account: String
+        let allowsRemoval: Bool
+    }
+
+    func availableLists() async throws -> [SourceList] {
+        #if DEBUG
+        if let fixture = ProcessInfo.processInfo.environment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] {
+            if fixture == "accessDenied" { throw PaprikaImportError.permissionDenied }
+            if fixture == "accessError" { throw PaprikaImportError.access }
+            if fixture == "missing" { return [] }
+            return [SourceList(id: "fixture-paprika", name: "Paprika", account: "Test account", allowsRemoval: true),
+                    SourceList(id: "fixture-weekly", name: fixture == "multiple" ? "Paprika" : "Weekly Shopping", account: "Other test account", allowsRemoval: true)]
+        }
+        #endif
+        try await requestAccessIfNeeded()
+        return eventStore.calendars(for: .reminder).map {
+            SourceList(id: $0.calendarIdentifier, name: $0.title, account: $0.source.title,
+                       allowsRemoval: $0.allowsContentModifications)
+        }.sorted {
+            if ($0.name == "Paprika") != ($1.name == "Paprika") { return $0.name == "Paprika" }
+            return ($0.name, $0.account, $0.id) < ($1.name, $1.account, $1.id)
+        }
+    }
+
+    func fetchPaprikaSnapshot(calendarID: String) async throws -> [PaprikaReminderSnapshot] {
         guard !importing else { throw PaprikaImportError.access }
         importing = true
+        snapshotListName = nil
 
         #if DEBUG
         if let fixture = ProcessInfo.processInfo.environment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] {
             switch fixture {
             case "missing": throw PaprikaImportError.listNotFound
-            case "multiple": throw PaprikaImportError.multipleLists
-            case "accessDenied": throw PaprikaImportError.access
+            case "accessDenied": throw PaprikaImportError.permissionDenied
+            case "accessError": throw PaprikaImportError.access
             case "empty": return []
+            case "blank": return [PaprikaReminderSnapshot(id: "blank", title: " • ", creationDate: nil)]
             default: break
             }
-            return [
+            snapshotListName = calendarID == "fixture-weekly" ? "Weekly Shopping" : "Paprika"
+            if calendarID == "fixture-weekly" {
+                return [PaprikaReminderSnapshot(id: "weekly-eggs", title: "eggs", creationDate: nil)]
+            }
+            var reminders = [
                 PaprikaReminderSnapshot(id: "test-milk-reminder", title: "2L milk", creationDate: Date(timeIntervalSince1970: 1)),
                 PaprikaReminderSnapshot(id: "test-bread-reminder", title: "bread", creationDate: Date(timeIntervalSince1970: 2)),
                 PaprikaReminderSnapshot(id: "test-blank-reminder", title: " •  ", creationDate: Date(timeIntervalSince1970: 3))
             ]
+            if fixture == "additional" {
+                reminders.append(PaprikaReminderSnapshot(id: "test-apples-reminder", title: "apples", creationDate: Date(timeIntervalSince1970: 4)))
+            }
+            return reminders
         }
         #endif
 
         try await requestAccessIfNeeded()
-        let matches = eventStore.calendars(for: .reminder).filter { $0.title == "Paprika" }
-        guard !matches.isEmpty else { throw PaprikaImportError.listNotFound }
-        guard matches.count == 1, let calendar = matches.first else { throw PaprikaImportError.multipleLists }
+        guard let calendar = eventStore.calendars(for: .reminder).first(where: { $0.calendarIdentifier == calendarID }) else {
+            throw PaprikaImportError.listNotFound
+        }
 
         let predicate = eventStore.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: [calendar])
+        snapshotListName = calendar.title
         let fetched: [EKReminder]? = await withCheckedContinuation { continuation in
             eventStore.fetchReminders(matching: predicate) { continuation.resume(returning: $0) }
         }
@@ -157,6 +237,33 @@ final class PaprikaReminders: ObservableObject {
         return ReminderWriteback(reminderID: reminderID, title: parts.joined(separator: " "), isCompleted: item.status == .added)
     }
 
+    /// Called only after the corresponding local groceries are durably saved.
+    /// Revalidate source identity/content before each destructive operation.
+    /// Return failures without rolling back already saved groceries.
+    func removeImportedReminders(_ snapshot: [PaprikaReminderSnapshot], calendarID: String) -> Int {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] != nil {
+            return 0 // Fixtures must never remove real reminders.
+        }
+        #endif
+        guard let calendar = eventStore.calendars(for: .reminder).first(where: { $0.calendarIdentifier == calendarID }),
+              calendar.allowsContentModifications else { return snapshot.count }
+        var failed = 0
+        for source in snapshot {
+            guard let reminder = eventStore.calendarItem(withIdentifier: source.id) as? EKReminder else { continue }
+            guard PaprikaImportPlanner.canRemove(calendarID: reminder.calendar.calendarIdentifier,
+                    selectedCalendarID: calendar.calendarIdentifier, title: reminder.title,
+                    originalTitle: source.title, isCompleted: reminder.isCompleted) else {
+                failed += 1
+                continue
+            }
+            writeQueue.cancelQueued(reminderID: source.id)
+            do { try eventStore.remove(reminder, commit: true) }
+            catch { failed += 1 }
+        }
+        return failed
+    }
+
     func queueWriteback(_ write: ReminderWriteback) {
         writeQueue.enqueue(write)
     }
@@ -173,12 +280,16 @@ final class PaprikaReminders: ObservableObject {
         case .fullAccess, .authorized:
             return
         case .notDetermined:
+            let granted: Bool
             do {
-                guard try await eventStore.requestFullAccessToReminders() else { throw PaprikaImportError.access }
+                granted = try await eventStore.requestFullAccessToReminders()
             } catch {
                 throw PaprikaImportError.access
             }
-        case .writeOnly, .denied, .restricted:
+            guard granted else { throw PaprikaImportError.permissionDenied }
+        case .writeOnly, .denied:
+            throw PaprikaImportError.permissionDenied
+        case .restricted:
             throw PaprikaImportError.access
         @unknown default:
             throw PaprikaImportError.access
