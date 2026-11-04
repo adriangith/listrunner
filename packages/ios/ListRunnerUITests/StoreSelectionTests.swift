@@ -2815,16 +2815,14 @@ final class StoreSelectionTests: XCTestCase {
 
     private func selectPaprikaSource() {
         // Existing scenarios exercise the retained linked-reminder mode.
-        app.buttons["Settings"].tap()
+        app.buttons["set-import-source"].tap()
+        XCTAssertTrue(app.navigationBars["Import items"].waitForExistence(timeout: 5))
+        app.buttons["import-source-paprika"].tap()
         let removal = app.switches["remove-reminders-after-import"]
         XCTAssertTrue(removal.waitForExistence(timeout: 5))
         if removal.value as? String == "1" {
             removal.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         }
-        tapNavigationBack()
-        app.buttons["set-import-source"].tap()
-        XCTAssertTrue(app.navigationBars["Import items"].waitForExistence(timeout: 5))
-        app.buttons["import-source-paprika"].tap()
         confirmPaprikaImport()
         if app.buttons["paprika-reminders-list-fixture-paprika"].waitForExistence(timeout: 2) {
             app.buttons["paprika-reminders-list-fixture-paprika"].tap()
@@ -2833,6 +2831,15 @@ final class StoreSelectionTests: XCTestCase {
 
     private func importNotice(_ message: String) -> XCUIElement {
         app.staticTexts.matching(NSPredicate(format: "label == %@", message)).firstMatch
+    }
+
+    private func openPaprikaOptionsFromSettings() {
+        app.buttons["Settings"].tap()
+        XCTAssertFalse(app.switches["remove-reminders-after-import"].exists)
+        XCTAssertFalse(app.buttons["paprika-reminders-list-setting"].exists)
+        app.buttons["import-source-setting"].tap()
+        app.buttons["import-source-paprika"].tap()
+        XCTAssertTrue(app.navigationBars["Import from Paprika"].waitForExistence(timeout: 5))
     }
 
     private func confirmPaprikaImport() {
@@ -2885,10 +2892,10 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(row("milk", status: "Pending").exists)
 
         app.buttons["Settings"].tap()
-        app.switches["remove-reminders-after-import"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         app.buttons["import-source-setting"].tap()
         app.buttons["import-source-paprika"].tap()
-        XCTAssertTrue(app.staticTexts["2. Tap Actions in the grocery toolbar, then Export to Reminders."].exists)
+        app.switches["remove-reminders-after-import"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(app.staticTexts["In Paprika, open your grocery list and choose Actions → Export to Reminders."].exists)
         confirmPaprikaImport()
         app.buttons["paprika-reminders-list-fixture-paprika"].tap()
         XCTAssertTrue(app.buttons["import-from-paprika"].waitForExistence(timeout: 5), "Settings setup returns all the way to the list")
@@ -2901,7 +2908,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["import-source-paprika"].tap()
         XCTAssertTrue(app.navigationBars["Import from Paprika"].waitForExistence(timeout: 5), "Instructions remain available after importing")
         app.swipeUp()
-        app.buttons["How updates work"].tap()
+        app.buttons["More about importing"].tap()
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "best effort, not ongoing sync")).firstMatch.exists)
     }
 
@@ -2944,7 +2951,7 @@ final class StoreSelectionTests: XCTestCase {
             app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
             app.launchEnvironment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] = "enabled"
             app.launch()
-            app.buttons["Settings"].tap()
+            openPaprikaOptionsFromSettings()
             app.buttons["paprika-reminders-list-setting"].tap()
             app.buttons["paprika-reminders-list-fixture-paprika"].tap()
             app.terminate()
@@ -2987,28 +2994,24 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testPaprikaRemovalDefaultsOnAndInstructionsFollowSetting() {
-        app.buttons["Settings"].tap()
+        app.buttons["set-import-source"].tap()
+        app.buttons["import-source-paprika"].tap()
         let removal = app.switches["remove-reminders-after-import"]
         XCTAssertTrue(removal.waitForExistence(timeout: 5))
         XCTAssertEqual(removal.value as? String, "1")
-        tapNavigationBack()
-        app.buttons["set-import-source"].tap()
-        app.buttons["import-source-paprika"].tap()
-        XCTAssertTrue(importNotice("Choose the Apple Reminders list exported by Paprika next. After your groceries are saved, imported reminders will be removed from that list. Paprika won’t be changed.").waitForExistence(timeout: 5))
+        XCTAssertTrue(importNotice("Imported reminders are removed after saving. Paprika is unchanged.").waitForExistence(timeout: 5))
         confirmPaprikaImport()
         app.buttons["paprika-reminders-list-fixture-paprika"].tap()
         XCTAssertTrue(importNotice("Groceries added to your Coles list: 2. Removed their reminders from ‘Paprika’. Paprika is unchanged.").waitForExistence(timeout: 5))
-        app.buttons["Settings"].tap()
+        openPaprikaOptionsFromSettings()
         removal.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         let disabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "0"), object: removal)
         XCTAssertEqual(XCTWaiter.wait(for: [disabled], timeout: 5), .completed)
-        app.buttons["import-source-setting"].tap()
-        app.buttons["import-source-paprika"].tap()
         XCTAssertTrue(app.navigationBars["Import from Paprika"].waitForExistence(timeout: 5))
-        XCTAssertTrue(importNotice("Your Apple reminders will be kept and linked to the imported groceries. You can change this in Settings.").waitForExistence(timeout: 5))
+        XCTAssertTrue(importNotice("Reminders are kept and updated as you shop. Paprika is unchanged.").waitForExistence(timeout: 5))
         app.terminate()
         app.launch()
-        app.buttons["Settings"].tap()
+        openPaprikaOptionsFromSettings()
         XCTAssertEqual(removal.value as? String, "0")
     }
 
@@ -3028,13 +3031,12 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(importNotice("Groceries added to your Coles list: 1. Removed their reminders from ‘Weekly Shopping’. Paprika is unchanged.").waitForExistence(timeout: 5))
         app.terminate()
         app.launch()
-        app.buttons["Settings"].tap()
+        openPaprikaOptionsFromSettings()
         let setting = app.buttons["paprika-reminders-list-setting"]
         XCTAssertTrue(setting.label.contains("Weekly Shopping"))
         setting.tap()
         app.buttons["paprika-reminders-list-fixture-paprika"].tap()
-        tapNavigationBack()
-        app.buttons["import-from-paprika"].tap()
+        confirmPaprikaImport()
         XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 5))
         XCTAssertTrue(row("eggs", status: "Pending").exists)
     }

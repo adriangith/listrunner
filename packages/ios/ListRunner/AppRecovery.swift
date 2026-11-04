@@ -202,13 +202,10 @@ private struct WelcomeStoreSetupScreen: View {
 }
 
 struct SettingsOverviewScreen: View {
-    @AppStorage(GroceryImportSource.remindersListIDKey) private var remindersListID = ""
-    @AppStorage(GroceryImportSource.remindersListNameKey) private var remindersListName = ""
     @ObservedObject var sessions: StoreSessions
     @ObservedObject var visibility: StoreVisibilityPreferences
     @State private var notice: String?
     @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
-    @AppStorage(GroceryImportSource.removeRemindersKey) private var removeRemindersAfterImport = true
     let importInProgress: Bool
     let importDestinationName: String
     let onImportSourceSelected: () -> Void
@@ -237,23 +234,6 @@ struct SettingsOverviewScreen: View {
                 Text("Uses the Country setting to adapt ingredient names in retailer searches. Your list and quantities stay unchanged.")
             }
             Section("Importing") {
-                NavigationLink {
-                    PaprikaRemindersListScreen { list in
-                        remindersListID = list.id
-                        remindersListName = list.name
-                    }
-                } label: {
-                    LabeledContent("Reminders list", value: remindersListID.isEmpty ? "Choose list" : remindersListName)
-                }
-                .disabled(importInProgress)
-                .accessibilityIdentifier("paprika-reminders-list-setting")
-                Toggle("Remove reminders after import", isOn: $removeRemindersAfterImport)
-                    .accessibilityIdentifier("remove-reminders-after-import")
-                    .disabled(importInProgress)
-                Text(removeRemindersAfterImport
-                     ? "After groceries are saved in ListRunner, their Apple reminders are removed. Paprika is unchanged. Re-exporting from Paprika may import duplicates."
-                     : "Imported reminders stay in Apple Reminders. ListRunner updates linked reminder text and checkmarks. Re-exporting from Paprika may import duplicates.")
-                    .font(.footnote).foregroundStyle(.secondary)
                 NavigationLink {
                     ImportSourceSelectionScreen(selectedSourceID: importSourceID, destinationName: importDestinationName) { _ in
                         onImportSourceSelected()
@@ -341,28 +321,35 @@ struct PaprikaImportInstructionsScreen: View {
 
     var body: some View {
         List {
-            Section {
-                Text("Bring your Paprika groceries into ListRunner using Apple Reminders. No Paprika account connection is needed.")
-                Text("Items will be added to your \(destinationName) list. Existing items stay unchanged.")
-                if removeRemindersAfterImport {
-                    if remindersListID.isEmpty {
-                        Text("Choose the Apple Reminders list exported by Paprika next. After your groceries are saved, imported reminders will be removed from that list. Paprika won’t be changed.")
-                    } else {
-                        Text("Imported reminders will be removed from ‘\(remindersListName)’ after your groceries are saved. Your groceries in Paprika won’t be changed. You can turn this off in Settings.")
-                    }
-                } else {
-                    Text("Your Apple reminders will be kept and linked to the imported groceries. You can change this in Settings.")
-                }
-                if !remindersListID.isEmpty {
-                    Text("Reminders source: \(remindersListName). Change it in Settings → Reminders list.")
-                }
-            }
-            Section("How to export from Paprika") {
+            Section("Export first") {
                 PaprikaImportInstructions()
             }
             Section {
+                NavigationLink {
+                    PaprikaRemindersListScreen { list in
+                        remindersListID = list.id
+                        remindersListName = list.name
+                    }
+                } label: {
+                    LabeledContent("Reminders list", value: remindersListID.isEmpty ? "Choose list" : remindersListName)
+                }
+                .accessibilityIdentifier("paprika-reminders-list-setting")
+                Toggle("Remove reminders after import", isOn: $removeRemindersAfterImport)
+                    .accessibilityIdentifier("remove-reminders-after-import")
+            } footer: {
+                if removeRemindersAfterImport {
+                    if remindersListID.isEmpty {
+                        Text("Imported reminders are removed after saving. Paprika is unchanged.")
+                    } else {
+                        Text("Imported reminders are removed from ‘\(remindersListName)’ after saving. Paprika is unchanged.")
+                    }
+                } else {
+                    Text("Reminders are kept and updated as you shop. Paprika is unchanged.")
+                }
+            }
+            Section {
                 Button(action: onUse) {
-                    Text("Import groceries")
+                    Text("Import to \(destinationName)")
                         .font(.headline)
                         .frame(maxWidth: .infinity, minHeight: 52)
                         .contentShape(Rectangle())
@@ -375,20 +362,16 @@ struct PaprikaImportInstructionsScreen: View {
                 .listRowBackground(Color.clear)
             }
             Section {
-                Text(removeRemindersAfterImport
-                     ? "ListRunner needs full Reminders access to read your groceries and remove the imported reminders after saving. Access is requested only when you tap Import groceries."
-                     : "ListRunner needs full Reminders access to read your groceries and update linked reminders. Access is requested only when you tap Import groceries.")
-                    .font(.footnote).foregroundStyle(.secondary)
-                DisclosureGroup("How updates work") {
-                    Text("Export from Paprika again, then import to add new groceries. Changes in Paprika or Apple Reminders won’t update items already imported into this store’s list.")
+                DisclosureGroup("More about importing") {
+                    Text("Only unchecked reminders are imported. ListRunner asks for Reminders access when you choose a list or import.")
                     if removeRemindersAfterImport {
-                        Text("Apple Reminders is a handoff tray, not ongoing sync. Only reminders for saved groceries are removed; checked or unreadable reminders are left alone. Import again to retry failed removal without duplicating saved groceries. Previously imported reminders still present in this store’s list can also be removed on that explicit import.")
+                        Text("Reminders are removed only after groceries are saved. If removal fails, import again to retry without duplicating those saved reminders.")
                     } else {
-                        Text("Marking an imported item Added checks off its linked Apple reminder. Pending or Skipped unchecks it. Editing the item in ListRunner also updates its linked reminder’s name and quantity. These updates are best effort, not ongoing sync with Paprika.")
+                        Text("Marking an item Added checks its linked reminder. Pending or Skipped unchecks it. Editing an item updates its linked reminder. These updates are best effort, not ongoing sync with Paprika.")
                     }
-                    Text("Paprika creates new reminders each time you export. Exporting the same groceries again may create duplicate items in ListRunner.")
+                    Text("Paprika’s default list exports to ‘Paprika’; named lists usually use their own name. Re-exporting the same groceries may create duplicates. Existing ListRunner items aren’t refreshed.")
+                    Link("Paprika’s export guide", destination: URL(string: "https://www.paprikaapp.com/help/ios/#grocerylistactions")!)
                 }
-                Link("Paprika’s iOS export guide", destination: URL(string: "https://www.paprikaapp.com/help/ios/#grocerylistactions")!)
             }
         }
         .navigationTitle("Import from Paprika")
@@ -409,7 +392,7 @@ struct PaprikaRemindersListScreen: View {
     var body: some View {
         List {
             Section {
-                Text("Choose the Apple Reminders list you exported from Paprika. ListRunner can’t tell which lists Paprika created.")
+                Text("Choose the list you exported from Paprika.")
                 if removeAfterImport {
                     Text("Imported reminders will be removed only from the list you choose, after your groceries are saved.")
                 }
@@ -440,7 +423,7 @@ struct PaprikaRemindersListScreen: View {
                                 Text("Suggested for Paprika’s default grocery list").font(.caption).foregroundStyle(.secondary)
                             }
                             if removeAfterImport && !list.allowsRemoval {
-                                Text("Read-only. Turn off removal in Settings to import from this list.").font(.caption)
+                                Text("Read-only. Go back and turn off removal to import from this list.").font(.caption)
                             }
                         }
                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -472,12 +455,8 @@ struct PaprikaRemindersListScreen: View {
 private struct PaprikaImportInstructions: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("1. In Paprika, open Groceries and select the list you want to export.")
-            Text("2. Tap Actions in the grocery toolbar, then Export to Reminders.")
-            Text("3. The default grocery list exports to ‘Paprika’ in Apple Reminders. Named grocery lists export using their list name, unless you customised the export name in Paprika.")
-            Text("4. Return here and tap Import groceries.")
-            Text("Choose that exported list when asked. Only unchecked items from your selected Apple Reminders list are imported. Checked items are not imported. You can change the selected list in Settings.")
-                .padding(.top, 8)
+            Text("In Paprika, open your grocery list and choose Actions → Export to Reminders.")
+            Text("Then choose that Reminders list below and import.")
         }
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)

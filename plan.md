@@ -54,6 +54,10 @@
 
 ### Guided import sources (4 November 2026)
 
+#### Simplified Paprika screen
+
+Keep Reminders list selection and Remove reminders after import together on **Import from Paprika**, not in the top-level Settings screen. Settings retains only Import source as the route into source-specific setup. Show one short export instruction, list selector, removal toggle, a brief mode-specific consequence and **Import to [store]**. Put permissions, named-list explanation, update limits, duplicate-export caveat and external help behind **More about importing**, collapsed initially. Preserve preference keys/defaults, remembered-list identity, immediate repeat-import shortcut and all save/removal safeguards. Changing either control alone never imports or removes reminders.
+
 #### Named Paprika export lists
 
 Paprika’s default groceries export to `Paprika`; named lists normally export to their own names (custom export names are also possible). On first explicit import, request Reminders permission and show all accessible lists with account names. Suggest `Paprika` without automatically selecting it; never infer Paprika ownership or combine lists. Remember an explicitly chosen calendar identifier and display name app-wide. Repeat imports use that ID; Settings → Reminders list changes it without importing. Cancel leaves groceries/reminders untouched. Duplicate titles across accounts remain separate choices. If the selected ID disappears, clear it and ask again; never silently fall back by name. Refresh displayed names on successful reads. Pin the selected ID for snapshot and cleanup, and name the affected list in instructions/results. Read-only lists cannot be selected while removal is enabled. Existing installs choose once rather than silently binding to `Paprika`. Reset Local Data clears this selection. These rules supersede all fixed-name matching and ambiguous-name failures below, not transaction/writeback safeguards.
