@@ -483,10 +483,14 @@ final class StoreSelectionTests: XCTestCase {
         if app.buttons["welcome-choose-store"].waitForExistence(timeout: 3) {
             app.buttons["welcome-choose-store"].tap()
             enableWelcomeStore("coles")
-            app.buttons["store-picker"].tap()
-            app.buttons["Manage Stores"].tap()
-            for id in ["bunnings", "woolworths", "coles"] { setStoreVisibility(id, shown: true) }
-            tapNavigationBack()
+            // Results positioning uses only the Coles HTML fixture. Avoid the
+            // unrelated multi-store setup and its costly table navigation.
+            if !name.contains("ResultsScroll") {
+                app.buttons["store-picker"].tap()
+                app.buttons["Manage Stores"].tap()
+                for id in ["bunnings", "woolworths", "coles"] { setStoreVisibility(id, shown: true) }
+                tapNavigationBack()
+            }
         }
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
         // These list-layout cases assert the Coles fixture specifically. First
@@ -1282,8 +1286,7 @@ final class StoreSelectionTests: XCTestCase {
         let toggle = app.switches["auto-scroll-to-results"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 3))
         XCTAssertEqual(toggle.value as? String, "1")
-        toggle.tap()
-        XCTAssertEqual(toggle.value as? String, "0")
+        turnOffResultsScroll()
         app.terminate(); app.launch()
         app.buttons["Settings"].tap()
         XCTAssertTrue(toggle.waitForExistence(timeout: 3))
@@ -1303,9 +1306,7 @@ final class StoreSelectionTests: XCTestCase {
 
     func testResultsScrollOptOutLeavesPageAtTop() {
         app.buttons["Settings"].tap()
-        let toggle = app.switches["auto-scroll-to-results"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
-        toggle.tap()
+        turnOffResultsScroll()
         tapNavigationBack()
         app.buttons["Show Store"].tap()
         let heading = app.webViews.staticTexts["Results scroll fixture"].firstMatch
@@ -1314,6 +1315,16 @@ final class StoreSelectionTests: XCTestCase {
         let expectation = XCTNSPredicateExpectation(predicate: moved, object: heading)
         expectation.isInverted = true
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 3), .completed)
+    }
+
+    private func turnOffResultsScroll() {
+        let toggle = app.switches["auto-scroll-to-results"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        // On iOS 27 the AX Switch spans the row. Its centre is label text,
+        // not the actual control (confirmed by the failed run's recording).
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        let off = NSPredicate(format: "value == %@", "0")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: off, object: toggle)], timeout: 3), .completed)
     }
 
     func testPreloadSearchIsPromotedAfterCooldown() {
