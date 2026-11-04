@@ -71,6 +71,13 @@ class OnboardingTests(unittest.TestCase):
         config['capabilities'] = dict(search=True, cartDetection=False, cartUndo=True)
         self.assertTrue(tool.validate(config))
 
+    def test_duplicate_keys_are_rejected_before_generation(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / 'bad.json'
+            path.write_text('{"allowedHosts": ["safe.example"], "allowedHosts": ["other.example"]}')
+            with self.assertRaisesRegex(ValueError, 'Duplicate JSON key'):
+                tool.load_config(path)
+
     def test_check_rejects_path_traversal(self):
         with self.assertRaisesRegex(ValueError, 'Invalid store id'):
             tool.check(argparse.Namespace(id='../coles'))
@@ -139,6 +146,10 @@ class OnboardingTests(unittest.TestCase):
         precondition(id.home.absoluteString == "https://shop.example/au/")
         precondition(id.hosts == ["shop.example"] && id.dataDomain == "shop.example")
         precondition(!id.permitsSearch && !id.permitsCartDetection && !id.permitsCartUndo)
+        let suite = "OnboardingProof.\\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        precondition(!StoreVisibilityPreferences(defaults: defaults).visibleIDs.contains(id))
         precondition(Set(StoreID.allCases.map(\\.listID)).count == StoreID.allCases.count)
         precondition(Set(StoreID.allCases.map(\\.websiteDataID)).count == StoreID.allCases.count)
         let store = try StoreDefinition.decodeConfiguration(from: Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1])))
@@ -166,6 +177,25 @@ class OnboardingTests(unittest.TestCase):
             config['capabilities']['search'] = True
             with self.assertRaisesRegex(ValueError, 'disabled'):
                 tool.registration_files(tool.BASE.parents[1], config, 999, 'shop.example')
+
+    def test_registration_refuses_changed_layout_and_invalid_branding(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            tool.scaffold(self.args(root / 'draft'))
+            config = json.loads((root / 'draft/exampleAU.json').read_text())
+            config['addedColor']['red'] = 999
+            with self.assertRaisesRegex(ValueError, 'Brand color'):
+                tool.registration_files(tool.BASE.parents[1], config, 999, 'shop.example')
+            config['addedColor']['red'] = 64
+            for path in ['packages/ios/ListRunner/StoreConfiguration.swift',
+                         'packages/ios/ListRunner.xcodeproj/project.pbxproj']:
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text((tool.BASE.parents[1] / path).read_text())
+            native = root / 'packages/ios/ListRunner/StoreConfiguration.swift'
+            native.write_text(native.read_text().replace('    var home: URL {', '    var home: URL{'))
+            with self.assertRaisesRegex(ValueError, 'layout changed'):
+                tool.registration_files(root, config, 999, 'shop.example')
 
     def test_project_contract_catches_missing_duplicate_and_unbundled_resources(self):
         project = (tool.BASE / 'ListRunner.xcodeproj/project.pbxproj').read_text()
@@ -211,6 +241,15 @@ class OnboardingTests(unittest.TestCase):
         self.assertTrue(any('coles' in row['enabledDetection'] for row in inventory))
         self.assertTrue(any(row['confirmation'] == 'productAcknowledgement' for row in inventory))
 
+    def test_native_summary_rejects_skipped_zero_failed_and_missing_test_runs(self):
+        good = dict(result='Passed', totalTestCount=1, passedTests=1, failedTests=0, skippedTests=0)
+        self.assertTrue(tool.native_summary_passed(good))
+        for key, value in [('result', 'Failed'), ('totalTestCount', 0), ('passedTests', 0),
+                           ('failedTests', 1), ('skippedTests', 1)]:
+            with self.subTest(key=key):
+                self.assertFalse(tool.native_summary_passed(dict(good, **{key: value})))
+        self.assertFalse(tool.native_summary_passed({}))
+
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main(buffer=True)

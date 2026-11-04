@@ -25,6 +25,14 @@ options => {
   }
   const paths = [...products.keys()].sort();
   const matching = [...products].filter(([, match]) => match).map(([path]) => path).sort();
+  const quantityContainers = new Set();
+  for (const link of all.slice(0, 500)) {
+    const container = link.closest?.(options.containerSelector);
+    if (container && [...container.querySelectorAll('input[type="number"],[role="spinbutton"]')].some(visible)) {
+      quantityContainers.add(container);
+    }
+  }
+  const numericPathCandidates = paths.filter(path => /(?:[-/])\d{1,32}\/?$/.test(path)).length;
   const reflected = pick(options.querySelector).some(element => matches(element.value || element.textContent || ''));
   const controls = pick(options.addSelector).slice(0, 40).map(element => ({
     tag: element.tagName.toLowerCase(), disabled: Boolean(element.disabled),
@@ -39,5 +47,11 @@ options => {
   });
   return {origin: location.origin, path: location.pathname, queryReflected: reflected,
     productCount: paths.length, matchingCount: matching.length, paths, matching,
-    overflow, controls, blockers, strategyFit: 'requires-review', cartVerification: 'not-performed'};
+    overflow, controls, blockers,
+    strategyHints: {
+      numericPathCandidates, quantityContainers: quantityContainers.size,
+      candidate: numericPathCandidates && quantityContainers.size ? 'review-profiled-quantityIncrease' : 'requires-review',
+      warning: 'Markup hints only; no product identity, applied quantity, Add detection or Undo is certified'
+    },
+    strategyFit: 'requires-review', cartVerification: 'not-performed'};
 }

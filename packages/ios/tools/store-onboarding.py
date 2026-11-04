@@ -3,6 +3,7 @@
 import argparse
 import base64
 import html
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -10,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from urllib.parse import urlsplit, quote
 
 # Also importable by the standalone regression suite without package installation.
@@ -20,12 +22,38 @@ BASE = Path(__file__).resolve().parents[1]
 RESOURCES = BASE / 'ListRunner/Resources'
 
 
+def load_config(path):
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f'Duplicate JSON key: {key}')
+            result[key] = value
+        return result
+    return json.loads(path.read_text(), object_pairs_hook=unique)
+
+
 def validate(config):
     errors = []
     if not isinstance(config, dict):
         return ['Configuration must be an object']
     if not re.fullmatch(r'[A-Za-z][A-Za-z0-9]*', str(config.get('id', ''))):
         errors.append('Invalid store id')
+    required = {'schemaVersion', 'id', 'displayName', 'serviceArea', 'homepage', 'allowedHosts',
+                'search', 'addedColor', 'capabilities', 'cart'}
+    if not required.issubset(config) or set(config) - required - {'brandColors'}:
+        errors.append('Missing or unknown store configuration fields')
+    if not isinstance(config.get('displayName'), str) or not config['displayName'].strip():
+        errors.append('Display name must be nonempty text')
+    color = config.get('addedColor')
+    if (not isinstance(color, dict) or set(color) != {'red', 'green', 'blue'} or
+            any(type(value) is not int or not 0 <= value <= 255 for value in color.values())):
+        errors.append('Brand color requires integer red/green/blue channels between 0 and 255')
+    area = config.get('serviceArea')
+    countries = area.get('countryCodes') if isinstance(area, dict) else None
+    if (not isinstance(countries, list) or not countries or
+            any(not isinstance(c, str) or not re.fullmatch('[A-Z]{2}', c) for c in countries)):
+        errors.append('Service area needs uppercase two-letter country codes; native validation checks ISO membership')
     hosts = config.get('allowedHosts')
     if (not isinstance(hosts, list) or not hosts or
             any(not isinstance(h, str) or not re.fullmatch(r'[a-z0-9]+(?:[.-][a-z0-9]+)+', h) for h in hosts)):
@@ -41,6 +69,8 @@ def validate(config):
         errors.append('Search template needs exactly one {query}')
     for name, value in [('homepage', config.get('homepage')), ('search', template)]:
         try:
+            if not isinstance(value, str):
+                raise ValueError('URL must be text')
             url = urlsplit(value or '')
             if (url.scheme != 'https' or url.hostname not in hosts or url.username or
                     url.password or url.port not in (None, 443) or url.fragment):
@@ -52,6 +82,8 @@ def validate(config):
         errors.append('All three capability flags must be booleans')
     elif caps['cartUndo'] and not caps['cartDetection']:
         errors.append('Undo requires detection')
+    elif caps['cartDetection'] and config.get('cart') is None:
+        errors.append('Detection requires a reviewed cart strategy')
     return errors
 
 
@@ -107,7 +139,7 @@ See docs/adding-a-store.md. Do not infer live proof from offline checks.
 def check(args):
     if not re.fullmatch(r'[A-Za-z][A-Za-z0-9]*', args.id):
         raise ValueError('Invalid store id')
-    config = json.loads((RESOURCES / f'{args.id}.json').read_text())
+    config = load_config(RESOURCES / f'{args.id}.json')
     errors = validate(config)
     if config.get('id') != args.id:
         errors.append('Filename and store id differ')
@@ -161,7 +193,7 @@ def check(args):
 
 
 def register(args):
-    config = json.loads(args.config.read_text())
+    config = load_config(args.config)
     errors = validate(config)
     if errors:
         raise ValueError('; '.join(errors))
@@ -173,7 +205,7 @@ def register(args):
 
 
 def probe_plan(args):
-    config = json.loads(args.config.read_text())
+    config = load_config(args.config)
     errors = validate(config)
     if errors:
         raise ValueError('; '.join(errors))
@@ -217,16 +249,42 @@ def probe(args):
     for key, value in dict(LISTRUNNER_ONBOARDING_PLAN=base64.b64encode(data).decode(),
                            LISTRUNNER_ONBOARDING_MODE='fixture' if args.fixture else 'live-read-only').items():
         environment['TEST_RUNNER_' + key] = value
+    # Cache per worktree outside source control, not per attempt. The initial build
+    # is expensive; subsequent stores should not compile the entire app again.
+    cache = getattr(args, 'derived_data', None) or (Path(tempfile.gettempdir()) /
+        ('listrunner-onboarding-build-' + hashlib.sha256(str(BASE).encode()).hexdigest()[:12]))
     command = ['xcodebuild', 'test', '-project', str(BASE / 'ListRunner.xcodeproj'), '-scheme', 'ListRunner',
-               '-destination', args.destination, '-derivedDataPath', str(directory / 'DerivedData'),
+               '-destination', args.destination, '-derivedDataPath', str(cache),
                '-resultBundlePath', str(directory / 'inspection.xcresult'),
                '-only-testing:ListRunnerUITests/StoreOnboardingSearchTests/testSearchPlan', 'CODE_SIGNING_ALLOWED=NO']
     log = directory / 'xcodebuild.log'
+    print(f'Running only native search inspection; log: {log}', flush=True)
+    started = time.monotonic()
     with log.open('w') as output:
         result = subprocess.run(command, cwd=BASE, env=environment, stdout=output, stderr=subprocess.STDOUT, timeout=600)
-    print(f'{"PASS" if result.returncode == 0 else "FAIL"}: {"offline fixture" if args.fixture else "live read-only search"}; log: {log}')
+    summary = subprocess.run(['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path',
+                              str(directory / 'inspection.xcresult'), '--format', 'json'],
+                             capture_output=True, text=True, timeout=30)
+    try:
+        details = json.loads(summary.stdout) if summary.returncode == 0 else {}
+    except json.JSONDecodeError:
+        details = {}
+    passed = result.returncode == 0 and native_summary_passed(details)
+    (directory / 'report.json').write_text(json.dumps(dict(
+        store=plan['id'], mode='offline-fixture' if args.fixture else 'live-read-only',
+        status='pass' if passed else 'fail', elapsedSeconds=round(time.monotonic() - started, 3),
+        planSHA256=hashlib.sha256(data).hexdigest(), testSummary=details,
+        cartVerification='not-performed', capabilitiesChanged=False), indent=2) + '\n')
+    print(f'{"PASS" if passed else "FAIL"}: {"offline fixture" if args.fixture else "live read-only search"}; report: {directory / "report.json"}')
     print(f'Native evidence: {directory / "inspection.xcresult"}. No cart proof or capability changes.')
-    return 0 if result.returncode == 0 else 1
+    return 0 if passed else 1
+
+
+def native_summary_passed(details):
+    # A green xcodebuild command with skipped/zero tests is not search proof.
+    return (details.get('result') == 'Passed' and details.get('totalTestCount') == 1
+            and details.get('passedTests') == 1 and details.get('failedTests') == 0
+            and details.get('skippedTests') == 0)
 
 
 def strategies(args):
@@ -277,6 +335,7 @@ def main():
     native.add_argument('--destination', required=True, help='Explicit xcodebuild simulator destination; do not interrupt another task')
     native.add_argument('--fixture', action='store_true')
     native.add_argument('--allow-live-search', action='store_true')
+    native.add_argument('--derived-data', type=Path, help='Optional external build cache; default is isolated per worktree')
     commands.add_parser('strategies', help='Small strategy/example inventory derived from current bundled data')
     args = parser.parse_args()
     try:
