@@ -872,3 +872,89 @@ seconds in total; this is test runtime, not measured detector latency. All test
 carts ended independently empty. No physical device, credentials, account,
 fulfilment, checkout or purchase was involved. This is branch validation, not a
 merge, archive upload or TestFlight release.
+## Configurable results auto-scroll — 4 November 2026
+
+Branch `feat/auto-scroll-to-grid`; initial implementation revision
+`dd73c1e3feaeacbc7f47681b1b0a6de67e2427bc` (not merged or installed on the phone).
+
+* Added optional native `search.resultsSelector`/`resultsTopOffset`, strict native
+  decoding/validation and onboarding preflight; existing schema 2–5 definitions
+  remain valid. No legacy extension/core schema change or capability promotion.
+* Added default-on global Settings → Shopping preference with persistent opt-out,
+  live pending-scroll cancellation and Reset Local Data semantics. Existing
+  Settings styling and the saved design-audit reference were consulted; the
+  OpenPencil desktop connection was unavailable, so no live design comparison is
+  claimed.
+* Scrolling is isolated-world, one-shot and bounded to the exact requested item
+  search URL/document. Waits for stable visible nonempty target geometry; cancels
+  for early input/scroll, supersession, navigation, hidden/background state,
+  dismissal, verification/recovery and setting-off. Preloads arm only on visible
+  promotion. Retailer controls, carts, cookies and list statuses are untouched.
+* Initial targets reuse existing reviewed first-result card selectors for Coles,
+  Woolworths and IKEA AU. The 120px offset is conservative and still needs live
+  retailer/viewport review; other stores remain no-ops until configured. Exact
+  URL matching deliberately skips retailer redirects/query rewrites rather than
+  risking unrelated grids. No new live retailer result-scroll certification.
+* Linux: **386/386 JS tests** (`node --test packages/ios/tests/*.test.mjs`), including
+  **39 new results-scroll script fixtures**; **43 Python checks** across the five
+  `test-*.py` scripts, including optional-field validation; `git diff --check`
+  passed. Standard unittest discovery cannot import these hyphenated script
+  names; they were run individually, not counted as a successful zero-test run.
+* Added native configuration/preference/reset regression checks and three
+  isolated simulator UI tests for setting persistence, actual first-result
+  positioning and disabled behaviour. Native execution/build results are recorded
+  below when available. Fixtures use local HTML and nonpersistent retailer data;
+  no real cart/account/network action is part of these checks.
+* Mac Debug simulator **build-for-testing succeeded** at `dd73c1e`; actual built
+  bundle audit passed: **35 JSON + 1 JavaScript resource** byte-match canonical
+  files. Native checks initially exposed a test-order issue: reconstructing the
+  preferences object repopulated migration keys before the existing clear-keys
+  assertions. Test-only fix `8a00d6b1c25f9ae6a0bc856ef4ec66bcc74a5808` moves
+  reconstruction after those assertions; no app code changed.
+* Native rerun at `8a00d6b` passed **1,777 checks**. Synthetic store-registration
+  proof, **195 regional-search checks** and **449 parser checks** also passed.
+  The simulator UI rerun at `344017a` passed
+  `testResultsScrollPositionsFirstResultNearTop` (actual WKWebView positioning).
+  Opt-out exceeded its 120s allowance during the shared setup/flow; persistence
+  failed because the whole-row switch tap left its value at 1. These are not
+  counted as passing. Recording/touch-event inspection confirmed the persistence
+  tap landed at `(201,435)` on the row label, not the visible switch; opt-out had
+  not reached Settings. Evidence is preserved on both machines under
+  `/tmp/opencode/auto-scroll-failure-evidence/`. Test-only correction
+  `6fdab31528c0ef10576383c5eb8f7d8a7e452280` uses the existing right-edge switch
+  tap pattern, waits for the off value and sets up only Coles. No application
+  toggle code was changed to fix those test interactions.
+* Final app revision `09cb382af53430e0553ecfe264bba5ba28aceb57` also passed a
+  **Release simulator build** and a second **35 JSON + 1 JavaScript** canonical
+  bundle audit. This revision retains cancellation during deferred search pacing
+  and arms scrolling for an explicit retry of the original search after recovery.
+  Release log: `~/Library/Logs/ListRunner-auto-scroll-release.log`; output:
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-auto-scroll-release`.
+* Native checks rerun at `6fdab31` again passed **1,777/1,777**; log
+  `~/Library/Logs/ListRunner-auto-scroll-native-final.log`.
+* Focused UI run at `6fdab31` passed **positioning** (37.752s) and **setting
+  persistence** (56.944s). Opt-out reached a confirmed off switch at 109.5s and
+  opened the fixture, but the 120s whole-test allowance expired at page entry;
+  this is not a passing opt-out result. Its isolated rerun uses a 240s allowance
+  with no application/test-source changes. Full focused-run evidence:
+  `~/Library/Logs/ListRunner-auto-scroll-ui-final.log` and
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-auto-scroll-ui-final.xcresult`.
+* Isolated opt-out rerun at the same `6fdab31` revision **passed (85.321s)**:
+  `~/Library/Logs/ListRunner-auto-scroll-ui-optout.log` and
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-auto-scroll-ui-optout.xcresult`.
+  Thus all three focused UI scenarios passed at the final code/test revision
+  **across two runs**, not one clean three-test run. No broader UI regression,
+  live retailer offset review, iOS 17 runtime or exhaustive accessibility/design
+  sign-off is implied. Existing app source is unchanged from Release-tested
+  `09cb382`; later commits change test setup/hit targeting and documentation only.
+  The dedicated simulator was shut down after testing, not deleted; evidence and
+  the isolated Mac worktree are retained. No phone install, merge, distribution,
+  retailer mutation, account change or shared-simulator cleanup was performed.
+* Mac handoff uses a clean detached worktree at
+  `/Users/adrianzafir/Projects/listrunner-worktrees/auto-scroll-results`, fetched
+  through Git at the exact implementation SHA. Original checkout remains on
+  `main` with its pre-existing untracked Xcode Cloud directory preserved. Build
+  output lives in `~/Library/Developer/Xcode/DerivedData/ListRunner-auto-scroll`;
+  logs in `~/Library/Logs/ListRunner-auto-scroll-{native,build}.log`. Dedicated
+  simulator: `35E7458A-05FB-452F-8117-A62AAF4C20CE` (ListRunner Results Scroll,
+  iOS 27.2). No shared simulator or physical phone is used.
