@@ -117,7 +117,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
   display: grid; place-items: center;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
-.tf-icon svg { width: 24px; height: 24px; display: block; }
+.tf-icon img { width: 100%; height: 100%; display: block; }
 .tf-text { display: flex; flex-direction: column; line-height: 1.2; }
 .tf-line-1 { font-size: 11px; font-weight: 500; color: rgba(255, 255, 255, 0.75); letter-spacing: 0.02em; }
 .tf-line-2 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
