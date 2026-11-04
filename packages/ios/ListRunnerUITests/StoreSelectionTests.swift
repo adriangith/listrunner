@@ -489,7 +489,7 @@ final class StoreSelectionTests: XCTestCase {
         // These list-layout cases assert the Coles fixture specifically. First
         // store setup enables Woolworths last, which intentionally selects it;
         // make the test's starting list explicit rather than depending on order.
-        if ["AlreadyVisibleNewItem", "FocusedProductEntry", "GroceryInputEmptyReturn", "RepeatedNewItemsAreFullyRevealed"]
+        if ["AlreadyVisibleNewItem", "FocusedProductEntry", "GroceryInputEmptyReturn", "RepeatedNewItemsAreFullyRevealed", "Paprika"]
             .contains(where: { name.contains($0) }) {
             choose("Coles")
         }
