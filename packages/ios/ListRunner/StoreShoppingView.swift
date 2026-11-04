@@ -743,6 +743,11 @@ struct StoreShoppingView: View {
             browser.logPreload("Cooldown started; no pending item to preload")
         }
         task = Task { @MainActor in
+            #if DEBUG
+            // This fixture proves the ready-preload path, not simulator cold
+            // WebKit startup speed. Production cooldown remains three seconds.
+            await browser.waitForPreloadResultsFixture()
+            #endif
             while secondsRemaining > 0 {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled, browser.canPresentStore, browser.storeRecovery == nil else { return }
@@ -2166,6 +2171,17 @@ final class StoreBrowser: ObservableObject {
     }
     @Published private(set) var resultsScrollProbeStatus = "Waiting for results"
     private var preloadScrollFixturePositioned = false
+
+    func waitForPreloadResultsFixture() async {
+        guard uiTestMode,
+              ProcessInfo.processInfo.environment["LISTRUNNER_PRELOAD_TEST_FIXTURE"] == "enabled",
+              ProcessInfo.processInfo.environment["LISTRUNNER_RESULTS_SCROLL_TEST_FIXTURE"] == "enabled" else { return }
+        for _ in 0..<150 {
+            guard !Task.isCancelled, browsingActive, storeRecovery == nil,
+                  !preloadScrollFixturePositioned else { return }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+    }
 
     private func observePreloadScrollFixture(_ view: WKWebView, promoted: Bool, prepared: Bool = false) {
         guard uiTestMode,

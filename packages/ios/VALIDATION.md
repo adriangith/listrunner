@@ -1006,7 +1006,21 @@ Validation on Linux:
   arguments/environment were used, and no retailer/account/cart actions occurred.
   Log: `~/Library/Logs/ListRunner-preload-scroll-iphone-ed35134-retry.log`.
   Installation/launch does not constitute observed physical-phone scrolling.
-* Focused simulator UI outcome is still pending; no UI pass is claimed here.
+* The focused iOS 27.2 simulator run completed **3/4**, not a clean pass.
+  Existing preload promotion, visible positioning and opt-out passed. The new
+  background-positioning scenario failed, then failed in an isolated rerun.
+  Exported app stdout shows pacing deferred the preload by 0.5s; the hidden
+  WebKit browser did not report navigation readiness before cooldown expiry.
+  Production correctly discarded the unavailable preload and used normal search.
+  Logs: `~/Library/Logs/ListRunner-preload-scroll-ed35134.log` and
+  `ListRunner-preload-scroll-isolated-1d3b0e4.log`; exported diagnostic directory:
+  `~/Library/Logs/ListRunner-preload-scroll-isolated-diagnostics`.
+* The ready-preload fixture now permits a bounded 15s preparation wait before
+  counting down, only when both isolated preload/results fixture flags are set.
+  It still requires measured background positioning before promotion. Production
+  keeps its three-second cooldown and best-effort fallback unchanged. This test
+  does not certify cold hidden-WebKit startup within three seconds. Final rerun
+  is recorded separately when complete.
 
 When the Mac is available, use the normal Git handoff into the isolated
 `/Users/adrianzafir/Projects/listrunner-worktrees/auto-scroll-results` checkout,
