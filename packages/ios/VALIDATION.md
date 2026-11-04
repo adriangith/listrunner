@@ -987,10 +987,26 @@ Validation on Linux:
   Its debug-only read-only geometry observer requires positive scroll and the
   configured header gap before promotion, then confirms the promoted position.
   No live retailer access or cart actions are used.
-* **Native build/UI validation is pending:** SSH to the verified Mac address
-  `adrianzafir@192.168.4.94` returned `No route to host`. There is no local Swift
-  compiler. The new UI test has not run or compiled, and no updated phone app
-  has been built/installed. Previous evidence below does not validate this change.
+* Initially Mac validation was blocked by SSH `No route to host`. After the user
+  restored connectivity, the clean isolated Mac checkout was fast-forwarded to
+  `ed351342b2413e91e6c049241bb98a4e63cacdab`.
+* **1,777 native recovery/configuration checks passed** on that revision; log:
+  `~/Library/Logs/ListRunner-preload-scroll-native-ed35134.log`.
+* **Release simulator build passed**, including byte-match verification of all
+  **35 JSON + 1 JavaScript** bundled resources. Log:
+  `~/Library/Logs/ListRunner-preload-scroll-release-ed35134.log`; DerivedData:
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-preload-scroll-release`.
+* At the user's request, **Debug device build, signing, in-place installation and
+  launch succeeded** for `ed35134` on the physical iPhone 17e
+  (`00008150-001402660A9BC01C`, bundle `com.adrianzafir.listrunner`). The device
+  app also passed the **35 JSON + 1 JavaScript** byte-match audit. The first build
+  failed signing with `errSecInternalComponent`; a scoped existing keychain
+  unlock fixed the retry, and the keychain was relocked before installation.
+  No signing credentials/access settings changed, no data reset or test launch
+  arguments/environment were used, and no retailer/account/cart actions occurred.
+  Log: `~/Library/Logs/ListRunner-preload-scroll-iphone-ed35134-retry.log`.
+  Installation/launch does not constitute observed physical-phone scrolling.
+* Focused simulator UI outcome is still pending; no UI pass is claimed here.
 
 When the Mac is available, use the normal Git handoff into the isolated
 `/Users/adrianzafir/Projects/listrunner-worktrees/auto-scroll-results` checkout,
