@@ -200,11 +200,13 @@ arrives before page loading finishes. Disabling the preference, navigating,
 dismissing, switching stores, backgrounding or entering recovery also cancels.
 Hidden preloads never scroll; their current preference is checked on promotion.
 
-Initial bundled targets use previously reviewed first-product selectors for
-Coles (`[data-testid="product-tile"]`), Woolworths (`[data-testid="search-results-product-scrollable-content"]`) and IKEA AU
-(`[data-testid='plp-product-card']`), with a conservative 120px header gap. These
-reuse selector evidence, not a new live scrolling certification. All other
-definitions currently omit the fields. In particular, Bunnings' broad cart
+Bundled targets use first-product selectors for Coles
+(`[data-testid="product-tile"]`) and IKEA AU (`[data-testid='plp-product-card']`),
+and the results grid for Woolworths
+(`[data-testid="search-results-product-scrollable-content"]`), with a 120px
+header gap. See `packages/ios/VALIDATION.md` for live versus fixture evidence;
+selector reuse alone does not certify scrolling. All other definitions currently
+omit the fields. In particular, Bunnings' broad cart
 `main` selector is **not** suitable evidence for a results-grid target.
 
 Woolworths' current results grid replaces the obsolete `wc-product-tile` target;

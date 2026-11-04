@@ -958,3 +958,68 @@ Branch `feat/auto-scroll-to-grid`; initial implementation revision
   logs in `~/Library/Logs/ListRunner-auto-scroll-{native,build}.log`. Dedicated
   simulator: `35E7458A-05FB-452F-8117-A62AAF4C20CE` (ListRunner Results Scroll,
   iOS 27.2). No shared simulator or physical phone is used.
+## Woolworths results-grid repair — 4 November 2026
+
+After the user requested a phone build, revision
+`c60399e32e0cc1cfa15b115bf0ad45d968f6371e` was signed and installed in place on the
+connected iPhone 17e. The initial signing attempt failed with
+`errSecInternalComponent`; a user-supplied private secret unlocked the existing
+login keychain for the retry, and the keychain was relocked afterward. No signing
+identity/access settings were changed. Build retry succeeded and the actual
+35 JSON + 1 JavaScript bundle audit passed. `devicectl` confirmed installation;
+launch was refused because the phone was locked. No data reset or fixture launch
+was performed on the phone. Evidence: Mac
+`~/Library/Logs/ListRunner-auto-scroll-iphone-build-retry.log`.
+
+The user subsequently reported no auto-scroll at Woolworths. An isolated mobile
+viewport Chrome inspection found **zero `wc-product-tile` elements** and a real,
+visible `[data-testid="search-results-product-scrollable-content"]` grid (top
+608px, height 8,371px at the sampled 390×844 viewport). Requested/final search
+URLs matched, the document was the scroll root, and no initialization scroll
+events were observed in that browser run. These observations diagnose a stale
+selector in Chrome, not yet a native-iOS live proof.
+
+Fix revision `3b4439e988281c373315eaa1b0b480bec7e44e48` updates only Woolworths'
+**search-scroll target**, not its cart detection/identity/capability definitions.
+It also fixes an independent overbroad cancellation condition: a DOM `scroll`
+event alone is not user intent. Touch, pointer, wheel, keyboard and native pan
+cancellation remain; page-generated scroll restoration no longer suppresses the
+pending assistance. Enum-only isolated-world state supports the explicit
+read-only live probe; no product/query/account content is reported.
+
+* Linux: **387 JavaScript fixtures passed**, including **40 results-scroll
+  fixtures**, with the current Woolworths grid and page-generated scrolling
+  regressions; **19 onboarding checks** and `git diff --check` passed.
+* Mac: **1,777 native configuration/recovery checks passed** at `3b4439e`.
+  `~/Library/Logs/ListRunner-woolworths-scroll-native.log`.
+* Added `testLiveWoolworthsResultsScroll`, explicitly opted in through
+  `TEST_RUNNER_LISTRUNNER_LIVE_RESULTS_SCROLL=1`. It uses a temporary list and
+  nonpersistent WebKit store in the dedicated simulator, performs the real app
+  item search, and checks that the actual bundled engine reports a scroll and
+  places the grid within 3 CSS pixels of the configured header allowance. It
+  never taps retailer controls or changes consent/location/account/cart state.
+* **Live embedded-iOS proof passed** at `3b4439e`: the actual ListRunner browser
+  searched Woolworths in the dedicated iOS 27.2 simulator, found exactly one
+  configured grid, and reported
+  `PASS: state=scrolled matches=1 top=120 y=488 urlMatches=true`. Test duration:
+  114.046s. This proves actual automatic scrolling by the bundled engine, not a
+  manually issued scroll or a desktop-only selector check. No retailer controls,
+  account, location, consent, cart or checkout actions occurred. Evidence:
+  `~/Library/Logs/ListRunner-woolworths-scroll-live.log` and
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-woolworths-scroll-live.xcresult`.
+  Simulator was already shut down afterward; it and all evidence are preserved.
+  Other retailers, other Woolworths layouts/queries and device accessibility
+  remain outside this focused proof.
+* **Corrected phone build signed and installed in place** at `3b4439e` on Adrian's
+  iPhone 17e (`00008150-001402660A9BC01C`). The device bundle passed the
+  **35 JSON + 1 JavaScript** byte-match audit. Build log:
+  `~/Library/Logs/ListRunner-woolworths-scroll-iphone-build.log`; DerivedData:
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-auto-scroll-iphone`.
+  The signing keychain was unlocked only for the build and relocked afterward;
+  no credential/access settings changed. Installation succeeded; automatic
+  launch was again refused by iOS because the phone was locked. The user can
+  unlock/open ListRunner and trigger the next item search or original-search
+  reload. Existing app data was not reset, no test environment/arguments were
+  supplied to the phone launch, and no physical-phone retailer/cart interaction
+  was performed. Live auto-scroll proof above is simulator evidence, not a
+  claim of observed scrolling on the physical phone.
