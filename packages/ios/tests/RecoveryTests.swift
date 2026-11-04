@@ -1202,6 +1202,14 @@ struct RecoveryTests {
             PaprikaReminderSnapshot(id: "undated", title: "apples", creationDate: nil)
         ]
         let paprikaStaged = PaprikaImportPlanner.stage(reminders: paprikaSnapshot, existingIDs: ["existing"], parser: ingredientParser)
+        check(PaprikaImportPlanner.canRemove(calendarID: "named-list", selectedCalendarID: "named-list", title: "milk", originalTitle: "milk", isCompleted: false),
+              "named Reminders list can be cleaned up by stable identity")
+        check(!PaprikaImportPlanner.canRemove(calendarID: "other-list", selectedCalendarID: "named-list", title: "milk", originalTitle: "milk", isCompleted: false),
+              "same-title reminder moved to another list cannot be removed")
+        check(!PaprikaImportPlanner.canRemove(calendarID: "named-list", selectedCalendarID: "named-list", title: "changed", originalTitle: "milk", isCompleted: false),
+              "externally changed reminder cannot be removed")
+        check(!PaprikaImportPlanner.canRemove(calendarID: "named-list", selectedCalendarID: "named-list", title: "milk", originalTitle: "milk", isCompleted: true),
+              "externally completed reminder cannot be removed")
         check(PaprikaImportPlanner.removalCandidates(reminders: paprikaSnapshot, savedIDs: [], parser: ingredientParser).isEmpty,
               "no committed reminder identities means no destructive cleanup")
         let removalIDs = PaprikaImportPlanner.removalCandidates(reminders: paprikaSnapshot, savedIDs: ["late", "blank", "existing"], parser: ingredientParser).map(\.id)

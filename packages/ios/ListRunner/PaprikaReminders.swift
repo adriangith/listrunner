@@ -17,7 +17,6 @@ enum PaprikaImportError: Error, Equatable {
     case access
     case permissionDenied
     case listNotFound
-    case multipleLists
     case noNewItems
     case noUncheckedItems
     case noReadableItems
@@ -30,13 +29,11 @@ enum PaprikaImportError: Error, Equatable {
         case .permissionDenied:
             "Allow full Reminders access in Settings so ListRunner can read and manage your imported reminders. Your list is unchanged."
         case .listNotFound:
-            "We couldn’t find a Reminders list called ‘Paprika’. Export your groceries from Paprika first, using that exact list name. Your list is unchanged."
-        case .multipleLists:
-            "More than one Apple Reminders list is named ‘Paprika’. Rename the others so only your grocery export list has that name, then try again. Your list is unchanged."
+            "Your selected Reminders list is no longer available. Choose the list you exported from Paprika. Your list is unchanged."
         case .noNewItems:
             "These items are already in your list. Export new groceries from Paprika to Apple Reminders, then import again. Existing items aren’t refreshed."
         case .noUncheckedItems:
-            "No unchecked groceries found in the ‘Paprika’ Reminders list. Export your groceries from Paprika first. Checked items aren’t imported."
+            "No unchecked groceries found in your selected Reminders list. Export your groceries from Paprika first. Checked items aren’t imported."
         case .noReadableItems:
             "No readable new groceries found. Check that your exported Apple reminders have grocery names, then try again. Your list is unchanged."
         case .transaction:
@@ -46,6 +43,9 @@ enum PaprikaImportError: Error, Equatable {
 }
 
 enum PaprikaImportPlanner {
+    static func canRemove(calendarID: String, selectedCalendarID: String, title: String?, originalTitle: String, isCompleted: Bool) -> Bool {
+        !selectedCalendarID.isEmpty && calendarID == selectedCalendarID && title == originalTitle && !isCompleted
+    }
     static func removalCandidates(reminders: [PaprikaReminderSnapshot], savedIDs: Set<String>, parser: IngredientParser = .application) -> [PaprikaReminderSnapshot] {
         var seen = Set<String>()
         return reminders.filter {
@@ -132,6 +132,7 @@ final class ReminderWritebackQueue {
 @MainActor
 final class PaprikaReminders: ObservableObject {
     @Published private(set) var importing = false
+    private(set) var snapshotListName: String?
     private let eventStore: EKEventStore
     private let writeQueue: ReminderWritebackQueue
 
@@ -150,20 +151,51 @@ final class PaprikaReminders: ObservableObject {
         }
     }
 
-    func fetchPaprikaSnapshot() async throws -> [PaprikaReminderSnapshot] {
+    struct SourceList: Identifiable {
+        let id: String
+        let name: String
+        let account: String
+        let allowsRemoval: Bool
+    }
+
+    func availableLists() async throws -> [SourceList] {
+        #if DEBUG
+        if let fixture = ProcessInfo.processInfo.environment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] {
+            if fixture == "accessDenied" { throw PaprikaImportError.permissionDenied }
+            if fixture == "accessError" { throw PaprikaImportError.access }
+            if fixture == "missing" { return [] }
+            return [SourceList(id: "fixture-paprika", name: "Paprika", account: "Test account", allowsRemoval: true),
+                    SourceList(id: "fixture-weekly", name: fixture == "multiple" ? "Paprika" : "Weekly Shopping", account: "Other test account", allowsRemoval: true)]
+        }
+        #endif
+        try await requestAccessIfNeeded()
+        return eventStore.calendars(for: .reminder).map {
+            SourceList(id: $0.calendarIdentifier, name: $0.title, account: $0.source.title,
+                       allowsRemoval: $0.allowsContentModifications)
+        }.sorted {
+            if ($0.name == "Paprika") != ($1.name == "Paprika") { return $0.name == "Paprika" }
+            return ($0.name, $0.account, $0.id) < ($1.name, $1.account, $1.id)
+        }
+    }
+
+    func fetchPaprikaSnapshot(calendarID: String) async throws -> [PaprikaReminderSnapshot] {
         guard !importing else { throw PaprikaImportError.access }
         importing = true
+        snapshotListName = nil
 
         #if DEBUG
         if let fixture = ProcessInfo.processInfo.environment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] {
             switch fixture {
             case "missing": throw PaprikaImportError.listNotFound
-            case "multiple": throw PaprikaImportError.multipleLists
             case "accessDenied": throw PaprikaImportError.permissionDenied
             case "accessError": throw PaprikaImportError.access
             case "empty": return []
             case "blank": return [PaprikaReminderSnapshot(id: "blank", title: " • ", creationDate: nil)]
             default: break
+            }
+            snapshotListName = calendarID == "fixture-weekly" ? "Weekly Shopping" : "Paprika"
+            if calendarID == "fixture-weekly" {
+                return [PaprikaReminderSnapshot(id: "weekly-eggs", title: "eggs", creationDate: nil)]
             }
             var reminders = [
                 PaprikaReminderSnapshot(id: "test-milk-reminder", title: "2L milk", creationDate: Date(timeIntervalSince1970: 1)),
@@ -178,11 +210,12 @@ final class PaprikaReminders: ObservableObject {
         #endif
 
         try await requestAccessIfNeeded()
-        let matches = eventStore.calendars(for: .reminder).filter { $0.title == "Paprika" }
-        guard !matches.isEmpty else { throw PaprikaImportError.listNotFound }
-        guard matches.count == 1, let calendar = matches.first else { throw PaprikaImportError.multipleLists }
+        guard let calendar = eventStore.calendars(for: .reminder).first(where: { $0.calendarIdentifier == calendarID }) else {
+            throw PaprikaImportError.listNotFound
+        }
 
         let predicate = eventStore.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: [calendar])
+        snapshotListName = calendar.title
         let fetched: [EKReminder]? = await withCheckedContinuation { continuation in
             eventStore.fetchReminders(matching: predicate) { continuation.resume(returning: $0) }
         }
@@ -207,19 +240,20 @@ final class PaprikaReminders: ObservableObject {
     /// Called only after the corresponding local groceries are durably saved.
     /// Revalidate source identity/content before each destructive operation.
     /// Return failures without rolling back already saved groceries.
-    func removeImportedReminders(_ snapshot: [PaprikaReminderSnapshot]) -> Int {
+    func removeImportedReminders(_ snapshot: [PaprikaReminderSnapshot], calendarID: String) -> Int {
         #if DEBUG
         if ProcessInfo.processInfo.environment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] != nil {
             return 0 // Fixtures must never remove real reminders.
         }
         #endif
-        let calendars = eventStore.calendars(for: .reminder).filter { $0.title == "Paprika" }
-        guard calendars.count == 1, let calendar = calendars.first else { return snapshot.count }
+        guard let calendar = eventStore.calendars(for: .reminder).first(where: { $0.calendarIdentifier == calendarID }),
+              calendar.allowsContentModifications else { return snapshot.count }
         var failed = 0
         for source in snapshot {
             guard let reminder = eventStore.calendarItem(withIdentifier: source.id) as? EKReminder else { continue }
-            guard reminder.calendar.calendarIdentifier == calendar.calendarIdentifier,
-                  !reminder.isCompleted, reminder.title == source.title else {
+            guard PaprikaImportPlanner.canRemove(calendarID: reminder.calendar.calendarIdentifier,
+                    selectedCalendarID: calendar.calendarIdentifier, title: reminder.title,
+                    originalTitle: source.title, isCompleted: reminder.isCompleted) else {
                 failed += 1
                 continue
             }

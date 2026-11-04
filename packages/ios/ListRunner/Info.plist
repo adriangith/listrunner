@@ -21,7 +21,7 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>ListRunner imports groceries from your Paprika Reminders list. By default it removes imported reminders after saving your groceries. If you turn this off in Settings, it keeps and updates linked reminders instead.</string>
+	<string>ListRunner imports groceries from the Apple Reminders list you choose. By default it removes imported reminders from that list after saving your groceries. If you turn this off in Settings, it keeps and updates linked reminders instead.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UISupportedInterfaceOrientations</key>

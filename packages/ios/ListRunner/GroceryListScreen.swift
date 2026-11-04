@@ -140,6 +140,9 @@ struct GroceryListScreen: View {
     @State private var showingSettings = false
     @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
     @AppStorage(GroceryImportSource.removeRemindersKey) private var removeRemindersAfterImport = true
+    @AppStorage(GroceryImportSource.remindersListIDKey) private var remindersListID = ""
+    @AppStorage(GroceryImportSource.remindersListNameKey) private var remindersListName = ""
+    @State private var showingRemindersListPicker = false
     @State private var showingClearConfirmation = false
     @State private var notice: String?
     @State private var importFailure: PaprikaImportError?
@@ -537,6 +540,21 @@ struct GroceryListScreen: View {
                             Image(systemName: "gearshape")
                         }
                         .accessibilityLabel("Settings")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingRemindersListPicker) {
+                NavigationStack {
+                    PaprikaRemindersListScreen { list in
+                        remindersListID = list.id
+                        remindersListName = list.name
+                        showingRemindersListPicker = false
+                        importPaprika()
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { showingRemindersListPicker = false }
+                        }
                     }
                 }
             }
@@ -1101,6 +1119,11 @@ struct GroceryListScreen: View {
 
     private func importPaprika() {
         guard !paprikaReminders.importing else { return }
+        guard !remindersListID.isEmpty else {
+            showingRemindersListPicker = true
+            return
+        }
+        let sourceListID = remindersListID
         notice = nil
         importFailure = nil
         let removeAfterImport = removeRemindersAfterImport
@@ -1115,14 +1138,16 @@ struct GroceryListScreen: View {
                 // a second, all-or-nothing transaction.
                 saveChanges()
                 guard !saveFailed else { throw PaprikaImportError.transaction }
-                let snapshot = try await paprikaReminders.fetchPaprikaSnapshot()
+                let snapshot = try await paprikaReminders.fetchPaprikaSnapshot(calendarID: sourceListID)
+                let sourceListName = paprikaReminders.snapshotListName ?? remindersListName
+                remindersListName = sourceListName
                 let linkedIDs = Set(items.compactMap(\.paprikaReminderID))
                 let staged = PaprikaImportPlanner.stage(reminders: snapshot, existingIDs: linkedIDs)
                 guard !staged.isEmpty else {
                     if removeAfterImport {
                         let cleanup = PaprikaImportPlanner.removalCandidates(reminders: snapshot, savedIDs: linkedIDs)
                         if !cleanup.isEmpty {
-                            let failed = paprikaReminders.removeImportedReminders(cleanup)
+                            let failed = paprikaReminders.removeImportedReminders(cleanup, calendarID: sourceListID)
                             notice = failed == 0
                                 ? String(localized: "These groceries are already in your list. Their Apple reminders have now been removed. Paprika is unchanged.")
                                 : String(localized: "Your groceries are already saved. Some Apple reminders could not be removed. Import again to retry; your saved groceries won’t be duplicated.")
@@ -1155,9 +1180,9 @@ struct GroceryListScreen: View {
                 importSourceID = GroceryImportSource.paprika.rawValue
                 if removeAfterImport {
                     let savedIDs = linkedIDs.union(staged.compactMap(\.reminderID))
-                    let failed = paprikaReminders.removeImportedReminders(PaprikaImportPlanner.removalCandidates(reminders: snapshot, savedIDs: savedIDs))
+                    let failed = paprikaReminders.removeImportedReminders(PaprikaImportPlanner.removalCandidates(reminders: snapshot, savedIDs: savedIDs), calendarID: sourceListID)
                     notice = failed == 0
-                        ? String(localized: "Added \(staged.count) groceries to your \(browser.store.displayName) list and removed their Apple reminders. Paprika is unchanged.")
+                        ? String(localized: "Groceries added to your \(browser.store.displayName) list: \(staged.count). Removed their reminders from ‘\(sourceListName)’. Paprika is unchanged.")
                         : String(localized: "Added \(staged.count) groceries to your \(browser.store.displayName) list. Some Apple reminders could not be removed. Import again to retry; your saved groceries won’t be duplicated.")
                     return
                 }
@@ -1171,6 +1196,11 @@ struct GroceryListScreen: View {
                     notice = String(localized: "Added \(staged.count) items to your \(browser.store.displayName) list.")
                 }
             } catch let error as PaprikaImportError {
+                if error == .listNotFound {
+                    remindersListID = ""
+                    remindersListName = ""
+                    showingRemindersListPicker = true
+                }
                 importFailure = error
                 notice = String(localized: error.message)
             } catch {
