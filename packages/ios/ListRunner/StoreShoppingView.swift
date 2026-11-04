@@ -2469,6 +2469,12 @@ final class StoreBrowser: ObservableObject {
         cancelCartUndo()
         documentGeneration += 1
         activeCandidate = nil
+        if store.cart?.strategy == .verifiedCartSnapshot {
+            // Its capture listener installs at document start, before didCommit.
+            // Deliver the newly committed generation now: interactive products
+            // need not wait for all retailer images/third-party resources to end.
+            updateIsolatedContext()
+        }
     }
 
     fileprivate func didFinishMainFrameNavigation(_ navigation: WKNavigation) {

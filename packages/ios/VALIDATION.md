@@ -828,3 +828,25 @@ cart evidence: the independent freshly loaded bag body was authoritative. These
 manual passes do not relabel the earlier XCTest navigation-helper failures as
 passing tests. Composite/multi-article bundles, account sign-in and all catalogue
 layouts are not certified; unsupported article identities retain manual controls.
+
+### Production-ceiling rerun and early-page handshake correction
+
+At `a21b37868894fe4c1a6f67d8585873f07ad21793`, **1,756 native checks passed**,
+the simulator build succeeded and all 35 JSON files plus JavaScript matched
+canonical source. The essential-only XCTest setup now enters IKEA directly from
+welcome, avoiding the former Back/Close mismatch. The live detail test passed
+automatic detection, retailer Undo and independent empty-bag checks. The faster
+grid test failed automatic detection, then removed the exact single test article
+and independently confirmed an empty bag. It was not an Undo pass. Evidence:
+Mac `/tmp/listrunner-ikea-au-enabled.log` and
+`/tmp/listrunner-ikea-au-enabled-results`.
+
+Review identified a document-start context-handshake race: the early capture
+listener could request the previous native document generation before didCommit,
+then wait for full window load to be corrected. Native now delivers the committed
+context in didCommit for the snapshot engine only, and JavaScript requests its
+ready handshake at DOMContentLoaded instead of document start. The interception
+listener still installs before retailer handlers, and existing passive engines
+are unchanged. A regression covers deferred DOM readiness. The corrected fast
+grid path requires a fresh live rerun; earlier manual results do not substitute
+for that check.

@@ -14,7 +14,7 @@ test('intercepting engine installs before retailer handlers; passive engines ret
 
 // Deterministic semantic DOM. Every cart document is a new server snapshot,
 // independent of the purchase draft and family-only success toast.
-function fixture({ before = 0, detail = false, amount = 1, fault = '', production = false } = {}) {
+function fixture({ before = 0, detail = false, amount = 1, fault = '', production = false, loading = false } = {}) {
   const config = structuredClone(bundled);
   if (!production) config.capabilities = { search: true, cartDetection: true, cartUndo: true };
   const id = '40515525', otherID = '80515528';
@@ -82,7 +82,7 @@ function fixture({ before = 0, detail = false, amount = 1, fault = '', productio
     };
     render(); return doc;
   };
-  const document = new Element(); document.visibilityState = 'visible';
+  const document = new Element(); document.visibilityState = 'visible'; document.readyState = loading ? 'loading' : 'complete';
   document.addEventListener = (type, callback) => { listeners[`document:${type}`] = callback; };
   document.createElement = () => {
     const element = new Element(); element.style = {};
@@ -113,6 +113,7 @@ function fixture({ before = 0, detail = false, amount = 1, fault = '', productio
   };
   const detected = () => messages.find(m => m.type === 'addDetected');
   return { server, messages, changes, window, context, document, control, tile, location,
+    domReady: () => { document.readyState = 'interactive'; listeners['document:DOMContentLoaded']?.(); },
     expire: () => { now += 46000; },
     click: (trusted = true) => listeners.click?.(clickEvent(trusted)), flush, detected,
     get loads() { return loads; }, get frameDocument() { return activeDocument; },
@@ -143,6 +144,13 @@ for (const fault of ['articleMismatch', 'invalidQuantity', 'duplicateRow', 'erro
 test('synthetic taps and intended draft changes do not arm snapshot verification', async () => {
   const f = fixture({ detail: true, amount: 4 }); f.click(false); await f.flush();
   assert.equal(f.loads, 0); assert.equal(f.detected(), undefined);
+});
+test('document-start listener defers its ready handshake until the document has committed', async () => {
+  const f = fixture({ loading: true });
+  assert.equal(f.messages.includes('automationReady'), false);
+  f.domReady();
+  assert.equal(f.messages.includes('automationReady'), true);
+  f.click(); await f.flush(); assert.equal(f.detected()?.resultingQuantity, 1);
 });
 test('context changes cancel preflight without replaying Add', async () => {
   const f = fixture(); f.click(); f.window.__listRunnerSetContext({ ...f.context, interactionID: 'new' }); await f.flush();

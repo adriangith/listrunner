@@ -277,5 +277,12 @@
     } catch (_) { return false; }
     finally { if (operation === op) { operation = null; discardFrame(); } }
   };
-  bridge.postMessage('automationReady');
+  // The capture listener must exist before retailer handlers, but its native
+  // context must belong to the committed document. A document-start handshake
+  // alone can race didCommit and receive the previous generation. DOM readiness
+  // supplies a second, correctly ordered handshake without waiting for window
+  // load (which can be delayed by unrelated retailer assets).
+  const ready = () => bridge.postMessage('automationReady');
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready, { once: true });
+  else ready();
 })();
