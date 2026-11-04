@@ -378,7 +378,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
 /* ---------- Steps ---------- */
 .steps {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
-  margin: 0; padding: 0; list-style: none; counter-reset: step;
+  margin: 0 auto; padding: 0; list-style: none; counter-reset: step;
 }
 .step-card {
   background: var(--card); border: 1px solid var(--line); border-radius: 18px;
@@ -415,7 +415,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
 /* ---------- Features ---------- */
 .feature-grid {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
-  margin: 0; padding: 0; list-style: none;
+  margin: 0 auto; padding: 0; list-style: none;
 }
 .feature-card {
   background: var(--card); border: 1px solid var(--line); border-radius: 16px;
@@ -431,8 +431,8 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
 
 /* ---------- Stores ---------- */
 .legend {
-  list-style: none; margin: 0 0 30px; padding: 0;
-  display: grid; gap: 10px; max-width: 640px;
+  list-style: none; margin: 0 auto 30px; padding: 0;
+  display: grid; gap: 10px; max-width: 1120px;
 }
 .legend li { display: flex; gap: 11px; align-items: flex-start; font-size: 13.5px; color: #4a524c; }
 .legend strong { color: var(--ink); }
@@ -459,7 +459,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
 .store-chips .tier-auto::before { background: var(--green); }
 .store-chips .tier-search::before { background: var(--blue-2); }
 .store-chips .tier-browse::before { background: transparent; border: 1.5px solid #b6bdb7; }
-.store-fine { font-size: 12.5px; color: #899089; max-width: 640px; margin: 30px 0 0; line-height: 1.65; }
+.store-fine { font-size: 12.5px; color: #899089; max-width: 1120px; margin: 30px auto 0; line-height: 1.65; }
 
 /* ---------- Safety ---------- */
 .section-dark {
@@ -469,7 +469,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
 }
 .safety-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
-  list-style: none; margin: 0; padding: 0;
+  list-style: none; margin: 0 auto; padding: 0;
 }
 .safety-card {
   background: rgba(255, 255, 255, 0.045); border: 1px solid rgba(255, 255, 255, 0.09);
@@ -482,9 +482,10 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
 }
 .safety-card h3 { font-size: 16.5px; font-weight: 700; margin: 0 0 8px; color: var(--on-dark); }
 .safety-card p { font-size: 13.5px; line-height: 1.65; color: var(--on-dark-muted); margin: 0; }
-.safety-fine { font-size: 12.5px; color: #7d867e; max-width: 640px; margin: 28px 0 0; line-height: 1.65; }
+.safety-fine { font-size: 12.5px; color: #7d867e; max-width: 1120px; margin: 28px auto 0; line-height: 1.65; }
 
 /* ---------- FAQ ---------- */
+#faq .section-head { max-width: 760px; }
 .faq-list { max-width: 760px; }
 .faq-item {
   background: var(--card); border: 1px solid var(--line); border-radius: 14px;
