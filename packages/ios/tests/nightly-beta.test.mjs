@@ -153,6 +153,15 @@ test('ambiguous start failure aborts instead of blindly retrying POST', async ()
   assert.equal(starts, 1);
 });
 
+test('queued runs may await source metadata, but completed runs must prove their SHA', async () => {
+  const beta = new NightlyBeta(config, { request: async () => assert.fail('Do not start another run') });
+  const queued = run(null); delete queued.attributes.sourceCommit;
+  beta.reference = async () => ({ id: 'ref' }); beta.runs = async () => [queued];
+  assert.equal(await beta.reconcile(request), 'pending');
+  queued.attributes.executionProgress = 'COMPLETE'; queued.attributes.completionStatus = 'SUCCEEDED';
+  await assert.rejects(beta.reconcile(request), /pinned source/);
+});
+
 test('publish waits for processing then emits only a prerelease for the pinned SHA', async () => {
   let processing = true, localizations = 0;
   const published = [];

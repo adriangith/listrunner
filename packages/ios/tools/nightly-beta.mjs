@@ -157,6 +157,9 @@ export class NightlyBeta {
       console.log(`Started Xcode Cloud for ${request.tag}.`);
       return 'pending';
     }
+    // Apple can expose the queued run before resolving its source commit.
+    // Wait for that metadata; never publish without subsequently verifying it.
+    if (!run.attributes.sourceCommit?.commitSha && run.attributes.executionProgress !== 'COMPLETE') return 'pending';
     verifyRun(run, request);
     if (run.attributes.executionProgress !== 'COMPLETE') return 'pending';
     if (run.attributes.completionStatus !== 'SUCCEEDED') {
