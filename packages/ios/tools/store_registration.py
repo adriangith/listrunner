@@ -67,6 +67,11 @@ def registration_files(root, config, serial, domain):
     source = once(source, '    var home: URL {\n', '')
     source = source.replace('    var home: URL {\n',
         f'    var home: URL {{\n        if self == .`{store}` {{ return URL(string: {swift_string(config["homepage"])})! }}\n', 1)
+    color = config.get('addedColor', {})
+    if set(color) != {'red', 'green', 'blue'} or any(type(value) is not int or not 0 <= value <= 255 for value in color.values()):
+        raise ValueError('Brand color requires integer red/green/blue channels between 0 and 255')
+    source = once(source, '                                        #if STORE_REGISTRY_PROOF',
+        f'                                        case .`{store}`: AddedColor(red: {color["red"]}, green: {color["green"]}, blue: {color["blue"]})\n')
     project = (root / PROJECT).read_text()
     original_project = project
     reference = hashlib.sha256(f'listrunner:{store}:resource'.encode()).hexdigest()[:24].upper()
