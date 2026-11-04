@@ -94,15 +94,34 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
   transition: transform 0.15s ease, filter 0.15s ease, background 0.15s ease;
 }
 .button:active { transform: scale(0.98); }
-.button-primary {
-  background: linear-gradient(135deg, var(--lime-1), var(--lime-2));
-  color: #14261c;
-}
-.button-primary:hover { filter: brightness(1.05); }
 .button-ghost-dark {
   border-color: rgba(255, 255, 255, 0.24); color: #e7ebe6; background: transparent;
 }
 .button-ghost-dark:hover { border-color: rgba(255, 255, 255, 0.45); background: rgba(255, 255, 255, 0.05); }
+
+/* ---------- TestFlight badge ---------- */
+.tf-badge {
+  display: inline-flex; align-items: center; gap: 12px;
+  background: #000; color: #fff; text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 14px; padding: 9px 22px 9px 9px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "DM Sans", sans-serif;
+  transition: transform 0.15s ease, filter 0.15s ease, border-color 0.15s ease;
+}
+.tf-badge:hover { border-color: rgba(255, 255, 255, 0.55); filter: brightness(1.12); }
+.tf-badge:active { transform: scale(0.98); }
+.tf-icon {
+  width: 38px; height: 38px; border-radius: 9px; flex: none;
+  background: linear-gradient(165deg, var(--blue-2), var(--blue-1));
+  display: grid; place-items: center;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.tf-icon svg { width: 24px; height: 24px; display: block; }
+.tf-text { display: flex; flex-direction: column; line-height: 1.2; }
+.tf-line-1 { font-size: 11px; font-weight: 500; color: rgba(255, 255, 255, 0.75); letter-spacing: 0.02em; }
+.tf-line-2 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.site-footer .tf-badge { margin-top: 28px; }
 
 /* ---------- Nav ---------- */
 .site-nav {
@@ -160,7 +179,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .hero-lead { font-size: 16.5px; line-height: 1.7; color: #b9c1ba; margin: 0 0 28px; }
-.hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 26px; }
+.hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 26px; }
 .hero-note {
   display: flex; align-items: center; gap: 10px;
   background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
