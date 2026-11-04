@@ -784,3 +784,47 @@ Logs/results remain on Mac at `/tmp/listrunner-ikea-au-f6fedb9-cart.log` and
 `/tmp/listrunner-ikea-au-f6fedb9-attachments/`. Manual device verification on the
 final source revision avoided that test-navigation path but encountered the
 separate consent blocker described above.
+
+### IKEA essential-only consent and completed native cart proof
+
+The user subsequently authorized **essential cookies only**, and both manual
+native cycles passed at `51d324702255aea25a1d3adba32e5d32aebc399f` on the dedicated
+iPhone 17/iOS 27.2 simulator. Each cycle used fresh isolated guest storage, verified
+an explicit empty shopping bag first, tapped the exact DRAGON Spoon (`40515525`)
+Add control once, observed automatic native Pending→Added without Mark Added,
+observed native Undo progress finish without a warning, then independently opened
+a fresh bag page displaying `Your shopping bag is empty`. No manual removal was
+needed. Both console captures record `Quantity increase confirmed; notifying
+overlay` and `Store cart Undo confirmed`. This supersedes the consent blocker
+above and authorizes production JSON/native detection and Undo ceilings; the
+engine itself is unchanged from the verified source.
+
+In each guest session, Cookies settings exposed Performance, Functional and
+Targeting cookie switches. All three were set off and verified at `0`, Strictly
+necessary cookies remained Always active, and `Confirm my choices` was pressed.
+Neither `Ok` nor `Allow all` was used. No credentials, account, fulfilment,
+postcode/store, checkout or purchase changes occurred.
+
+Capture times (Mac local, 4 November 2026, UTC+11; not precise detector latency):
+
+* Grid: empty baseline 11:10:40; Add 11:11:13; automatic Added 11:11:20; Undo
+  progress 11:11:27; completion without warning 11:11:34; fresh empty bag 11:11:55.
+* Detail: empty baseline 11:14:47; Add 11:15:32; automatic Added 11:15:39; Undo
+  progress 11:15:46; completion without warning 11:15:53; fresh empty bag 11:16:33.
+
+Screenshots, hierarchies and console logs: Mac
+`/tmp/listrunner-ikea-au-51d3247-essential-evidence/` and Linux
+`/tmp/opencode/listrunner-ikea-au-51d3247-essential-evidence/`. Stems for grid
+Added/Undo/empty are `IKEA Essential Grid-11_11_20_082`, `-11_11_27_307` and
+`-11_11_55_408`; detail equivalents are `IKEA Essential Detail-11_15_39_886`,
+`-11_15_46_977` and `-11_16_33_838`. Each has `-screenshot.png`, `-hierarchy.txt`
+and `-logs.txt` files. All interaction sessions ended. The installed resources
+were reverified against canonical sources after the cycles.
+
+IKEA's Shopping bag accessibility hitPoint activated its hamburger menu instead;
+after observing that mismatch, the actual bag icon was targeted visually. The
+main page's bag badge also remained stale after Undo. Neither was used as empty
+cart evidence: the independent freshly loaded bag body was authoritative. These
+manual passes do not relabel the earlier XCTest navigation-helper failures as
+passing tests. Composite/multi-article bundles, account sign-in and all catalogue
+layouts are not certified; unsupported article identities retain manual controls.

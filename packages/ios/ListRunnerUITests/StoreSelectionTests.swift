@@ -270,6 +270,9 @@ final class StoreSelectionTests: XCTestCase {
             app.launchEnvironment["LISTRUNNER_LIVE_CART_PROBE"] = store
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
             if store == "ikeaAU" {
+                guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_IKEA_ESSENTIAL_COOKIES"] == "1" else {
+                    throw XCTSkip("IKEA cookie preferences require separate essential-only consent permission")
+                }
                 app.launchEnvironment["LISTRUNNER_LIVE_UNDO_PROBE"] = store
                 if name.contains("Detail") {
                     app.launchEnvironment["LISTRUNNER_LIVE_CART_DETAIL_URL"] = "https://www.ikea.com/au/en/p/dragon-spoon-stainless-steel-40515525/"
@@ -328,6 +331,19 @@ final class StoreSelectionTests: XCTestCase {
         }
         app.launch()
         if name.contains("FirstStoreWelcome") { return }
+        if name.contains("LiveStoreCartIKEA") {
+            // Set up IKEA directly from welcome. Ordinary management can be a
+            // modal with Close, not a pushed screen with Back while searching.
+            let welcome = app.buttons["welcome-choose-store"]
+            XCTAssertTrue(welcome.waitForExistence(timeout: 10))
+            welcome.tap()
+            let search = app.searchFields.firstMatch
+            XCTAssertTrue(search.waitForExistence(timeout: 5))
+            search.tap(); search.typeText("IKEA")
+            enableWelcomeStore("ikeaAU")
+            XCTAssertEqual(app.buttons["store-picker"].label, "IKEA")
+            return
+        }
         // Shopping-flow tests start after the real first-store setup flow.
         if app.buttons["welcome-choose-store"].waitForExistence(timeout: 3) {
             app.buttons["welcome-choose-store"].tap()
@@ -691,13 +707,7 @@ final class StoreSelectionTests: XCTestCase {
     func testLiveStoreCartIKEADetail() throws { try liveIKEACart(detail: true) }
 
     private func liveIKEACart(detail: Bool) throws {
-        app.buttons["store-picker"].tap()
-        app.buttons["Manage Stores"].tap()
-        let search = app.searchFields.firstMatch
-        search.tap(); search.typeText("IKEA")
-        setStoreVisibility("ikeaAU", shown: true)
-        tapNavigationBack()
-        choose("IKEA")
+        XCTAssertEqual(app.buttons["store-picker"].label, "IKEA")
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap(); input.typeText("dragon spoon")
         app.buttons["Add Items"].tap()
@@ -706,9 +716,23 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(web.waitForExistence(timeout: 10))
         let collapse = app.buttons["Collapse overlay"]
         if collapse.exists && collapse.isHittable { collapse.tap() }
+        let settings = web.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Cookies settings")).firstMatch
+        if settings.waitForExistence(timeout: 15) {
+            settings.tap()
+            let labels = ["Performance cookies", "Functional cookies", "Targeting cookies"]
+            XCTAssertTrue(web.switches[labels[0]].waitForExistence(timeout: 10))
+            XCTAssertEqual(Set(web.switches.allElementsBoundByIndex.map(\.label)), Set(labels),
+                           "Stop rather than consent to an unreviewed optional category")
+            for label in labels {
+                let toggle = web.switches[label]
+                if toggle.value as? String != "0" { toggle.tap() }
+                XCTAssertEqual(toggle.value as? String, "0")
+            }
+            web.buttons["Confirm my choices"].tap()
+        }
         let add = web.buttons[detail ? "Add to bag" : "Add \"DRAGON Spoon\" to cart"].firstMatch
         XCTAssertTrue(add.waitForExistence(timeout: 60), web.debugDescription)
-        // Do not alter consent, account, postcode, store or fulfilment settings.
+        // Never accept optional cookies or alter account/fulfilment settings.
         // Scroll only inside the unobscured retailer portion of the sheet.
         for _ in 0..<12 {
             if add.isHittable && add.frame.minY > web.frame.minY + 60 && add.frame.maxY < app.frame.maxY - 130 { break }
@@ -746,7 +770,13 @@ final class StoreSelectionTests: XCTestCase {
         if let close, close.frame.minY > web.frame.minY + 40 { close.tap() }
         for _ in 0..<8 {
             let bag = web.links.matching(NSPredicate(format: "label BEGINSWITH %@", "Shopping bag")).firstMatch
-            if bag.exists && bag.isHittable && bag.frame.minY > web.frame.minY + 40 { bag.tap(); break }
+            if bag.exists && bag.isHittable && bag.frame.minY > web.frame.minY + 40 {
+                // Observed IKEA AX label extends over the adjacent hamburger:
+                // its centre activates the wrong control. The label's leading
+                // edge lies inside the actual bag icon in this reviewed layout.
+                bag.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).tap()
+                break
+            }
             let origin = app.coordinate(withNormalizedOffset: .zero)
             origin.withOffset(CGVector(dx: web.frame.midX, dy: web.frame.minY + 120))
                 .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: web.frame.midX, dy: app.frame.maxY - 180)))

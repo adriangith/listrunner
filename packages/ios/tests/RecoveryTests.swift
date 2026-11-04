@@ -76,6 +76,9 @@ struct RecoveryTests {
         let allProductionDefinitions = expandedDefinitions + expansionDefinitions + [ikea]
         check(ikea.isConfigurationValid && ikea.serviceArea.countryCodes == ["AU"] && ikea.id == .ikeaAU,
               "IKEA AU has its own reviewed registration")
+        check(ikea.capabilities.search && ikea.capabilities.cartDetection && ikea.capabilities.cartUndo
+              && StoreID.ikeaAU.permitsSearch && StoreID.ikeaAU.permitsCartDetection && StoreID.ikeaAU.permitsCartUndo,
+              "IKEA independently verified search, exact-article detection and retailer Undo are enabled in JSON and native policy")
         check(ikea.id.home == ikea.homepage && ikea.id.listID.uuidString.hasSuffix("000033")
               && ikea.id.websiteDataID.uuidString.hasSuffix("000033"), "IKEA fallback and stable identities stay Australian")
         check(ikea.cart?.strategy == .verifiedCartSnapshot && ikea.cart?.profiles?.count == 2,

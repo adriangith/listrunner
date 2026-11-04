@@ -63,13 +63,19 @@ The native progress indicator remains visible during reversal; uncertainty uses
 the existing cart-Undo warning. Composite/multi-article bundles and unsupported
 layouts fall back to manual shopping. Other retailers retain their current engines.
 
-Production detection and retailer-cart Undo remain disabled pending the separate
-native live checks recorded in `VALIDATION.md`. Search has passed the read-only
-iPhone WebKit probe. Offline coverage is in `tests/ikea-cart-snapshot.test.mjs` and
+Search, production cart detection and retailer-cart Undo are enabled after
+independent native live verification. Both grid and detail cycles automatically
+marked the row Added, completed retailer Undo without a warning, and independently
+displayed an empty bag afterward; no Mark Added or manual removal was used.
+Essential-only consent was selected in isolated guest sessions. Full evidence,
+including the earlier test-navigation failures, is recorded in `VALIDATION.md`.
+Offline coverage is in `tests/ikea-cart-snapshot.test.mjs` and
 `tests/RecoveryTests.swift`; ordinary tests never contact IKEA. The explicit
 `testLiveStoreCartIKEAGrid`/`testLiveStoreCartIKEADetail` probes require
-`TEST_RUNNER_LISTRUNNER_LIVE_CART_STORE=ikeaAU` through xcodebuild and use isolated
-guest storage. Resource/archive verification audits the JavaScript byte-for-byte
+`TEST_RUNNER_LISTRUNNER_LIVE_CART_STORE=ikeaAU` plus the separately authorized
+`TEST_RUNNER_LISTRUNNER_LIVE_IKEA_ESSENTIAL_COOKIES=1` through xcodebuild and use
+isolated guest storage. They reject optional cookies and stop on an unreviewed
+consent category. Resource/archive verification audits the JavaScript byte-for-byte
 as well as every canonical JSON file.
 
 ### Twenty-store expansion (1 November 2026 — partial delivery)
