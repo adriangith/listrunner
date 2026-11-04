@@ -1029,6 +1029,20 @@ Validation on Linux:
   All four focused scenarios passed across runs, **not one clean final 4/4**.
   The later change is debug-fixture-only; the phone retains production code from
   `ed35134`, and no new physical-phone behavior was observed in this rerun.
+* Merged to `main` as `6b975cb8e057e2129776bf364f9899ea98be0ce5` and pushed.
+  The merged tree exactly matches reviewed feature tip `5d1927d`.
+  Linux **400 JavaScript + 19 onboarding checks** passed again. The canonical
+  Mac `main` checkout built **Release successfully** on the merged revision,
+  with all **35 JSON + 1 JavaScript** resources matching; log:
+  `~/Library/Logs/ListRunner-preload-scroll-main-6b975cb.log`.
+  Feature worktrees on Linux/Mac and the local/remote feature branch were
+  removed without force. Session/main Linux checkout is now
+  `/home/claude-svc/listrunner-main`; the separate
+  `/home/claude-svc/listrunner` marketing branch and its untracked `.openchamber/`
+  remain untouched. Mac main remains `/Users/adrianzafir/Projects/listrunner`;
+  its pre-existing untracked Xcode Cloud configuration is preserved. Simulator
+  state, DerivedData and test evidence were not deleted. Phone installation
+  remains the previously verified production-equivalent `ed35134` build.
 
 When the Mac is available, use the normal Git handoff into the isolated
 `/Users/adrianzafir/Projects/listrunner-worktrees/auto-scroll-results` checkout,
