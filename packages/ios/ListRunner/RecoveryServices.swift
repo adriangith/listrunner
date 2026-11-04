@@ -79,7 +79,7 @@ final class LocalDataController: ObservableObject {
                         "visibleStoreIDs.v1", "knownStoreIDs.v1", "storeSortMode.v1", "storeSetupCompleted.v1",
                          "shoppingCountry.v1", "shoppingCountryInitialized.v1", "storeRegionalChoices.v1", "useLocalIngredientNames.v1",
                          "selectEnabledStoreAfterEmpty.v1", "pendingEnabledStoreSelection.v1",
-                         GroceryImportSource.preferenceKey] {
+                         GroceryImportSource.preferenceKey, "autoScrollToResults.v1"] {
                 defaults.removeObject(forKey: key)
             }
             try diagnostics.clear()

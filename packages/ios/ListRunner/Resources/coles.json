@@ -5,7 +5,7 @@
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.coles.com.au",
   "allowedHosts": ["www.coles.com.au", "coles.com.au"],
-  "search": {"strategy": "urlTemplate", "template": "https://www.coles.com.au/search?q={query}"},
+  "search": {"strategy": "urlTemplate", "template": "https://www.coles.com.au/search?q={query}", "resultsSelector": "[data-testid=\"product-tile\"]", "resultsTopOffset": 120},
   "addedColor": {"red": 224, "green": 26, "blue": 34},
   "capabilities": {"search": true, "cartDetection": true, "cartUndo": true},
   "cart": {

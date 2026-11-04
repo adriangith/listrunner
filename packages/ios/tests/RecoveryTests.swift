@@ -21,6 +21,40 @@ struct RecoveryTests {
         }
         let configData = try Data(contentsOf: resources.appendingPathComponent("coles.json"))
         let coles = try JSONDecoder().decode(StoreDefinition.self, from: configData)
+        func resultsConfig(_ fields: [String: Any]) throws -> StoreDefinition {
+            var root = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
+            var search = root["search"] as! [String: Any]
+            search.removeValue(forKey: "resultsSelector")
+            search.removeValue(forKey: "resultsTopOffset")
+            search.merge(fields) { _, new in new }
+            root["search"] = search
+            return try StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: root))
+        }
+        let legacyResultsConfig = try resultsConfig([:])
+        check(legacyResultsConfig.search.resultsSelector == nil && legacyResultsConfig.isConfigurationValid,
+              "old definitions need no results targeting or version bump")
+        for fields in [
+            ["resultsSelector": ".grid"],
+            ["resultsSelector": ".grid", "resultsTopOffset": 0],
+            ["resultsSelector": ".grid", "resultsTopOffset": 120.5],
+            ["resultsSelector": ".grid", "resultsTopOffset": 500]
+        ] as [[String: Any]] {
+            let definition = try resultsConfig(fields)
+            check(definition.isConfigurationValid, "optional results target passes strict native decoding")
+        }
+        for fields in [
+            ["resultsSelector": ""], ["resultsSelector": "  "],
+            ["resultsSelector": String(repeating: "é", count: 513)],
+            ["resultsSelector": true], ["resultsTopOffset": 12],
+            ["resultsSelector": ".grid", "resultsTopOffset": -1],
+            ["resultsSelector": ".grid", "resultsTopOffset": 501],
+            ["resultsSelector": ".grid", "resultsTopOffset": true],
+            ["resultsSelector": ".grid", "resultsTopOffset": "120"],
+            ["unknownResultsField": ".grid"]
+        ] as [[String: Any]] {
+            do { _ = try resultsConfig(fields); check(false, "invalid results config must throw") }
+            catch { check(true, "invalid results config rejected") }
+        }
         let woolworths = try JSONDecoder().decode(StoreDefinition.self, from: Data(contentsOf: resources.appendingPathComponent("woolworths.json")))
         let bunnings = try JSONDecoder().decode(StoreDefinition.self, from: Data(contentsOf: resources.appendingPathComponent("bunnings.json")))
         let bunningsAuthorization = URL(string: "https://authorisation.api.bunnings.com.au/connect/authorize")!
@@ -1391,6 +1425,13 @@ struct RecoveryTests {
         let suiteName = "ListRunnerRecoveryTests." + UUID().uuidString
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
+        let scrollPreferences = StoreVisibilityPreferences(defaults: defaults)
+        check(scrollPreferences.autoScrollToResults, "auto-scroll defaults on")
+        scrollPreferences.setAutoScrollToResults(false)
+        check(!StoreVisibilityPreferences(defaults: defaults).autoScrollToResults, "auto-scroll opt-out persists")
+        scrollPreferences.setAutoScrollToResults(true)
+        check(StoreVisibilityPreferences(defaults: defaults).autoScrollToResults, "auto-scroll opt-in persists")
+        scrollPreferences.setAutoScrollToResults(false)
         check(GroceryImportSource(rawValue: defaults.string(forKey: GroceryImportSource.preferenceKey) ?? "") == nil,
               "unset import source requires explicit setup")
         check(GroceryImportSource(rawValue: "future-source") == nil,
@@ -1410,7 +1451,8 @@ struct RecoveryTests {
            try disk.clear()
           check(defaults.string(forKey: GroceryImportSource.preferenceKey) == "paprika",
                 "diagnostics clearing preserves import source")
-          check(defaults.object(forKey: "useLocalIngredientNames.v1") as? Bool == false, "diagnostics clearing preserves naming opt-out")
+           check(defaults.object(forKey: "useLocalIngredientNames.v1") as? Bool == false, "diagnostics clearing preserves naming opt-out")
+           check(defaults.object(forKey: "autoScrollToResults.v1") as? Bool == false, "diagnostics clearing preserves auto-scroll opt-out")
          check(defaults.string(forKey: "shoppingCountry.v1") == "NZ"
                && defaults.array(forKey: "visibleStoreIDs.v1") as? [String] == ["coles"],
                "clearing diagnostics preserves country and visibility preferences")
@@ -1445,6 +1487,9 @@ struct RecoveryTests {
               "confirmed local reset clears import source and restores setup")
         check(defaults.object(forKey: "useLocalIngredientNames.v1") == nil,
               "local reset removes naming preference")
+        check(defaults.object(forKey: "autoScrollToResults.v1") == nil
+              && StoreVisibilityPreferences(defaults: defaults).autoScrollToResults,
+              "local reset restores auto-scroll default on")
          check(defaults.string(forKey: "lastOverlaySelectedItemID") == nil, "local reset clears app metadata")
          check(defaults.object(forKey: "visibleStoreIDs.v1") == nil
                && defaults.object(forKey: "knownStoreIDs.v1") == nil

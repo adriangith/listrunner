@@ -2066,8 +2066,113 @@ final class StoreBrowser: ObservableObject {
         coordinator.browser = self
     }
 
+    // Installed at document start even without cart automation. Remember early
+    // interaction so slow images/loading cannot later pull the user backwards.
+    private static let resultsScrollScript = #"""
+    (() => {
+      let stopped = false, started = false, interval = null, deadline = null;
+      const inputs = ['touchstart', 'pointerdown', 'wheel', 'keydown', 'scroll'];
+      function cancel() {
+        stopped = true;
+        clearInterval(interval); clearTimeout(deadline);
+        for (const name of inputs) window.removeEventListener(name, cancel, true);
+        window.removeEventListener('pagehide', cancel, true);
+        document.removeEventListener('visibilitychange', visibility, true);
+      }
+      function visibility() { if (started && document.visibilityState !== 'visible') cancel(); }
+      for (const name of inputs) window.addEventListener(name, cancel, {capture: true, passive: true});
+      window.addEventListener('pagehide', cancel, true);
+      document.addEventListener('visibilitychange', visibility, true);
+      window.__listRunnerCancelResultsScroll = cancel;
+      window.__listRunnerScrollResults = (selector, offset, expectedURL) => {
+        if (stopped || started) return;
+        started = true;
+        clearTimeout(deadline);
+        deadline = setTimeout(cancel, 8000);
+        let previous = null, stable = 0;
+        function check() {
+          if (stopped) return;
+          if (location.href !== expectedURL || document.visibilityState !== 'visible') { cancel(); return; }
+          if (document.readyState === 'loading') return;
+          let nodes;
+          try { nodes = document.querySelectorAll(selector); } catch { cancel(); return; }
+          const target = Array.from(nodes).find(node => {
+            const box = node.getBoundingClientRect(), style = getComputedStyle(node);
+            return node.isConnected && box.width > 0 && box.height > 0 && node.getClientRects().length > 0 &&
+              style.visibility === 'visible' && style.display !== 'none' && style.opacity !== '0' &&
+              node.getAttribute('aria-busy') !== 'true' && !!node.textContent.trim();
+          });
+          if (!target) { previous = null; stable = 0; return; }
+          const box = target.getBoundingClientRect();
+          const position = {top: box.top + window.scrollY, height: box.height};
+          stable = previous && Math.abs(previous.top - position.top) < 1 &&
+            Math.abs(previous.height - position.height) < 1 ? stable + 1 : 0;
+          previous = position;
+          if (stable < 3) return;
+          const root = document.scrollingElement;
+          if (!root || !Number.isFinite(offset) || offset < 0 || offset > 500) { cancel(); return; }
+          const top = Math.max(0, Math.min(position.top - offset, root.scrollHeight - window.innerHeight));
+          cancel();
+          // 'instant' overrides retailer CSS scroll-behavior:smooth, including Reduce Motion.
+          window.scrollTo({top, left: window.scrollX, behavior: 'instant'});
+        }
+        interval = setInterval(check, 100);
+        check();
+      };
+    })();
+    """#
+
+    private var autoScrollToResults = true
+    private var resultsScrollNavigation: WKNavigation?
+    private var resultsScrollTask: Task<Void, Never>?
+
+    func setAutoScrollToResults(_ enabled: Bool) {
+        autoScrollToResults = enabled
+        if !enabled { cancelResultsScroll() }
+    }
+
+    private func cancelResultsScroll() {
+        resultsScrollNavigation = nil
+        resultsScrollTask?.cancel()
+        resultsScrollTask = nil
+        webView.evaluateJavaScript("window.__listRunnerCancelResultsScroll?.();", in: nil, in: automationWorld)
+    }
+
+    private func scrollToResults(expectedURL: URL) {
+        guard autoScrollToResults, let selector = store.search.resultsSelector,
+              store.allows(expectedURL), !siteVerificationRequired, storeRecovery == nil else { return }
+        let view = webView
+        let generation = documentGeneration
+        let request = searchRequestID
+        resultsScrollTask?.cancel()
+        resultsScrollTask = Task { @MainActor [weak self, weak view] in
+            // Promotion publishes the view before SwiftUI attaches it. Never scroll
+            // a hidden preload; wait briefly for the active view to be on screen.
+            for _ in 0..<20 {
+                guard !Task.isCancelled, let self, let view, self.webView === view,
+                      self.documentGeneration == generation, self.searchRequestID == request,
+                      self.autoScrollToResults, self.browsingActive, !self.siteVerificationRequired,
+                      self.storeRecovery == nil, view.url == expectedURL else { return }
+                if view.window != nil {
+                    let arguments: [String: Any] = ["selector": selector,
+                        "offset": self.store.search.resultsTopOffset ?? 12, "url": expectedURL.absoluteString]
+                    // Values are arguments, never interpolated executable page content.
+                    _ = try? await view.callAsyncJavaScript(
+                        "window.__listRunnerScrollResults?.(selector, offset, url);",
+                        arguments: arguments, in: nil, in: self.automationWorld)
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+    }
+
     private static func makeWebView(coordinator: Coordinator, world: WKContentWorld, store: StoreDefinition, dataStore: WKWebsiteDataStore) -> WKWebView {
         let configuration = WKWebViewConfiguration()
+        if store.search.resultsSelector != nil {
+            configuration.userContentController.addUserScript(WKUserScript(source: resultsScrollScript,
+                injectionTime: .atDocumentStart, forMainFrameOnly: true, in: world))
+        }
         configuration.userContentController.add(coordinator, contentWorld: world, name: "listRunner")
         if store.id == .tesco, store.capabilities.cartDetection {
             configuration.userContentController.add(coordinator, contentWorld: .page, name: "listRunnerLoginReplay")
@@ -2105,6 +2210,7 @@ final class StoreBrowser: ObservableObject {
         view.allowsBackForwardNavigationGestures = true
         view.navigationDelegate = coordinator
         view.uiDelegate = coordinator
+        view.scrollView.panGestureRecognizer.addTarget(coordinator, action: #selector(Coordinator.userPanned(_:)))
         return view
     }
 
@@ -2155,6 +2261,7 @@ final class StoreBrowser: ObservableObject {
         guard canPresentStore, storeRecovery == nil else { return }
         guard !needsIdleBrowserRebuild || browsingActive else { return }
         prepareIdleBrowserIfNeeded()
+        cancelResultsScroll()
         cancelLoginReplay()
         cancelCartUndo()
         dismissCartUndoWarning()
@@ -2190,6 +2297,7 @@ final class StoreBrowser: ObservableObject {
             latestNavigation = nil
             activeSearchNavigation = nil
             updateIsolatedContext()
+            scrollToResults(expectedURL: preload.url)
             return
         }
         if preloadedSearch != nil { logPreload("Preload unavailable or stale; falling back to normal search") }
@@ -2289,6 +2397,7 @@ final class StoreBrowser: ObservableObject {
     }
 
     func search(for term: String) {
+        cancelResultsScroll()
         guard canPresentStore, storeRecovery == nil else { return }
         guard store.capabilities.search else { searchUnavailable = true; loadIfNeeded(); return }
         guard !term.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -2317,7 +2426,7 @@ final class StoreBrowser: ObservableObject {
                   self.namingGeneration == generation else { return }
             self.pendingSearchTask = nil
             guard !self.siteVerificationRequired else { return }
-            self.loadStoreURL(url)
+            self.loadStoreURL(url, scrollResults: true)
         }
     }
 
@@ -2455,6 +2564,7 @@ final class StoreBrowser: ObservableObject {
 
     fileprivate func navigationStarted(_ navigation: WKNavigation) {
         guard canPresentStore, storeRecovery == nil, !retiredNavigations.contains(navigation), pendingSearchTask == nil else { return }
+        if navigation !== resultsScrollNavigation { cancelResultsScroll() }
         // A stale start callback from a replaced search must not reclaim ownership.
         if navigation !== latestNavigation { retireCurrentNavigation() }
         if activeSearchNavigation == nil || navigation === activeSearchNavigation {
@@ -2479,6 +2589,8 @@ final class StoreBrowser: ObservableObject {
 
     fileprivate func didFinishMainFrameNavigation(_ navigation: WKNavigation) {
         guard navigation === latestNavigation else { return }
+        let shouldScroll = navigation === resultsScrollNavigation
+        resultsScrollNavigation = nil
         if navigation === activeSearchNavigation {
             activeSearchNavigation = nil
             searchUnavailable = !store.capabilities.search
@@ -2502,11 +2614,15 @@ final class StoreBrowser: ObservableObject {
                 self.applyCartDetectionTestFixture()
                 self.diagnostics.record(.store, .load, outcome: .succeeded, host: self.diagnosticHost)
                 self.updateIsolatedContext()
+                if shouldScroll, let url = self.latestRequestedSearchURL {
+                    self.scrollToResults(expectedURL: url)
+                }
             }
         }
     }
 
     private func pauseForSiteVerification() {
+        cancelResultsScroll()
         cancelLoginReplay()
         siteVerificationRequired = true
         cancelPreload()
@@ -2528,7 +2644,7 @@ final class StoreBrowser: ObservableObject {
         navigationPacing.blocked(at: ProcessInfo.processInfo.systemUptime)
         // Use a known storefront URL, not the challenge document's URL. Preserve
         // the website data store (login/cart cookies) and avoid automatic retries.
-        loadStoreURL(latestRequestedSearchURL ?? store.homepage)
+        loadStoreURL(latestRequestedSearchURL ?? store.homepage, scrollResults: latestRequestedSearchURL != nil)
     }
 
     #if false // Replaced by StoreDefinition.addedColor; retained temporarily for source-history clarity.
@@ -2692,7 +2808,8 @@ final class StoreBrowser: ObservableObject {
         activeSearchNavigation = nil
     }
 
-    private func loadStoreURL(_ requestedURL: URL) {
+    private func loadStoreURL(_ requestedURL: URL, scrollResults: Bool = false) {
+        cancelResultsScroll()
         var url = requestedURL
         #if DEBUG
         // Live PDP verification may enter an explicitly named product directly;
@@ -2728,7 +2845,13 @@ final class StoreBrowser: ObservableObject {
         if uiTestMode && !isLiveWebsiteProbe {
             // Deterministic UI fixtures never contact a retailer or a real account.
             let verificationFixture = ProcessInfo.processInfo.environment["LISTRUNNER_VERIFICATION_TEST_FIXTURE"] == "enabled"
-            let html = verificationFixture
+            let resultsFixture = ProcessInfo.processInfo.environment["LISTRUNNER_RESULTS_SCROLL_TEST_FIXTURE"] == "enabled"
+            let html = resultsFixture ? """
+                <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                <body style="margin:0"><h1>Results scroll fixture</h1><div style="height:1200px">Content above results</div>
+                <article data-testid="product-tile" style="height:400px"><h2>Results scroll fixture item</h2></article>
+                <div style="height:1400px">Content below results</div></body></html>
+                """ : verificationFixture
                 ? "<!doctype html><html><head><title>Pardon Our Interruption</title></head><body><h1>Pardon Our Interruption</h1><p>Please stand by</p></body></html>"
                 : "<!doctype html><html><body><p>Store browsing fixture</p></body></html>"
             navigation = webView.loadHTMLString(html, baseURL: url)
@@ -2737,10 +2860,12 @@ final class StoreBrowser: ObservableObject {
         }
         latestNavigation = navigation
         activeSearchNavigation = navigation
+        resultsScrollNavigation = scrollResults && autoScrollToResults ? navigation : nil
         if navigation == nil { enterStoreRecovery(.loadFailed) }
     }
 
     func endInteraction() {
+        cancelResultsScroll()
         cancelLoginReplay()
         cancelPreload()
         interactionEnabled = false
@@ -2756,6 +2881,7 @@ final class StoreBrowser: ObservableObject {
 
     func setBrowsingActive(_ active: Bool) {
         browsingActive = active
+        if !active { cancelResultsScroll() }
     }
 
     fileprivate func contentProcessDidTerminate() {
@@ -3158,6 +3284,11 @@ final class StoreBrowser: ObservableObject {
             }
         }
 
+        @objc func userPanned(_ gesture: UIPanGestureRecognizer) {
+            guard gesture.state == .began, gesture.view === browser?.webView.scrollView else { return }
+            browser?.cancelResultsScroll()
+        }
+
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             browser?.receive(message)
         }
@@ -3194,6 +3325,7 @@ final class StoreBrowser: ObservableObject {
             if navigationAction.targetFrame?.isMainFrame != false { browser.observeLoginNavigation(url) }
             if navigationAction.targetFrame?.isMainFrame == true,
                [.linkActivated, .formSubmitted, .backForward, .reload, .formResubmitted].contains(navigationAction.navigationType) {
+                browser.cancelResultsScroll()
                 browser.intendedURL = url
             }
             decisionHandler(.allow)

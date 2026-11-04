@@ -75,6 +75,29 @@ class OnboardingTests(unittest.TestCase):
         config['capabilities'] = dict(search=True, cartDetection=False, cartUndo=True)
         self.assertTrue(tool.validate(config))
 
+    def test_optional_results_targeting(self):
+        config = json.loads((tool.RESOURCES / 'coles.json').read_text())
+        search = config['search']
+        search.pop('resultsSelector', None)
+        search.pop('resultsTopOffset', None)
+        self.assertEqual(tool.validate(config), [])
+        for selector in ['.results', 'wc-product-tile', None]:
+            search['resultsSelector'] = selector
+            self.assertEqual(tool.validate(config), [])
+        for selector in ['', '  ', 5, False, 'é' * 513]:
+            search['resultsSelector'] = selector
+            self.assertTrue(tool.validate(config))
+        search['resultsSelector'] = '.results'
+        for offset in [0, 12, 120.5, 500, None]:
+            search['resultsTopOffset'] = offset
+            self.assertEqual(tool.validate(config), [])
+        for offset in [-1, 501, True, '120', float('nan'), float('inf')]:
+            search['resultsTopOffset'] = offset
+            self.assertTrue(tool.validate(config))
+        search.pop('resultsSelector')
+        search['resultsTopOffset'] = 120
+        self.assertTrue(tool.validate(config))
+
     def test_duplicate_keys_are_rejected_before_generation(self):
         with tempfile.TemporaryDirectory() as root:
             path = Path(root) / 'bad.json'

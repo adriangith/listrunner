@@ -5,7 +5,7 @@
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.ikea.com/au/en/",
   "allowedHosts": ["www.ikea.com", "ikea.com"],
-  "search": {"strategy": "urlTemplate", "template": "https://www.ikea.com/au/en/search/?q={query}"},
+  "search": {"strategy": "urlTemplate", "template": "https://www.ikea.com/au/en/search/?q={query}", "resultsSelector": "[data-testid='plp-product-card']", "resultsTopOffset": 120},
   "addedColor": {"red": 0, "green": 88, "blue": 163},
   "brandColors": {"primary": {"red": 0, "green": 88, "blue": 163}, "highlight": {"red": 255, "green": 219, "blue": 0}},
   "capabilities": {"search": true, "cartDetection": true, "cartUndo": true},

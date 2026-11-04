@@ -157,3 +157,52 @@ Report: destination identity, changed files, enabled capabilities, offline check
 live checks, evidence path/revision and anything still blocked. Use **registered**,
 **search verified**, **detection verified** and **Undo verified** precisely; do not
 call a registration automated support.
+## Optional search-results positioning
+
+Native store definitions may add `search.resultsSelector` and
+`search.resultsTopOffset` alongside `strategy` and `template`:
+
+```json
+"search": {
+  "strategy": "urlTemplate",
+  "template": "https://shop.example/search?q={query}",
+  "resultsSelector": "[data-testid=\"results-grid\"]",
+  "resultsTopOffset": 120
+}
+```
+
+This selector is illustrative, not a verified retailer selector. Choose the
+results container or the first product card, **not** a broad `main` element that
+also contains banners. Multiple matches use the first visible, nonempty target.
+Selectors must be nonblank and at most 1,024 UTF-8 bytes. The optional offset is
+0–500 CSS pixels, measured below the viewport top; without it the gap is 12px.
+An offset requires a selector. Keep offsets large enough to clear sticky headers,
+and verify them in the embedded iPhone browser. Missing/invalid CSS or absent,
+hidden, empty or busy targets quietly leave the page alone.
+
+These are additive optional fields for native schema versions 2–5; no new engine
+or schema major is required. Older bundled definitions remain valid. The legacy
+extension/core schema is separate and is not changed by these fields. Drafts
+remain disabled; adding results targeting never grants search/cart capabilities.
+Edit the optional fields into a draft, then run the ordinary onboarding checks.
+
+Settings → Shopping → **Auto-scroll to results** is app-wide and enabled by
+default. It persists across stores/relaunches and resets with Reset Local Data,
+not diagnostics/session clearing. It applies once after a new app-requested item
+search or explicit reload/retry, including a visible promoted preload. Ordinary
+website navigation, Add/quantity changes and resuming an existing page do not arm
+it. Exact search-URL matching intentionally skips redirects and changed queries.
+
+The app waits for visible results with stable geometry for three 100ms intervals,
+up to eight seconds after arming, then scrolls immediately without animation.
+User touch, pointer, wheel, keyboard or scroll input cancels it—even if input
+arrives before page loading finishes. Disabling the preference, navigating,
+dismissing, switching stores, backgrounding or entering recovery also cancels.
+Hidden preloads never scroll; their current preference is checked on promotion.
+
+Initial bundled targets use previously reviewed first-product selectors for
+Coles (`[data-testid="product-tile"]`), Woolworths (`wc-product-tile`) and IKEA AU
+(`[data-testid='plp-product-card']`), with a conservative 120px header gap. These
+reuse selector evidence, not a new live scrolling certification. All other
+definitions currently omit the fields. In particular, Bunnings' broad cart
+`main` selector is **not** suitable evidence for a results-grid target.

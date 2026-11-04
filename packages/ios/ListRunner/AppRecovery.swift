@@ -232,6 +232,17 @@ struct SettingsOverviewScreen: View {
             } footer: {
                 Text("Uses the Country setting to adapt ingredient names in retailer searches. Your list and quantities stay unchanged.")
             }
+            Section {
+                Toggle("Auto-scroll to results", isOn: Binding(
+                    get: { visibility.autoScrollToResults },
+                    set: { visibility.setAutoScrollToResults($0) }
+                ))
+                .accessibilityIdentifier("auto-scroll-to-results")
+            } header: {
+                Text("Shopping")
+            } footer: {
+                Text("Move to the product results when searching for a list item. Available for supported stores.")
+            }
             Section("Importing") {
                 NavigationLink {
                     ImportSourceSelectionScreen(selectedSourceID: importSourceID) { source in

@@ -440,6 +440,9 @@ final class StoreSelectionTests: XCTestCase {
             app.launchEnvironment["LISTRUNNER_PRELOAD_TEST_FIXTURE"] = "enabled"
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
         }
+        if name.contains("ResultsScroll") {
+            app.launchEnvironment["LISTRUNNER_RESULTS_SCROLL_TEST_FIXTURE"] = "enabled"
+        }
         if name.contains("Paprika") {
             app.launchEnvironment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] = "enabled"
         }
@@ -1272,6 +1275,45 @@ final class StoreSelectionTests: XCTestCase {
         search.tap()
         search.typeText(name)
         app.buttons["shopping-country-\(code)"].tap()
+    }
+
+    func testResultsScrollSettingPersists() {
+        app.buttons["Settings"].tap()
+        let toggle = app.switches["auto-scroll-to-results"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        XCTAssertEqual(toggle.value as? String, "1")
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "0")
+        app.terminate(); app.launch()
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        XCTAssertEqual(toggle.value as? String, "0")
+    }
+
+    func testResultsScrollPositionsFirstResultNearTop() {
+        app.buttons["Show Store"].tap()
+        let result = app.webViews.staticTexts["Results scroll fixture item"].firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 10))
+        let positioned = NSPredicate { _, _ in
+            let web = self.app.webViews.firstMatch.frame
+            return result.frame.minY >= web.minY && result.frame.minY < web.minY + 240
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: positioned, object: result)], timeout: 10), .completed)
+    }
+
+    func testResultsScrollOptOutLeavesPageAtTop() {
+        app.buttons["Settings"].tap()
+        let toggle = app.switches["auto-scroll-to-results"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        toggle.tap()
+        tapNavigationBack()
+        app.buttons["Show Store"].tap()
+        let heading = app.webViews.staticTexts["Results scroll fixture"].firstMatch
+        XCTAssertTrue(heading.waitForExistence(timeout: 10))
+        let moved = NSPredicate { _, _ in !heading.isHittable }
+        let expectation = XCTNSPredicateExpectation(predicate: moved, object: heading)
+        expectation.isInverted = true
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 3), .completed)
     }
 
     func testPreloadSearchIsPromotedAfterCooldown() {
