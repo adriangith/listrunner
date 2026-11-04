@@ -1019,8 +1019,16 @@ Validation on Linux:
   counting down, only when both isolated preload/results fixture flags are set.
   It still requires measured background positioning before promotion. Production
   keeps its three-second cooldown and best-effort fallback unchanged. This test
-  does not certify cold hidden-WebKit startup within three seconds. Final rerun
-  is recorded separately when complete.
+  does not certify cold hidden-WebKit startup within three seconds.
+* The corrected ready-preload UI scenario **passed 1/1** at
+  `cd9165d7ee51bc5638051197ece5ba1f6d51f775` in 63.665s. Its native observer
+  measured the configured header gap and positive scroll before promotion, then
+  confirmed the promoted position. Log:
+  `~/Library/Logs/ListRunner-preload-scroll-cd9165d.log`; result:
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-preload-scroll-cd9165d.xcresult`.
+  All four focused scenarios passed across runs, **not one clean final 4/4**.
+  The later change is debug-fixture-only; the phone retains production code from
+  `ed35134`, and no new physical-phone behavior was observed in this rerun.
 
 When the Mac is available, use the normal Git handoff into the isolated
 `/Users/adrianzafir/Projects/listrunner-worktrees/auto-scroll-results` checkout,
