@@ -1487,9 +1487,8 @@ struct RecoveryTests {
               "confirmed local reset clears import source and restores setup")
         check(defaults.object(forKey: "useLocalIngredientNames.v1") == nil,
               "local reset removes naming preference")
-        check(defaults.object(forKey: "autoScrollToResults.v1") == nil
-              && StoreVisibilityPreferences(defaults: defaults).autoScrollToResults,
-              "local reset restores auto-scroll default on")
+        check(defaults.object(forKey: "autoScrollToResults.v1") == nil,
+              "local reset removes auto-scroll preference")
          check(defaults.string(forKey: "lastOverlaySelectedItemID") == nil, "local reset clears app metadata")
          check(defaults.object(forKey: "visibleStoreIDs.v1") == nil
                && defaults.object(forKey: "knownStoreIDs.v1") == nil
@@ -1505,6 +1504,8 @@ struct RecoveryTests {
         check(disk.entries.isEmpty, "local reset clears diagnostics")
         check(StoreVisibilityPreferences(defaults: defaults, suggestedCountryCode: "NZ").useLocalIngredientNames,
               "local reset restores regional naming default on")
+        check(StoreVisibilityPreferences(defaults: defaults).autoScrollToResults,
+              "local reset restores auto-scroll default on")
         let item = GroceryItem(name: "Test item", position: 0)
         storage.container!.mainContext.insert(item)
         try storage.container!.mainContext.save()
