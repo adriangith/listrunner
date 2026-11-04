@@ -72,6 +72,8 @@ final class StoreOnboardingSearchTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(stable, 2, "Search needs stable relevant results with query reflection and no blocker")
             XCTAssertTrue(webView.url?.host.map(plan.hosts.contains) ?? false)
             XCTAssertFalse(policy.blocked, "Unreviewed host or non-GET navigation encountered")
+            result["blockedSubframeNavigations"] = policy.blockedSubframes
+            result["blockedMainNavigation"] = policy.blocked
             observations.append(result)
             catalogues.append(Set(result["paths"] as? [String] ?? []))
         }
@@ -97,14 +99,34 @@ final class StoreOnboardingSearchTests: XCTestCase {
 private final class OnboardingReadOnlyPolicy: NSObject, WKNavigationDelegate {
     let hosts: Set<String>
     private(set) var blocked = false
+    private(set) var blockedSubframes = 0
     init(hosts: Set<String>) { self.hosts = hosts }
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        // Ads/analytics frequently attempt third-party iframe navigation. Deny
+        // every subframe rather than broadening trust, but do not misclassify a
+        // successfully verified main-document search as an offsite redirect.
+        if navigationAction.targetFrame?.isMainFrame == false {
+            blockedSubframes += 1
+            decisionHandler(.cancel)
+            return
+        }
         guard let url = navigationAction.request.url,
               (url.absoluteString == "about:blank" || (url.scheme == "https" && url.user == nil && url.password == nil
                 && (url.port == nil || url.port == 443) && hosts.contains(url.host ?? ""))),
               navigationAction.request.httpMethod == "GET" else {
             blocked = true
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+    func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse,
+                 decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        guard navigationResponse.isForMainFrame, let url = navigationResponse.response.url,
+              (url.absoluteString == "about:blank" || (url.scheme == "https" && url.user == nil && url.password == nil
+                && (url.port == nil || url.port == 443) && hosts.contains(url.host ?? ""))) else {
+            if navigationResponse.isForMainFrame { blocked = true }
             decisionHandler(.cancel)
             return
         }

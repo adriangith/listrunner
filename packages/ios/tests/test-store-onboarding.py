@@ -58,11 +58,13 @@ class OnboardingTests(unittest.TestCase):
                     self.assertFalse(args.output.exists())
 
     def test_all_existing_store_resources_pass_preflight(self):
+        project = (tool.BASE / 'ListRunner.xcodeproj/project.pbxproj').read_text()
         for resource in tool.RESOURCES.glob('*.json'):
             config = json.loads(resource.read_text())
             if 'id' in config and 'capabilities' in config:
                 with self.subTest(store=resource.name):
                     self.assertEqual(tool.validate(config), [])
+                    self.assertEqual(tool.resource_contract(project, config['id']), [])
 
     def test_invalid_capability_types(self):
         config = json.loads((tool.RESOURCES / 'coles.json').read_text())
