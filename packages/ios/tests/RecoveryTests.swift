@@ -1415,6 +1415,17 @@ struct RecoveryTests {
               "unset import source requires explicit setup")
         check(GroceryImportSource(rawValue: "future-source") == nil,
               "unknown import source returns to setup rather than importing Paprika")
+        defaults.set("paprika", forKey: GroceryImportSource.preferenceKey)
+        defaults.set(false, forKey: GroceryImportSource.removeRemindersKey)
+        defaults.set("weekly-list-id", forKey: GroceryImportSource.remindersListIDKey)
+        defaults.set("Weekly Shopping", forKey: GroceryImportSource.remindersListNameKey)
+        defaults.set("preserve", forKey: "unrelated-import-reset-test")
+        GroceryImportSource.resetSetup(in: defaults)
+        check([GroceryImportSource.preferenceKey, GroceryImportSource.removeRemindersKey,
+               GroceryImportSource.remindersListIDKey, GroceryImportSource.remindersListNameKey]
+            .allSatisfy { defaults.object(forKey: $0) == nil }, "import setup reset clears only its four preferences")
+        check(defaults.string(forKey: "unrelated-import-reset-test") == "preserve",
+              "import setup reset preserves unrelated preferences")
         defaults.set(GroceryImportSource.paprika.rawValue, forKey: GroceryImportSource.preferenceKey)
         check(GroceryImportSource(rawValue: UserDefaults(suiteName: suiteName)!.string(forKey: GroceryImportSource.preferenceKey)!) == .paprika,
               "explicit Paprika selection survives preferences reload")

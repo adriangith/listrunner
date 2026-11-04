@@ -31,7 +31,15 @@ final class LocalDataController: ObservableObject {
             return controller
         }
         #endif
-        return LocalDataController()
+        let controller = LocalDataController()
+        #if DEBUG
+        // Explicit, one-launch developer action. Never reset grocery data,
+        // retailer sessions, Reminders permissions or Apple reminders.
+        if ProcessInfo.processInfo.arguments.contains("--reset-import-setup") {
+            GroceryImportSource.resetSetup(in: controller.defaults)
+        }
+        #endif
+        return controller
     }
 
     init(configuration: ModelConfiguration = ModelConfiguration(schema: ShoppingLists.schema),
