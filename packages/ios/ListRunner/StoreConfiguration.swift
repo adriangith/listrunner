@@ -372,6 +372,8 @@ struct StoreDefinition: Codable {
         enum Strategy: String, Codable { case urlTemplate }
         let strategy: Strategy
         let template: String
+        var resultsSelector: String? = nil
+        var resultsTopOffset: Double? = nil
     }
     struct Cart: Codable {
         enum Strategy: String, Codable { case trustedTileQuantity, profiled, verifiedCartSnapshot }
@@ -539,6 +541,14 @@ struct StoreDefinition: Codable {
                !capabilities.cartUndo || capabilities.cartDetection,
                !capabilities.cartUndo || id.permitsCartUndo,
               !capabilities.cartDetection || cart != nil else { throw ConfigurationError.invalid }
+        if let selector = search.resultsSelector {
+            guard !selector.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  selector.utf8.count <= 1_024 else { throw ConfigurationError.invalid }
+        }
+        if let offset = search.resultsTopOffset {
+            guard search.resultsSelector != nil, offset.isFinite, (0...500).contains(offset)
+            else { throw ConfigurationError.invalid }
+        }
         if let cart {
             // Snapshot verification is a separately reviewed engine, not a way
             // for a data file to upgrade an existing retailer's capabilities.
@@ -771,7 +781,7 @@ struct StoreDefinition: Codable {
               hasOnlyKeys(root, ["schemaVersion", "id", "displayName", "serviceArea", "homepage", "allowedHosts",
                                  "search", "addedColor", "brandColors", "capabilities", "cart"]),
               hasOnlyKeys(root["serviceArea"] as? [String: Any], ["countryCodes"]),
-              hasOnlyKeys(root["search"] as? [String: Any], ["strategy", "template"]),
+              hasOnlyKeys(root["search"] as? [String: Any], ["strategy", "template", "resultsSelector", "resultsTopOffset"]),
               hasOnlyKeys(root["addedColor"] as? [String: Any], ["red", "green", "blue"]),
               hasOnlyKeys(root["capabilities"] as? [String: Any], ["search", "cartDetection", "cartUndo"]) else {
             throw ConfigurationError.invalid
@@ -1032,6 +1042,7 @@ final class StoreVisibilityPreferences: ObservableObject {
     @Published private(set) var hasCompletedStoreSetup: Bool
     @Published private(set) var shoppingCountryCode: String?
     @Published private(set) var useLocalIngredientNames: Bool
+    @Published private(set) var autoScrollToResults: Bool
     // Published as one atomic value so browsers never see a half-updated pair.
     @Published private(set) var ingredientSearchContext: IngredientSearchContext = .unchanged
     @Published private(set) var regionalChoices: [String: String]
@@ -1057,6 +1068,7 @@ final class StoreVisibilityPreferences: ObservableObject {
         let defaults = self.defaults
         let localNames = defaults.object(forKey: "useLocalIngredientNames.v1") as? Bool ?? true
         useLocalIngredientNames = localNames
+        autoScrollToResults = defaults.object(forKey: "autoScrollToResults.v1") as? Bool ?? true
         regionalChoices = defaults.dictionary(forKey: regionalKey) as? [String: String] ?? [:]
         var suggestion = suggestedCountryCode
         #if DEBUG
@@ -1155,6 +1167,11 @@ final class StoreVisibilityPreferences: ObservableObject {
         useLocalIngredientNames = enabled
         defaults.set(enabled, forKey: "useLocalIngredientNames.v1")
         ingredientSearchContext = IngredientSearchContext(countryCode: shoppingCountryCode, enabled: enabled)
+    }
+
+    func setAutoScrollToResults(_ enabled: Bool) {
+        defaults.set(enabled, forKey: "autoScrollToResults.v1")
+        autoScrollToResults = enabled
     }
 
     func selectedRegion(for brand: StoreBrand) -> StoreDefinition {

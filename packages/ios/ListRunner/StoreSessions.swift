@@ -10,6 +10,8 @@ final class StoreSessions: ObservableObject {
     private var browsers: [StoreID: StoreBrowser] = [:]
     private var searchContext: IngredientSearchContext = .unchanged
     private var preferenceSubscription: AnyCancellable?
+    private var resultsScrollSubscription: AnyCancellable?
+    private var autoScrollToResults = true
 
     init(diagnostics: DiagnosticStore, preferences: StoreVisibilityPreferences? = nil) {
         self.diagnostics = diagnostics
@@ -17,6 +19,12 @@ final class StoreSessions: ObservableObject {
         definitions = loadedDefinitions
         shoppingAvailability = StoreShoppingAvailability(definitions: loadedDefinitions)
         if let preferences {
+            autoScrollToResults = preferences.autoScrollToResults
+            resultsScrollSubscription = preferences.$autoScrollToResults.removeDuplicates().sink { [weak self] enabled in
+                guard let self else { return }
+                self.autoScrollToResults = enabled
+                for browser in self.browsers.values { browser.setAutoScrollToResults(enabled) }
+            }
             searchContext = preferences.ingredientSearchContext
             preferenceSubscription = preferences.$ingredientSearchContext.removeDuplicates().sink { [weak self] context in
                 guard let self else { return }
@@ -49,6 +57,7 @@ final class StoreSessions: ObservableObject {
         #endif
         let browser = StoreBrowser(store: definition, websiteDataStore: dataStore, diagnostics: diagnostics)
         browser.updateIngredientSearchContext(searchContext)
+        browser.setAutoScrollToResults(autoScrollToResults)
         browsers[id] = browser
         return browser
     }

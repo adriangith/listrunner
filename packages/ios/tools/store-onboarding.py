@@ -5,6 +5,7 @@ import base64
 import html
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import shutil
@@ -62,6 +63,15 @@ def validate(config):
     if len(hosts) != len(set(hosts)):
         errors.append('Duplicate hosts')
     search = config.get('search', {})
+    if isinstance(search, dict):
+        selector = search.get('resultsSelector')
+        offset = search.get('resultsTopOffset')
+        if selector is not None and (not isinstance(selector, str) or
+                not selector.strip() or len(selector.encode('utf-8')) > 1024):
+            errors.append('resultsSelector must be nonempty CSS, at most 1024 UTF-8 bytes')
+        if offset is not None and (selector is None or type(offset) not in (int, float) or
+                not math.isfinite(offset) or not 0 <= offset <= 500):
+            errors.append('resultsTopOffset requires a selector and a finite number from 0 to 500 CSS pixels')
     template = search.get('template', '') if isinstance(search, dict) else ''
     if not isinstance(template, str):
         template = ''

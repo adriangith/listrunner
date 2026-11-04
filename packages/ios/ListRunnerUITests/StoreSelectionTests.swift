@@ -440,6 +440,16 @@ final class StoreSelectionTests: XCTestCase {
             app.launchEnvironment["LISTRUNNER_PRELOAD_TEST_FIXTURE"] = "enabled"
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
         }
+        if name.contains("LiveWoolworthsResultsScroll") {
+            guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_RESULTS_SCROLL"] == "1" else {
+                throw XCTSkip("Requires explicit read-only live results-scroll opt-in")
+            }
+            app.launchEnvironment["LISTRUNNER_LIVE_BROWSE_PROBE"] = "woolworths"
+            app.launchEnvironment["LISTRUNNER_RESULTS_SCROLL_PROBE"] = "woolworths"
+            app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
+        } else if name.contains("ResultsScroll") {
+            app.launchEnvironment["LISTRUNNER_RESULTS_SCROLL_TEST_FIXTURE"] = "enabled"
+        }
         if name.contains("Paprika") {
             app.launchEnvironment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] = "enabled"
         }
@@ -480,16 +490,20 @@ final class StoreSelectionTests: XCTestCase {
         if app.buttons["welcome-choose-store"].waitForExistence(timeout: 3) {
             app.buttons["welcome-choose-store"].tap()
             enableWelcomeStore("coles")
-            app.buttons["store-picker"].tap()
-            app.buttons["Manage Stores"].tap()
-            for id in ["bunnings", "woolworths", "coles"] { setStoreVisibility(id, shown: true) }
-            tapNavigationBack()
+            // Results positioning uses only the Coles HTML fixture. Avoid the
+            // unrelated multi-store setup and its costly table navigation.
+            if !name.contains("ResultsScroll") {
+                app.buttons["store-picker"].tap()
+                app.buttons["Manage Stores"].tap()
+                for id in ["bunnings", "woolworths", "coles"] { setStoreVisibility(id, shown: true) }
+                tapNavigationBack()
+            }
         }
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
         // These list-layout cases assert the Coles fixture specifically. First
         // store setup enables Woolworths last, which intentionally selects it;
         // make the test's starting list explicit rather than depending on order.
-        if ["AlreadyVisibleNewItem", "FocusedProductEntry", "GroceryInputEmptyReturn", "RepeatedNewItemsAreFullyRevealed"]
+        if ["AlreadyVisibleNewItem", "FocusedProductEntry", "GroceryInputEmptyReturn", "RepeatedNewItemsAreFullyRevealed", "ResultsScroll"]
             .contains(where: { name.contains($0) }) {
             choose("Coles")
         }
@@ -1274,7 +1288,80 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["shopping-country-\(code)"].tap()
     }
 
+    func testResultsScrollSettingPersists() {
+        app.buttons["Settings"].tap()
+        let toggle = app.switches["auto-scroll-to-results"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        XCTAssertEqual(toggle.value as? String, "1")
+        turnOffResultsScroll()
+        app.terminate(); app.launch()
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        XCTAssertEqual(toggle.value as? String, "0")
+    }
+
+    func testLiveWoolworthsResultsScroll() {
+        // Only list-entry controls are tapped. The real retailer page is observed
+        // without tapping consent, account, location, products or cart controls.
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility("woolworths", shown: true)
+        tapNavigationBack()
+        choose("Woolworths")
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap(); input.typeText("milk")
+        app.buttons["Add Items"].tap()
+        app.buttons["Show Store"].tap()
+        let status = app.staticTexts["results-scroll-probe-status"]
+        let finished = NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@", "PASS:", "FAIL:")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: finished, object: status)], timeout: 70), .completed)
+        XCTAssertTrue(status.label.hasPrefix("PASS:"), status.label)
+        print("WOOLWORTHS_RESULTS_SCROLL " + status.label)
+    }
+
+    func testResultsScrollPositionsFirstResultNearTop() {
+        app.buttons["Show Store"].tap()
+        let result = app.webViews.staticTexts["Results scroll fixture item"].firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 10))
+        let positioned = NSPredicate { _, _ in
+            let web = self.app.webViews.firstMatch.frame
+            return result.frame.minY >= web.minY && result.frame.minY < web.minY + 240
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: positioned, object: result)], timeout: 10), .completed)
+    }
+
+    func testResultsScrollOptOutLeavesPageAtTop() {
+        app.buttons["Settings"].tap()
+        turnOffResultsScroll()
+        tapNavigationBack()
+        app.buttons["Show Store"].tap()
+        let heading = app.webViews.staticTexts["Results scroll fixture"].firstMatch
+        XCTAssertTrue(heading.waitForExistence(timeout: 10))
+        let moved = NSPredicate { _, _ in !heading.isHittable }
+        let expectation = XCTNSPredicateExpectation(predicate: moved, object: heading)
+        expectation.isInverted = true
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 3), .completed)
+    }
+
+    private func turnOffResultsScroll() {
+        let toggle = app.switches["auto-scroll-to-results"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        // On iOS 27 the AX Switch spans the row. Its centre is label text,
+        // not the actual control (confirmed by the failed run's recording).
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        let off = NSPredicate(format: "value == %@", "0")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: off, object: toggle)], timeout: 3), .completed)
+    }
+
     func testPreloadSearchIsPromotedAfterCooldown() {
+        checkPreloadPromotion(resultsScroll: false)
+    }
+
+    func testPreloadResultsScrollPositionsBeforePromotion() {
+        checkPreloadPromotion(resultsScroll: true)
+    }
+
+    private func checkPreloadPromotion(resultsScroll: Bool) {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 3))
         input.tap()
@@ -1284,7 +1371,8 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("Pears", status: "Pending").exists)
         app.buttons["Show Store"].tap()
         let promoted = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@", "preload-debug-status", "Promoting completed preload")
+            NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@", "preload-debug-status",
+                        resultsScroll ? "PASS: results positioned before promotion and preserved" : "Promoting completed preload")
         ).firstMatch
         XCTAssertTrue(promoted.waitForExistence(timeout: 25), app.debugDescription)
     }

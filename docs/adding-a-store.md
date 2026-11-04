@@ -157,3 +157,71 @@ Report: destination identity, changed files, enabled capabilities, offline check
 live checks, evidence path/revision and anything still blocked. Use **registered**,
 **search verified**, **detection verified** and **Undo verified** precisely; do not
 call a registration automated support.
+## Optional search-results positioning
+
+Native store definitions may add `search.resultsSelector` and
+`search.resultsTopOffset` alongside `strategy` and `template`:
+
+```json
+"search": {
+  "strategy": "urlTemplate",
+  "template": "https://shop.example/search?q={query}",
+  "resultsSelector": "[data-testid=\"results-grid\"]",
+  "resultsTopOffset": 120
+}
+```
+
+This selector is illustrative, not a verified retailer selector. Choose the
+results container or the first product card, **not** a broad `main` element that
+also contains banners. Multiple matches use the first visible, nonempty target.
+Selectors must be nonblank and at most 1,024 UTF-8 bytes. The optional offset is
+0–500 CSS pixels, measured below the viewport top; without it the gap is 12px.
+An offset requires a selector. Keep offsets large enough to clear sticky headers,
+and verify them in the embedded iPhone browser. Missing/invalid CSS or absent,
+hidden, empty or busy targets quietly leave the page alone.
+
+These are additive optional fields for native schema versions 2–5; no new engine
+or schema major is required. Older bundled definitions remain valid. The legacy
+extension/core schema is separate and is not changed by these fields. Drafts
+remain disabled; adding results targeting never grants search/cart capabilities.
+Edit the optional fields into a draft, then run the ordinary onboarding checks.
+
+Settings → Shopping → **Auto-scroll to results** is app-wide and enabled by
+default. It persists across stores/relaunches and resets with Reset Local Data,
+not diagnostics/session clearing. It applies once after a new app-requested item
+search or explicit reload/retry, including a promoted preload. Ordinary
+website navigation, Add/quantity changes and resuming an existing page do not arm
+it. Exact search-URL matching intentionally skips redirects and changed queries.
+
+The app waits for visible results with stable geometry for three 100ms intervals,
+up to eight seconds after arming, then scrolls immediately without animation.
+User touch, pointer, wheel, keyboard or scroll input cancels it—even if input
+arrives before page loading finishes. Disabling the preference, navigating,
+dismissing, switching stores, backgrounding or entering recovery also cancels.
+Ready hidden preloads can position their results during the cooldown, using the
+same stable-geometry checks and current preference. This is best effort: iOS can
+delay hidden-page timers or layout. Promotion starts a fresh, bounded visible
+check, correcting only if the desired position differs by more than one CSS
+pixel. It also covers a grid that appeared after the background attempt timed
+out. User input remains observed between preparation and promotion and prevents
+any later correction. Background preparation never moves the current page.
+
+Bundled targets use first-product selectors for Coles
+(`[data-testid="product-tile"]`) and IKEA AU (`[data-testid='plp-product-card']`),
+and the results grid for Woolworths
+(`[data-testid="search-results-product-scrollable-content"]`), with a 120px
+header gap. See `packages/ios/VALIDATION.md` for live versus fixture evidence;
+selector reuse alone does not certify scrolling. All other definitions currently
+omit the fields. In particular, Bunnings' broad cart
+`main` selector is **not** suitable evidence for a results-grid target.
+
+Woolworths' current results grid replaces the obsolete `wc-product-tile` target;
+its search-scroll selector is deliberately independent of the legacy cart-tile
+selector. Do not widen cart detection as part of a results-positioning change.
+Page-generated scroll restoration is not user input: cancellation observes touch,
+pointer, wheel, keyboard and native pan gestures rather than every DOM `scroll`
+event. The isolated opt-in `testLiveWoolworthsResultsScroll` probe exercises the
+real app search and scroll engine in iOS WebKit and reports only enum states,
+booleans and geometry. Launch it through xcodebuild with
+`TEST_RUNNER_LISTRUNNER_LIVE_RESULTS_SCROLL=1`; it does not interact with retailer
+controls, consent, account, location or cart settings.

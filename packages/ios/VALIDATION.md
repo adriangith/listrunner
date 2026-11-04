@@ -872,3 +872,234 @@ seconds in total; this is test runtime, not measured detector latency. All test
 carts ended independently empty. No physical device, credentials, account,
 fulfilment, checkout or purchase was involved. This is branch validation, not a
 merge, archive upload or TestFlight release.
+## Configurable results auto-scroll — 4 November 2026
+
+Branch `feat/auto-scroll-to-grid`; initial implementation revision
+`dd73c1e3feaeacbc7f47681b1b0a6de67e2427bc` (not merged or installed on the phone).
+
+* Added optional native `search.resultsSelector`/`resultsTopOffset`, strict native
+  decoding/validation and onboarding preflight; existing schema 2–5 definitions
+  remain valid. No legacy extension/core schema change or capability promotion.
+* Added default-on global Settings → Shopping preference with persistent opt-out,
+  live pending-scroll cancellation and Reset Local Data semantics. Existing
+  Settings styling and the saved design-audit reference were consulted; the
+  OpenPencil desktop connection was unavailable, so no live design comparison is
+  claimed.
+* Scrolling is isolated-world, one-shot and bounded to the exact requested item
+  search URL/document. Waits for stable visible nonempty target geometry; cancels
+  for early input/scroll, supersession, navigation, hidden/background state,
+  dismissal, verification/recovery and setting-off. Preloads arm only on visible
+  promotion. Retailer controls, carts, cookies and list statuses are untouched.
+* Initial targets reuse existing reviewed first-result card selectors for Coles,
+  Woolworths and IKEA AU. The 120px offset is conservative and still needs live
+  retailer/viewport review; other stores remain no-ops until configured. Exact
+  URL matching deliberately skips retailer redirects/query rewrites rather than
+  risking unrelated grids. No new live retailer result-scroll certification.
+* Linux: **386/386 JS tests** (`node --test packages/ios/tests/*.test.mjs`), including
+  **39 new results-scroll script fixtures**; **43 Python checks** across the five
+  `test-*.py` scripts, including optional-field validation; `git diff --check`
+  passed. Standard unittest discovery cannot import these hyphenated script
+  names; they were run individually, not counted as a successful zero-test run.
+* Added native configuration/preference/reset regression checks and three
+  isolated simulator UI tests for setting persistence, actual first-result
+  positioning and disabled behaviour. Native execution/build results are recorded
+  below when available. Fixtures use local HTML and nonpersistent retailer data;
+  no real cart/account/network action is part of these checks.
+* Mac Debug simulator **build-for-testing succeeded** at `dd73c1e`; actual built
+  bundle audit passed: **35 JSON + 1 JavaScript resource** byte-match canonical
+  files. Native checks initially exposed a test-order issue: reconstructing the
+  preferences object repopulated migration keys before the existing clear-keys
+  assertions. Test-only fix `8a00d6b1c25f9ae6a0bc856ef4ec66bcc74a5808` moves
+  reconstruction after those assertions; no app code changed.
+* Native rerun at `8a00d6b` passed **1,777 checks**. Synthetic store-registration
+  proof, **195 regional-search checks** and **449 parser checks** also passed.
+  The simulator UI rerun at `344017a` passed
+  `testResultsScrollPositionsFirstResultNearTop` (actual WKWebView positioning).
+  Opt-out exceeded its 120s allowance during the shared setup/flow; persistence
+  failed because the whole-row switch tap left its value at 1. These are not
+  counted as passing. Recording/touch-event inspection confirmed the persistence
+  tap landed at `(201,435)` on the row label, not the visible switch; opt-out had
+  not reached Settings. Evidence is preserved on both machines under
+  `/tmp/opencode/auto-scroll-failure-evidence/`. Test-only correction
+  `6fdab31528c0ef10576383c5eb8f7d8a7e452280` uses the existing right-edge switch
+  tap pattern, waits for the off value and sets up only Coles. No application
+  toggle code was changed to fix those test interactions.
+* Final app revision `09cb382af53430e0553ecfe264bba5ba28aceb57` also passed a
+  **Release simulator build** and a second **35 JSON + 1 JavaScript** canonical
+  bundle audit. This revision retains cancellation during deferred search pacing
+  and arms scrolling for an explicit retry of the original search after recovery.
+  Release log: `~/Library/Logs/ListRunner-auto-scroll-release.log`; output:
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-auto-scroll-release`.
+* Native checks rerun at `6fdab31` again passed **1,777/1,777**; log
+  `~/Library/Logs/ListRunner-auto-scroll-native-final.log`.
+* Focused UI run at `6fdab31` passed **positioning** (37.752s) and **setting
+  persistence** (56.944s). Opt-out reached a confirmed off switch at 109.5s and
+  opened the fixture, but the 120s whole-test allowance expired at page entry;
+  this is not a passing opt-out result. Its isolated rerun uses a 240s allowance
+  with no application/test-source changes. Full focused-run evidence:
+  `~/Library/Logs/ListRunner-auto-scroll-ui-final.log` and
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-auto-scroll-ui-final.xcresult`.
+* Isolated opt-out rerun at the same `6fdab31` revision **passed (85.321s)**:
+  `~/Library/Logs/ListRunner-auto-scroll-ui-optout.log` and
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-auto-scroll-ui-optout.xcresult`.
+  Thus all three focused UI scenarios passed at the final code/test revision
+  **across two runs**, not one clean three-test run. No broader UI regression,
+  live retailer offset review, iOS 17 runtime or exhaustive accessibility/design
+  sign-off is implied. Existing app source is unchanged from Release-tested
+  `09cb382`; later commits change test setup/hit targeting and documentation only.
+  The dedicated simulator was shut down after testing, not deleted; evidence and
+  the isolated Mac worktree are retained. No phone install, merge, distribution,
+  retailer mutation, account change or shared-simulator cleanup was performed.
+* Mac handoff uses a clean detached worktree at
+  `/Users/adrianzafir/Projects/listrunner-worktrees/auto-scroll-results`, fetched
+  through Git at the exact implementation SHA. Original checkout remains on
+  `main` with its pre-existing untracked Xcode Cloud directory preserved. Build
+  output lives in `~/Library/Developer/Xcode/DerivedData/ListRunner-auto-scroll`;
+  logs in `~/Library/Logs/ListRunner-auto-scroll-{native,build}.log`. Dedicated
+  simulator: `35E7458A-05FB-452F-8117-A62AAF4C20CE` (ListRunner Results Scroll,
+  iOS 27.2). No shared simulator or physical phone is used.
+## Background results positioning during cooldown — 4 November 2026
+
+Supersedes the original hidden-preload restriction below, at the user's request.
+Once a preload reaches a readable, non-verification search document, the results
+engine may position its rendered grid in the background after three stable
+100ms intervals. The exact requested URL, store allowlist, current preference,
+naming generation and active browsing/recovery guards still apply. This never
+scrolls the current visible browser or changes retailer/list data.
+
+Promotion replaces a pending/completed/timed-out background attempt with a fresh
+bounded visible geometry check. It issues no second scroll if already within
+one CSS pixel, but can repair layout/scroll restoration or finish delayed work.
+Input listeners remain installed between phases: touch, pointer, wheel, keyboard,
+navigation or native cancellation prevents later correction. Preference-off
+cancels both browsers; dismissal/backgrounding discards the unused preload.
+Background timers/layout remain best effort, not an iOS scheduling guarantee.
+
+Validation on Linux:
+
+* **400 JavaScript tests passed**, including **53 exact bundled results-script
+  fixtures** covering hidden positioning, unchanged promotion, changed layout,
+  retailer scroll restoration, unfinished/timed-out background fallback, delayed
+  document visibility, inter-phase input and stale URL/cancellation safeguards.
+* **19 Python onboarding checks** and `git diff --check` passed.
+* Added isolated, offline iOS UI test
+  `StoreSelectionTests/testPreloadResultsScrollPositionsBeforePromotion`.
+  Its debug-only read-only geometry observer requires positive scroll and the
+  configured header gap before promotion, then confirms the promoted position.
+  No live retailer access or cart actions are used.
+* Initially Mac validation was blocked by SSH `No route to host`. After the user
+  restored connectivity, the clean isolated Mac checkout was fast-forwarded to
+  `ed351342b2413e91e6c049241bb98a4e63cacdab`.
+* **1,777 native recovery/configuration checks passed** on that revision; log:
+  `~/Library/Logs/ListRunner-preload-scroll-native-ed35134.log`.
+* **Release simulator build passed**, including byte-match verification of all
+  **35 JSON + 1 JavaScript** bundled resources. Log:
+  `~/Library/Logs/ListRunner-preload-scroll-release-ed35134.log`; DerivedData:
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-preload-scroll-release`.
+* At the user's request, **Debug device build, signing, in-place installation and
+  launch succeeded** for `ed35134` on the physical iPhone 17e
+  (`00008150-001402660A9BC01C`, bundle `com.adrianzafir.listrunner`). The device
+  app also passed the **35 JSON + 1 JavaScript** byte-match audit. The first build
+  failed signing with `errSecInternalComponent`; a scoped existing keychain
+  unlock fixed the retry, and the keychain was relocked before installation.
+  No signing credentials/access settings changed, no data reset or test launch
+  arguments/environment were used, and no retailer/account/cart actions occurred.
+  Log: `~/Library/Logs/ListRunner-preload-scroll-iphone-ed35134-retry.log`.
+  Installation/launch does not constitute observed physical-phone scrolling.
+* The focused iOS 27.2 simulator run completed **3/4**, not a clean pass.
+  Existing preload promotion, visible positioning and opt-out passed. The new
+  background-positioning scenario failed, then failed in an isolated rerun.
+  Exported app stdout shows pacing deferred the preload by 0.5s; the hidden
+  WebKit browser did not report navigation readiness before cooldown expiry.
+  Production correctly discarded the unavailable preload and used normal search.
+  Logs: `~/Library/Logs/ListRunner-preload-scroll-ed35134.log` and
+  `ListRunner-preload-scroll-isolated-1d3b0e4.log`; exported diagnostic directory:
+  `~/Library/Logs/ListRunner-preload-scroll-isolated-diagnostics`.
+* The ready-preload fixture now permits a bounded 15s preparation wait before
+  counting down, only when both isolated preload/results fixture flags are set.
+  It still requires measured background positioning before promotion. Production
+  keeps its three-second cooldown and best-effort fallback unchanged. This test
+  does not certify cold hidden-WebKit startup within three seconds.
+* The corrected ready-preload UI scenario **passed 1/1** at
+  `cd9165d7ee51bc5638051197ece5ba1f6d51f775` in 63.665s. Its native observer
+  measured the configured header gap and positive scroll before promotion, then
+  confirmed the promoted position. Log:
+  `~/Library/Logs/ListRunner-preload-scroll-cd9165d.log`; result:
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-preload-scroll-cd9165d.xcresult`.
+  All four focused scenarios passed across runs, **not one clean final 4/4**.
+  The later change is debug-fixture-only; the phone retains production code from
+  `ed35134`, and no new physical-phone behavior was observed in this rerun.
+
+When the Mac is available, use the normal Git handoff into the isolated
+`/Users/adrianzafir/Projects/listrunner-worktrees/auto-scroll-results` checkout,
+verify clean status and the exact pushed revision, then run the new preload UI
+test plus `testPreloadSearchIsPromotedAfterCooldown`,
+`testResultsScrollPositionsFirstResultNearTop` and
+`testResultsScrollOptOutLeavesPageAtTop`. Use simulator DerivedData/results
+outside the checkout. Do not reset the physical app or run fixtures on it.
+
+## Woolworths results-grid repair — 4 November 2026
+
+After the user requested a phone build, revision
+`c60399e32e0cc1cfa15b115bf0ad45d968f6371e` was signed and installed in place on the
+connected iPhone 17e. The initial signing attempt failed with
+`errSecInternalComponent`; a user-supplied private secret unlocked the existing
+login keychain for the retry, and the keychain was relocked afterward. No signing
+identity/access settings were changed. Build retry succeeded and the actual
+35 JSON + 1 JavaScript bundle audit passed. `devicectl` confirmed installation;
+launch was refused because the phone was locked. No data reset or fixture launch
+was performed on the phone. Evidence: Mac
+`~/Library/Logs/ListRunner-auto-scroll-iphone-build-retry.log`.
+
+The user subsequently reported no auto-scroll at Woolworths. An isolated mobile
+viewport Chrome inspection found **zero `wc-product-tile` elements** and a real,
+visible `[data-testid="search-results-product-scrollable-content"]` grid (top
+608px, height 8,371px at the sampled 390×844 viewport). Requested/final search
+URLs matched, the document was the scroll root, and no initialization scroll
+events were observed in that browser run. These observations diagnose a stale
+selector in Chrome, not yet a native-iOS live proof.
+
+Fix revision `3b4439e988281c373315eaa1b0b480bec7e44e48` updates only Woolworths'
+**search-scroll target**, not its cart detection/identity/capability definitions.
+It also fixes an independent overbroad cancellation condition: a DOM `scroll`
+event alone is not user intent. Touch, pointer, wheel, keyboard and native pan
+cancellation remain; page-generated scroll restoration no longer suppresses the
+pending assistance. Enum-only isolated-world state supports the explicit
+read-only live probe; no product/query/account content is reported.
+
+* Linux: **387 JavaScript fixtures passed**, including **40 results-scroll
+  fixtures**, with the current Woolworths grid and page-generated scrolling
+  regressions; **19 onboarding checks** and `git diff --check` passed.
+* Mac: **1,777 native configuration/recovery checks passed** at `3b4439e`.
+  `~/Library/Logs/ListRunner-woolworths-scroll-native.log`.
+* Added `testLiveWoolworthsResultsScroll`, explicitly opted in through
+  `TEST_RUNNER_LISTRUNNER_LIVE_RESULTS_SCROLL=1`. It uses a temporary list and
+  nonpersistent WebKit store in the dedicated simulator, performs the real app
+  item search, and checks that the actual bundled engine reports a scroll and
+  places the grid within 3 CSS pixels of the configured header allowance. It
+  never taps retailer controls or changes consent/location/account/cart state.
+* **Live embedded-iOS proof passed** at `3b4439e`: the actual ListRunner browser
+  searched Woolworths in the dedicated iOS 27.2 simulator, found exactly one
+  configured grid, and reported
+  `PASS: state=scrolled matches=1 top=120 y=488 urlMatches=true`. Test duration:
+  114.046s. This proves actual automatic scrolling by the bundled engine, not a
+  manually issued scroll or a desktop-only selector check. No retailer controls,
+  account, location, consent, cart or checkout actions occurred. Evidence:
+  `~/Library/Logs/ListRunner-woolworths-scroll-live.log` and
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-woolworths-scroll-live.xcresult`.
+  Simulator was already shut down afterward; it and all evidence are preserved.
+  Other retailers, other Woolworths layouts/queries and device accessibility
+  remain outside this focused proof.
+* **Corrected phone build signed and installed in place** at `3b4439e` on Adrian's
+  iPhone 17e (`00008150-001402660A9BC01C`). The device bundle passed the
+  **35 JSON + 1 JavaScript** byte-match audit. Build log:
+  `~/Library/Logs/ListRunner-woolworths-scroll-iphone-build.log`; DerivedData:
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-auto-scroll-iphone`.
+  The signing keychain was unlocked only for the build and relocked afterward;
+  no credential/access settings changed. Installation succeeded; automatic
+  launch was again refused by iOS because the phone was locked. The user can
+  unlock/open ListRunner and trigger the next item search or original-search
+  reload. Existing app data was not reset, no test environment/arguments were
+  supplied to the phone launch, and no physical-phone retailer/cart interaction
+  was performed. Live auto-scroll proof above is simulator evidence, not a
+  claim of observed scrolling on the physical phone.

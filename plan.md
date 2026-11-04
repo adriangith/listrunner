@@ -1,5 +1,13 @@
 ## ListRunner Build Specification
 
+### Auto-scroll to search results (4 November 2026)
+
+* Native store search definitions may optionally supply a results-container or first-result CSS selector (`resultsSelector`) and a 0–500 CSS-pixel sticky-header allowance (`resultsTopOffset`, default 12). These additive fields do not change the existing search/cart capability ceilings or require existing definitions to migrate.
+* Settings → Shopping → Auto-scroll to results is app-wide, defaults on, persists across stores/relaunches, and clears only with confirmed Reset Local Data. Stores without a configured target behave as before.
+* Scroll once for a new app-requested item search or explicit reload/retry. A matching hidden preload may prepare its position during cooldown once its results are ready, then receives a bounded visible check on promotion: do not scroll again if correctly positioned, but correct changed geometry or fall back if background positioning was delayed. Require the exact requested search URL and rendered, nonempty results with stable geometry; missing/invalid/hidden targets time out harmlessly. Never scroll arbitrary website navigation, product Add/quantity changes or status-only updates. User input between preparation and promotion prevents a later correction.
+* Cancel on user input/scrolling (including input during loading), superseding searches, navigation, dismissal/store switch, backgrounding, setting-off and verification/recovery. Scroll without animation and clamp within document bounds. No cart, account or list-data mutation is involved.
+* Initial data targets the first reviewed result card for Coles, Woolworths and IKEA AU with a conservative 120px header allowance. Other stores remain unconfigured pending results-target evidence. Selector reuse is not live embedded-browser/offset certification; see `docs/adding-a-store.md` and `packages/ios/VALIDATION.md` for coverage and outstanding checks.
+
 ### IKEA Australia (4 November 2026)
 
 * Add IKEA (`ikeaAU`) using the shared store UI, AU discovery, disabled-by-default visibility, permanent independent list/session IDs ending `000033`, blue/yellow branding, diagnostics and scoped reset. Preserve existing stores and all saved data. Its trusted homepage and item-search route are `/au/en/` and `/au/en/search/?q={query}` on exact `www.ikea.com`/`ikea.com` HTTPS origins. Other IKEA countries, unreviewed authentication hosts and encoded locale escapes are not trusted destinations.
