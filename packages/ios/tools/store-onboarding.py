@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline onboarding tools. Never enable capabilities or contact retailers."""
+"""Store onboarding tools. No capability promotion; live search requires explicit opt-in."""
 import argparse
 import base64
 import html
@@ -341,7 +341,7 @@ def main():
     verify.add_argument('id')
     registration = commands.add_parser('register', help='Generate disabled native + Xcode + JSON registration patch')
     registration.add_argument('--config', type=Path, required=True)
-    registration.add_argument('--serial', type=int, required=True, help='Explicitly reviewed unused permanent identity suffix')
+    registration.add_argument('--serial', type=int, help='Optional reviewed unused suffix; default generates permanent UUIDs once')
     registration.add_argument('--data-domain', required=True, help='Reviewed website-data ownership domain')
     registration.add_argument('--output', type=Path, required=True, help='New patch file; never overwritten')
     plan = commands.add_parser('probe-plan', help='Generate two-query native inspection plan; no network access')

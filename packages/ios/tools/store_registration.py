@@ -3,6 +3,7 @@ import difflib
 import hashlib
 import json
 import re
+import uuid
 
 NATIVE = 'packages/ios/ListRunner/StoreConfiguration.swift'
 PROJECT = 'packages/ios/ListRunner.xcodeproj/project.pbxproj'
@@ -31,7 +32,7 @@ def registration_files(root, config, serial, domain):
         raise ValueError('Review an exact website-data domain')
     if not all(host == domain or host.endswith('.' + domain) for host in config['allowedHosts']):
         raise ValueError('Every navigation host must belong to the reviewed website-data domain')
-    if type(serial) is not int or not 1 <= serial <= 999999999999:
+    if serial is not None and (type(serial) is not int or not 1 <= serial <= 999999999999):
         raise ValueError('Serial must be a positive integer up to twelve digits')
     if config['capabilities'] != dict(search=False, cartDetection=False, cartUndo=False) or config.get('cart') is not None:
         raise ValueError('Registration accepts only disabled, manual-shopping drafts')
@@ -41,7 +42,11 @@ def registration_files(root, config, serial, domain):
     source = (root / NATIVE).read_text()
     if (root / resource).exists() or re.search(r'\b' + re.escape(store) + r'\b', source):
         raise ValueError('Store already registered; never overwrite an identity')
-    ids = [f'{prefix}0000000-0000-4000-8000-{serial:012d}' for prefix in ('1', '2')]
+    # New stores need permanent identities, not a shared mutable sequence. Allocate
+    # once at code generation, never at runtime. Existing identities stay intact.
+    # Explicit serials remain available for reviewed conventions/compatibility.
+    ids = ([f'{prefix}0000000-0000-4000-8000-{serial:012d}' for prefix in ('1', '2')]
+           if serial is not None else [str(uuid.uuid4()).upper(), str(uuid.uuid4()).upper()])
     if any(identity in source for identity in ids):
         raise ValueError('Permanent identity serial is already reserved; choose explicitly after fetching latest branches')
     original_source = source

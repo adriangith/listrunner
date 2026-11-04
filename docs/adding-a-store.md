@@ -56,15 +56,17 @@ than copying their contents into agent context. Never include account/cart secre
 
 ### Generate registration, rather than editing multiple switches
 
-After fetching and checking current task branches for reserved identities, choose an
-unused permanent serial explicitly. The example `999` is for disposable proofs, not
-a reservation for a real store. The tool rejects collisions in the current source;
-it cannot prevent another branch independently reserving the same serial.
+By default the tool generates two independent random UUIDs **once into the patch**,
+never at runtime. Keeping the reviewed values in source makes them permanent and
+avoids concurrent branches choosing the same next numeric suffix. Existing IDs are
+never changed. If a destination explicitly requires the old sequential convention,
+use `--serial N` only after fetching and checking current task branches; current-source
+collision checks cannot detect an unfetched branch reserving the same suffix.
 
 ```bash
 python3 -B packages/ios/tools/store-onboarding.py register \
   --config /tmp/opencode/exampleAU-draft/exampleAU.json \
-  --serial 999 --data-domain shop.example \
+  --data-domain shop.example \
   --output /tmp/opencode/exampleAU-registration.patch
 git apply --check /tmp/opencode/exampleAU-registration.patch
 # Review the patch, including exact hosts, reset-data domain, IDs and branding.

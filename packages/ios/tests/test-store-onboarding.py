@@ -9,6 +9,8 @@ import subprocess
 from pathlib import Path
 import tempfile
 import unittest
+import uuid
+import re
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('onboarding', Path(__file__).resolve().parents[1] / 'tools/store-onboarding.py')
@@ -110,7 +112,7 @@ class OnboardingTests(unittest.TestCase):
             draft = root / 'draft'
             tool.scaffold(self.args(draft))
             config = json.loads((draft / 'exampleAU.json').read_text())
-            files = tool.registration_files(tool.BASE.parents[1], config, 999, 'shop.example')
+            files = tool.registration_files(tool.BASE.parents[1], config, None, 'shop.example')
             for path, (before, _) in files.items():
                 if before:
                     target = root / path
@@ -123,8 +125,9 @@ class OnboardingTests(unittest.TestCase):
             subprocess.run(['git', 'apply', str(patch_file)], cwd=root, check=True)
             native = (root / 'packages/ios/ListRunner/StoreConfiguration.swift').read_text()
             self.assertIn('case `exampleAU`', native)
-            self.assertIn('case .`exampleAU`: value = "10000000-0000-4000-8000-000000000999"', native)
-            self.assertIn('case .`exampleAU`: value = "20000000-0000-4000-8000-000000000999"', native)
+            identities = re.findall(r'case \.`exampleAU`: value = "([A-F0-9-]+)"', native)
+            self.assertEqual(len(set(identities)), 2)
+            self.assertTrue(all(uuid.UUID(value).version == 4 for value in identities))
             # Every added native line belongs only to the new store. Removing them
             # must reproduce the original bytes, including all capability ceilings.
             self.assertEqual(''.join(line for line in native.splitlines(True) if 'exampleAU' not in line),
@@ -181,6 +184,24 @@ class OnboardingTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'disabled'):
                 tool.registration_files(tool.BASE.parents[1], config, 999, 'shop.example')
 
+    def test_default_registration_allocates_permanent_independent_ids_in_source_only(self):
+        with tempfile.TemporaryDirectory() as root:
+            draft = Path(root) / 'draft'
+            tool.scaffold(self.args(draft))
+            config = json.loads((draft / 'exampleAU.json').read_text())
+            files = tool.registration_files(tool.BASE.parents[1], config, None, 'shop.example')
+            native = files['packages/ios/ListRunner/StoreConfiguration.swift'][1]
+            ids = re.findall(r'case \.`exampleAU`: value = "([A-F0-9-]+)"', native)
+            self.assertEqual(len(ids), 2)
+            self.assertEqual(len(set(ids)), 2)
+            for value in ids:
+                self.assertEqual(uuid.UUID(value).version, 4)
+                self.assertNotIn(value, files['packages/ios/ListRunner/StoreConfiguration.swift'][0])
+            self.assertNotIn('UUID()', native) # no runtime reallocation
+            explicit = tool.registration_files(tool.BASE.parents[1], config, 999, 'shop.example')
+            self.assertIn('10000000-0000-4000-8000-000000000999', explicit['packages/ios/ListRunner/StoreConfiguration.swift'][1])
+            self.assertIn('20000000-0000-4000-8000-000000000999', explicit['packages/ios/ListRunner/StoreConfiguration.swift'][1])
+
     def test_registration_refuses_changed_layout_and_invalid_branding(self):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
@@ -204,6 +225,8 @@ class OnboardingTests(unittest.TestCase):
         project = (tool.BASE / 'ListRunner.xcodeproj/project.pbxproj').read_text()
         self.assertEqual(tool.resource_contract(project, 'coles'), [])
         self.assertTrue(tool.resource_contract(project, 'missing'))
+        reference = next(line for line in project.splitlines() if 'isa = PBXFileReference;' in line and 'path = Resources/coles.json;' in line)
+        self.assertTrue(tool.resource_contract(project + '\n' + reference, 'coles'))
         self.assertTrue(tool.resource_contract(project.replace('fileRef = B10000000000000000000016',
                                                               'fileRef = B10000000000000000000017'), 'coles'))
 
