@@ -2125,6 +2125,7 @@ final class StoreBrowser: ObservableObject {
     private var autoScrollToResults = true
     private var resultsScrollNavigation: WKNavigation?
     private var resultsScrollTask: Task<Void, Never>?
+    private var resultsScrollRequestAllowed = false
 
     func setAutoScrollToResults(_ enabled: Bool) {
         autoScrollToResults = enabled
@@ -2132,6 +2133,7 @@ final class StoreBrowser: ObservableObject {
     }
 
     private func cancelResultsScroll() {
+        resultsScrollRequestAllowed = false
         resultsScrollNavigation = nil
         resultsScrollTask?.cancel()
         resultsScrollTask = nil
@@ -2419,6 +2421,7 @@ final class StoreBrowser: ObservableObject {
         searchRequestID = requestID
         searchUnavailable = false
         hasLoaded = true
+        resultsScrollRequestAllowed = autoScrollToResults && store.search.resultsSelector != nil
         let delay = max(0.5, navigationPacing.delay(at: ProcessInfo.processInfo.systemUptime))
         pendingSearchTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(delay))
@@ -2426,7 +2429,7 @@ final class StoreBrowser: ObservableObject {
                   self.namingGeneration == generation else { return }
             self.pendingSearchTask = nil
             guard !self.siteVerificationRequired else { return }
-            self.loadStoreURL(url, scrollResults: true)
+            self.loadStoreURL(url, scrollResults: self.resultsScrollRequestAllowed)
         }
     }
 
