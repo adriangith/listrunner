@@ -226,7 +226,8 @@ def probe_plan(args):
                 for number in range(3))
         queries.append(entry)
     plan = dict(id=config['id'], hosts=config['allowedHosts'], queries=queries,
-                fixtureOnly=args.fixture, scope='read-only search inspection; no capability promotion')
+                fixtureOnly=args.fixture, configSHA256=hashlib.sha256(args.config.read_bytes()).hexdigest(),
+                scope='read-only search inspection; no capability promotion')
     with args.output.open('x') as output:
         output.write(json.dumps(plan, indent=2) + '\n')
     print(f'Probe plan: {args.output}. No website visited. Review the selectors and queries before running.')
@@ -269,11 +270,19 @@ def probe(args):
         details = json.loads(summary.stdout) if summary.returncode == 0 else {}
     except json.JSONDecodeError:
         details = {}
-    passed = result.returncode == 0 and native_summary_passed(details)
+    exported = directory / 'attachments'
+    export = subprocess.run(['xcrun', 'xcresulttool', 'export', 'attachments', '--path',
+                             str(directory / 'inspection.xcresult'), '--output-path', str(exported)],
+                            capture_output=True, text=True, timeout=30)
+    mode = 'offline-fixture' if args.fixture else 'live-read-only'
+    inspection = inspection_artifact(exported, plan['id'], mode) if export.returncode == 0 else None
+    passed = result.returncode == 0 and native_summary_passed(details) and inspection is not None
+    revision = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=BASE, capture_output=True, text=True, check=True).stdout.strip()
     (directory / 'report.json').write_text(json.dumps(dict(
-        store=plan['id'], mode='offline-fixture' if args.fixture else 'live-read-only',
+        store=plan['id'], mode=mode,
         status='pass' if passed else 'fail', elapsedSeconds=round(time.monotonic() - started, 3),
-        planSHA256=hashlib.sha256(data).hexdigest(), testSummary=details,
+        revision=revision, configSHA256=plan.get('configSHA256'),
+        planSHA256=hashlib.sha256(data).hexdigest(), testSummary=details, inspection=inspection,
         cartVerification='not-performed', capabilitiesChanged=False), indent=2) + '\n')
     print(f'{"PASS" if passed else "FAIL"}: {"offline fixture" if args.fixture else "live read-only search"}; report: {directory / "report.json"}')
     print(f'Native evidence: {directory / "inspection.xcresult"}. No cart proof or capability changes.')
@@ -285,6 +294,20 @@ def native_summary_passed(details):
     return (details.get('result') == 'Passed' and details.get('totalTestCount') == 1
             and details.get('passedTests') == 1 and details.get('failedTests') == 0
             and details.get('skippedTests') == 0)
+
+
+def inspection_artifact(directory, store, mode):
+    candidates = []
+    for path in directory.glob('*.json'):
+        try:
+            value = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if (isinstance(value, dict) and value.get('store') == store and value.get('mode') == mode
+                and value.get('capabilitiesChanged') is False and value.get('cartVerification') == 'not-performed'
+                and isinstance(value.get('observations'), list) and len(value['observations']) == 2):
+            candidates.append(value)
+    return candidates[0] if len(candidates) == 1 else None
 
 
 def strategies(args):

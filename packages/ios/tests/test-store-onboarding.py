@@ -131,6 +131,7 @@ class OnboardingTests(unittest.TestCase):
             self.assertEqual(json.loads(resource.read_text()), config)
             project = (root / 'packages/ios/ListRunner.xcodeproj/project.pbxproj').read_text()
             self.assertEqual(project.count('path = ListRunner/Resources/exampleAU.json;'), 1)
+            self.assertEqual(tool.resource_contract(project, 'exampleAU'), [])
             with self.assertRaisesRegex(ValueError, 'already registered'):
                 tool.registration_files(root, config, 1000, 'shop.example')
             # On macOS, actually compile the expanded native enum, decode the new
@@ -214,6 +215,7 @@ class OnboardingTests(unittest.TestCase):
             tool.probe_plan(args)
             plan = json.loads(args.output.read_text())
             self.assertTrue(plan['fixtureOnly'])
+            self.assertEqual(len(plan['configSHA256']), 64)
             self.assertIn('tea%20%26%20caf%C3%A9', plan['queries'][0]['url'])
             self.assertIn('tea &amp; café', plan['queries'][0]['fixtureHTML'])
             self.assertIn('options =>', plan['queries'][0]['script'])
@@ -249,6 +251,19 @@ class OnboardingTests(unittest.TestCase):
             with self.subTest(key=key):
                 self.assertFalse(tool.native_summary_passed(dict(good, **{key: value})))
         self.assertFalse(tool.native_summary_passed({}))
+
+    def test_inspection_artifact_requires_one_matching_native_attachment(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            payload = dict(store='exampleAU', mode='offline-fixture', capabilitiesChanged=False,
+                           cartVerification='not-performed', observations=[{}, {}])
+            self.assertIsNone(tool.inspection_artifact(root, 'exampleAU', 'offline-fixture'))
+            (root / 'result.json').write_text(json.dumps(payload))
+            self.assertEqual(tool.inspection_artifact(root, 'exampleAU', 'offline-fixture'), payload)
+            self.assertIsNone(tool.inspection_artifact(root, 'exampleAU', 'live-read-only'))
+            self.assertIsNone(tool.inspection_artifact(root, 'otherAU', 'offline-fixture'))
+            (root / 'duplicate.json').write_text(json.dumps(payload))
+            self.assertIsNone(tool.inspection_artifact(root, 'exampleAU', 'offline-fixture'))
 
 
 if __name__ == '__main__':

@@ -93,8 +93,8 @@ python3 -B packages/ios/tools/store-onboarding.py probe-plan \
 
 Review selectors for product links, reflected query, Add controls and card containers
 (`--query-selector`, `--add-selector`, `--container-selector`). The DOM inspector
-returns bounded product paths/counts, query reflection, control structure and blocker
-categories, not whole pages, cookies, account fields or raw dialog text. It never
+returns bounded product paths/counts, query reflection, control structure, conservative
+strategy hints and blocker categories, not whole pages, cookies, account fields or raw dialog text. It never
 clicks, submits or reads storage. Invalid selectors fail the probe, not open it up.
 The two unrelated queries need stable predominantly relevant results, query reflection
 and less than 50% catalogue overlap; matching links in a fixed catalogue cannot pass.
@@ -112,8 +112,12 @@ python3 -B packages/ios/tools/store-onboarding.py probe \
 Live search is explicit, GET-navigation-only and uses fresh nonpersistent iOS WebKit
 sessions. No consent choice, verification bypass, sign-in, fulfilment or cart actions
 are performed. Blockers fail the check; they are not reasons to broaden trust or loop.
-The `.xcresult` retains structured observations and Xcode's pass/fail outcome. The
-runner prints only outcome and artifact paths. It never promotes capability flags.
+The `.xcresult` retains structured observations and Xcode's pass/fail outcome. A JSON
+report automatically includes the native inspection attachment, revision, config/plan
+hashes, elapsed time and actual test counts; zero/skipped tests or missing inspection
+evidence cannot produce a pass. The runner prints only outcome and artifact
+paths. It never promotes capability flags. Build output is cached outside the checkout,
+isolated per worktree; `--derived-data /external/cache/path` can reuse a reviewed cache.
 
 For a network-blocked native smoke test, generate a plan with `--fixture` and run
 `probe ... --fixture` without `--allow-live-search`. Synthetic fixture mode cannot
