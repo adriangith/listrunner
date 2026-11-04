@@ -19,6 +19,7 @@ node --test \
   "$base/tests/coles-add-detection.test.mjs" \
   "$base/tests/profiled-expansion-cart.test.mjs"
 node --test "$base/tests/store-inspection.test.mjs"
+node --test "$base/tests/nightly-beta.test.mjs"
 bash "$base/tests/run-parser-tests.sh"
 bash "$base/tests/run-regional-search-tests.sh"
 bash "$base/tests/run-store-proof.sh"

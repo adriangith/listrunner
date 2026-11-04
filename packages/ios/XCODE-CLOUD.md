@@ -1,5 +1,33 @@
 # Nightly Xcode Cloud builds
 
+## Change-gated nightly beta automation (4 November 2026)
+
+The current release policy is **beta prereleases, app-related changes only**. GitHub Actions owns the nightly decision; the Apple workflow must remain enabled but **manual-only**, with no Apple schedule/branch/tag/PR automatic starts. Retain its external TestFlight group post-action. This supersedes the original workflow snapshot below.
+
+- `.github/workflows/nightly-beta.yml` checks at about **02:07 Australia/Melbourne**. Two UTC cron slots cover summer/winter; a local-hour guard runs only one. GitHub scheduling can be delayed. On the spring-forward night when 02:00 does not exist, it skips rather than starting twice.
+- It compares the checked-out `main` snapshot against the last successfully published `beta/ios-*` prerelease. Net app changes under `packages/ios/` and the nightly workflow count; Markdown, the website and `TestFlight` notes alone do not. Native tests and archive tooling do count because they are build gates. Reverted changes with no remaining app diff do not build.
+- Bootstrap baseline is source `28baa28621fe568a9fcd57feed50f923069b3d81`, verified as uploaded/processed TestFlight **1.0 (5)**. Its external post-action initially failed for missing encryption compliance; do not confuse that failed workflow with a new successful automated prerelease.
+- An immutable annotated `nightly/request-YYYY-MM-DD` tag pins the exact source SHA, baseline and notes. At most one request starts per Melbourne date. It is an internal build request, **not** a GitHub release and not a marker of success. Never move/retag it or use it as the baseline.
+- Xcode Cloud starts via the App Store Connect API against that tag, not a moving branch. Commit subjects affecting app-related paths generate Features/Fixes/Improvements notes; routine test/build subjects become one reliability entry. Merge/docs-only chatter is excluded. Keep feature/fix commit subjects clear; no AI service or GitHub token is sent to Apple’s build environment.
+- `ci_post_clone.sh` reads the request annotation, verifies the pinned source, and generates `TestFlight/WhatToTest.en-US.txt` in the temporary cloud checkout. Manual branch builds retain the curated file. The reconciler also verifies/updates the uploaded build’s English notes before publication.
+- A GitHub **prerelease**, named `beta/ios-VERSION-BUILD`, is published only for the matching source reference/commit after the complete Cloud run succeeds and its single iOS upload has `processingState=VALID`. An archive alone, failed post-action, invalid/expired upload or mismatched app does not qualify. Apple external beta review can still be required; a GitHub prerelease is not an App Store public release.
+- Release notes contain the TestFlight version/build, full source/baseline comparison and machine-readable provenance. Existing releases/tags are never overwritten. The successful release tag is the baseline—there is no commit pushed back to `main`, so no release-note commit loop.
+- Failed changes remain eligible next night. A pending request survives runner cancellation/timeouts and is reconciled before considering newer changes. The CI job waits at most 140 minutes; if Apple takes longer, the next scheduled/manual run resumes it. Ambiguous start responses are not blindly POSTed again. Concurrent GitHub runs are serialized without cancellation.
+
+### Credentials and operation
+
+Repository Actions secret: **ASC_PRIVATE_KEY** (dedicated App Store Connect team `.p8` key, App Manager access). Repository variables: **ASC_ISSUER_ID**, **ASC_KEY_ID**. IDs for the app/workflow/repository and the bootstrap source are non-secret configuration in `packages/ios/nightly-beta.json`. The built-in `GITHUB_TOKEN` has contents-write permission only for immutable request tags and prereleases; no separate GitHub PAT is stored. Private keys/JWTs are never committed or logged. Rotate/revoke the dedicated Apple key in App Store Connect when needed and replace the GitHub secret.
+
+Use **Actions → Nightly TestFlight beta → Run workflow → plan** for a read-only change/notes preview. **run** is an explicit manual start/reconciliation for diagnosis; ordinary automation happens only at night. Neither pushing a commit nor creating a release starts this GitHub workflow. The workflow only accepts `main`, and Actions dependencies are pinned to reviewed commit SHAs.
+
+Do not re-enable the Apple schedule alongside GitHub’s schedule. Keep manual tag starts enabled for `nightly/request-` tags. To pause nightly automation, disable the GitHub Actions workflow; already-running Apple builds must be handled separately. Do not delete pending request tags to force a retry, advance the baseline after a failure, or use the next build counter as evidence of upload success.
+
+The user approved the declaration that the app uses no non-exempt encryption after a source check found no custom cryptography/library. `ITSAppUsesNonExemptEncryption=false` is now canonical app metadata. This means exempt system HTTPS/WebKit encryption, not disabled encryption. Reassess this declaration when adding cryptography or dependencies.
+
+Offline verification: `node --test packages/ios/tests/nightly-beta.test.mjs` (also in the cloud offline gate). It uses temporary local Git repositories and mock Apple/GitHub services, never real releases, reminders, stores or credentials. Live workflow acceptance and TestFlight processing remain separate checks.
+
+## Historical original setup (superseded where noted above)
+
 ## Workflow configuration
 
 Configured by the user in Xcode on 2 November 2026 (cloud execution still pending):

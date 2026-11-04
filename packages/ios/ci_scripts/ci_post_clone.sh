@@ -10,4 +10,5 @@ if ! command -v node >/dev/null || ! node -e 'process.exit(Number(process.versio
   export PATH="$(brew --prefix node@22)/bin:$PATH"
 fi
 
+node "$base/tools/nightly-beta.mjs" cloud-notes
 bash "$base/tests/run-cloud-checks.sh"
