@@ -104,6 +104,13 @@ struct StoreShoppingView: View {
             }
 
             #if DEBUG
+            if browser.isResultsScrollLiveProbe {
+                Text(browser.resultsScrollProbeStatus)
+                    .accessibilityIdentifier("results-scroll-probe-status")
+                    .frame(width: 1, height: 1)
+                    .opacity(0.01)
+                    .allowsHitTesting(false)
+            }
             if browser.isRegionalSearchTestFixture {
                 Text(browser.regionalSearchTestStatus)
                     .accessibilityIdentifier("regional-search-test-status")
@@ -218,6 +225,9 @@ struct StoreShoppingView: View {
             }
             .task {
                 #if DEBUG
+                if browser.isResultsScrollLiveProbe {
+                    await browser.runResultsScrollLiveProbe()
+                }
                 if browser.isIdleRecoveryTestFixture {
                     await browser.runIdleRecoveryTestChecks()
                 }
@@ -2070,9 +2080,14 @@ final class StoreBrowser: ObservableObject {
     // interaction so slow images/loading cannot later pull the user backwards.
     private static let resultsScrollScript = #"""
     (() => {
+      window.__listRunnerResultsScrollState = 'watching';
       let stopped = false, started = false, interval = null, deadline = null;
-      const inputs = ['touchstart', 'pointerdown', 'wheel', 'keydown', 'scroll'];
+      // A scroll event alone is not user intent: retailers reset/restore their
+      // own scroll position during hydration. Actual input (and the native pan
+      // recognizer) cancels without suppressing those page-owned layout changes.
+      const inputs = ['touchstart', 'pointerdown', 'wheel', 'keydown'];
       function cancel() {
+        window.__listRunnerResultsScrollState = 'cancelled';
         stopped = true;
         clearInterval(interval); clearTimeout(deadline);
         for (const name of inputs) window.removeEventListener(name, cancel, true);
@@ -2087,6 +2102,7 @@ final class StoreBrowser: ObservableObject {
       window.__listRunnerScrollResults = (selector, offset, expectedURL) => {
         if (stopped || started) return;
         started = true;
+        window.__listRunnerResultsScrollState = 'waiting';
         clearTimeout(deadline);
         deadline = setTimeout(cancel, 8000);
         let previous = null, stable = 0;
@@ -2115,6 +2131,7 @@ final class StoreBrowser: ObservableObject {
           cancel();
           // 'instant' overrides retailer CSS scroll-behavior:smooth, including Reduce Motion.
           window.scrollTo({top, left: window.scrollX, behavior: 'instant'});
+          window.__listRunnerResultsScrollState = 'scrolled';
         }
         interval = setInterval(check, 100);
         check();
@@ -2126,6 +2143,42 @@ final class StoreBrowser: ObservableObject {
     private var resultsScrollNavigation: WKNavigation?
     private var resultsScrollTask: Task<Void, Never>?
     private var resultsScrollRequestAllowed = false
+
+    #if DEBUG
+    var isResultsScrollLiveProbe: Bool {
+        isLiveWebsiteProbe && ProcessInfo.processInfo.environment["LISTRUNNER_RESULTS_SCROLL_PROBE"] == store.id.rawValue
+    }
+    @Published private(set) var resultsScrollProbeStatus = "Waiting for results"
+
+    // Read-only, explicit isolated live-search proof. Reports only enum states,
+    // booleans and geometry, never product/account text, query values or HTML.
+    func runResultsScrollLiveProbe() async {
+        guard isResultsScrollLiveProbe, let selector = store.search.resultsSelector else { return }
+        for _ in 0..<60 {
+            guard !Task.isCancelled, browsingActive else { return }
+            let value = try? await webView.callAsyncJavaScript("""
+                const target = document.querySelector(selector);
+                const rect = target?.getBoundingClientRect();
+                return {state: window.__listRunnerResultsScrollState || 'notInstalled',
+                    matches: document.querySelectorAll(selector).length,
+                    top: rect?.top ?? -1, height: rect?.height ?? 0, y: window.scrollY};
+                """, arguments: ["selector": selector], in: nil, contentWorld: automationWorld)
+            if let sample = value as? [String: Any] {
+                let state = sample["state"] as? String ?? "unknown"
+                let matches = sample["matches"] as? Int ?? 0
+                let top = (sample["top"] as? NSNumber)?.doubleValue ?? -1
+                let height = (sample["height"] as? NSNumber)?.doubleValue ?? 0
+                let y = (sample["y"] as? NSNumber)?.doubleValue ?? 0
+                let expected = store.search.resultsTopOffset ?? 12
+                let passed = state == "scrolled" && matches > 0 && height > 0 && y > 0 && abs(top - expected) <= 3
+                resultsScrollProbeStatus = "\(passed ? "PASS" : "WAIT"): state=\(state) matches=\(matches) top=\(Int(top)) y=\(Int(y)) urlMatches=\(webView.url == latestRequestedSearchURL)"
+                if passed { return }
+            }
+            try? await Task.sleep(for: .seconds(1))
+        }
+        resultsScrollProbeStatus = "FAIL: " + resultsScrollProbeStatus
+    }
+    #endif
 
     func setAutoScrollToResults(_ enabled: Bool) {
         autoScrollToResults = enabled
@@ -2159,7 +2212,7 @@ final class StoreBrowser: ObservableObject {
                     let arguments: [String: Any] = ["selector": selector,
                         "offset": self.store.search.resultsTopOffset ?? 12, "url": expectedURL.absoluteString]
                     // Values are arguments, never interpolated executable page content.
-                    _ = try? await view.callAsyncJavaScript(
+                    view.callAsyncJavaScript(
                         "window.__listRunnerScrollResults?.(selector, offset, url);",
                         arguments: arguments, in: nil, in: self.automationWorld)
                     return

@@ -32,7 +32,11 @@ function fixture() {
     readyState: 'complete', visibilityState: 'visible', nodes: [node],
     scrollingElement: {scrollHeight: 3000},
     addEventListener: listen, removeEventListener: unlisten,
-    querySelectorAll(selector) { if (selector === '[') throw new Error('Invalid CSS'); return this.nodes; },
+    querySelectorAll(selector) {
+      if (selector === '[') throw new Error('Invalid CSS');
+      if (this.expectedSelector && selector !== this.expectedSelector) return [];
+      return this.nodes;
+    },
   };
   const location = {href: url};
   const schedule = (fn, delay, repeat = false) => {
@@ -97,7 +101,19 @@ test('client-rendered grid can appear after document finishes', () => {
   f.assertClean();
 });
 
-for (const event of ['touchstart', 'pointerdown', 'wheel', 'keydown', 'scroll', 'pagehide']) {
+test('Woolworths targets its current results grid, not the removed custom tile element', () => {
+  const woolworths = JSON.parse(readFileSync(new URL('../ListRunner/Resources/woolworths.json', import.meta.url), 'utf8'));
+  const f = fixture();
+  f.document.expectedSelector = '[data-testid="search-results-product-scrollable-content"]';
+  assert.equal(f.document.querySelectorAll('wc-product-tile').length, 0);
+  f.start(woolworths.search.resultsSelector, woolworths.search.resultsTopOffset);
+  f.tick(500);
+  assert.equal(f.window.__listRunnerResultsScrollState, 'scrolled');
+  assert.equal(f.scrolls[0].top, 780);
+  f.assertClean();
+});
+
+for (const event of ['touchstart', 'pointerdown', 'wheel', 'keydown', 'pagehide']) {
   for (const early of [true, false]) {
     test(`${event} ${early ? 'before' : 'after'} arming cancels pending scroll`, () => {
       const f = fixture();
@@ -110,6 +126,25 @@ for (const event of ['touchstart', 'pointerdown', 'wheel', 'keydown', 'scroll', 
     });
   }
 }
+
+test('retailer-owned scroll restoration before or during hydration is not user input', () => {
+  const f = fixture();
+  f.window.scrollY = 100;
+  f.event('scroll');
+  f.start(); f.tick(100);
+  f.window.scrollY = 0;
+  f.event('scroll');
+  f.tick(500);
+  assert.equal(f.scrolls.length, 1);
+  assert.equal(f.scrolls[0].top, 888);
+  f.assertClean();
+});
+
+test('a real user scroll still cancels despite page-owned scroll events', () => {
+  const f = fixture(); f.start(); f.event('scroll');
+  f.event('touchstart'); f.event('scroll'); f.tick(1000);
+  assert.equal(f.scrolls.length, 0); f.assertClean();
+});
 
 for (const mutation of [
   f => { f.document.nodes = []; },

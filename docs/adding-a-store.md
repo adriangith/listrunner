@@ -201,8 +201,19 @@ dismissing, switching stores, backgrounding or entering recovery also cancels.
 Hidden preloads never scroll; their current preference is checked on promotion.
 
 Initial bundled targets use previously reviewed first-product selectors for
-Coles (`[data-testid="product-tile"]`), Woolworths (`wc-product-tile`) and IKEA AU
+Coles (`[data-testid="product-tile"]`), Woolworths (`[data-testid="search-results-product-scrollable-content"]`) and IKEA AU
 (`[data-testid='plp-product-card']`), with a conservative 120px header gap. These
 reuse selector evidence, not a new live scrolling certification. All other
 definitions currently omit the fields. In particular, Bunnings' broad cart
 `main` selector is **not** suitable evidence for a results-grid target.
+
+Woolworths' current results grid replaces the obsolete `wc-product-tile` target;
+its search-scroll selector is deliberately independent of the legacy cart-tile
+selector. Do not widen cart detection as part of a results-positioning change.
+Page-generated scroll restoration is not user input: cancellation observes touch,
+pointer, wheel, keyboard and native pan gestures rather than every DOM `scroll`
+event. The isolated opt-in `testLiveWoolworthsResultsScroll` probe exercises the
+real app search and scroll engine in iOS WebKit and reports only enum states,
+booleans and geometry. Launch it through xcodebuild with
+`TEST_RUNNER_LISTRUNNER_LIVE_RESULTS_SCROLL=1`; it does not interact with retailer
+controls, consent, account, location or cart settings.

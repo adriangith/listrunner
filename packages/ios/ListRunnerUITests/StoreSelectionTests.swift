@@ -440,7 +440,14 @@ final class StoreSelectionTests: XCTestCase {
             app.launchEnvironment["LISTRUNNER_PRELOAD_TEST_FIXTURE"] = "enabled"
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
         }
-        if name.contains("ResultsScroll") {
+        if name.contains("LiveWoolworthsResultsScroll") {
+            guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_RESULTS_SCROLL"] == "1" else {
+                throw XCTSkip("Requires explicit read-only live results-scroll opt-in")
+            }
+            app.launchEnvironment["LISTRUNNER_LIVE_BROWSE_PROBE"] = "woolworths"
+            app.launchEnvironment["LISTRUNNER_RESULTS_SCROLL_PROBE"] = "woolworths"
+            app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
+        } else if name.contains("ResultsScroll") {
             app.launchEnvironment["LISTRUNNER_RESULTS_SCROLL_TEST_FIXTURE"] = "enabled"
         }
         if name.contains("Paprika") {
@@ -1291,6 +1298,25 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Settings"].tap()
         XCTAssertTrue(toggle.waitForExistence(timeout: 3))
         XCTAssertEqual(toggle.value as? String, "0")
+    }
+
+    func testLiveWoolworthsResultsScroll() {
+        // Only list-entry controls are tapped. The real retailer page is observed
+        // without tapping consent, account, location, products or cart controls.
+        app.buttons["store-picker"].tap()
+        app.buttons["Manage Stores"].tap()
+        setStoreVisibility("woolworths", shown: true)
+        tapNavigationBack()
+        choose("Woolworths")
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap(); input.typeText("milk")
+        app.buttons["Add Items"].tap()
+        app.buttons["Show Store"].tap()
+        let status = app.staticTexts["results-scroll-probe-status"]
+        let finished = NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@", "PASS:", "FAIL:")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: finished, object: status)], timeout: 70), .completed)
+        XCTAssertTrue(status.label.hasPrefix("PASS:"), status.label)
+        print("WOOLWORTHS_RESULTS_SCROLL " + status.label)
     }
 
     func testResultsScrollPositionsFirstResultNearTop() {
