@@ -1,5 +1,9 @@
 # Reusable store framework validation
 
+## Paprika feature merged to main — 4 November 2026
+
+Merge `fd12fc02949c969b455aba41cc41910b759e0916` combines the Paprika branch with main's results-scrolling changes. Two conflicts were resolved by preserving both reset preference domains and both UI-test store-selection cases. On the merged revision, **1,789 native checks passed** and simulator **build-for-testing succeeded with zero errors** (`BuildProject-Log-20261104-221228.txt`). The earlier focused 2/2 Paprika UI run was on feature revision `720e499`; it was not rerun after merge. Phone remains at feature build `4cf8093`, with no new reset/install/import/removal. Mac main was fast-forwarded while preserving its existing untracked Xcode Cloud directory. Task worktrees and feature branch can now be removed without discarding user work. No TestFlight or public release.
+
 ## Simplified Paprika options screen — 4 November 2026
 
 At application revision `720e49910f94e4bd82c014cb8ea70a0f081d03af`, Reminders-list selection and remove-after-import are colocated on **Import from Paprika**, not top-level Settings. Short export guidance, both controls, a concise mode-specific footer, **Import to [store]**, and collapsed **More about importing** replace the longer instruction screen. Preference keys/defaults, transactional imports, source-identity restrictions and the immediate repeat-import shortcut are unchanged.
