@@ -26,6 +26,16 @@ Configured by the user in Xcode on 2 November 2026 (cloud execution still pendin
 - Workflow saved **disabled** while repository checks are prepared. Do not assume
   it is enabled or a cloud build has succeeded from this document.
 
+## Automatic TestFlight tester notes
+
+`packages/ios/TestFlight/WhatToTest.en-US.txt` supplies the English **What to Test** text for future Xcode Cloud builds. The `TestFlight` directory sits beside `ListRunner.xcodeproj`, as required by Xcode Cloud. The file does not need a target membership or a build-script generator; Xcode Cloud discovers it in the build's checked-out revision.
+
+Edit and commit this file before starting a release build when the testing focus changes. It contains curated tester guidance, not automatically generated commit messages. The same text is reused for subsequent builds until updated and is visible to all testers who can access the build. Group assignment and notification settings remain controlled by the workflow, not this file.
+
+Build **5**, shown running from `28baa28` on 4 November, predates this file and cannot pick up a later commit. Its notes must be added manually in App Store Connect after upload. Adding this file does not start a build, change the nightly schedule, assign testers or publish the app.
+
+Apple reference: https://developer.apple.com/documentation/xcode/including-notes-for-testers-with-a-beta-release-of-your-app
+
 ## Automatic offline gates
 
 Xcode Cloud discovers `ci_scripts` beside the project, so the hooks live under

@@ -1,0 +1,8 @@
+This update simplifies importing groceries from Paprika and improves shopping-results scrolling.
+
+• In Paprika, export your groceries to Apple Reminders, then choose the exported list in ListRunner. Both default and named grocery lists are supported.
+• The Reminders list selector and removal setting are now together on the Paprika import screen.
+• Remove reminders after import is ON by default. Imported Apple reminders are removed only after groceries are saved. Paprika itself is unchanged. Turn this off to keep linked reminders.
+• Please check shopping-results scrolling and report confusing instructions, unexpected duplicates, or missing items.
+
+Paprika creates new reminders each time you export, so re-exporting the same groceries may create duplicates.
