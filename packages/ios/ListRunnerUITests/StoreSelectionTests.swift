@@ -2818,7 +2818,9 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Settings"].tap()
         let removal = app.switches["remove-reminders-after-import"]
         XCTAssertTrue(removal.waitForExistence(timeout: 5))
-        if removal.value as? String == "1" { removal.tap() }
+        if removal.value as? String == "1" {
+            removal.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        }
         tapNavigationBack()
         app.buttons["set-import-source"].tap()
         XCTAssertTrue(app.navigationBars["Import items"].waitForExistence(timeout: 5))
@@ -2883,7 +2885,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(row("milk", status: "Pending").exists)
 
         app.buttons["Settings"].tap()
-        app.switches["remove-reminders-after-import"].tap()
+        app.switches["remove-reminders-after-import"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         app.buttons["import-source-setting"].tap()
         app.buttons["import-source-paprika"].tap()
         XCTAssertTrue(app.staticTexts["2. Tap Actions in the grocery toolbar, then Export to Reminders."].exists)
@@ -2997,7 +2999,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["paprika-reminders-list-fixture-paprika"].tap()
         XCTAssertTrue(importNotice("Groceries added to your Coles list: 2. Removed their reminders from ‘Paprika’. Paprika is unchanged.").waitForExistence(timeout: 5))
         app.buttons["Settings"].tap()
-        removal.tap()
+        removal.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         let disabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "0"), object: removal)
         XCTAssertEqual(XCTWaiter.wait(for: [disabled], timeout: 5), .completed)
         app.buttons["import-source-setting"].tap()
