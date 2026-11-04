@@ -2,6 +2,116 @@ import XCTest
 import UIKit
 import WebKit
 
+// Generic onboarding probe: the same test works before a draft is registered.
+// Developer-generated plans only; no production app path reads these variables.
+final class StoreOnboardingSearchTests: XCTestCase {
+    @MainActor
+    func testSearchPlan() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let encoded = environment["LISTRUNNER_ONBOARDING_PLAN"],
+              let data = Data(base64Encoded: encoded) else {
+            throw XCTSkip("Requires an explicit developer onboarding plan")
+        }
+        let plan = try JSONDecoder().decode(Plan.self, from: data)
+        let fixture = environment["LISTRUNNER_ONBOARDING_MODE"] == "fixture"
+        guard fixture || environment["LISTRUNNER_ONBOARDING_MODE"] == "live-read-only" else {
+            throw XCTSkip("Live search requires explicit read-only authorization")
+        }
+        XCTAssertEqual(plan.queries.count, 2)
+        guard plan.queries.count == 2, plan.hosts.count > 0,
+              plan.queries[0].query != plan.queries[1].query else { return XCTFail("Invalid differential plan") }
+        var observations: [[String: Any]] = []
+        var catalogues: [Set<String>] = []
+        for query in plan.queries {
+            guard let route = URL(string: query.url), route.scheme == "https",
+                  route.user == nil, route.password == nil, route.port == nil || route.port == 443,
+                  let host = route.host, plan.hosts.contains(host) else { return XCTFail("Untrusted search route") }
+            let configuration = WKWebViewConfiguration()
+            configuration.websiteDataStore = .nonPersistent()
+            if fixture {
+                // Even a mistakenly edited fixture cannot reach the network.
+                let rule = """
+                [{"trigger":{"url-filter":".*"},"action":{"type":"block"}}]
+                """
+                let compiled: WKContentRuleList = try await withCheckedThrowingContinuation { continuation in
+                    WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "OnboardingFixtureOnly", encodedContentRuleList: rule) { result, error in
+                        if let result { continuation.resume(returning: result) }
+                        else { continuation.resume(throwing: error ?? NSError(domain: "OnboardingFixture", code: 1)) }
+                    }
+                }
+                configuration.userContentController.add(compiled)
+            }
+            let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844), configuration: configuration)
+            let policy = OnboardingReadOnlyPolicy(hosts: Set(plan.hosts))
+            webView.navigationDelegate = policy
+            defer { webView.stopLoading(); webView.navigationDelegate = nil }
+            if fixture {
+                guard let html = query.fixtureHTML else { return XCTFail("Fixture HTML is required; no live fallback") }
+                webView.loadHTMLString(html, baseURL: route)
+            } else {
+                webView.load(URLRequest(url: route))
+            }
+            var lastPaths: [String] = []
+            var stable = 0
+            var result: [String: Any] = [:]
+            for _ in 0..<20 {
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+                guard let current = try? await webView.evaluateJavaScript(query.script) as? [String: Any] else { continue }
+                result = current
+                let paths = current["paths"] as? [String] ?? []
+                let total = current["productCount"] as? Int ?? 0
+                let matching = current["matchingCount"] as? Int ?? 0
+                let ready = total >= 3 && matching >= 3 && matching * 4 >= total * 3
+                    && current["queryReflected"] as? Bool == true
+                    && current["overflow"] as? Bool == false
+                    && (current["blockers"] as? [String] ?? ["unknown"]).isEmpty
+                stable = ready ? (paths == lastPaths ? stable + 1 : 1) : 0
+                lastPaths = paths
+                if stable >= 2 { break }
+            }
+            XCTAssertGreaterThanOrEqual(stable, 2, "Search needs stable relevant results with query reflection and no blocker")
+            XCTAssertTrue(webView.url?.host.map(plan.hosts.contains) ?? false)
+            XCTAssertFalse(policy.blocked, "Unreviewed host or non-GET navigation encountered")
+            observations.append(result)
+            catalogues.append(Set(result["paths"] as? [String] ?? []))
+        }
+        XCTAssertLessThan(catalogues[0].intersection(catalogues[1]).count * 2,
+                          min(catalogues[0].count, catalogues[1].count),
+                          "Unrelated queries must not produce the same general catalogue")
+        let report: [String: Any] = ["store": plan.id, "mode": fixture ? "offline-fixture" : "live-read-only",
+            "observations": observations, "cartVerification": "not-performed", "capabilitiesChanged": false]
+        let attachment = XCTAttachment(data: try JSONSerialization.data(withJSONObject: report, options: [.sortedKeys]), uniformTypeIdentifier: "public.json")
+        attachment.name = "Store onboarding inspection - \(plan.id)"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private struct Plan: Decodable {
+        struct Query: Decodable { let query: String; let url: String; let script: String; let fixtureHTML: String? }
+        let id: String
+        let hosts: [String]
+        let queries: [Query]
+    }
+}
+
+private final class OnboardingReadOnlyPolicy: NSObject, WKNavigationDelegate {
+    let hosts: Set<String>
+    private(set) var blocked = false
+    init(hosts: Set<String>) { self.hosts = hosts }
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard let url = navigationAction.request.url,
+              (url.absoluteString == "about:blank" || (url.scheme == "https" && url.user == nil && url.password == nil
+                && (url.port == nil || url.port == 443) && hosts.contains(url.host ?? ""))),
+              navigationAction.request.httpMethod == "GET" else {
+            blocked = true
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+}
+
 // Search certification is independent of cart certification. These probes never
 // tap Add, use app cookies, set fulfilment details, or submit credentials.
 final class LiveExpansionSearchTests: XCTestCase {

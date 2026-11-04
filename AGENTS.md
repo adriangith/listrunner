@@ -5,6 +5,7 @@
 - Focused core checks: `cd packages/core && npm test && npm run typecheck` (Vitest). `packages/extension` and `packages/harness` remain separate browser targets: extension checks use `npm run build` and `npm run typecheck`; harness uses `npm run dev` or `npm run build`.
 - `packages/prototype` is a standalone, simulated iPhone-flow prototype (not the mobile app and does not contact Coles): `npm start` serves on port 4178; `npm run check` syntax-checks its JS.
 - `plan.md` and design specs may describe desired behavior, not necessarily the implementation. Verify current code and tests before treating a requirement there as implemented.
+- For store additions, start with `docs/adding-a-store.md` and `python3 -B packages/ios/tools/store-onboarding.py --help`. Generate disabled drafts, reuse reviewed strategies, and use compact offline reports; offline success never certifies live capabilities.
 
 ## Linux / Mac development and handoffs
 

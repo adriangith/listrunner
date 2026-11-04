@@ -10,12 +10,14 @@ node -e 'if (Number(process.versions.node.split(".")[0]) < 22) { console.error("
 
 python3 -B "$base/tests/test-release-metadata.py"
 python3 -B "$base/tests/test-store-expansion.py"
+python3 -B "$base/tests/test-store-onboarding.py"
 python3 -B "$base/tests/test-bundled-resources.py"
 python3 -B "$base/tests/test-cloud-ci.py"
 node --test \
   "$base/tests/bigw-cart-detection.test.mjs" \
   "$base/tests/coles-add-detection.test.mjs" \
   "$base/tests/profiled-expansion-cart.test.mjs"
+node --test "$base/tests/store-inspection.test.mjs"
 bash "$base/tests/run-parser-tests.sh"
 bash "$base/tests/run-regional-search-tests.sh"
 bash "$base/tests/run-store-proof.sh"
