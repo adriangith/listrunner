@@ -117,6 +117,7 @@ private struct WelcomeTransitionAnchor: UIViewRepresentable {
 struct GroceryListScreen: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \GroceryItem.position) private var allItems: [GroceryItem]
     @Query private var lists: [GroceryList]
     @StateObject private var browser: StoreBrowser
@@ -243,7 +244,10 @@ struct GroceryListScreen: View {
                             .padding(.bottom, 20)
                             .contentShape(Rectangle())
                             .onTapGesture { groceryInputFocused = false }
-                        if let notice { messageBanner(notice) }
+                        if let notice {
+                            messageBanner(notice)
+                                .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                        }
                         if saveFailed { PersistenceWarning() }
                         if browser.cartUndoWarning {
                             CartUndoWarning(storeName: storeID.displayName) { browser.dismissCartUndoWarning() }
@@ -251,6 +255,9 @@ struct GroceryListScreen: View {
                     }
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 0, trailing: 20))
+                    // Animate only notice visibility, not typing, item statuses,
+                    // or the rest of the grocery list's frequent updates.
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: notice != nil)
 
                     Section("Add products") {
                         ProductEntryEditor(text: $rawInput,
