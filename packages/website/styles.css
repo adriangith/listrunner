@@ -75,12 +75,12 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
 .section { padding: 96px clamp(20px, 6vw, 72px); }
 .section > * { max-width: 1120px; margin-left: auto; margin-right: auto; }
 .section-tint { background: var(--tint); }
-.section-head { max-width: 660px; margin-bottom: 44px; }
+.section-head { max-width: 1120px; margin-bottom: 44px; }
 .section-head h2 {
   font-size: clamp(30px, 4vw, 42px); font-weight: 700; line-height: 1.12;
   margin: 0 0 16px; color: var(--ink);
 }
-.section-lead { font-size: 16px; line-height: 1.7; color: var(--body); margin: 0; }
+.section-lead { max-width: 660px; font-size: 16px; line-height: 1.7; color: var(--body); margin: 0; }
 .note-dot {
   width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex: none;
 }
