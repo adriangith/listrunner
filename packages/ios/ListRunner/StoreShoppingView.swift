@@ -2956,7 +2956,7 @@ final class StoreBrowser: ObservableObject {
         interactionEnabled = itemID != nil
         searchUnavailable = !store.capabilities.search
         cartDetectionUnavailable = !store.capabilities.cartDetection
-        loadStoreURL(url)
+        loadStoreURL(url, scrollResults: !staleSearch && url == latestRequestedSearchURL)
     }
 
     private func rebuildWebView() {
