@@ -850,3 +850,25 @@ listener still installs before retailer handlers, and existing passive engines
 are unchanged. A regression covers deferred DOM readiness. The corrected fast
 grid path requires a fresh live rerun; earlier manual results do not substitute
 for that check.
+
+**Final automated native rerun passed at
+`34baad57c350020fddca963f72b5882ed8b90d34`.** Both live XCTest cases passed
+(2/2, no failures or skips) on the dedicated iPhone 17/iOS 27.2 simulator with
+production search/detection/Undo enabled. Each case observed automatic native
+addition, native Undo progress completing without a warning, restored local
+Pending state, and an independently loaded empty shopping-bag page. Neither used
+Mark Added or manual removal. The grid log explicitly records
+`detected=true, localRestored=true` and
+`undoVerifiedEmpty=true, cleanupVerified=true`. The earlier failed fast-grid
+result is superseded by this successful rerun, not erased.
+
+The app built successfully and all **35 JSON files plus the JavaScript engine
+byte-match** canonical source. Current Linux DOM/cart coverage is **343 passing
+tests**; Python checks remain 24 passing and core coverage remains 90 passing
+plus type-checking. The production-ceiling native suite passed 1,756 checks.
+Final native evidence: Mac `/tmp/listrunner-ikea-au-context.log` and
+`/tmp/listrunner-ikea-au-context-results`. The two-case execution took about 140
+seconds in total; this is test runtime, not measured detector latency. All test
+carts ended independently empty. No physical device, credentials, account,
+fulfilment, checkout or purchase was involved. This is branch validation, not a
+merge, archive upload or TestFlight release.
