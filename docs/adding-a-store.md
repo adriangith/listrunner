@@ -189,7 +189,7 @@ Edit the optional fields into a draft, then run the ordinary onboarding checks.
 Settings → Shopping → **Auto-scroll to results** is app-wide and enabled by
 default. It persists across stores/relaunches and resets with Reset Local Data,
 not diagnostics/session clearing. It applies once after a new app-requested item
-search or explicit reload/retry, including a visible promoted preload. Ordinary
+search or explicit reload/retry, including a promoted preload. Ordinary
 website navigation, Add/quantity changes and resuming an existing page do not arm
 it. Exact search-URL matching intentionally skips redirects and changed queries.
 
@@ -198,7 +198,13 @@ up to eight seconds after arming, then scrolls immediately without animation.
 User touch, pointer, wheel, keyboard or scroll input cancels it—even if input
 arrives before page loading finishes. Disabling the preference, navigating,
 dismissing, switching stores, backgrounding or entering recovery also cancels.
-Hidden preloads never scroll; their current preference is checked on promotion.
+Ready hidden preloads can position their results during the cooldown, using the
+same stable-geometry checks and current preference. This is best effort: iOS can
+delay hidden-page timers or layout. Promotion starts a fresh, bounded visible
+check, correcting only if the desired position differs by more than one CSS
+pixel. It also covers a grid that appeared after the background attempt timed
+out. User input remains observed between preparation and promotion and prevents
+any later correction. Background preparation never moves the current page.
 
 Bundled targets use first-product selectors for Coles
 (`[data-testid="product-tile"]`) and IKEA AU (`[data-testid='plp-product-card']`),

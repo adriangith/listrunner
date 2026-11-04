@@ -1354,6 +1354,14 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testPreloadSearchIsPromotedAfterCooldown() {
+        checkPreloadPromotion(resultsScroll: false)
+    }
+
+    func testPreloadResultsScrollPositionsBeforePromotion() {
+        checkPreloadPromotion(resultsScroll: true)
+    }
+
+    private func checkPreloadPromotion(resultsScroll: Bool) {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 3))
         input.tap()
@@ -1363,7 +1371,8 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("Pears", status: "Pending").exists)
         app.buttons["Show Store"].tap()
         let promoted = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@", "preload-debug-status", "Promoting completed preload")
+            NSPredicate(format: "identifier == %@ AND label CONTAINS[c] %@", "preload-debug-status",
+                        resultsScroll ? "PASS: results positioned before promotion and preserved" : "Promoting completed preload")
         ).firstMatch
         XCTAssertTrue(promoted.waitForExistence(timeout: 25), app.debugDescription)
     }

@@ -958,6 +958,48 @@ Branch `feat/auto-scroll-to-grid`; initial implementation revision
   logs in `~/Library/Logs/ListRunner-auto-scroll-{native,build}.log`. Dedicated
   simulator: `35E7458A-05FB-452F-8117-A62AAF4C20CE` (ListRunner Results Scroll,
   iOS 27.2). No shared simulator or physical phone is used.
+## Background results positioning during cooldown — 4 November 2026
+
+Supersedes the original hidden-preload restriction below, at the user's request.
+Once a preload reaches a readable, non-verification search document, the results
+engine may position its rendered grid in the background after three stable
+100ms intervals. The exact requested URL, store allowlist, current preference,
+naming generation and active browsing/recovery guards still apply. This never
+scrolls the current visible browser or changes retailer/list data.
+
+Promotion replaces a pending/completed/timed-out background attempt with a fresh
+bounded visible geometry check. It issues no second scroll if already within
+one CSS pixel, but can repair layout/scroll restoration or finish delayed work.
+Input listeners remain installed between phases: touch, pointer, wheel, keyboard,
+navigation or native cancellation prevents later correction. Preference-off
+cancels both browsers; dismissal/backgrounding discards the unused preload.
+Background timers/layout remain best effort, not an iOS scheduling guarantee.
+
+Validation on Linux:
+
+* **400 JavaScript tests passed**, including **53 exact bundled results-script
+  fixtures** covering hidden positioning, unchanged promotion, changed layout,
+  retailer scroll restoration, unfinished/timed-out background fallback, delayed
+  document visibility, inter-phase input and stale URL/cancellation safeguards.
+* **19 Python onboarding checks** and `git diff --check` passed.
+* Added isolated, offline iOS UI test
+  `StoreSelectionTests/testPreloadResultsScrollPositionsBeforePromotion`.
+  Its debug-only read-only geometry observer requires positive scroll and the
+  configured header gap before promotion, then confirms the promoted position.
+  No live retailer access or cart actions are used.
+* **Native build/UI validation is pending:** SSH to the verified Mac address
+  `adrianzafir@192.168.4.94` returned `No route to host`. There is no local Swift
+  compiler. The new UI test has not run or compiled, and no updated phone app
+  has been built/installed. Previous evidence below does not validate this change.
+
+When the Mac is available, use the normal Git handoff into the isolated
+`/Users/adrianzafir/Projects/listrunner-worktrees/auto-scroll-results` checkout,
+verify clean status and the exact pushed revision, then run the new preload UI
+test plus `testPreloadSearchIsPromotedAfterCooldown`,
+`testResultsScrollPositionsFirstResultNearTop` and
+`testResultsScrollOptOutLeavesPageAtTop`. Use simulator DerivedData/results
+outside the checkout. Do not reset the physical app or run fixtures on it.
+
 ## Woolworths results-grid repair — 4 November 2026
 
 After the user requested a phone build, revision

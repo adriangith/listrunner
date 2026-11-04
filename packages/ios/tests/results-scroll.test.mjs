@@ -52,7 +52,8 @@ function fixture() {
   vm.runInContext(source, context);
   return {
     window, document, node, location, timers, scrolls,
-    start(selector = '.grid', offset = 12, expected = url) { window.__listRunnerScrollResults(selector, offset, expected); },
+    start(selector = '.grid', offset = 12, expected = url, preload = false) { window.__listRunnerScrollResults(selector, offset, expected, preload); },
+    prepare() { window.__listRunnerScrollResults('.grid', 12, url, true); },
     cancel() { window.__listRunnerCancelResultsScroll(); },
     event(name) { for (const fn of [...(listeners.get(name) || [])]) fn(); },
     tick(duration) {
@@ -188,15 +189,77 @@ test('hiding an active page cancels pending scroll', () => {
   f.tick(10000); assert.equal(f.scrolls.length, 0); f.assertClean();
 });
 
-test('hidden preload never scrolls until explicitly promoted, even after long cooldown', () => {
+test('an unarmed hidden preload does not scroll', () => {
   const f = fixture(); f.document.visibilityState = 'hidden';
   f.tick(60000); assert.equal(f.scrolls.length, 0);
   f.document.visibilityState = 'visible'; f.start(); f.tick(500);
   assert.equal(f.scrolls.length, 1); f.assertClean();
 });
 
-test('arming while still hidden is a safe no-op', () => {
-  const f = fixture(); f.document.visibilityState = 'hidden'; f.start(); f.tick(500);
+test('hidden preload positions stable results before promotion; promotion does not scroll twice', () => {
+  const f = fixture(); f.document.visibilityState = 'hidden'; f.prepare();
+  f.tick(500);
+  assert.equal(f.scrolls.length, 1);
+  assert.equal(f.window.__listRunnerResultsScrollState, 'preloadScrolled');
+  assert.equal(f.timers.size, 0);
+  f.tick(60000);
+  f.document.visibilityState = 'visible'; f.event('visibilitychange'); f.start(); f.tick(500);
+  assert.equal(f.scrolls.length, 1);
+  assert.equal(f.window.__listRunnerResultsScrollState, 'scrolled');
+  f.assertClean();
+});
+
+for (const change of [f => { f.node.top += 200; }, f => { f.window.scrollY = 0; }]) {
+  test(`promotion repairs background layout or scroll restoration (${change})`, () => {
+    const f = fixture(); f.prepare(); f.tick(500); change(f);
+    f.start(); f.tick(500);
+    assert.equal(f.scrolls.length, 2);
+    assert.equal(f.window.scrollY, f.node.top - 12); f.assertClean();
+  });
+}
+
+test('promotion takes over an unfinished background stability check', () => {
+  const f = fixture(); f.document.visibilityState = 'hidden'; f.prepare(); f.tick(100);
+  f.document.visibilityState = 'visible'; f.start(); f.tick(500);
+  assert.equal(f.scrolls.length, 1); f.assertClean();
+});
+
+test('background timeout permits visible fallback when the grid finally arrives', () => {
+  const f = fixture(); f.document.nodes = []; f.prepare(); f.tick(9000);
+  assert.equal(f.window.__listRunnerResultsScrollState, 'preloadTimedOut');
+  assert.equal(f.timers.size, 0);
+  f.document.nodes = [f.node]; f.start(); f.tick(500);
+  assert.equal(f.scrolls.length, 1); f.assertClean();
+});
+
+for (const event of ['touchstart', 'pointerdown', 'wheel', 'keydown', 'pagehide']) {
+  test(`input or navigation after background positioning prevents promotion correction: ${event}`, () => {
+    const f = fixture(); f.prepare(); f.tick(500); f.node.top += 200;
+    f.event(event); f.start(); f.tick(1000);
+    assert.equal(f.scrolls.length, 1); f.assertClean();
+  });
+}
+
+test('native cancellation of a prepared preload is permanent', () => {
+  const f = fixture(); f.prepare(); f.tick(500); f.cancel();
+  f.window.scrollY = 0; f.start(); f.tick(1000);
+  assert.equal(f.scrolls.length, 1); f.assertClean();
+});
+
+test('background phase still rejects stale search URLs', () => {
+  const f = fixture(); f.prepare(); f.location.href += '&changed=true'; f.tick(500);
+  f.start(); f.tick(500); assert.equal(f.scrolls.length, 0); f.assertClean();
+});
+
+test('visible fallback waits for the promoted document to become visible', () => {
+  const f = fixture(); f.document.visibilityState = 'hidden'; f.prepare(); f.tick(100);
+  f.start(); f.tick(500); assert.equal(f.scrolls.length, 0);
+  f.document.visibilityState = 'visible'; f.event('visibilitychange'); f.tick(500);
+  assert.equal(f.scrolls.length, 1); f.assertClean();
+});
+
+test('visible attempt that stays hidden times out without moving the page', () => {
+  const f = fixture(); f.document.visibilityState = 'hidden'; f.start(); f.tick(9000);
   assert.equal(f.scrolls.length, 0); f.assertClean();
 });
 
@@ -204,7 +267,7 @@ for (const [top, height, expected] of [[40, 3000, 0], [5000, 3000, 2200], [900, 
   test(`clamps target ${top} in document ${height}`, () => {
     const f = fixture(); f.node.top = top; f.document.scrollingElement.scrollHeight = height;
     f.start('.grid', 120); f.tick(500);
-    assert.equal(f.scrolls[0].top, expected); f.assertClean();
+    assert.equal(f.window.scrollY, expected); f.assertClean();
   });
 }
 

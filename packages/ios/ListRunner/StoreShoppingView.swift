@@ -2081,7 +2081,7 @@ final class StoreBrowser: ObservableObject {
     private static let resultsScrollScript = #"""
     (() => {
       window.__listRunnerResultsScrollState = 'watching';
-      let stopped = false, started = false, interval = null, deadline = null;
+      let stopped = false, started = false, background = false, interval = null, deadline = null;
       // A scroll event alone is not user intent: retailers reset/restore their
       // own scroll position during hydration. Actual input (and the native pan
       // recognizer) cancels without suppressing those page-owned layout changes.
@@ -2094,21 +2094,33 @@ final class StoreBrowser: ObservableObject {
         window.removeEventListener('pagehide', cancel, true);
         document.removeEventListener('visibilitychange', visibility, true);
       }
-      function visibility() { if (started && document.visibilityState !== 'visible') cancel(); }
+      function visibility() { if (started && !background && document.visibilityState !== 'visible') cancel(); }
       for (const name of inputs) window.addEventListener(name, cancel, {capture: true, passive: true});
       window.addEventListener('pagehide', cancel, true);
       document.addEventListener('visibilitychange', visibility, true);
       window.__listRunnerCancelResultsScroll = cancel;
-      window.__listRunnerScrollResults = (selector, offset, expectedURL) => {
-        if (stopped || started) return;
+      window.__listRunnerScrollResults = (selector, offset, expectedURL, preload = false) => {
+        // Only promotion may re-arm a background attempt. Keep input listeners
+        // alive between phases so a touch before the visible check wins.
+        if (stopped || (started && (!background || preload))) return;
+        clearInterval(interval); clearTimeout(deadline);
+        background = preload;
         started = true;
         window.__listRunnerResultsScrollState = 'waiting';
-        clearTimeout(deadline);
-        deadline = setTimeout(cancel, 8000);
-        let previous = null, stable = 0;
+        deadline = setTimeout(() => {
+          if (!background) { cancel(); return; }
+          clearInterval(interval);
+          window.__listRunnerResultsScrollState = 'preloadTimedOut';
+        }, 8000);
+        let previous = null, stable = 0, seenVisible = false;
         function check() {
           if (stopped) return;
-          if (location.href !== expectedURL || document.visibilityState !== 'visible') { cancel(); return; }
+          if (location.href !== expectedURL) { cancel(); return; }
+          if (!background && document.visibilityState !== 'visible') {
+            if (seenVisible) cancel();
+            return;
+          }
+          seenVisible = true;
           if (document.readyState === 'loading') return;
           let nodes;
           try { nodes = document.querySelectorAll(selector); } catch { cancel(); return; }
@@ -2128,10 +2140,14 @@ final class StoreBrowser: ObservableObject {
           const root = document.scrollingElement;
           if (!root || !Number.isFinite(offset) || offset < 0 || offset > 500) { cancel(); return; }
           const top = Math.max(0, Math.min(position.top - offset, root.scrollHeight - window.innerHeight));
-          cancel();
+          if (background) {
+            clearInterval(interval); clearTimeout(deadline);
+          } else { cancel(); }
           // 'instant' overrides retailer CSS scroll-behavior:smooth, including Reduce Motion.
-          window.scrollTo({top, left: window.scrollX, behavior: 'instant'});
-          window.__listRunnerResultsScrollState = 'scrolled';
+          // Promotion verifies geometry without an unnecessary second scroll.
+          if (Math.abs(window.scrollY - top) > 1)
+            window.scrollTo({top, left: window.scrollX, behavior: 'instant'});
+          window.__listRunnerResultsScrollState = background ? 'preloadScrolled' : 'scrolled';
         }
         interval = setInterval(check, 100);
         check();
@@ -2149,6 +2165,38 @@ final class StoreBrowser: ObservableObject {
         isLiveWebsiteProbe && ProcessInfo.processInfo.environment["LISTRUNNER_RESULTS_SCROLL_PROBE"] == store.id.rawValue
     }
     @Published private(set) var resultsScrollProbeStatus = "Waiting for results"
+    private var preloadScrollFixturePositioned = false
+
+    private func observePreloadScrollFixture(_ view: WKWebView, promoted: Bool, prepared: Bool = false) {
+        guard uiTestMode,
+              ProcessInfo.processInfo.environment["LISTRUNNER_PRELOAD_TEST_FIXTURE"] == "enabled",
+              ProcessInfo.processInfo.environment["LISTRUNNER_RESULTS_SCROLL_TEST_FIXTURE"] == "enabled",
+              let selector = store.search.resultsSelector else { return }
+        Task { @MainActor [weak self, weak view] in
+            for _ in 0..<40 {
+                guard !Task.isCancelled, let self, let view,
+                      (promoted ? self.webView === view : self.preloadedSearch?.view === view) else { return }
+                let value = try? await view.callAsyncJavaScript("""
+                    const target = document.querySelector(selector);
+                    return {state: window.__listRunnerResultsScrollState || '',
+                        top: target?.getBoundingClientRect().top ?? -1, y: window.scrollY};
+                    """, arguments: ["selector": selector], in: nil, contentWorld: self.automationWorld)
+                guard (promoted ? self.webView === view : self.preloadedSearch?.view === view) else { return }
+                if let sample = value as? [String: Any],
+                   sample["state"] as? String == (promoted ? "scrolled" : "preloadScrolled"),
+                   let top = sample["top"] as? Double, let y = sample["y"] as? Double,
+                   y > 0, abs(top - (self.store.search.resultsTopOffset ?? 12)) <= 3 {
+                    if promoted {
+                        self.logPreload(prepared ? "PASS: results positioned before promotion and preserved" : "FAIL: no background positioning observed")
+                    } else {
+                        self.preloadScrollFixturePositioned = true
+                    }
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+    }
 
     // Read-only, explicit isolated live-search proof. Reports only enum states,
     // booleans and geometry, never product/account text, query values or HTML.
@@ -2182,7 +2230,10 @@ final class StoreBrowser: ObservableObject {
 
     func setAutoScrollToResults(_ enabled: Bool) {
         autoScrollToResults = enabled
-        if !enabled { cancelResultsScroll() }
+        if !enabled {
+            cancelResultsScroll()
+            preloadedSearch?.view.evaluateJavaScript("window.__listRunnerCancelResultsScroll?.();", in: nil, in: automationWorld)
+        }
     }
 
     private func cancelResultsScroll() {
@@ -2201,8 +2252,8 @@ final class StoreBrowser: ObservableObject {
         let request = searchRequestID
         resultsScrollTask?.cancel()
         resultsScrollTask = Task { @MainActor [weak self, weak view] in
-            // Promotion publishes the view before SwiftUI attaches it. Never scroll
-            // a hidden preload; wait briefly for the active view to be on screen.
+            // Promotion publishes the view before SwiftUI attaches it. Verify
+            // background positioning only after attachment at the visible size.
             for _ in 0..<20 {
                 guard !Task.isCancelled, let self, let view, self.webView === view,
                       self.documentGeneration == generation, self.searchRequestID == request,
@@ -2220,6 +2271,20 @@ final class StoreBrowser: ObservableObject {
                 try? await Task.sleep(for: .milliseconds(100))
             }
         }
+    }
+
+    private func scrollPreloadToResults() {
+        guard autoScrollToResults, browsingActive, let selector = store.search.resultsSelector,
+              let preload = preloadedSearch, preloadedSearchReady,
+              preload.namingGeneration == namingGeneration, preload.view.url == preload.url,
+              store.allows(preload.url), !siteVerificationRequired, storeRecovery == nil else { return }
+        preload.view.callAsyncJavaScript(
+            "window.__listRunnerScrollResults?.(selector, offset, url, true);",
+            arguments: ["selector": selector, "offset": store.search.resultsTopOffset ?? 12,
+                        "url": preload.url.absoluteString], in: nil, in: automationWorld)
+        #if DEBUG
+        observePreloadScrollFixture(preload.view, promoted: false)
+        #endif
     }
 
     private static func makeWebView(coordinator: Coordinator, world: WKContentWorld, store: StoreDefinition, dataStore: WKWebsiteDataStore) -> WKWebView {
@@ -2353,6 +2418,9 @@ final class StoreBrowser: ObservableObject {
             activeSearchNavigation = nil
             updateIsolatedContext()
             scrollToResults(expectedURL: preload.url)
+            #if DEBUG
+            observePreloadScrollFixture(preload.view, promoted: true, prepared: preloadScrollFixturePositioned)
+            #endif
             return
         }
         if preloadedSearch != nil { logPreload("Preload unavailable or stale; falling back to normal search") }
@@ -2396,6 +2464,9 @@ final class StoreBrowser: ObservableObject {
         }
         let view = Self.makeWebView(coordinator: coordinator, world: automationWorld, store: store, dataStore: websiteDataStore)
         preloadedSearch = (itemID, searchTerm, effectiveTerm, generation, url, view)
+        #if DEBUG
+        preloadScrollFixturePositioned = false
+        #endif
         preloadWebView = view
         preloadedSearchReady = false
         preloadedResponseStatus = nil
@@ -2404,7 +2475,13 @@ final class StoreBrowser: ObservableObject {
         if uiTestMode {
             // Hidden navigation must use local fixtures too: automatic UI tests
             // must never contact a retailer, even for a background preload.
-            _ = view.loadHTMLString("<html><head><title>Search fixture</title></head><body><h1>Search fixture</h1></body></html>", baseURL: url)
+            let html = ProcessInfo.processInfo.environment["LISTRUNNER_RESULTS_SCROLL_TEST_FIXTURE"] == "enabled" ? """
+                <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                <body style="margin:0"><h1>Preload scroll fixture</h1><div style="height:1200px">Above results</div>
+                <article data-testid="product-tile" style="height:400px">Preloaded results fixture item</article>
+                <div style="height:1400px">Below results</div></body></html>
+                """ : "<html><head><title>Search fixture</title></head><body><h1>Search fixture</h1></body></html>"
+            _ = view.loadHTMLString(html, baseURL: url)
         } else {
             _ = view.load(URLRequest(url: url))
         }
@@ -2427,6 +2504,7 @@ final class StoreBrowser: ObservableObject {
             return
         }
         logPreload("Cancelling unused preload")
+        preload.view.evaluateJavaScript("window.__listRunnerCancelResultsScroll?.();", in: nil, in: automationWorld)
         preloadedSearch = nil
         preloadWebView = nil
         preloadedSearchReady = false
@@ -2937,7 +3015,10 @@ final class StoreBrowser: ObservableObject {
 
     func setBrowsingActive(_ active: Bool) {
         browsingActive = active
-        if !active { cancelResultsScroll() }
+        if !active {
+            cancelResultsScroll()
+            cancelPreload()
+        }
     }
 
     fileprivate func contentProcessDidTerminate() {
@@ -3329,6 +3410,7 @@ final class StoreBrowser: ObservableObject {
                 let readyState = page["state"] ?? "loading"
                 if readyState == "interactive" || readyState == "complete" {
                     browser.preloadedSearchReady = true
+                    browser.scrollPreloadToResults()
                     browser.logPreload("Background search DOM ready (\(readyState)); ready to promote")
                 } else if attempt < 15 {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
