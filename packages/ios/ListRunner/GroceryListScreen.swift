@@ -138,6 +138,7 @@ struct GroceryListScreen: View {
     @State private var showingImportSetup = false
     @State private var showingSettings = false
     @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
+    @AppStorage(GroceryImportSource.removeRemindersKey) private var removeRemindersAfterImport = true
     @State private var showingClearConfirmation = false
     @State private var notice: String?
     @State private var importFailure: PaprikaImportError?
@@ -313,7 +314,7 @@ struct GroceryListScreen: View {
                             .disabled(paprikaReminders.importing)
                             .accessibilityIdentifier(GroceryImportSource(rawValue: importSourceID) == .paprika ? "import-from-paprika" : "set-import-source")
                             .accessibilityHint(GroceryImportSource(rawValue: importSourceID) == .paprika ?
-                                "Imports incomplete reminders from the Paprika list in Apple Reminders" : "Choose your grocery import source")
+                                (removeRemindersAfterImport ? "Imports unchecked Paprika reminders and removes them after saving groceries" : "Imports unchecked Paprika reminders and keeps them linked") : "Choose your grocery import source")
 
                             Spacer(minLength: 8)
 
@@ -1085,6 +1086,7 @@ struct GroceryListScreen: View {
     }
 
     private func stageReminderWriteback(for item: GroceryItem) {
+        guard !removeRemindersAfterImport else { return }
         if let write = paprikaReminders.desiredWriteback(for: item) {
             pendingReminderWrites[item.id] = write
         }
@@ -1094,7 +1096,12 @@ struct GroceryListScreen: View {
         guard !paprikaReminders.importing else { return }
         notice = nil
         importFailure = nil
+        let removeAfterImport = removeRemindersAfterImport
         Task { @MainActor in
+            defer {
+                paprikaReminders.finishImport()
+                if let notice { UIAccessibility.post(notification: .announcement, argument: notice) }
+            }
             do {
                 // Keep the import transaction isolated from any earlier failed
                 // save. The existing local list must be durable before staging
@@ -1105,6 +1112,16 @@ struct GroceryListScreen: View {
                 let linkedIDs = Set(items.compactMap(\.paprikaReminderID))
                 let staged = PaprikaImportPlanner.stage(reminders: snapshot, existingIDs: linkedIDs)
                 guard !staged.isEmpty else {
+                    if removeAfterImport {
+                        let cleanup = PaprikaImportPlanner.removalCandidates(reminders: snapshot, savedIDs: linkedIDs)
+                        if !cleanup.isEmpty {
+                            let failed = paprikaReminders.removeImportedReminders(cleanup)
+                            notice = failed == 0
+                                ? String(localized: "These groceries are already in your list. Their Apple reminders have now been removed. Paprika is unchanged.")
+                                : String(localized: "Your groceries are already saved. Some Apple reminders could not be removed. Import again to retry; your saved groceries won’t be duplicated.")
+                            return
+                        }
+                    }
                     throw PaprikaImportPlanner.emptyImportError(reminders: snapshot, existingIDs: linkedIDs)
                 }
                 let alreadyImportedCount = Set(snapshot.map(\.id)).intersection(linkedIDs).count
@@ -1129,6 +1146,14 @@ struct GroceryListScreen: View {
                     throw PaprikaImportError.transaction
                 }
                 importSourceID = GroceryImportSource.paprika.rawValue
+                if removeAfterImport {
+                    let savedIDs = linkedIDs.union(staged.compactMap(\.reminderID))
+                    let failed = paprikaReminders.removeImportedReminders(PaprikaImportPlanner.removalCandidates(reminders: snapshot, savedIDs: savedIDs))
+                    notice = failed == 0
+                        ? String(localized: "Added \(staged.count) groceries to your \(browser.store.displayName) list and removed their Apple reminders. Paprika is unchanged.")
+                        : String(localized: "Added \(staged.count) groceries to your \(browser.store.displayName) list. Some Apple reminders could not be removed. Import again to retry; your saved groceries won’t be duplicated.")
+                    return
+                }
                 if alreadyImportedCount > 0 && staged.count == 1 {
                     notice = String(localized: "Added 1 item to your \(browser.store.displayName) list. Already-imported reminders skipped: \(alreadyImportedCount).")
                 } else if alreadyImportedCount > 0 {
@@ -1145,8 +1170,6 @@ struct GroceryListScreen: View {
                 importFailure = .transaction
                 notice = String(localized: PaprikaImportError.transaction.message)
             }
-            paprikaReminders.finishImport()
-            if let notice { UIAccessibility.post(notification: .announcement, argument: notice) }
         }
     }
 

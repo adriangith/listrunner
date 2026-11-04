@@ -2814,6 +2814,12 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     private func selectPaprikaSource() {
+        // Existing scenarios exercise the retained linked-reminder mode.
+        app.buttons["Settings"].tap()
+        let removal = app.switches["remove-reminders-after-import"]
+        XCTAssertTrue(removal.waitForExistence(timeout: 5))
+        if removal.value as? String == "1" { removal.tap() }
+        tapNavigationBack()
         app.buttons["set-import-source"].tap()
         XCTAssertTrue(app.navigationBars["Import items"].waitForExistence(timeout: 5))
         app.buttons["import-source-paprika"].tap()
@@ -2854,6 +2860,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(row("milk", status: "Pending").exists)
 
         app.buttons["Settings"].tap()
+        app.switches["remove-reminders-after-import"].tap()
         app.buttons["import-source-setting"].tap()
         app.buttons["import-source-paprika"].tap()
         XCTAssertTrue(app.staticTexts["2. Tap Actions in the grocery toolbar, then Export to Reminders."].exists)
@@ -2905,7 +2912,7 @@ final class StoreSelectionTests: XCTestCase {
     func testPaprikaImportFailuresKeepTheCurrentList() {
         for (fixture, expectedNotice) in [("missing", "We couldn’t find a Reminders list called ‘Paprika’. Export your groceries from Paprika first, using that exact list name. Your list is unchanged."),
                                           ("multiple", "More than one Apple Reminders list is named ‘Paprika’. Rename the others so only your grocery export list has that name, then try again. Your list is unchanged."),
-                                          ("accessDenied", "Allow full Reminders access in Settings so ListRunner can read your groceries and update linked reminders. Your list is unchanged."),
+                                          ("accessDenied", "Allow full Reminders access in Settings so ListRunner can read and manage your imported reminders. Your list is unchanged."),
                                           ("accessError", "Could not access Apple Reminders. Try again. Your list is unchanged. You can still type or paste groceries."),
                                           ("empty", "No unchecked groceries found in the ‘Paprika’ Reminders list. Export your groceries from Paprika first. Checked items aren’t imported."),
                                           ("blank", "No readable new groceries found. Check that your exported Apple reminders have grocery names, then try again. Your list is unchanged.")] {
@@ -2945,5 +2952,27 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["paprika-retry"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["import-from-paprika"].exists, "A failed retry keeps the last successful source")
         XCTAssertTrue(row("apples", status: "Pending").exists)
+    }
+
+    func testPaprikaRemovalDefaultsOnAndInstructionsFollowSetting() {
+        app.buttons["Settings"].tap()
+        let removal = app.switches["remove-reminders-after-import"]
+        XCTAssertTrue(removal.waitForExistence(timeout: 5))
+        XCTAssertEqual(removal.value as? String, "1")
+        tapNavigationBack()
+        app.buttons["set-import-source"].tap()
+        app.buttons["import-source-paprika"].tap()
+        XCTAssertTrue(app.staticTexts["After your groceries are saved, their Apple reminders will be removed. Your groceries in Paprika won’t be changed. You can turn this off in Settings."].exists)
+        app.buttons["import-paprika-groceries"].tap()
+        XCTAssertTrue(app.staticTexts["Added 2 groceries to your Coles list and removed their Apple reminders. Paprika is unchanged."].waitForExistence(timeout: 5))
+        app.buttons["Settings"].tap()
+        removal.tap()
+        app.buttons["import-source-setting"].tap()
+        app.buttons["import-source-paprika"].tap()
+        XCTAssertTrue(app.staticTexts["Your Apple reminders will be kept and linked to the imported groceries. You can change this in Settings."].exists)
+        app.terminate()
+        app.launch()
+        app.buttons["Settings"].tap()
+        XCTAssertEqual(removal.value as? String, "0")
     }
 }

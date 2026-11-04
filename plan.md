@@ -54,6 +54,10 @@
 
 ### Guided import sources (4 November 2026)
 
+#### Reminders handoff preference
+
+Settings → Importing includes **Remove reminders after import**, default **on**, including existing installations. With it on, an explicit import saves groceries atomically before removing only their readable source reminders. Retain source IDs locally for retry deduplication; suppress item edit/status writeback in this mode. Retry may remove readable reminders already linked to saved rows in the current store. Revalidate exact source calendar, unchanged title and incomplete state before deletion; preserve changed, checked, unreadable or unrelated reminders and the Reminders list itself. Partial removal failure never rolls back saved groceries and must explain retry. With the setting off, preserve the original keep/link/writeback behavior below. Changing the setting alone never deletes anything; confirmed local-data reset restores the default. Capture the preference per import attempt. Instructions, permission explanation and results reflect the mode. Paprika re-exports create new reminder IDs and can duplicate groceries in either mode. This preference overrides legacy reminder-retention rules below only while enabled.
+
 This approved revision builds on the **Import sources** OpenPencil page, replacing its setup-only confirmation with an actual import. It supersedes the 30 October flow and older multi-source preview proposals, not the Paprika transaction or reminder-writeback rules below.
 
 * Before a source is remembered, `Import items...` opens the `Import items` chooser, currently containing Paprika only with the subtitle `Via Apple Reminders`. Retain the chooser for future verified sources. Choosing Paprika opens export instructions; backing out does not remember a source, request permission or import anything.

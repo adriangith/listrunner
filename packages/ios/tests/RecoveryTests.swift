@@ -1202,6 +1202,10 @@ struct RecoveryTests {
             PaprikaReminderSnapshot(id: "undated", title: "apples", creationDate: nil)
         ]
         let paprikaStaged = PaprikaImportPlanner.stage(reminders: paprikaSnapshot, existingIDs: ["existing"], parser: ingredientParser)
+        check(PaprikaImportPlanner.removalCandidates(reminders: paprikaSnapshot, savedIDs: [], parser: ingredientParser).isEmpty,
+              "no committed reminder identities means no destructive cleanup")
+        let removalIDs = PaprikaImportPlanner.removalCandidates(reminders: paprikaSnapshot, savedIDs: ["late", "blank", "existing"], parser: ingredientParser).map(\.id)
+        check(removalIDs == ["late", "existing"], "cleanup only targets saved, readable, unique reminders")
         check(PaprikaImportPlanner.emptyImportError(reminders: [], existingIDs: [], parser: ingredientParser) == .noUncheckedItems,
               "empty Paprika snapshot explains unchecked groceries rather than duplicates")
         check(PaprikaImportPlanner.emptyImportError(reminders: [paprikaSnapshot[0]], existingIDs: ["late"], parser: ingredientParser) == .noNewItems,

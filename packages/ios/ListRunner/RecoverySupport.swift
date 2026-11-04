@@ -6,6 +6,7 @@ enum GroceryImportSource: String {
     case paprika
 
     static let preferenceKey = "groceryImportSource.v1"
+    static let removeRemindersKey = "removeRemindersAfterImport.v1"
 }
 
 enum SessionResetPhase: Equatable { case ready, resetting, failed }

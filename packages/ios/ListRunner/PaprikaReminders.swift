@@ -28,7 +28,7 @@ enum PaprikaImportError: Error, Equatable {
         case .access:
             "Could not access Apple Reminders. Try again. Your list is unchanged. You can still type or paste groceries."
         case .permissionDenied:
-            "Allow full Reminders access in Settings so ListRunner can read your groceries and update linked reminders. Your list is unchanged."
+            "Allow full Reminders access in Settings so ListRunner can read and manage your imported reminders. Your list is unchanged."
         case .listNotFound:
             "We couldn’t find a Reminders list called ‘Paprika’. Export your groceries from Paprika first, using that exact list name. Your list is unchanged."
         case .multipleLists:
@@ -46,6 +46,14 @@ enum PaprikaImportError: Error, Equatable {
 }
 
 enum PaprikaImportPlanner {
+    static func removalCandidates(reminders: [PaprikaReminderSnapshot], savedIDs: Set<String>, parser: IngredientParser = .application) -> [PaprikaReminderSnapshot] {
+        var seen = Set<String>()
+        return reminders.filter {
+            savedIDs.contains($0.id) && !$0.id.isEmpty && seen.insert($0.id).inserted
+                && !parser.parseGroceries($0.title).isEmpty
+        }
+    }
+
     /// Used only when staging produced no rows. Do not call a blank title
     /// "already imported" just because it was ignored by the parser.
     static func emptyImportError(reminders: [PaprikaReminderSnapshot], existingIDs: Set<String>, parser: IngredientParser = .application) -> PaprikaImportError {
@@ -194,6 +202,32 @@ final class PaprikaReminders: ObservableObject {
         if let unit = item.quantityUnit?.trimmingCharacters(in: .whitespacesAndNewlines), !unit.isEmpty { parts.append(unit) }
         parts.append(item.name)
         return ReminderWriteback(reminderID: reminderID, title: parts.joined(separator: " "), isCompleted: item.status == .added)
+    }
+
+    /// Called only after the corresponding local groceries are durably saved.
+    /// Revalidate source identity/content before each destructive operation.
+    /// Return failures without rolling back already saved groceries.
+    func removeImportedReminders(_ snapshot: [PaprikaReminderSnapshot]) -> Int {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] != nil {
+            return 0 // Fixtures must never remove real reminders.
+        }
+        #endif
+        let calendars = eventStore.calendars(for: .reminder).filter { $0.title == "Paprika" }
+        guard calendars.count == 1, let calendar = calendars.first else { return snapshot.count }
+        var failed = 0
+        for source in snapshot {
+            guard let reminder = eventStore.calendarItem(withIdentifier: source.id) as? EKReminder else { continue }
+            guard reminder.calendar.calendarIdentifier == calendar.calendarIdentifier,
+                  !reminder.isCompleted, reminder.title == source.title else {
+                failed += 1
+                continue
+            }
+            writeQueue.cancelQueued(reminderID: source.id)
+            do { try eventStore.remove(reminder, commit: true) }
+            catch { failed += 1 }
+        }
+        return failed
     }
 
     func queueWriteback(_ write: ReminderWriteback) {
