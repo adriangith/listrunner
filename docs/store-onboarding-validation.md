@@ -1,5 +1,9 @@
 # Store onboarding workflow — validation
 
+**Complete for routine store onboarding.** Registration generation, reusable native
+inspection, compact evidence and portable/native checks have been exercised end to
+end. Retailer-specific trust review and capability proof remain required by design.
+
 ## Completion criteria
 
 The routine onboarding path must consume one reviewed store definition, generate
@@ -34,11 +38,12 @@ from a shared counter or created on each app launch. Existing IDs are never chan
 
 ## Measured mechanical trial
 
-Linux synthetic trial artifacts:
-`/tmp/opencode/store-onboarding-benchmark-3rtlbu4l/metrics.json`.
+Linux synthetic trial at `d263639979bab1695c857a9c0665d2344c306389`, using the default
+one-time UUID allocator:
+`/tmp/opencode/store-onboarding-final-benchmark-h9v88yh4/metrics.json`.
 
-- Draft generation: **0.0590 seconds**.
-- Registration patch generation: **0.0678 seconds**.
+- Draft generation: **0.0586 seconds**.
+- Registration patch generation: **0.0647 seconds**.
 - Generated patch: **3 app files, 41 added lines, zero removed lines**, 6,307 bytes.
 - The registration integration test applies the generated diff to a temporary
   checkout, checks the new resource graph, verifies that removing only the new
@@ -93,12 +98,31 @@ At app/test-code revision **`f0a6071772c5c86eb92b54e36c08e255a69abb46`**:
 - The same generic test passed against **real JB Hi-Fi toaster/kettle searches** in
   isolated iOS WebKit sessions, with no retailer-specific XCTest source changes:
   `/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/store-onboarding-native-vvqjblq1/`.
-  Both queries returned matching, reflected, stable and sufficiently distinct
-  product sets. Structured observations are embedded in `report.json` and retained
+  Both queries returned 36/36 matching products, reflected queries, stable and
+  sufficiently distinct result sets. The full live check, including Xcode startup,
+  completed in **97.904 seconds** using the external build cache. Eleven/ten auxiliary
+  iframe navigations were denied; neither main document attempted blocked navigation.
+  Structured observations are embedded in `report.json` and retained
   in `inspection.xcresult`. No capabilities or cart state were changed.
 
-The final UUID-default generator change is additionally checked by the generated
-native registration compilation test; its final-suite evidence is recorded below.
+At final tooling-code revision **`d263639979bab1695c857a9c0665d2344c306389`**:
+
+- The complete native offline suite passed again, including **18 onboarding-tool
+  regression tests**, the default UUID-based generated registration compilation proof,
+  all existing store contracts, 269 JavaScript regressions, parser/regional-search
+  checks and 1,701 native recovery/reset/diagnostic checks:
+  `/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/store-onboarding-pviytbjf/`.
+- An intentionally invalid two-query fixture reused the same three product paths
+  while changing labels/headings to match each query. The iOS probe **rejected it
+  specifically for identical catalogues**, as expected. The outer regression
+  verified the nonzero exit and the exact differential-proof failure, not merely
+  that the command failed for any reason:
+  `/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/store-onboarding-native-_47qduh5/`.
+
+Portable checks also pass for all 32 existing store resource graphs. No real store
+registration, runtime permission, saved list/session, or current IKEA implementation
+is changed by this task. The final documentation-only commit does not change the
+verified native/tooling code above.
 
 ## Scope limits
 
