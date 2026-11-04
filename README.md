@@ -16,6 +16,7 @@ The previous Capacitor app and plugins have been removed. Remaining packages:
 - `packages/extension/` — Chrome + Firefox extension (MV3).
 - `packages/harness/` — local web app for manual wizard testing.
 - `packages/prototype/` — standalone simulated iPhone-flow prototype.
+- `packages/website/` — marketing website (static, zero dependencies).
 ```
 
 ## Working on the core library
@@ -123,6 +124,26 @@ resolve, so broken configs degrade gracefully instead of stranding the user.
 | `D` | Dismiss (revisit only) |
 | `R` | Revisit skipped items (done view) |
 | `?` | Toggle the shortcut help overlay |
+
+## Website
+
+The marketing site is a static page with no build step and no dependencies.
+
+```bash
+cd packages/website
+npm start           # Serves on http://localhost:4180
+npm run check       # Syntax-checks website.js
+```
+
+The page content follows the same honesty rules as the app: store support is
+shown in tiers (search + add detection, guided search, browse & track) and
+only lists capabilities that are actually verified. The public TestFlight
+link appears in the nav CTA, hero and footer of `index.html`; update it there
+if the invite link changes.
+The hero phone now plays a compressed recording of the real iOS app from an
+iPhone 17 simulator (`packages/website/assets/real-app-demo.mp4`), with a still
+poster fallback. The clip uses the manual Mark Added flow; it is real app
+footage, not a live store session or a simulated UI.
 
 ## Privacy
 
