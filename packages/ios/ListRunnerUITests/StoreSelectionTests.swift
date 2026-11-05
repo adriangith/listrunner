@@ -1520,7 +1520,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(entry.value as? String, "All items destination item", "Changing destination must preserve the draft")
         XCTAssertTrue(app.buttons["all-items-add"].label.contains("Woolworths"))
         app.buttons["all-items-add"].tap()
-        let added = app.staticTexts["All items destination item"]
+        let added = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "All items destination item")).firstMatch
         for _ in 0..<4 where !added.exists { app.swipeUp() }
         XCTAssertTrue(added.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Woolworths ·")).firstMatch.exists)
@@ -1572,8 +1572,9 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["store-picker"].label.contains("Coles"))
         XCTAssertFalse(app.webViews.firstMatch.exists, "Viewing a blocked list must not launch its retailer website")
 
-        app.buttons["Clear List"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
-        app.buttons["Clear All"].tap()
+        app.buttons["Actions for Coles fixture item"].tap()
+        app.buttons["Delete Item"].tap()
+        app.alerts.buttons["Delete Item"].tap()
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
         app.buttons["store-picker"].tap()
         app.buttons["store-picker-manage-stores"].tap()
@@ -1600,8 +1601,9 @@ final class StoreSelectionTests: XCTestCase {
         blocker.buttons["View List"].tap()
         XCTAssertTrue(row("Bunnings saved item", status: "Added").waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"))
-        app.buttons["Clear List"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
-        app.buttons["Clear All"].tap()
+        app.buttons["Actions for Bunnings saved item"].tap()
+        app.buttons["Delete Item"].tap()
+        app.alerts.buttons["Delete Item"].tap()
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
         app.buttons["store-picker"].tap()
         app.buttons["store-picker-manage-stores"].tap()

@@ -27,6 +27,7 @@ struct LocalDataRecoveryScreen: View {
 
 struct SettingsScreen: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @ObservedObject var browser: StoreBrowser
     let brand: StoreBrand
     @ObservedObject var visibility: StoreVisibilityPreferences
@@ -63,6 +64,14 @@ struct SettingsScreen: View {
                 Toggle("Enable store", isOn: Binding(
                     get: { !visibility.shoppingVisibleIDs(in: brand.regions).isEmpty },
                     set: {
+                        if !$0 {
+                            let rows = (try? modelContext.fetch(FetchDescriptor<GroceryItem>())) ?? []
+                            visibility.updateNonEmptyListIDs(Set(rows.compactMap { item in
+                                guard let listID = item.listID,
+                                      StoreID.allCases.contains(where: { $0.listID == listID }) else { return nil }
+                                return listID
+                            }))
+                        }
                         if !visibility.setBrandVisible($0, brand: brand) { storeDisableBlocked = true }
                     }
                 ))
