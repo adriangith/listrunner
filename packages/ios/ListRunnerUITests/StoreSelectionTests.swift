@@ -1503,8 +1503,11 @@ final class StoreSelectionTests: XCTestCase {
         choose("All items")
         XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Coles fixture item"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["Woolworths fixture item"].exists)
-        XCTAssertTrue(app.staticTexts["Bunnings fixture item"].exists)
+        for item in ["Woolworths fixture item", "Bunnings fixture item"] {
+            let row = app.staticTexts[item]
+            for _ in 0..<4 where !row.exists { app.swipeUp() }
+            XCTAssertTrue(row.waitForExistence(timeout: 3), "All items should include the existing \(item)")
+        }
 
         let entry = app.descendants(matching: .any)["all-items-entry"]
         XCTAssertTrue(entry.waitForExistence(timeout: 3))
