@@ -23,6 +23,20 @@ scope/grouping/add/import/disable recovery, and app-bundle resource verification
 the Mac checkout. No install, retailer cart mutation, release or distribution was
 performed.
 
+Follow-up at feature revision `b849e50971684d817cfc289e33e57c26fc367306`:
+
+- Found and fixed the schema-7 runtime decoder allowlist: it accepted the legacy
+  `categories` property but initially rejected the new `category` property, causing
+  the app to load no available store definitions. The Mac simulator confirmed the
+  All items screen and existing cross-store rows after that fix.
+- The focused UI suite is not yet passing. The All items destination-add assertion
+  and both populated-store disable UI cases still need correction/verification; the
+  latest test run preceded the newest guard refresh.
+- Latest Mac checkout verification was blocked: its data volume is 100% full (105 MiB
+  free), so Git could not fetch revision `b849e509`. No Xcode/DerivedData files were
+  deleted. Resume by freeing Mac space with the user's approval, fetch the exact
+  revision, then rerun these three focused cases and the native recovery suite.
+
 ## Native retailer categories — schema 6 (5 November 2026, historical validation)
 
 Review reconciled this change with main at `a39376ff184769349c711824d9399067754f97f4`.
