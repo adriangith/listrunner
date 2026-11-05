@@ -42,6 +42,13 @@ struct SettingsScreen: View {
                 && visibility.nonEmptyListIDs.contains(store.listID)
         }
     }
+    private var affectedListDescription: String {
+        affectedNonEmptyStores.map { store in
+            let count = visibility.listItemCounts[store.listID] ?? 0
+            return count == 1 ? String(localized: "1 item in \(store.displayName)")
+                : String(localized: "\(count) items in \(store.displayName)")
+        }.formatted(.list(type: .and))
+    }
 
     private var configurationValid: Bool { browser.store.isConfigurationValid }
 
@@ -80,11 +87,7 @@ struct SettingsScreen: View {
                     if visibility.listLookupFailed {
                         Text("Your saved lists could not be checked. Save or retry your list changes before disabling this store. Nothing was changed.")
                     } else {
-                        Text("Clear or move the saved items first: \(affectedNonEmptyStores.map { store in
-                            let count = visibility.listItemCounts[store.listID] ?? 0
-                            return count == 1 ? String(localized: "1 item in \(store.displayName)")
-                                : String(localized: "\(count) items in \(store.displayName)")
-                        }.formatted(.list(type: .and))). This includes Added and Skipped items. Nothing was changed.")
+                        Text("Clear or move the saved items first: \(affectedListDescription). This includes Added and Skipped items. Nothing was changed.")
                     }
                 }
                 if brand.isRegional {
