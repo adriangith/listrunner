@@ -11,10 +11,11 @@ struct ShoppingRootScreen: View {
     @StateObject private var paprikaReminders = PaprikaReminders()
     @AppStorage("activeStoreID") private var activeStoreID = StoreID.coles.rawValue
     @State private var drafts: [StoreID: String] = [:]
-    @State private var showingAllItems = false
+    @AppStorage("allItemsScope.v1") private var showingAllItems = false
     @State private var storeLaunchRequested = false
     @State private var importLaunchRequested = false
     @AppStorage("allItemsRecentStoreOrder.v1") private var allItemsRecentStoreOrder = ""
+    @AppStorage("allItemsRecentItemOrder.v1") private var allItemsRecentItemOrder = ""
     @State private var allItemsDraft = ""
     @AppStorage("allItemsAddDestination.v1") private var allItemsAddDestination = ""
     @State private var welcomeCompletion = 0
@@ -53,22 +54,12 @@ struct ShoppingRootScreen: View {
                                sessions.endAllInteractions()
                                activeStoreID = id.rawValue
                                showingAllItems = false
-                            }, onShopAtStore: { id in
-                                sessions.endAllInteractions()
-                                activeStoreID = id.rawValue
-                                storeLaunchRequested = true
-                                showingAllItems = false
                             }, onImportToStore: { id in
                                 sessions.endAllInteractions()
                                 activeStoreID = id.rawValue
                                 importLaunchRequested = true
                                 showingAllItems = false
-                           }, onPromoteStore: { id in
-                               var order = allItemsRecentStoreOrder.split(separator: ",")
-                                   .compactMap { StoreID(rawValue: String($0)) }.filter { $0 != id }
-                               order.insert(id, at: 0)
-                               allItemsRecentStoreOrder = order.map(\.rawValue).joined(separator: ",")
-                           })
+                           }, onPromoteStore: promote)
             }
         } else {
         GroceryListScreen(storeID: storeID, sessions: sessions, visibility: visibility, paprikaReminders: paprikaReminders,
@@ -93,12 +84,7 @@ struct ShoppingRootScreen: View {
                                showingAllItems = true
                            }, storeLaunchRequested: $storeLaunchRequested,
                            importLaunchRequested: $importLaunchRequested,
-                           onPromoteStore: { id in
-                               var order = allItemsRecentStoreOrder.split(separator: ",")
-                                   .compactMap { StoreID(rawValue: String($0)) }.filter { $0 != id }
-                               order.insert(id, at: 0)
-                               allItemsRecentStoreOrder = order.map(\.rawValue).joined(separator: ",")
-                           })
+                           onPromoteStore: promote)
         }
         }
             .id("\(storeID.rawValue)-\(welcomeCompletion)")
@@ -123,6 +109,16 @@ struct ShoppingRootScreen: View {
                 }
             }
             .onChange(of: nonEmptyListIDs) { _, ids in visibility.updateNonEmptyListIDs(ids) }
+    }
+
+    private func promote(_ store: StoreID, _ itemIDs: [UUID]) {
+        guard !itemIDs.isEmpty else { return }
+        var order = allItemsRecentStoreOrder.split(separator: ",")
+            .compactMap { StoreID(rawValue: String($0)) }.filter { $0 != store }
+        order.insert(store, at: 0)
+        allItemsRecentStoreOrder = order.map(\.rawValue).joined(separator: ",")
+        allItemsRecentItemOrder = ItemPromotionOrder.promoting(itemIDs, in: allItemsRecentItemOrder,
+                                                               existing: Set(allItems.map(\.id)))
     }
 }
 
@@ -200,14 +196,16 @@ private struct AllItemsScreen: View {
     @Binding var draft: String
     @Binding var destinationRawValue: String
     let onChooseStoreList: (StoreID) -> Void
-    let onShopAtStore: (StoreID) -> Void
     let onImportToStore: (StoreID) -> Void
-    let onPromoteStore: (StoreID) -> Void
+    let onPromoteStore: (StoreID, [UUID]) -> Void
     @AppStorage("allItemsGrouping.v1") private var groupingRawValue = AllItemsGrouping.store.rawValue
     @AppStorage("allItemsRecentStoreOrder.v1") private var recentStoreOrderRawValue = ""
+    @AppStorage("allItemsRecentItemOrder.v1") private var recentItemOrderRawValue = ""
     @State private var notice: String?
     @State private var showingStoreManagement = false
     @State private var itemToDelete: GroceryItem?
+    @State private var editingItem: GroceryItem?
+    @State private var shoppingDestination: StoreID?
     @State private var pendingReminderWrites: [UUID: ReminderWriteback] = [:]
     @FocusState private var entryFocused: Bool
     @AppStorage(GroceryImportSource.removeRemindersKey) private var removeRemindersAfterImport = true
@@ -266,10 +264,15 @@ private struct AllItemsScreen: View {
             guard !values.isEmpty else { return nil }
             let storeIDs = storeOrder(Array(Set(values.compactMap(\.0))))
             let order = Dictionary(uniqueKeysWithValues: storeIDs.enumerated().map { ($1, $0) })
-            let sortedItems = values.sorted { lhs, rhs in
+            let historicalItems = values.sorted { lhs, rhs in
                 let li = lhs.0.flatMap { order[$0] } ?? Int.max, ri = rhs.0.flatMap { order[$0] } ?? Int.max
-                return li == ri ? lhs.1.position < rhs.1.position : li < ri
+                return li == ri ? (lhs.1.position == rhs.1.position ? lhs.1.id.uuidString < rhs.1.id.uuidString : lhs.1.position < rhs.1.position) : li < ri
             }.map(\.1)
+            let ranks = ItemPromotionOrder.ranks(recentItemOrderRawValue)
+            let sortedItems = historicalItems.enumerated().sorted { lhs, rhs in
+                let left = ranks[lhs.element.id] ?? Int.max, right = ranks[rhs.element.id] ?? Int.max
+                return left == right ? lhs.offset < rhs.offset : left < right
+            }.map(\.element)
             return AllItemsGroup(id: "category-\(category.rawValue)", title: category.displayName,
                                  storeIDs: storeIDs, items: sortedItems)
         }.sorted { lhs, rhs in
@@ -437,6 +440,33 @@ private struct AllItemsScreen: View {
         } message: {
             Text("This removes the row from its ListRunner store list only. It does not change a retailer cart or Apple Reminders.")
         }
+        .sheet(item: $editingItem) { item in
+            ItemEditorSheet(item: item) { name, amount, unit in
+                item.name = name
+                item.searchTerm = name
+                item.quantityAmount = amount
+                item.quantityUnit = amount == nil ? nil : unit
+                item.status = .pending
+                stageReminderWriteback(for: item)
+                saveChanges()
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .sheet(item: $shoppingDestination) { store in
+            StoreShoppingView(items: allItems.filter { $0.listID == store.listID }.sorted { $0.position < $1.position },
+                browser: sessions.browser(for: store),
+                initialSelectedID: lists.first { $0.id == store.listID }?.selectedItemID,
+                saveFailed: false,
+                onSelectionChange: { id in
+                    lists.first { $0.id == store.listID }?.selectedItemID = id
+                    saveChanges()
+                }, onStatusChange: { item in
+                    stageReminderWriteback(for: item)
+                    saveChanges()
+                })
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+        }
         .safeAreaInset(edge: .top, spacing: 0) {
             HStack {
                 Text("Your list").font(.largeTitle.weight(.bold))
@@ -467,7 +497,7 @@ private struct AllItemsScreen: View {
             if !allItems.isEmpty {
                 Menu {
                     ForEach(visibleStores, id: \.id) { store in
-                        Button("Shop at \(store.displayName)") { onShopAtStore(store.id) }
+                        Button("Shop at \(store.displayName)") { shoppingDestination = store.id }
                     }
                 } label: {
                     Label("Choose Store", systemImage: "cart.fill")
@@ -513,11 +543,11 @@ private struct AllItemsScreen: View {
                 let list = lists.first { $0.id == owner.listID }
                 list?.selectedItemID = item.id
                 try? modelContext.save()
-                onChooseStoreList(owner)
+                shoppingDestination = owner
             } label: {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(item.name).font(.body.weight(.medium)).foregroundStyle(.primary)
-                    Text("\(owner?.displayName ?? "Uncategorised") · \(item.displayQuantity)")
+                    Text("\(owner?.displayName ?? "Uncategorised") · \(item.displayQuantity)\(owner.map { visibility.shoppingVisibleIDs(in: sessions.definitions).contains($0) ? "" : " · Unavailable" } ?? "")")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 .contentShape(Rectangle())
@@ -531,6 +561,7 @@ private struct AllItemsScreen: View {
                 .background(statusTint(item.status).opacity(0.14), in: Capsule())
                 .foregroundStyle(statusTint(item.status))
             Menu {
+                Button("Edit Item", systemImage: "pencil") { editingItem = item }
                 if item.status == .pending {
                     Button("Mark Added", systemImage: "checkmark.circle") { setStatus(.added, for: item) }
                 } else if item.status == .added {
@@ -541,13 +572,11 @@ private struct AllItemsScreen: View {
                 } else {
                     Button("Mark Pending", systemImage: "arrow.uturn.backward.circle") { setStatus(.pending, for: item) }
                 }
-                if let owner {
                     Menu("Move to Another Store", systemImage: "arrow.right.arrow.left") {
                         ForEach(visibleStores.filter { $0.id != owner }, id: \.id) { store in
                             Button(store.displayName) { move(item, to: store.id) }
                         }
                     }
-                }
                 Button("Delete Item", systemImage: "trash", role: .destructive) { itemToDelete = item }
             } label: {
                 Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle())
@@ -566,16 +595,16 @@ private struct AllItemsScreen: View {
     }
 
     private func move(_ item: GroceryItem, to destination: StoreID) {
-        guard let source = StoreID.allCases.first(where: { $0.listID == item.listID }) else { return }
-        if let sourceList = lists.first(where: { $0.id == source.listID }), sourceList.selectedItemID == item.id {
+        guard visibleStores.contains(where: { $0.id == destination }) else { return }
+        let source = StoreID.allCases.first(where: { $0.listID == item.listID })
+        if let source, let sourceList = lists.first(where: { $0.id == source.listID }), sourceList.selectedItemID == item.id {
             sourceList.selectedItemID = ShoppingLists.selection(afterRemoving: item.id,
                 from: allItems.filter { $0.listID == source.listID })
         }
-        sessions.browser(for: source).endInteraction()
+        if let source { sessions.browser(for: source).endInteraction() }
         ShoppingLists.move(item, to: destination, allItems: allItems)
         stageReminderWriteback(for: item)
-        saveChanges()
-        notice = "Moved item to \(destination.displayName)."
+        if saveChanges() { notice = "Moved item to \(destination.displayName)." }
     }
 
     private func delete(_ item: GroceryItem) {
@@ -599,14 +628,17 @@ private struct AllItemsScreen: View {
         if let write = paprikaReminders.desiredWriteback(for: item) { pendingReminderWrites[item.id] = write }
     }
 
-    private func saveChanges() {
+    @discardableResult
+    private func saveChanges() -> Bool {
         do {
             try modelContext.save()
             let writes = Array(pendingReminderWrites.values)
             pendingReminderWrites.removeAll()
             for write in writes { paprikaReminders.queueWriteback(write) }
+            return true
         } catch {
             notice = "Changes may not be saved. Try again."
+            return false
         }
     }
 
@@ -621,41 +653,23 @@ private struct AllItemsScreen: View {
     private func addItems() {
         guard let destinationID, !IngredientParser.application.parseProductEntry(draft).isEmpty else { return }
         let parsed = IngredientParser.application.parseProductEntry(draft)
-        let targetItems = allItems.filter { $0.listID == destinationID.listID }.sorted { $0.position < $1.position }
-        var promoted: [GroceryItem] = []
-        var staged = targetItems
-        for entry in parsed {
-            if let existing = staged.first(where: {
-                GroceryParser.normalizedName($0.name) == GroceryParser.normalizedName(entry.name)
-                    && (Self.normalizedUnit($0.quantityUnit) == Self.normalizedUnit(entry.unit)
-                        || $0.quantityAmount == nil || entry.amount == nil)
-            }) {
-                if let amount = entry.amount { existing.quantityAmount = (existing.quantityAmount ?? 0) + amount }
-                existing.status = .pending
-                if !promoted.contains(where: { $0.id == existing.id }) { promoted.append(existing) }
-            } else {
-                let item = GroceryItem(name: entry.name, amount: entry.amount, unit: entry.unit,
-                                       position: staged.count, listID: destinationID.listID)
-                modelContext.insert(item)
-                staged.append(item)
-                promoted.append(item)
-            }
-        }
-        let promotedIDs = Set(promoted.map(\.id))
-        for (index, item) in (promoted + staged.filter { !promotedIDs.contains($0.id) }).enumerated() {
-            item.position = index
-        }
+        let promoted = ShoppingLists.stageAdd(parsed, to: destinationID, allItems: allItems, context: modelContext)
+        for item in promoted { stageReminderWriteback(for: item) }
         do {
             try modelContext.save()
+            let writes = Array(pendingReminderWrites.values)
+            pendingReminderWrites.removeAll()
+            for write in writes { paprikaReminders.queueWriteback(write) }
             var order = recency.filter { $0 != destinationID }
             order.insert(destinationID, at: 0)
             recentStoreOrderRawValue = order.map(\.rawValue).joined(separator: ",")
-            onPromoteStore(destinationID)
+            onPromoteStore(destinationID, promoted.map(\.id))
             draft = ""
             entryFocused = true
             notice = "Added \(promoted.count) \(promoted.count == 1 ? "item" : "items") to \(destinationID.displayName)."
         } catch {
             modelContext.rollback()
+            pendingReminderWrites.removeAll()
             notice = "Could not save the items. Your text is still here; try again."
         }
     }
@@ -694,7 +708,7 @@ struct GroceryListScreen: View {
     let onSelectAllItems: () -> Void
     @Binding var storeLaunchRequested: Bool
     @Binding var importLaunchRequested: Bool
-    let onPromoteStore: (StoreID) -> Void
+    let onPromoteStore: (StoreID, [UUID]) -> Void
     let onWelcomeStoreEnabled: (StoreID) -> Void
     @Binding private var rawInput: String
     @State private var routedLaunch = false
@@ -747,7 +761,7 @@ struct GroceryListScreen: View {
           onSelectAllItems: @escaping () -> Void,
           storeLaunchRequested: Binding<Bool>,
           importLaunchRequested: Binding<Bool>,
-          onPromoteStore: @escaping (StoreID) -> Void) {
+          onPromoteStore: @escaping (StoreID, [UUID]) -> Void) {
         self.storeID = storeID; self.sessions = sessions
         self.visibility = visibility
         self.paprikaReminders = paprikaReminders
@@ -1469,39 +1483,11 @@ struct GroceryListScreen: View {
         // trying to position the first row. Later additions keep their animation;
         // the first row still gets the added-item highlight and animated scroll.
         withAnimation(items.isEmpty ? nil : .spring(response: 0.42, dampingFraction: 0.82)) {
-            var stagedItems = items
-            var promotedItems: [GroceryItem] = []
-            for entry in parsed {
-                if let existing = stagedItems.first(where: {
-                    let sameName = GroceryParser.normalizedName($0.name) == GroceryParser.normalizedName(entry.name)
-                    let sameUnit = Self.normalizedUnit($0.quantityUnit) == Self.normalizedUnit(entry.unit)
-                    let oneUnspecified = $0.quantityAmount == nil || entry.amount == nil
-                    return sameName && (sameUnit || oneUnspecified)
-                }) {
-                    switch (existing.quantityAmount, entry.amount) {
-                    case let (old?, new?): existing.quantityAmount = old + new
-                    case (nil, let new?): existing.quantityAmount = new
-                    default: break
-                    }
-                    existing.status = .pending
-                    if !promotedItems.contains(where: { $0.id == existing.id }) {
-                        promotedItems.append(existing)
-                    }
-                    stageReminderWriteback(for: existing)
-                } else {
-                    let item = GroceryItem(name: entry.name, amount: entry.amount, unit: entry.unit, position: stagedItems.count, listID: storeID.listID)
-                    modelContext.insert(item)
-                    stagedItems.append(item)
-                    promotedItems.append(item)
-                    newlyAddedIDs.insert(item.id)
-                }
-            }
-            // New and reactivated items go to the front in the same order they
-            // appeared in the input. Existing untouched items retain their order.
-            let promotedIDs = Set(promotedItems.map(\.id))
-            let reorderedItems = promotedItems + stagedItems.filter { !promotedIDs.contains($0.id) }
-            for (position, item) in reorderedItems.enumerated() {
-                item.position = position
+            let existingIDs = Set(items.map(\.id))
+            let promotedItems = ShoppingLists.stageAdd(parsed, to: storeID, allItems: allItems, context: modelContext)
+            for item in promotedItems {
+                if existingIDs.contains(item.id) { stageReminderWriteback(for: item) }
+                else { newlyAddedIDs.insert(item.id) }
             }
             recentlyAddedItemIDs.formUnion(newlyAddedIDs)
             // Idle rows no longer track geometry. Never reuse a frame captured
@@ -1511,7 +1497,7 @@ struct GroceryListScreen: View {
             rawInput = ""
             groceryInputFocused = keepingInputFocused
             saveChanges()
-            if !saveFailed { onPromoteStore(storeID) }
+            if !saveFailed { onPromoteStore(storeID, promotedItems.map(\.id)) }
         }
 
         guard !newlyAddedIDs.isEmpty else { return }
@@ -1761,7 +1747,7 @@ struct GroceryListScreen: View {
                     throw PaprikaImportPlanner.emptyImportError(reminders: snapshot, existingIDs: linkedIDs)
                 }
                 let alreadyImportedCount = Set(snapshot.map(\.id)).intersection(linkedIDs).count
-
+                var importedItemIDs: [UUID] = []
                 do {
                     try modelContext.transaction {
                         var position = (items.map(\.position).max() ?? -1) + 1
@@ -1773,6 +1759,7 @@ struct GroceryListScreen: View {
                                                    listID: storeID.listID)
                             item.paprikaReminderID = entry.reminderID
                             modelContext.insert(item)
+                            importedItemIDs.append(item.id)
                             position += 1
                         }
                     }
@@ -1782,7 +1769,7 @@ struct GroceryListScreen: View {
                     throw PaprikaImportError.transaction
                 }
                 importSourceID = GroceryImportSource.paprika.rawValue
-                onPromoteStore(storeID)
+                onPromoteStore(storeID, importedItemIDs)
                 if removeAfterImport {
                     let savedIDs = linkedIDs.union(staged.compactMap(\.reminderID))
                     let failed = paprikaReminders.removeImportedReminders(PaprikaImportPlanner.removalCandidates(reminders: snapshot, savedIDs: savedIDs), calendarID: sourceListID)

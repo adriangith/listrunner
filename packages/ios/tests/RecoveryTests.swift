@@ -15,6 +15,14 @@ struct RecoveryTests {
         }
 
         let resources = URL(fileURLWithPath: CommandLine.arguments[1])
+        let firstID = UUID(), secondID = UUID(), thirdID = UUID()
+        let initialOrder = ItemPromotionOrder.promoting([firstID, secondID], in: "", existing: [firstID, secondID, thirdID])
+        let updatedOrder = ItemPromotionOrder.promoting([thirdID, firstID], in: initialOrder,
+                                                       existing: [firstID, secondID, thirdID])
+        check(ItemPromotionOrder.ranks(updatedOrder) == [thirdID: 0, firstID: 1, secondID: 2],
+              "cross-store promotion retains actual recent batch order and deduplicates existing rows")
+        check(ItemPromotionOrder.ranks(ItemPromotionOrder.promoting([], in: updatedOrder, existing: [secondID])) == [secondID: 0],
+              "deleted rows are pruned from sidecar ranks without assigning historical dates")
         check(ShoppingCountry.validated("au") == "AU", "country preferences normalize ISO codes")
         for code in [nil, "", "ZZ", "Australia", "123"] as [String?] {
             check(ShoppingCountry.validated(code) == nil, "invalid/missing region suggestions do not guess a country")
@@ -368,6 +376,17 @@ struct RecoveryTests {
               && disableGuard.visibleIDs.contains(.costco)
               && disableGuard.regionalChoices["costco"] == StoreID.costco.rawValue,
               "nonempty regional list blocks brand disable and region replacement without rewriting the saved choice")
+        check(disableGuard.chooseRegion(.costco, for: guardCostco),
+              "reselecting the enabled region does not disable its nonempty list")
+        disableGuard.listItemCountsProvider = { throw StoreDefinition.ConfigurationError.invalid }
+        check(!disableGuard.setVisible(false, for: .coles) && disableGuard.visibleIDs.contains(.coles)
+              && disableGuard.listLookupFailed,
+              "failed saved-row lookup fails closed instead of disabling a store")
+        disableGuard.listItemCountsProvider = { [StoreID.coles.listID: 1] }
+        check(!disableGuard.setVisible(false, for: .coles), "fresh saved-row lookup overrides an earlier empty snapshot")
+        disableGuard.listItemCountsProvider = { [:] }
+        check(disableGuard.setVisible(false, for: .coles) && !disableGuard.visibleIDs.contains(.coles),
+              "explicit disable succeeds after all affected rows are successfully removed")
         let availableCostco = StoreBrand.sections(allProductionDefinitions, countryCode: "US", search: "Costco").flatMap(\.brands).first!
         check(availableCostco.regions.map(\.id) == [.costco] && !availableCostco.isRegional
               && availability.selectedRegion(for: availableCostco).id == .costco
@@ -499,6 +518,7 @@ struct RecoveryTests {
         }
         var componentObject = try JSONSerialization.jsonObject(with: JSONEncoder().encode(expansionDefinitions.first { $0.id == .officeworks }!)) as! [String: Any]
         componentObject["schemaVersion"] = 4
+        componentObject.removeValue(forKey: "category")
         componentObject.removeValue(forKey: "categories")
         componentObject.removeValue(forKey: "automationSchemaVersion")
         var componentCart = try JSONSerialization.jsonObject(with: JSONEncoder().encode(prospectiveSupercheap.cart!)) as! [String: Any]
