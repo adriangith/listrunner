@@ -4,6 +4,7 @@ import UIKit
 
 struct ShoppingRootScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Query private var allItems: [GroceryItem]
     @StateObject private var sessions: StoreSessions
     @StateObject private var visibility: StoreVisibilityPreferences
     @StateObject private var paprikaReminders = PaprikaReminders()
@@ -32,6 +33,12 @@ struct ShoppingRootScreen: View {
     }
 
     private var shoppingVisibleIDs: Set<StoreID> { sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs) }
+    private var nonEmptyListIDs: Set<UUID> {
+        Set(allItems.compactMap { item in
+            guard let id = item.listID, StoreID.allCases.contains(where: { $0.listID == id }) else { return nil }
+            return id
+        })
+    }
 
     var body: some View {
         let storeID = StoreID(rawValue: activeStoreID) ?? .coles
@@ -97,13 +104,15 @@ struct ShoppingRootScreen: View {
         }
             .background(WelcomeTransitionAnchor(transition: welcomeTransition))
             .sensoryFeedback(.success, trigger: welcomeCompletion)
-            .onChange(of: shoppingVisibleIDs) { previous, current in
+             .onChange(of: shoppingVisibleIDs) { previous, current in
                 // Opening management is not a choice. Keep the one-run welcome
                 // preview when backing out, and finish only on an enable action.
                 if !current.subtracting(previous).isEmpty {
                     previewingStoreWelcome = false
                 }
             }
+            .onAppear { visibility.updateNonEmptyListIDs(nonEmptyListIDs) }
+            .onChange(of: nonEmptyListIDs) { _, ids in visibility.updateNonEmptyListIDs(ids) }
     }
 }
 

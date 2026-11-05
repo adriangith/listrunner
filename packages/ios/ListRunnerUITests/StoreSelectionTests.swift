@@ -1508,6 +1508,7 @@ final class StoreSelectionTests: XCTestCase {
             for _ in 0..<4 where !row.exists { app.swipeUp() }
             XCTAssertTrue(row.waitForExistence(timeout: 3), "All items should include the existing \(item)")
         }
+        for _ in 0..<4 { app.swipeDown() }
 
         let entry = app.textFields["all-items-entry"]
         XCTAssertTrue(entry.waitForExistence(timeout: 3))
