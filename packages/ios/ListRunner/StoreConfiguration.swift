@@ -1174,6 +1174,7 @@ final class StoreVisibilityPreferences: ObservableObject {
 
     private func canDisable(_ ids: Set<StoreID>) -> Bool {
         listLookupFailed = false
+        guard !ids.isEmpty else { return true }
         if let listItemCountsProvider {
             do {
                 let counts = try listItemCountsProvider()
@@ -1343,23 +1344,22 @@ final class StoreVisibilityPreferences: ObservableObject {
     func setBrandVisible(_ visible: Bool, brand: StoreBrand) -> Bool {
         let selected = selectedRegion(for: brand)
         let siblings = StoreID.allCases.filter { $0.brandID == brand.id }
-        if !visible && !canDisable(Set(siblings).intersection(visibleIDs)) {
-            return false
-        }
+        var updated = visibleIDs.subtracting(siblings)
+        if visible { updated.insert(selected.id) }
+        guard canDisable(visibleIDs.subtracting(updated)) else { return false }
         var choices = regionalChoices
         choices[brand.id] = selected.id.rawValue
         regionalChoices = choices
         defaults.set(choices, forKey: regionalKey)
-        var updated = visibleIDs.subtracting(siblings)
-        if visible { updated.insert(selected.id) }
         saveVisibility(updated)
         return true
     }
 
     func chooseRegion(_ id: StoreID, for brand: StoreBrand) -> Bool {
         guard brand.regions.contains(where: { $0.id == id }) else { return false }
-        let enabled = brand.regions.contains { visibleIDs.contains($0.id) }
-        let replaced = Set(brand.regions.map(\.id)).intersection(visibleIDs).subtracting([id])
+        let siblings = StoreID.allCases.filter { $0.brandID == brand.id }
+        let enabled = siblings.contains { visibleIDs.contains($0) }
+        let replaced = Set(siblings).intersection(visibleIDs).subtracting([id])
         guard !enabled || canDisable(replaced) else { return false }
         var choices = regionalChoices
         choices[brand.id] = id.rawValue
@@ -1368,7 +1368,6 @@ final class StoreVisibilityPreferences: ObservableObject {
         // Called only after explicit confirmation. Hide siblings, never delete their
         // data or change activeStoreID here. The list screen resolves a disabled
         // active destination to an enabled store when management is dismissed.
-        let siblings = StoreID.allCases.filter { $0.brandID == brand.id }
         var updated = visibleIDs.subtracting(siblings)
         if enabled { updated.insert(id) }
         saveVisibility(updated)

@@ -50,10 +50,12 @@ struct ShoppingRootScreen: View {
             NavigationStack {
             AllItemsScreen(sessions: sessions, visibility: visibility, paprikaReminders: paprikaReminders,
                            draft: $allItemsDraft, destinationRawValue: $allItemsAddDestination,
-                           onChooseStoreList: { id in
-                               sessions.endAllInteractions()
-                               activeStoreID = id.rawValue
-                               showingAllItems = false
+                            onChooseStoreList: { id in
+                                sessions.endAllInteractions()
+                                if shoppingVisibleIDs.contains(id) {
+                                    activeStoreID = id.rawValue
+                                    showingAllItems = false
+                                }
                             }, onPromoteStore: promote)
             }
         } else {
@@ -71,9 +73,10 @@ struct ShoppingRootScreen: View {
                                    activeStoreID = id.rawValue
                                    welcomeCompletion += 1
                                }
-                           }, onSelectStore: { id in
-                               sessions.endAllInteractions()
-                               activeStoreID = id.rawValue
+                            }, onSelectStore: { id in
+                                sessions.endAllInteractions()
+                                if shoppingVisibleIDs.contains(id) { activeStoreID = id.rawValue }
+                                else { showingAllItems = true }
                            }, onSelectAllItems: {
                                if allItemsAddDestination.isEmpty { allItemsAddDestination = storeID.rawValue }
                                showingAllItems = true
@@ -95,11 +98,13 @@ struct ShoppingRootScreen: View {
             }
             .onAppear {
                 visibility.updateNonEmptyListIDs(nonEmptyListIDs)
+                let context = modelContext
+                let reminders = paprikaReminders
                 visibility.listItemCountsProvider = {
                     // Do not disable a destination while a local mutation has
                     // not been saved, or when the saved rows cannot be read.
-                    guard !modelContext.hasChanges, !paprikaReminders.importing else { throw StoreDefinition.ConfigurationError.invalid }
-                    let rows = try modelContext.fetch(FetchDescriptor<GroceryItem>())
+                    guard !context.hasChanges, !reminders.importing else { throw StoreDefinition.ConfigurationError.invalid }
+                    let rows = try context.fetch(FetchDescriptor<GroceryItem>())
                     return Dictionary(grouping: rows.compactMap(\.listID), by: { $0 }).mapValues(\.count)
                 }
             }
@@ -308,20 +313,26 @@ private struct AllItemsScreen: View {
                         .accessibilityIdentifier("all-items-entry")
                     Divider()
                     HStack(spacing: 8) {
-                        Button(paprikaReminders.importing ? "Importing…" : "Import") { importItems() }
+                        Button(action: importItems) {
+                            Text(paprikaReminders.importing ? "Importing…" : "Import")
+                                .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
                         .disabled(paprikaReminders.importing || destinationID == nil)
                         .buttonStyle(.plain)
-                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                         .accessibilityHint("Import items into the selected destination store")
                         Spacer(minLength: 4)
                         if let destinationID {
                             HStack(spacing: 0) {
-                                Button("Add to \(destinationID.displayName)", action: addItems)
+                                Button(action: addItems) {
+                                    Text("Add to \(destinationID.displayName)")
+                                        .font(.subheadline.weight(.semibold))
+                                        .frame(minWidth: 44, minHeight: 44)
+                                        .padding(.leading, 14)
+                                        .padding(.trailing, 12)
+                                        .contentShape(Rectangle())
+                                }
                                     .buttonStyle(.plain)
-                                    .font(.subheadline.weight(.semibold))
-                                    .frame(minHeight: 44)
-                                    .padding(.leading, 14)
-                                    .padding(.trailing, 12)
                                     .disabled(IngredientParser.application.parseProductEntry(draft).isEmpty)
                                     .accessibilityIdentifier("all-items-add")
                                 Rectangle().fill(.white.opacity(0.35)).frame(width: 1, height: 26)
@@ -406,22 +417,29 @@ private struct AllItemsScreen: View {
                             Spacer()
                             Text("\(group.items.count)").foregroundStyle(.secondary)
                         }
+                        .id("header-" + group.id)
                         .foregroundStyle(grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary)
                     }
                 }
             }
             if let notice {
-                Section { Text(notice).font(.footnote).foregroundStyle(.secondary) }
+                Section {
+                    Text(notice).font(.footnote).foregroundStyle(.secondary)
+                    if saveFailed { Button("Retry save") { saveChanges() } }
+                }
             }
         }
         .listStyle(.insetGrouped)
         .contentMargins(.top, 0, for: .scrollContent)
         .onChange(of: recentItemOrderRawValue) { _, value in
-            if let id = ItemPromotionOrder.ranks(value).min(by: { $0.value < $1.value })?.key {
+            if let group = groups.first {
                 // Only the item region scrolls; the composer and its responder
                 // stay in place above it, including with the keyboard visible.
-                proxy.scrollTo(id, anchor: .top)
+                proxy.scrollTo("header-" + group.id, anchor: .top)
             }
+        }
+        .onChange(of: groupingRawValue) { _, _ in
+            if let group = groups.first { proxy.scrollTo("header-" + group.id, anchor: .top) }
         }
         .task(id: recentItemOrderRawValue) {
             guard !highlightedItemIDs.isEmpty else { return }
@@ -509,7 +527,7 @@ private struct AllItemsScreen: View {
                         Image(systemName: "chevron.up.chevron.down").font(.caption2.weight(.black))
                     }
                     .foregroundStyle(Color.accentColor)
-                    .padding(.horizontal, 13).padding(.vertical, 9)
+                    .padding(.horizontal, 13).padding(.vertical, 10)
                     .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
                 }
                 .accessibilityIdentifier("all-items-scope-picker")
@@ -535,10 +553,10 @@ private struct AllItemsScreen: View {
         }
         .onAppear {
             if destinationRawValue.isEmpty, !visibleStores.isEmpty {
-                let previouslyViewed = StoreID(rawValue: UserDefaults.standard.string(forKey: "activeStoreID") ?? "")
-                destinationRawValue = previouslyViewed.flatMap { id in
-                    visibleStores.contains(where: { $0.id == id }) ? id.rawValue : nil
-                } ?? visibleStores[0].id.rawValue
+                // The root supplies the previously viewed store on first entry.
+                // Do not reach into a different defaults suite here (UI tests
+                // and recovery use their own isolated app preferences).
+                destinationRawValue = visibleStores[0].id.rawValue
             }
         }
     }
@@ -814,7 +832,7 @@ struct GroceryListScreen: View {
     private var selectedList: GroceryList? { lists.first { $0.id == storeID.listID } }
     private var shoppingVisibleIDs: Set<StoreID> { sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs) }
     private var moveDestinations: [StoreDefinition] {
-        StoreCatalogue.ordered(sessions.definitions, countryCode: nil).filter { $0.id != storeID }
+        StoreCatalogue.ordered(sessions.definitions, countryCode: nil, enabledIDs: shoppingVisibleIDs).filter { $0.id != storeID }
     }
 
     private var pendingCount: Int { items.filter { $0.status == .pending }.count }
@@ -854,6 +872,10 @@ struct GroceryListScreen: View {
                     }
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
+                    if !allItems.isEmpty {
+                        Button("View saved items", action: onSelectAllItems)
+                            .accessibilityIdentifier("view-saved-items")
+                    }
                 } else if shoppingVisibleIDs.isEmpty {
                     ContentUnavailableView {
                         Label("No stores enabled", systemImage: "basket")
@@ -863,6 +885,10 @@ struct GroceryListScreen: View {
                         Button("Manage Stores") { showingStoreManagement = true }
                             .buttonStyle(.bordered)
                             .accessibilityIdentifier("no-stores-manage")
+                        if !allItems.isEmpty {
+                            Button("View saved items", action: onSelectAllItems)
+                                .accessibilityIdentifier("view-saved-items")
+                        }
                     }
                     .listRowBackground(Color.clear)
                 } else {
@@ -1512,6 +1538,11 @@ struct GroceryListScreen: View {
     private func addItems(keepingInputFocused: Bool) {
         let parsed = IngredientParser.application.parseProductEntry(rawInput)
         guard !parsed.isEmpty else { return }
+        if modelContext.hasChanges {
+            saveChanges()
+            guard !saveFailed else { return }
+        }
+        let submittedInput = rawInput
         cancelAddedItemScroll()
         var newlyAddedIDs = Set<UUID>()
         // Do not animate the empty-state replacement and new bottom inset while
@@ -1532,7 +1563,15 @@ struct GroceryListScreen: View {
             rawInput = ""
             groceryInputFocused = keepingInputFocused
             saveChanges()
-            if !saveFailed { onPromoteStore(storeID, promotedItems.map(\.id)) }
+            if saveFailed {
+                modelContext.rollback()
+                pendingReminderWrites.removeAll()
+                rawInput = submittedInput
+                recentlyAddedItemIDs.subtract(newlyAddedIDs)
+                scrollTargetItemID = nil
+            } else {
+                onPromoteStore(storeID, promotedItems.map(\.id))
+            }
         }
 
         guard !newlyAddedIDs.isEmpty else { return }
@@ -1725,7 +1764,7 @@ struct GroceryListScreen: View {
 
     private func moveItem(_ item: GroceryItem, to destination: StoreID) {
         guard item.listID == storeID.listID, destination != storeID,
-              sessions.definitions.first(where: { $0.id == destination })?.isAvailableForShopping == true else { return }
+              shoppingVisibleIDs.contains(destination) else { return }
         if selectedList?.selectedItemID == item.id {
             selectedList?.selectedItemID = ShoppingLists.selection(afterRemoving: item.id, from: items)
         }

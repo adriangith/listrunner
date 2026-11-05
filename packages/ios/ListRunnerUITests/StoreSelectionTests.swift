@@ -1536,6 +1536,9 @@ final class StoreSelectionTests: XCTestCase {
         choose("All items")
         let entry = app.textFields["all-items-entry"]
         let add = app.buttons["all-items-add"]
+        XCTAssertGreaterThanOrEqual(add.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(app.buttons["all-items-add-destination"].frame.width, 44)
+        XCTAssertGreaterThanOrEqual(app.buttons["all-items-add-destination"].frame.height, 44)
         entry.tap()
         entry.typeText("First aggregate item")
         let before = entry.frame
@@ -1581,6 +1584,57 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 5))
         choose("Coles")
         XCTAssertFalse(row("milk", status: "Pending").exists)
+    }
+
+    func testNonemptyRegionalSwitchIsBlocked() {
+        app.buttons["store-picker"].tap()
+        app.buttons["store-picker-manage-stores"].tap()
+        openStoreSettings("bunnings")
+        app.buttons["store-region-picker-bunnings"].tap()
+        app.buttons["store-region-bunningsNZ"].tap()
+        app.alerts.buttons["Use this regional website"].tap()
+        let blocker = app.alerts["Region can’t be changed yet"]
+        XCTAssertTrue(blocker.waitForExistence(timeout: 5))
+        blocker.buttons["View List"].tap()
+        XCTAssertTrue(row("Bunnings fixture item", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertFalse(app.webViews.firstMatch.exists)
+    }
+
+    func testAllItemsResultsScrollShoppingReturnsToAggregate() {
+        choose("All items")
+        let colesRow = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Coles fixture item, quantity")).firstMatch
+        for _ in 0..<4 where !colesRow.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        colesRow.tap()
+        XCTAssertTrue(app.buttons["Dismiss store"].waitForExistence(timeout: 10))
+        app.buttons["Dismiss store"].tap()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["store-picker"].exists)
+    }
+
+    func testAllItemsCategoryOrderingUsesRecentItemsAcrossStores() {
+        app.buttons["store-picker"].tap()
+        app.buttons["store-picker-manage-stores"].tap()
+        setStoreVisibility("costco", shown: true)
+        tapNavigationBack()
+        choose("All items")
+        app.segmentedControls.buttons["By category"].tap()
+        for (store, product, category) in [("Woolworths", "Woolworths newest", "Grocery"),
+                                           ("Coles", "Coles newest", "Grocery"),
+                                           ("Costco", "Costco newest", "Groceries & Home")] {
+            app.buttons["all-items-add-destination"].tap()
+            app.buttons[store].firstMatch.tap()
+            let entry = app.textFields["all-items-entry"]
+            entry.tap(); entry.typeText(product)
+            app.buttons["all-items-add"].tap()
+            let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", product + ", quantity")).firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts[category].waitForExistence(timeout: 5))
+            XCTAssertLessThan(row.frame.maxY, app.keyboards.firstMatch.frame.minY)
+        }
+        XCTAssertTrue(app.staticTexts["Groceries & Home"].exists)
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Groceries & Home"].waitForExistence(timeout: 5))
     }
 
     func testMostRecentlyEnabledStoreBecomesActiveOnReturn() {
@@ -1629,6 +1683,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["store-picker"].tap()
         app.buttons["store-picker-manage-stores"].tap()
         setStoreVisibility("coles", shown: false)
+        tapNavigationBack()
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["store-picker"].label.contains("Coles"))
     }
@@ -1657,6 +1712,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["store-picker"].tap()
         app.buttons["store-picker-manage-stores"].tap()
         setStoreVisibility("bunnings", shown: false)
+        tapNavigationBack()
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["store-picker"].label.contains("Coles"))
         XCTAssertFalse(app.webViews.firstMatch.exists)
@@ -1763,7 +1819,7 @@ final class StoreSelectionTests: XCTestCase {
         setStoreVisibility("coles", shown: true)
         app.navigationBars.buttons.firstMatch.tap()
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Show Store"].isEnabled)
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 5))
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
         setStoreVisibility("woolworths", shown: true)

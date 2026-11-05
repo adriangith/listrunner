@@ -405,6 +405,14 @@ struct RecoveryTests {
         check(disableGuard.setVisible(false, for: .coles) && !disableGuard.visibleIDs.contains(.coles),
               "explicit disable succeeds after all affected rows are successfully removed")
         let availableCostco = StoreBrand.sections(allProductionDefinitions, countryCode: "US", search: "Costco").flatMap(\.brands).first!
+        disableGuardDefaults.set([StoreID.costcoUS.rawValue], forKey: "visibleStoreIDs.v1")
+        disableGuardDefaults.set(["costco": StoreID.costco.rawValue], forKey: "storeRegionalChoices.v1")
+        let hiddenRegionGuard = StoreVisibilityPreferences(defaults: disableGuardDefaults)
+        hiddenRegionGuard.updateNonEmptyListIDs([StoreID.costcoUS.listID])
+        check(!hiddenRegionGuard.setBrandVisible(true, brand: availableCostco)
+              && !hiddenRegionGuard.chooseRegion(.costco, for: availableCostco)
+              && hiddenRegionGuard.visibleIDs.contains(.costcoUS),
+              "enabling/replacing an available region cannot silently disable a populated hidden sibling")
         check(availableCostco.regions.map(\.id) == [.costco] && !availableCostco.isRegional
               && availability.selectedRegion(for: availableCostco).id == .costco
               && availability.regionalChoices["costco"] == "costcoUS",
@@ -1643,11 +1651,16 @@ struct RecoveryTests {
         try Data("old-wal".utf8).write(to: URL(fileURLWithPath: url.path + "-wal"))
         try Data("old-shm".utf8).write(to: URL(fileURLWithPath: url.path + "-shm"))
         defaults.set(["bigW"], forKey: "pendingEnabledStoreSelection.v1")
+        let allItemsPreferenceKeys = ["allItemsScope.v1", "allItemsGrouping.v1", "allItemsDraft.v1",
+                                      "allItemsAddDestination.v1", "allItemsRecentStoreOrder.v1", "allItemsRecentItemOrder.v1"]
+        for key in allItemsPreferenceKeys { defaults.set("test", forKey: key) }
         allowOpen = true
         storage.resetAfterConfirmation()
         check(storage.container != nil, "confirmed local reset opens an empty store")
         let emptyCount = try storage.container!.mainContext.fetchCount(FetchDescriptor<GroceryItem>())
         check(emptyCount == 0, "reset store contains no items")
+        check(allItemsPreferenceKeys.allSatisfy { defaults.object(forKey: $0) == nil },
+              "confirmed local reset clears all aggregate preferences and sidecar ordering only with the database")
         check(defaults.object(forKey: GroceryImportSource.preferenceKey) == nil,
               "confirmed local reset clears import source and restores setup")
         check(defaults.object(forKey: "useLocalIngredientNames.v1") == nil,

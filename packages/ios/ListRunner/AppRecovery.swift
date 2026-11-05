@@ -27,7 +27,6 @@ struct LocalDataRecoveryScreen: View {
 
 struct SettingsScreen: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
     @ObservedObject var browser: StoreBrowser
     let brand: StoreBrand
     @ObservedObject var visibility: StoreVisibilityPreferences
@@ -38,10 +37,9 @@ struct SettingsScreen: View {
     let onOpenStoreList: ((StoreID) -> Void)?
 
     private var affectedNonEmptyStores: [StoreID] {
-        brand.regions.compactMap { definition -> StoreID? in
-            guard visibility.visibleIDs.contains(definition.id),
-                  visibility.nonEmptyListIDs.contains(definition.id.listID) else { return nil }
-            return definition.id
+        StoreID.allCases.filter { store in
+            store.brandID == brand.id && visibility.visibleIDs.contains(store)
+                && visibility.nonEmptyListIDs.contains(store.listID)
         }
     }
 
@@ -77,12 +75,16 @@ struct SettingsScreen: View {
                         }
                         else { dismiss() }
                     }
-                    Button("OK", role: .cancel) { }
+                    Button("Cancel", role: .cancel) { }
                 } message: {
                     if visibility.listLookupFailed {
                         Text("Your saved lists could not be checked. Save or retry your list changes before disabling this store. Nothing was changed.")
                     } else {
-                        Text("Clear or move the saved items first: \(affectedNonEmptyStores.map { "\($0.displayName): \(visibility.listItemCounts[$0.listID] ?? 0) items" }.joined(separator: ", ")). This includes Added and Skipped items. Nothing was changed.")
+                        Text("Clear or move the saved items first: \(affectedNonEmptyStores.map { store in
+                            let count = visibility.listItemCounts[store.listID] ?? 0
+                            return count == 1 ? String(localized: "1 item in \(store.displayName)")
+                                : String(localized: "\(count) items in \(store.displayName)")
+                        }.formatted(.list(type: .and))). This includes Added and Skipped items. Nothing was changed.")
                     }
                 }
                 if brand.isRegional {
@@ -655,17 +657,22 @@ private struct StoreRegionScreen: View {
                 .background(Color(uiColor: .systemGroupedBackground))
                 .alert("Region can’t be changed yet", isPresented: $regionChangeBlocked) {
                     Button("View List") {
-                        if let affected = brand.regions.first(where: {
-                            visibility.visibleIDs.contains($0.id) && visibility.nonEmptyListIDs.contains($0.id.listID)
+                        if let affected = StoreID.allCases.first(where: {
+                            $0.brandID == brand.id && visibility.visibleIDs.contains($0) && visibility.nonEmptyListIDs.contains($0.listID)
                         }) {
-                            onOpenStoreList?(affected.id)
+                            dismiss()
+                            onOpenStoreList?(affected)
                         } else {
                             dismiss()
                         }
                     }
-                    Button("OK", role: .cancel) { pendingRegion = nil }
+                    Button("Cancel", role: .cancel) { pendingRegion = nil }
                 } message: {
-                    Text("The enabled region has saved items, including Added or Skipped items. Move them to another store or clear its list before switching regions. Nothing was changed.")
+                    if visibility.listLookupFailed {
+                        Text("Your saved lists could not be checked. Save or retry your list changes before switching regions. Nothing was changed.")
+                    } else {
+                        Text("The enabled region has saved items, including Added or Skipped items. Move them to another store or clear its list before switching regions. Nothing was changed.")
+                    }
                 }
         }
         .alert("Change \(brand.name) region?", isPresented: Binding(get: { pendingRegion != nil }, set: { if !$0 { pendingRegion = nil } })) {
