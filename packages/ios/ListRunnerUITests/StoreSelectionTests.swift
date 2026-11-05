@@ -470,7 +470,8 @@ final class StoreSelectionTests: XCTestCase {
         }
         if ["SettingsHasCountryAndNoStoreRows", "SettingsWithAllStoresHiddenKeepsManagementAvailable",
             "AllHiddenStoresHidePickerAndKeepManagementAvailable", "MixedCountrySectionsKeepNativeIndexSeparateFromSwitches",
-            "DisablingActiveBunningsSelectsEnabledColesAndKeepsItems", "AllDisabledBunningsThenColesSelectsEnabledListAndPreservesSavedLists"]
+            "DisablingActiveBunningsSelectsEnabledColesAndKeepsItems", "AllDisabledBunningsThenColesSelectsEnabledListAndPreservesSavedLists",
+            "DisablingNonemptyStoreIsBlockedUntilItsListIsCleared", "DisablingActiveBunningsRequiresClearingItsList"]
             .contains(where: { name.contains($0) }) {
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
         }
@@ -501,7 +502,9 @@ final class StoreSelectionTests: XCTestCase {
             if !name.contains("ResultsScroll") {
                 app.buttons["store-picker"].tap()
                 app.buttons["Manage Stores"].tap()
-                for id in ["bunnings", "woolworths", "coles"] { setStoreVisibility(id, shown: true) }
+                // Coles was just enabled through the welcome flow. Reopening its
+                // row is redundant and races its move between table sections.
+                for id in ["bunnings", "woolworths"] { setStoreVisibility(id, shown: true) }
                 tapNavigationBack()
             }
         }
