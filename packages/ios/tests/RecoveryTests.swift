@@ -214,10 +214,10 @@ struct RecoveryTests {
               "all 33 production destinations use valid schema-7 categories")
         for definition in allProductionDefinitions {
             let roundTrip = try StoreDefinition.decodeConfiguration(from: JSONEncoder().encode(definition))
-        check(roundTrip.id == definition.id && roundTrip.categories == definition.categories
-              && roundTrip.category == definition.category
-                  && roundTrip.automationSchemaVersion == definition.automationSchemaVersion,
-                  "every definition round-trips, including stores with a null cart")
+            check(roundTrip.id == definition.id && roundTrip.categories == definition.categories
+                  && roundTrip.category == definition.category
+                   && roundTrip.automationSchemaVersion == definition.automationSchemaVersion,
+                   "every definition round-trips, including stores with a null cart")
         }
         let persistentProbeID = UUID(uuidString: "0BDE339A-A800-4D62-B5BC-17838D7B3823")!
         let persistentProbeEnvironment = ["LISTRUNNER_UI_TEST_SESSION": persistentProbeID.uuidString,

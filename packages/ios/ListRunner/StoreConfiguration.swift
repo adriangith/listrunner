@@ -911,8 +911,8 @@ struct StoreDefinition: Codable {
         guard data.count <= 65_536 else { throw ConfigurationError.invalid }
         try rejectDuplicateKeys(in: data)
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              hasOnlyKeys(root, ["schemaVersion", "automationSchemaVersion", "id", "displayName", "serviceArea", "homepage", "allowedHosts",
-                                 "search", "addedColor", "brandColors", "categories", "capabilities", "cart"]),
+               hasOnlyKeys(root, ["schemaVersion", "automationSchemaVersion", "id", "displayName", "serviceArea", "homepage", "allowedHosts",
+                                  "search", "addedColor", "brandColors", "categories", "category", "capabilities", "cart"]),
               hasOnlyKeys(root["serviceArea"] as? [String: Any], ["countryCodes"]),
               hasOnlyKeys(root["search"] as? [String: Any], ["strategy", "template", "resultsSelector", "resultsTopOffset"]),
               hasOnlyKeys(root["addedColor"] as? [String: Any], ["red", "green", "blue"]),
