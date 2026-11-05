@@ -15,6 +15,21 @@ struct RecoveryTests {
         }
 
         let resources = URL(fileURLWithPath: CommandLine.arguments[1])
+        let addData = try ShoppingLists.open(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
+        let addContext = addData.mainContext
+        addContext.autosaveEnabled = false
+        let otherStoreItem = GroceryItem(name: "milk", amount: 9, position: 0, listID: StoreID.woolworths.listID)
+        addContext.insert(otherStoreItem)
+        try addContext.save()
+        let addedRows = ShoppingLists.stageAdd(IngredientParser.application.parseProductEntry("2 milk; bread; 3 milk"),
+                                               to: .coles, allItems: [otherStoreItem], context: addContext)
+        check(addedRows.count == 2 && addedRows[0].name.lowercased() == "milk" && addedRows[0].quantityAmount == 5
+              && addedRows[1].position == 1 && otherStoreItem.quantityAmount == 9,
+              "shared manual add merges only within destination, preserves batch order and does not duplicate promoted rows")
+        addContext.rollback()
+        let remainingAddRows = try addContext.fetchCount(FetchDescriptor<GroceryItem>())
+        check(remainingAddRows == 1,
+              "failed manual-add transaction can roll back without changing another store")
         let firstID = UUID(), secondID = UUID(), thirdID = UUID()
         let initialOrder = ItemPromotionOrder.promoting([firstID, secondID], in: "", existing: [firstID, secondID, thirdID])
         let updatedOrder = ItemPromotionOrder.promoting([thirdID, firstID], in: initialOrder,

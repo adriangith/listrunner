@@ -1532,6 +1532,57 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Hardware & Garden"].exists)
     }
 
+    func testAllItemsRepeatedEntryKeepsComposerAndPreferences() {
+        choose("All items")
+        let entry = app.textFields["all-items-entry"]
+        let add = app.buttons["all-items-add"]
+        entry.tap()
+        entry.typeText("First aggregate item")
+        let before = entry.frame
+        add.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        XCTAssertLessThan(abs(entry.frame.minY - before.minY), 2)
+        entry.typeText("Second aggregate item")
+        add.tap()
+        let newest = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Second aggregate item")).firstMatch
+        XCTAssertTrue(newest.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(newest.frame.minY, entry.frame.maxY)
+        XCTAssertLessThanOrEqual(newest.frame.maxY, app.keyboards.firstMatch.frame.minY)
+        app.segmentedControls.buttons["By category"].tap()
+        let destination = add.label
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "All items — pinned entry with keyboard"
+        screenshot.lifetime = .keepAlways
+        self.add(screenshot)
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.buttons["all-items-add"].label, destination)
+        XCTAssertTrue(app.segmentedControls.buttons["By category"].isSelected)
+    }
+
+    func testAllItemsPaprikaImportRetainsScopeDraftAndDestination() {
+        choose("All items")
+        let entry = app.textFields["all-items-entry"]
+        entry.tap(); entry.typeText("Unsubmitted draft")
+        app.buttons["all-items-add-destination"].tap()
+        app.buttons["Woolworths"].firstMatch.tap()
+        app.buttons["Import"].tap()
+        XCTAssertTrue(app.buttons["import-source-paprika"].waitForExistence(timeout: 5))
+        app.buttons["import-source-paprika"].tap()
+        confirmPaprikaImport()
+        if app.buttons["paprika-reminders-list-fixture-paprika"].waitForExistence(timeout: 2) {
+            app.buttons["paprika-reminders-list-fixture-paprika"].tap()
+        }
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertEqual(entry.value as? String, "Unsubmitted draft")
+        XCTAssertTrue(app.buttons["all-items-add"].label.contains("Woolworths"))
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Woolworths"].firstMatch.tap()
+        XCTAssertTrue(row("milk", status: "Pending").waitForExistence(timeout: 5))
+        choose("Coles")
+        XCTAssertFalse(row("milk", status: "Pending").exists)
+    }
+
     func testMostRecentlyEnabledStoreBecomesActiveOnReturn() {
         app.buttons["Settings"].tap()
         app.buttons["Manage Stores"].tap()
@@ -1574,7 +1625,6 @@ final class StoreSelectionTests: XCTestCase {
 
         app.buttons["Actions for Coles fixture item"].tap()
         app.buttons["Delete Item"].tap()
-        app.alerts.buttons["Delete Item"].tap()
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
         app.buttons["store-picker"].tap()
         app.buttons["store-picker-manage-stores"].tap()
@@ -1603,7 +1653,6 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"))
         app.buttons["Actions for Bunnings saved item"].tap()
         app.buttons["Delete Item"].tap()
-        app.alerts.buttons["Delete Item"].tap()
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
         app.buttons["store-picker"].tap()
         app.buttons["store-picker-manage-stores"].tap()
