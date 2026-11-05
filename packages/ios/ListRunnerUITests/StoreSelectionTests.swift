@@ -1520,7 +1520,9 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(entry.value as? String, "All items destination item", "Changing destination must preserve the draft")
         XCTAssertTrue(app.buttons["all-items-add"].label.contains("Woolworths"))
         app.buttons["all-items-add"].tap()
-        XCTAssertTrue(app.staticTexts["All items destination item"].waitForExistence(timeout: 5))
+        let added = app.staticTexts["All items destination item"]
+        for _ in 0..<4 where !added.exists { app.swipeUp() }
+        XCTAssertTrue(added.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Woolworths ·")).firstMatch.exists)
 
         let categoryMode = app.segmentedControls.buttons["By category"]
@@ -1570,7 +1572,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["store-picker"].label.contains("Coles"))
         XCTAssertFalse(app.webViews.firstMatch.exists, "Viewing a blocked list must not launch its retailer website")
 
-        app.buttons["Clear List"].tap()
+        app.buttons["Clear List"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         app.buttons["Clear All"].tap()
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
         app.buttons["store-picker"].tap()
@@ -1598,7 +1600,7 @@ final class StoreSelectionTests: XCTestCase {
         blocker.buttons["View List"].tap()
         XCTAssertTrue(row("Bunnings saved item", status: "Added").waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"))
-        app.buttons["Clear List"].tap()
+        app.buttons["Clear List"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         app.buttons["Clear All"].tap()
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
         app.buttons["store-picker"].tap()

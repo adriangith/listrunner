@@ -27,7 +27,6 @@ struct LocalDataRecoveryScreen: View {
 
 struct SettingsScreen: View {
     @Environment(\.dismiss) private var dismiss
-    @Query private var allItems: [GroceryItem]
     @ObservedObject var browser: StoreBrowser
     let brand: StoreBrand
     @ObservedObject var visibility: StoreVisibilityPreferences
@@ -37,17 +36,11 @@ struct SettingsScreen: View {
     @State private var storeDisableBlocked = false
     let onOpenStoreList: ((StoreID) -> Void)?
 
-    private var nonEmptyListIDs: Set<UUID> {
-        Set(allItems.compactMap { item in
-            guard let id = item.listID, StoreID.allCases.contains(where: { $0.listID == id }) else { return nil }
-            return id
-        })
-    }
-    private var affectedNonEmptyStores: [(StoreID, Int)] {
-        brand.regions.compactMap { definition in
+    private var affectedNonEmptyStores: [StoreID] {
+        brand.regions.compactMap { definition -> StoreID? in
             guard visibility.visibleIDs.contains(definition.id),
-                  nonEmptyListIDs.contains(definition.id.listID) else { return nil }
-            return (definition.id, allItems.filter { $0.listID == definition.id.listID }.count)
+                  visibility.nonEmptyListIDs.contains(definition.id.listID) else { return nil }
+            return definition.id
         }
     }
 
@@ -70,7 +63,6 @@ struct SettingsScreen: View {
                 Toggle("Enable store", isOn: Binding(
                     get: { !visibility.shoppingVisibleIDs(in: brand.regions).isEmpty },
                     set: {
-                        visibility.updateNonEmptyListIDs(nonEmptyListIDs)
                         if !visibility.setBrandVisible($0, brand: brand) { storeDisableBlocked = true }
                     }
                 ))
@@ -80,13 +72,13 @@ struct SettingsScreen: View {
                 .alert("Store can’t be disabled yet", isPresented: $storeDisableBlocked) {
                     Button("View List") {
                         if let onOpenStoreList, let affected = affectedNonEmptyStores.first {
-                            onOpenStoreList(affected.0)
+                            onOpenStoreList(affected)
                         }
                         else { dismiss() }
                     }
                     Button("OK", role: .cancel) { }
                 } message: {
-                    Text("Move or clear the saved items in \(affectedNonEmptyStores.map { "\($0.1) in \($0.0.displayName)" }.joined(separator: ", ")). This includes Added and Skipped items. Nothing was changed.")
+                    Text("Move or clear the saved items in \(affectedNonEmptyStores.map(\.displayName).joined(separator: ", ")). This includes Added and Skipped items. Nothing was changed.")
                 }
                 if brand.isRegional {
                     Button { choosingRegion = true } label: {
@@ -162,8 +154,6 @@ struct SettingsScreen: View {
         .sheet(isPresented: $choosingRegion) {
             NavigationStack { StoreRegionScreen(brand: brand, visibility: visibility, onOpenStoreList: onOpenStoreList) }
         }
-        .onAppear { visibility.updateNonEmptyListIDs(nonEmptyListIDs) }
-        .onChange(of: nonEmptyListIDs) { _, ids in visibility.updateNonEmptyListIDs(ids) }
         .alert(browser.resetPhase == .failed ? "Could not reset \(browser.store.displayName) session" : "Reset \(browser.store.displayName) Session?",
                isPresented: Binding(get: { confirmingReset || browser.resetPhase == .failed },
                                     set: { if !$0 { confirmingReset = false } })) {
@@ -597,7 +587,6 @@ struct StoreVisibilityScreen: View {
 }
 
 private struct StoreRegionScreen: View {
-    @Query private var allItems: [GroceryItem]
     let brand: StoreBrand
     @ObservedObject var visibility: StoreVisibilityPreferences
     let onOpenStoreList: ((StoreID) -> Void)?
@@ -605,12 +594,6 @@ private struct StoreRegionScreen: View {
     @State private var pendingRegion: StoreID?
     @State private var regionChangeBlocked = false
     private var availableRegions: [StoreDefinition] { brand.regions.filter(\.isAvailableForShopping) }
-    private var nonEmptyListIDs: Set<UUID> {
-        Set(allItems.compactMap { item in
-            guard let id = item.listID, StoreID.allCases.contains(where: { $0.listID == id }) else { return nil }
-            return id
-        })
-    }
 
     var body: some View {
         List {
@@ -670,7 +653,6 @@ private struct StoreRegionScreen: View {
         }
         .alert("Change \(brand.name) region?", isPresented: Binding(get: { pendingRegion != nil }, set: { if !$0 { pendingRegion = nil } })) {
             Button("Use this regional website") {
-                visibility.updateNonEmptyListIDs(nonEmptyListIDs)
                 if let id = pendingRegion, !visibility.chooseRegion(id, for: brand) {
                     regionChangeBlocked = true
                 } else {
@@ -682,8 +664,6 @@ private struct StoreRegionScreen: View {
         } message: {
             Text("Your old region's list and website session are kept. If this brand is enabled, the new region replaces it in the chooser. If your active region is disabled, returning to your list selects an enabled store. No store website is opened automatically.")
         }
-        .onAppear { visibility.updateNonEmptyListIDs(nonEmptyListIDs) }
-        .onChange(of: nonEmptyListIDs) { _, ids in visibility.updateNonEmptyListIDs(ids) }
     }
 }
 
