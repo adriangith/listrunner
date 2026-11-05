@@ -1168,6 +1168,24 @@ struct StoreShoppingAvailability {
 final class StoreVisibilityPreferences: ObservableObject {
     @Published private(set) var visibleIDs: Set<StoreID>
     @Published private(set) var nonEmptyListIDs: Set<UUID> = []
+    @Published private(set) var listItemCounts: [UUID: Int] = [:]
+    @Published private(set) var listLookupFailed = false
+    var listItemCountsProvider: (() throws -> [UUID: Int])?
+
+    private func canDisable(_ ids: Set<StoreID>) -> Bool {
+        listLookupFailed = false
+        if let listItemCountsProvider {
+            do {
+                let counts = try listItemCountsProvider()
+                listItemCounts = counts
+                nonEmptyListIDs = Set(counts.filter { $0.value > 0 }.map(\.key))
+            } catch {
+                listLookupFailed = true
+                return false
+            }
+        }
+        return ids.allSatisfy { !nonEmptyListIDs.contains($0.listID) }
+    }
     // Do not rewrite saved visibility: hidden stores can recover their previous
     // preferences when support improves. UI eligibility is a separate projection.
     func shoppingVisibleIDs(in definitions: [StoreDefinition]) -> Set<StoreID> {
@@ -1256,7 +1274,7 @@ final class StoreVisibilityPreferences: ObservableObject {
     }
 
     func setVisible(_ visible: Bool, for id: StoreID) -> Bool {
-        guard visible || !nonEmptyListIDs.contains(id.listID) else { return false }
+        guard visible || canDisable([id]) else { return false }
         var updated = visibleIDs
         if visible { updated.insert(id) } else { updated.remove(id) }
         saveVisibility(updated)
@@ -1325,7 +1343,7 @@ final class StoreVisibilityPreferences: ObservableObject {
     func setBrandVisible(_ visible: Bool, brand: StoreBrand) -> Bool {
         let selected = selectedRegion(for: brand)
         let siblings = StoreID.allCases.filter { $0.brandID == brand.id }
-        if !visible && siblings.contains(where: { visibleIDs.contains($0) && nonEmptyListIDs.contains($0.listID) }) {
+        if !visible && !canDisable(Set(siblings).intersection(visibleIDs)) {
             return false
         }
         var choices = regionalChoices
@@ -1341,8 +1359,8 @@ final class StoreVisibilityPreferences: ObservableObject {
     func chooseRegion(_ id: StoreID, for brand: StoreBrand) -> Bool {
         guard brand.regions.contains(where: { $0.id == id }) else { return false }
         let enabled = brand.regions.contains { visibleIDs.contains($0.id) }
-        let oldEnabled = brand.regions.filter { visibleIDs.contains($0.id) }
-        guard !enabled || !oldEnabled.contains(where: { nonEmptyListIDs.contains($0.id.listID) }) else { return false }
+        let replaced = Set(brand.regions.map(\.id)).intersection(visibleIDs).subtracting([id])
+        guard !enabled || canDisable(replaced) else { return false }
         var choices = regionalChoices
         choices[brand.id] = id.rawValue
         regionalChoices = choices

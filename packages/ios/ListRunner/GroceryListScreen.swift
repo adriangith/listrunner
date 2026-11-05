@@ -3,6 +3,7 @@ import SwiftUI
 import UIKit
 
 struct ShoppingRootScreen: View {
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var allItems: [GroceryItem]
     @StateObject private var sessions: StoreSessions
@@ -111,7 +112,16 @@ struct ShoppingRootScreen: View {
                     previewingStoreWelcome = false
                 }
             }
-            .onAppear { visibility.updateNonEmptyListIDs(nonEmptyListIDs) }
+            .onAppear {
+                visibility.updateNonEmptyListIDs(nonEmptyListIDs)
+                visibility.listItemCountsProvider = {
+                    // Do not disable a destination while a local mutation has
+                    // not been saved, or when the saved rows cannot be read.
+                    guard !modelContext.hasChanges else { throw StoreDefinition.ConfigurationError.invalid }
+                    let rows = try modelContext.fetch(FetchDescriptor<GroceryItem>())
+                    return Dictionary(grouping: rows.compactMap(\.listID), by: { $0 }).mapValues(\.count)
+                }
+            }
             .onChange(of: nonEmptyListIDs) { _, ids in visibility.updateNonEmptyListIDs(ids) }
     }
 }
@@ -199,6 +209,7 @@ private struct AllItemsScreen: View {
     @State private var showingStoreManagement = false
     @State private var itemToDelete: GroceryItem?
     @State private var pendingReminderWrites: [UUID: ReminderWriteback] = [:]
+    @FocusState private var entryFocused: Bool
     @AppStorage(GroceryImportSource.removeRemindersKey) private var removeRemindersAfterImport = true
 
     private var grouping: AllItemsGrouping {
@@ -273,8 +284,8 @@ private struct AllItemsScreen: View {
                                              items: orphaned.map(\.1).sorted { $0.position < $1.position })]
     }
 
-    var body: some View {
-        List {
+    private var composer: some View {
+        VStack(spacing: 12) {
             Section {
                 HStack {
                     countLabel(pendingCount, title: "Pending", tint: .blue)
@@ -288,22 +299,25 @@ private struct AllItemsScreen: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
 
-            Section("Add products") {
+            GroupBox("Add products") {
                 VStack(spacing: 12) {
                     TextField("Milk, bread, eggs", text: $draft, axis: .vertical)
                         .lineLimit(1...3)
                         .submitLabel(.done)
                         .onSubmit(addItems)
+                        .focused($entryFocused)
                         .accessibilityIdentifier("all-items-entry")
                     Divider()
                     HStack(spacing: 8) {
                         Button("Import") { importItems() }
+                        .buttonStyle(.plain)
                         .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                         .accessibilityHint("Import items into the selected destination store")
                         Spacer(minLength: 4)
                         if let destinationID {
                             HStack(spacing: 0) {
                                 Button("Add to \(destinationID.displayName)", action: addItems)
+                                    .buttonStyle(.plain)
                                     .font(.subheadline.weight(.semibold))
                                     .frame(minHeight: 44)
                                     .padding(.leading, 14)
@@ -365,7 +379,16 @@ private struct AllItemsScreen: View {
             }
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color(uiColor: .systemGroupedBackground))
+    }
 
+    var body: some View {
+        VStack(spacing: 0) {
+        composer
+        List {
             if groups.isEmpty {
                 ContentUnavailableView("Your lists are empty", systemImage: "basket",
                                        description: Text("Add products above, or choose a store list."))
@@ -392,6 +415,7 @@ private struct AllItemsScreen: View {
         }
         .listStyle(.insetGrouped)
         .contentMargins(.top, 0, for: .scrollContent)
+        }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
@@ -628,6 +652,7 @@ private struct AllItemsScreen: View {
             recentStoreOrderRawValue = order.map(\.rawValue).joined(separator: ",")
             onPromoteStore(destinationID)
             draft = ""
+            entryFocused = true
             notice = "Added \(promoted.count) \(promoted.count == 1 ? "item" : "items") to \(destinationID.displayName)."
         } catch {
             modelContext.rollback()
@@ -1096,7 +1121,11 @@ struct GroceryListScreen: View {
             .navigationDestination(isPresented: $showingSettings) {
                 SettingsOverviewScreen(sessions: sessions, visibility: visibility,
                                         importInProgress: paprikaReminders.importing,
-                                        importDestinationName: browser.store.displayName) {
+                                        importDestinationName: browser.store.displayName,
+                                        onOpenStoreList: { id in
+                                            showingSettings = false
+                                            onSelectStore(id)
+                                        }) {
                     showingSettings = false
                     importPaprika()
                 }

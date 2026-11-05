@@ -354,13 +354,14 @@ struct RecoveryTests {
         let disableGuardSuite = "ListRunner.StoreDisableGuard.\(UUID().uuidString)"
         let disableGuardDefaults = UserDefaults(suiteName: disableGuardSuite)!
         defer { disableGuardDefaults.removePersistentDomain(forName: disableGuardSuite) }
+        disableGuardDefaults.set(StoreID.allCases.map(\.rawValue), forKey: "knownStoreIDs.v1")
         disableGuardDefaults.set([StoreID.coles.rawValue, StoreID.costco.rawValue], forKey: "visibleStoreIDs.v1")
         disableGuardDefaults.set(["costco": StoreID.costco.rawValue], forKey: "storeRegionalChoices.v1")
         let disableGuard = StoreVisibilityPreferences(defaults: disableGuardDefaults)
         disableGuard.updateNonEmptyListIDs(Set([StoreID.coles.listID, StoreID.costco.listID]))
         check(!disableGuard.setVisible(false, for: .coles) && disableGuard.visibleIDs.contains(.coles),
               "a nonempty store list blocks direct destination disabling without changing visibility")
-        let guardCostco = StoreBrand.sections(allProductionDefinitions, countryCode: "AU", search: "Costco").flatMap(\.brands).first!
+        let guardCostco = StoreBrand.catalogue(allProductionDefinitions).first { $0.id == "costco" }!
         check(!disableGuard.setBrandVisible(false, brand: guardCostco)
               && disableGuard.visibleIDs.contains(.costco)
               && !disableGuard.chooseRegion(.costcoUS, for: guardCostco)

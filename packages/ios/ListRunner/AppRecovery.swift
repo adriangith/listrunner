@@ -64,14 +64,6 @@ struct SettingsScreen: View {
                 Toggle("Enable store", isOn: Binding(
                     get: { !visibility.shoppingVisibleIDs(in: brand.regions).isEmpty },
                     set: {
-                        if !$0 {
-                            let rows = (try? modelContext.fetch(FetchDescriptor<GroceryItem>())) ?? []
-                            visibility.updateNonEmptyListIDs(Set(rows.compactMap { item in
-                                guard let listID = item.listID,
-                                      StoreID.allCases.contains(where: { $0.listID == listID }) else { return nil }
-                                return listID
-                            }))
-                        }
                         if !visibility.setBrandVisible($0, brand: brand) { storeDisableBlocked = true }
                     }
                 ))
@@ -87,7 +79,11 @@ struct SettingsScreen: View {
                     }
                     Button("OK", role: .cancel) { }
                 } message: {
-                    Text("Move or clear the saved items in \(affectedNonEmptyStores.map(\.displayName).joined(separator: ", ")). This includes Added and Skipped items. Nothing was changed.")
+                    if visibility.listLookupFailed {
+                        Text("Your saved lists could not be checked. Save or retry your list changes before disabling this store. Nothing was changed.")
+                    } else {
+                        Text("Clear or move the saved items first: \(affectedNonEmptyStores.map { "\($0.displayName): \(visibility.listItemCounts[$0.listID] ?? 0) items" }.joined(separator: ", ")). This includes Added and Skipped items. Nothing was changed.")
+                    }
                 }
                 if brand.isRegional {
                     Button { choosingRegion = true } label: {
@@ -244,13 +240,15 @@ struct SettingsOverviewScreen: View {
     @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
     let importInProgress: Bool
     let importDestinationName: String
+    let onOpenStoreList: (StoreID) -> Void
     let onImportSourceSelected: () -> Void
 
     var body: some View {
         Form {
             Section {
                 NavigationLink("Manage Stores") {
-                    StoreVisibilityScreen(sessions: sessions, visibility: visibility)
+                    StoreVisibilityScreen(sessions: sessions, visibility: visibility,
+                                          onOpenStoreList: onOpenStoreList)
                 }
                 NavigationLink {
                     ShoppingCountryScreen(visibility: visibility)
