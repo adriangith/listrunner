@@ -471,7 +471,7 @@ final class StoreSelectionTests: XCTestCase {
         if ["SettingsHasCountryAndNoStoreRows", "SettingsWithAllStoresHiddenKeepsManagementAvailable",
             "AllHiddenStoresHidePickerAndKeepManagementAvailable", "MixedCountrySectionsKeepNativeIndexSeparateFromSwitches",
             "DisablingActiveBunningsSelectsEnabledColesAndKeepsItems", "AllDisabledBunningsThenColesSelectsEnabledListAndPreservesSavedLists",
-            "DisablingNonemptyStoreIsBlockedUntilItsListIsCleared", "DisablingActiveBunningsRequiresClearingItsList"]
+            "DisablingActiveBunningsRequiresClearingItsList"]
             .contains(where: { name.contains($0) }) {
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
         }
