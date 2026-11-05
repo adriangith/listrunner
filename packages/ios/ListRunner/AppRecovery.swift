@@ -512,6 +512,7 @@ private struct PaprikaImportInstructions: View {
 
 struct StoreVisibilityScreen: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Query private var allItems: [GroceryItem]
     @ObservedObject var sessions: StoreSessions
     @ObservedObject var visibility: StoreVisibilityPreferences
     // Non-nil only for the welcome entry point. Normal management retains all
@@ -542,6 +543,13 @@ struct StoreVisibilityScreen: View {
         }
         #endif
         return sessions.definitions
+    }
+
+    private var nonEmptyListIDs: Set<UUID> {
+        Set(allItems.compactMap { item in
+            guard let id = item.listID, StoreID.allCases.contains(where: { $0.listID == id }) else { return nil }
+            return id
+        })
     }
 
     var body: some View {
@@ -578,6 +586,8 @@ struct StoreVisibilityScreen: View {
         // Refresh the native title/search chrome when appearance changes even
         // while search owns the bar. Do not set a global UIKit appearance.
         .toolbarColorScheme(colorScheme, for: .navigationBar)
+        .onAppear { visibility.updateNonEmptyListIDs(nonEmptyListIDs) }
+        .onChange(of: nonEmptyListIDs) { _, ids in visibility.updateNonEmptyListIDs(ids) }
         .navigationDestination(isPresented: Binding(get: { selectedBrand != nil }, set: { if !$0 { selectedBrand = nil } })) {
             if let selectedBrand {
                 if let onWelcomeStoreEnabled {
