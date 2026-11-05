@@ -117,9 +117,6 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .synthetic:
             .grocery
         #endif
-        // Unreviewed disabled onboarding drafts have no compatibility mapping.
-        // Do not guess a category for a newly generated registration.
-        default: nil
         }
     }
     var hosts: Set<String> {
