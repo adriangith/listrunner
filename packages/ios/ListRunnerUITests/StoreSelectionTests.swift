@@ -1705,7 +1705,9 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.webViews.firstMatch.exists, "Viewing a blocked list must not launch its retailer website")
 
         app.buttons["Actions for Coles fixture item"].tap()
-        app.buttons["Delete Item"].tap()
+        let delete = app.buttons["Delete Item"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 3))
+        delete.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
         app.buttons["store-picker"].tap()
         app.buttons["store-picker-manage-stores"].tap()
@@ -1734,7 +1736,9 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("Bunnings saved item", status: "Added").waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"))
         app.buttons["Actions for Bunnings saved item"].tap()
-        app.buttons["Delete Item"].tap()
+        let delete = app.buttons["Delete Item"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 3))
+        delete.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
         app.buttons["store-picker"].tap()
         app.buttons["store-picker-manage-stores"].tap()
