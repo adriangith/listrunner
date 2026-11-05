@@ -497,6 +497,8 @@ struct StoreVisibilityScreen: View {
                     displayName: definition.displayName, serviceArea: .init(countryCodes: ["NZ"]),
                     homepage: definition.homepage, allowedHosts: definition.allowedHosts, search: definition.search,
                     addedColor: definition.addedColor, brandColors: definition.brandColors,
+                    automationSchemaVersion: definition.automationSchemaVersion,
+                    categories: definition.categories,
                     capabilities: definition.capabilities, cart: definition.cart)
             }
         }

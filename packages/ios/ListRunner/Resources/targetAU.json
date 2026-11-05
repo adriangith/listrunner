@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 2, "id": "targetAU", "displayName": "Target Australia",
+  "schemaVersion": 6, "id": "targetAU", "displayName": "Target Australia",
+  "categories": ["departmentStore", "hardwareGarden", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies", "outdoorCamping"],
+  "automationSchemaVersion": 2,
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.target.com.au",
   "allowedHosts": ["www.target.com.au", "target.com.au"],

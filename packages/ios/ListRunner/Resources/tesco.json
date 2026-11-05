@@ -1,6 +1,8 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 6,
   "id": "tesco",
+  "categories": ["grocery", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies"],
+  "automationSchemaVersion": 4,
   "displayName": "Tesco",
   "serviceArea": {"countryCodes": ["GB"]},
   "homepage": "https://www.tesco.com/groceries/en-GB",

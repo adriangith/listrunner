@@ -13,7 +13,7 @@
         url.pathname.startsWith('/au/en/') && !/%25|%2e|%2f|%5c|\\/i.test(url.pathname);
     } catch (_) { return false; }
   };
-  if (!bridge || config?.id !== 'ikeaAU' || config.schemaVersion !== 5 ||
+  if (!bridge || config?.id !== 'ikeaAU' || (config.automationSchemaVersion ?? config.schemaVersion) !== 5 ||
       !config.capabilities.cartDetection || rules?.strategy !== 'verifiedCartSnapshot' || !allowed(location.href)) return;
   const contract = rules.snapshot;
   const normalize = value => String(value || '').replace(/\s+/g, ' ').trim();

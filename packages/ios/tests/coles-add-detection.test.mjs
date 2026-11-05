@@ -330,6 +330,22 @@ test('Kmart product page confirms its URL-identified Add using the same receipt 
   assert.equal(page.messages.at(-1)?.productID, '42250333');
 });
 
+test('Kmart schema-6 automation preserves its schema-3 product receipt behavior', () => {
+  const run = config => {
+    const page = bunningsGridFixture({ config, kmartDetail: true, duplicateHeading: true });
+    page.clickDetail();
+    page.setKmartToast('Added to your bag Foldaway PVC Chair Qty 1 $9.00 View your bag');
+    page.tick(8);
+    return page.messages;
+  };
+  const current = structuredClone(kmart);
+  const legacy = structuredClone(kmart);
+  legacy.schemaVersion = 3;
+  delete legacy.categories;
+  delete legacy.automationSchemaVersion;
+  assert.deepEqual(run(current), run(legacy));
+});
+
 test('Kmart recommendation card on a product page keeps its own link identity', () => {
   const page = bunningsGridFixture({ config: kmart, kmartDetail: true,
     href: 'https://www.kmart.com.au/product/another-foldaway-chair-42299999/' });
@@ -558,6 +574,24 @@ function fixture({ host = 'www.coles.com.au', config = coles, empty = true, test
     tick(count = 1) { for (let i = 0; i < count; i++) scheduled.shift()?.(); },
   };
 }
+
+test('Coles schema-6 trusted-tile behavior matches the schema-2 wire definition', () => {
+  const current = fixture({ config: structuredClone(coles) });
+  const legacyConfig = structuredClone(coles);
+  legacyConfig.schemaVersion = 2;
+  delete legacyConfig.categories;
+  delete legacyConfig.automationSchemaVersion;
+  const legacy = fixture({ config: legacyConfig });
+  current.click(); legacy.click();
+  current.setQuantity(1); legacy.setQuantity(1);
+  current.tick(4); legacy.tick(4);
+  assert.deepEqual(legacy.messages, current.messages);
+  const alteredCategories = structuredClone(coles);
+  alteredCategories.categories = [...alteredCategories.categories].reverse();
+  const reordered = fixture({ config: alteredCategories });
+  reordered.click(); reordered.setQuantity(1); reordered.tick(4);
+  assert.deepEqual(reordered.messages, current.messages);
+});
 
 function woolworthsFixture({ productIDAttributeOnly = false, noSemanticTile = false, emptyTextMismatch = false, addClassMismatch = false, alternateQuantityMarkup = false } = {}) {
   const messages = [];

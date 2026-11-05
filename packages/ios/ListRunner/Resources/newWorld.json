@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 2, "id": "newWorld", "displayName": "New World",
+  "schemaVersion": 6, "id": "newWorld", "displayName": "New World",
+  "categories": ["grocery", "pharmacyBeauty", "petSupplies"],
+  "automationSchemaVersion": 2,
   "serviceArea": {"countryCodes": ["NZ"]},
   "homepage": "https://www.newworld.co.nz",
   "allowedHosts": ["www.newworld.co.nz", "newworld.co.nz"],

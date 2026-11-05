@@ -57,6 +57,61 @@ struct RecoveryTests {
         }
         let woolworths = try JSONDecoder().decode(StoreDefinition.self, from: Data(contentsOf: resources.appendingPathComponent("woolworths.json")))
         let bunnings = try JSONDecoder().decode(StoreDefinition.self, from: Data(contentsOf: resources.appendingPathComponent("bunnings.json")))
+        check(StoreCategory.allCases.map(\.rawValue) == ["grocery", "departmentStore", "warehouseClub", "onlineMarketplace",
+              "hardwareGarden", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies", "automotive", "outdoorCamping"],
+              "store category wire values are stable and ordered")
+        check(coles.schemaVersion == 6 && coles.categories == [.grocery, .pharmacyBeauty, .petSupplies],
+              "Coles schema-6 categories decode as typed metadata")
+        var missingCategories = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
+        missingCategories.removeValue(forKey: "categories")
+        check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: missingCategories))) == nil,
+              "schema 6 requires categories")
+        var missingAutomationVersion = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
+        missingAutomationVersion.removeValue(forKey: "automationSchemaVersion")
+        check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: missingAutomationVersion))) == nil,
+              "schema 6 requires its compatibility automation version")
+        for version in [1, 6, 99] {
+            var object = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
+            object["automationSchemaVersion"] = version
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: object))) == nil,
+                  "schema 6 rejects unsupported automation version \(version)")
+        }
+        let invalidCategories: [Any] = [NSNull(), [], ["grocery", "grocery"], ["unknown"], ["Grocery"], [" grocery"], [1], ["grocery", NSNull()]]
+        for categories in invalidCategories {
+            var object = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
+            object["categories"] = categories
+            let invalid = try JSONSerialization.data(withJSONObject: object)
+            check((try? StoreDefinition.decodeConfiguration(from: invalid)) == nil,
+                  "schema-6 rejects malformed category values")
+            check((try? JSONDecoder().decode(StoreDefinition.self, from: invalid)) == nil,
+                  "direct Codable decoding also rejects malformed category values")
+        }
+        let legacyDefinitions: [(StoreDefinition, Int)] = [(bunnings, 2),
+            (try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("kmart.json"))), 3),
+            (try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("waitrose.json"))), 4),
+            (try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("ikeaAU.json"))), 5)]
+        for (current, legacyVersion) in legacyDefinitions {
+            var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(current)) as! [String: Any]
+            object["schemaVersion"] = legacyVersion
+            object.removeValue(forKey: "categories")
+            object.removeValue(forKey: "automationSchemaVersion")
+            let legacyData = try JSONSerialization.data(withJSONObject: object)
+            let legacy = try StoreDefinition.decodeConfiguration(from: legacyData)
+            check(legacy.schemaVersion == legacyVersion && legacy.categories.isEmpty && legacy.isConfigurationValid,
+                  "legacy schema \(legacyVersion) remains valid with unknown categories")
+            let encoded = try JSONEncoder().encode(legacy)
+            let encodedObject = try JSONSerialization.jsonObject(with: encoded) as! [String: Any]
+            check(encodedObject["categories"] == nil,
+                  "legacy schema \(legacyVersion) encoding preserves the old wire contract")
+            var forbidden = encodedObject
+            forbidden["categories"] = ["grocery"]
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: forbidden))) == nil,
+                  "legacy schema \(legacyVersion) cannot smuggle schema-6 categories")
+            var forbiddenAutomation = encodedObject
+            forbiddenAutomation["automationSchemaVersion"] = legacyVersion
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: forbiddenAutomation))) == nil,
+                  "legacy schema \(legacyVersion) cannot add a schema-6 compatibility field")
+        }
         let bunningsAuthorization = URL(string: "https://authorisation.api.bunnings.com.au/connect/authorize")!
         check(bunnings.allowsNavigation(bunningsAuthorization), "Bunnings silent authorization frame can establish its website cart session")
         check(!bunnings.allows(bunningsAuthorization)
@@ -143,6 +198,15 @@ struct RecoveryTests {
             object["cart"] = cart
             check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: object))) == nil,
                   "IKEA snapshot contract rejects incompatible engines, foreign locales and unknown keys")
+        }
+        check(allProductionDefinitions.count == 33
+              && allProductionDefinitions.allSatisfy { $0.schemaVersion == 6 && !$0.categories.isEmpty && $0.isConfigurationValid },
+              "all 33 production destinations use valid schema-6 categories")
+        for definition in allProductionDefinitions {
+            let roundTrip = try StoreDefinition.decodeConfiguration(from: JSONEncoder().encode(definition))
+            check(roundTrip.id == definition.id && roundTrip.categories == definition.categories
+                  && roundTrip.automationSchemaVersion == definition.automationSchemaVersion,
+                  "every definition round-trips, including stores with a null cart")
         }
         let persistentProbeID = UUID(uuidString: "0BDE339A-A800-4D62-B5BC-17838D7B3823")!
         let persistentProbeEnvironment = ["LISTRUNNER_UI_TEST_SESSION": persistentProbeID.uuidString,
@@ -351,7 +415,7 @@ struct RecoveryTests {
             check(!sainsburys.allowsNavigation(URL(string: value)!), "Sainsbury's authentication exceptions remain exact and HTTPS-only")
         }
         let waitrose = expansionDefinitions.first { $0.id == .waitrose }!
-        check(waitrose.schemaVersion == 4 && waitrose.acceptsProductIdentity("053457-26759-26760")
+        check(waitrose.schemaVersion == 6 && waitrose.acceptsProductIdentity("053457-26759-26760")
               && waitrose.cart?.profiles?.first?.quantityDraftSelector == "button[data-testid='trolleyUpdateButton']",
               "Waitrose uses observed composite identity and rejects unapplied quantity drafts")
         for value in ["", "053457", "053457-26759", "abc-def-ghi", "053457-26759-", "-1-2",
@@ -365,7 +429,7 @@ struct RecoveryTests {
             var profiles = cart["profiles"] as! [[String: Any]]
             profiles[0]["quantityDraftSelector"] = "button[data-testid='trolleyUpdateButton']"
             switch mutation {
-            case "legacyDraft": object["schemaVersion"] = 3
+            case "legacyDraft": object["schemaVersion"] = 3; object.removeValue(forKey: "categories"); object.removeValue(forKey: "automationSchemaVersion")
             case "emptyDraftSelector": profiles[0]["quantityDraftSelector"] = ""
             case "oversizedDraftSelector": profiles[0]["quantityDraftSelector"] = String(repeating: "x", count: 1_025)
             case "undoWithDraft": profiles[0]["undo"] = ["decrementSelector": "button", "decrementLabelPattern": "^remove$"]
@@ -384,7 +448,7 @@ struct RecoveryTests {
             check(!waitrose.allowsNavigation(URL(string: value)!), "Waitrose authentication remains exact-host HTTPS without credentials or custom ports")
         }
         let prospectiveSupercheap = expansionDefinitions.first { $0.id == .supercheapAuto }!
-        check(prospectivePriceline.schemaVersion == 4 && prospectivePriceline.cart?.profiles?.first?.receipt?.imageIdentity?.allowedHosts == ["api.priceline.com.au"],
+        check(prospectivePriceline.schemaVersion == 6 && prospectivePriceline.cart?.profiles?.first?.receipt?.imageIdentity?.allowedHosts == ["api.priceline.com.au"],
               "Priceline's linkless receipt has an explicitly bounded image-identity source")
         for mutation in ["oldSchema", "foreignImage", "missingRow", "missingQuantity", "mixedQuantityModes", "unknownImageKey"] {
             var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(prospectivePriceline)) as! [String: Any]
@@ -393,7 +457,7 @@ struct RecoveryTests {
             var receipt = profiles[0]["receipt"] as! [String: Any]
             var image = receipt["imageIdentity"] as! [String: Any]
             switch mutation {
-            case "oldSchema": object["schemaVersion"] = 3
+            case "oldSchema": object["schemaVersion"] = 3; object.removeValue(forKey: "categories"); object.removeValue(forKey: "automationSchemaVersion")
             case "foreignImage": image["allowedHosts"] = ["evil.test"]
             case "missingRow": receipt.removeValue(forKey: "productSelector")
             case "missingQuantity": receipt.removeValue(forKey: "quantitySelector")
@@ -403,10 +467,12 @@ struct RecoveryTests {
             receipt["imageIdentity"] = image; profiles[0]["receipt"] = receipt
             cart["profiles"] = profiles; object["cart"] = cart
             check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: object))) == nil,
-                  "schema-4 receipt rejects \(mutation)")
+                  "schema-6 advanced receipt rejects \(mutation)")
         }
         var componentObject = try JSONSerialization.jsonObject(with: JSONEncoder().encode(expansionDefinitions.first { $0.id == .officeworks }!)) as! [String: Any]
         componentObject["schemaVersion"] = 4
+        componentObject.removeValue(forKey: "categories")
+        componentObject.removeValue(forKey: "automationSchemaVersion")
         var componentCart = try JSONSerialization.jsonObject(with: JSONEncoder().encode(prospectiveSupercheap.cart!)) as! [String: Any]
         componentCart["identityStrategy"] = "capturedURLComponent"
         componentCart["productURLPattern"] = "^/shop/officeworks/p/([A-Za-z0-9_-]{1,256})$"
@@ -642,12 +708,12 @@ struct RecoveryTests {
               "Kmart Australia enables search and product-scoped detection but keeps unverified cart Undo disabled")
         check(StoreID.kmart.permitsSearch && StoreID.kmart.permitsCartDetection && !StoreID.kmart.permitsCartUndo,
                "native Kmart policy keeps retailer-cart Undo disabled until its bag-page reversal is verified")
-        check(kmart.schemaVersion == 3 && kmart.cart?.strategy == .profiled
+        check(kmart.schemaVersion == 6 && kmart.cart?.strategy == .profiled
               && kmart.cart?.profiles?.map(\.scope) == [.productCard, .productPage]
               && kmart.cart?.profiles?.map(\.identity) == [.cardLink, .pageURL]
               && kmart.cart?.profiles?.allSatisfy({ $0.confirmation == .productReceipt }) == true,
               "Kmart declares independent grid/detail identities using a shared receipt engine")
-        check(coles.schemaVersion == 2 && coles.cart?.profiles == nil
+        check(coles.schemaVersion == 6 && coles.cart?.profiles == nil
               && woolworths.cart?.profiles == nil && bunnings.cart?.profiles == nil,
               "legacy version-2 stores keep their existing detector rules")
         func rejectsProfile(_ mutate: (inout [String: Any]) -> Void) -> Bool {
@@ -1099,8 +1165,10 @@ struct RecoveryTests {
           func withCountries(_ original: StoreDefinition, _ codes: [String]) -> StoreDefinition {
               StoreDefinition(schemaVersion: original.schemaVersion, id: original.id, displayName: original.displayName,
                               serviceArea: .init(countryCodes: codes), homepage: original.homepage, allowedHosts: original.allowedHosts,
-                              search: original.search, addedColor: original.addedColor, brandColors: original.brandColors,
-                              capabilities: original.capabilities, cart: original.cart)
+                               search: original.search, addedColor: original.addedColor, brandColors: original.brandColors,
+                               automationSchemaVersion: original.automationSchemaVersion,
+                               categories: original.categories,
+                               capabilities: original.capabilities, cart: original.cart)
           }
           let multiCountry = withCountries(woolworths, ["AU", "NZ"])
           let mixed = StoreCatalogue.sections([coles, multiCountry, bunnings], countryCode: "NZ")
@@ -1199,7 +1267,7 @@ struct RecoveryTests {
             var profiles = cart["profiles"] as! [[String: Any]]
             var acknowledgement = profiles[0]["acknowledgement"] as! [String: Any]
             switch mutation {
-            case "schema": object["schemaVersion"] = 3
+            case "schema": object["schemaVersion"] = 3; object.removeValue(forKey: "categories"); object.removeValue(forKey: "automationSchemaVersion")
             case "quantity": profiles[0]["quantitySelector"] = "input"
             case "undo": object["capabilities"] = ["search": true, "cartDetection": true, "cartUndo": true]
             case "emptySuccess": acknowledgement["successText"] = " "

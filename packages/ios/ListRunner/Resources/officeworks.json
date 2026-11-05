@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 4, "id": "officeworks", "displayName": "Officeworks",
+  "schemaVersion": 6, "id": "officeworks", "displayName": "Officeworks",
+  "categories": ["electronics", "officeSupplies"],
+  "automationSchemaVersion": 4,
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.officeworks.com.au",
   "allowedHosts": ["www.officeworks.com.au", "officeworks.com.au"],

@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 2, "id": "sainsburys", "displayName": "Sainsbury’s",
+  "schemaVersion": 6, "id": "sainsburys", "displayName": "Sainsbury’s",
+  "categories": ["grocery", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies"],
+  "automationSchemaVersion": 2,
   "serviceArea": {"countryCodes": ["GB"]},
   "homepage": "https://www.sainsburys.co.uk",
   "allowedHosts": ["www.sainsburys.co.uk", "sainsburys.co.uk"],

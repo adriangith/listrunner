@@ -9,8 +9,15 @@ const config = JSON.parse(readFileSync(new URL('../ListRunner/Resources/bigW.jso
 
 // Semantic DOM captured from BIG W mobile: article/product links on the grid,
 // scoped main/sticky detail controls, React Add→quantity-control replacement.
-function fixture({ detail = false, sticky = false, before = 0, foreign = false, tesco = false } = {}) {
-  const storeConfig = tesco ? JSON.parse(readFileSync(new URL('../ListRunner/Resources/tesco.json', import.meta.url), 'utf8')) : config;
+function fixture({ detail = false, sticky = false, before = 0, foreign = false, schemaVersion = null, tesco = false } = {}) {
+  const storeConfig = tesco ? JSON.parse(readFileSync(new URL('../ListRunner/Resources/tesco.json', import.meta.url), 'utf8')) : structuredClone(config);
+  if (schemaVersion !== null) {
+    storeConfig.schemaVersion = schemaVersion;
+    if (schemaVersion < 6) {
+      delete storeConfig.categories;
+      delete storeConfig.automationSchemaVersion;
+    }
+  }
   if (tesco) storeConfig.capabilities = { search: true, cartDetection: true, cartUndo: true };
   const selectedID = tesco ? '254656543' : '6060359';
   const host = tesco ? 'www.tesco.com' : 'www.bigw.com.au';
@@ -152,6 +159,14 @@ function fixture({ detail = false, sticky = false, before = 0, foreign = false, 
   };
 }
 
+test('BIG W schema-6 automation preserves its schema-3 profiled behavior', () => {
+  const run = schemaVersion => {
+    const page = fixture({ detail: true, schemaVersion });
+    page.click(); page.setQuantity(1); page.tick(8);
+    return page.messages;
+  };
+  assert.deepEqual(run(6), run(3));
+});
 for (const before of [0, 2]) {
   test(`Tesco text quantity detects trusted ${before}→${before + 1} and Undo restores only the delta`, async () => {
     const page = fixture({ tesco: true, before });

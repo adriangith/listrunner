@@ -30,6 +30,12 @@ struct SyntheticStoreTests {
             URL(fileURLWithPath: CommandLine.arguments[1]).appendingPathComponent("coles.json")))
         precondition(StoreCatalogue.ordered([existing, definition], countryCode: "NZ").first?.id == .synthetic)
         precondition(StoreCatalogue.ordered([definition, existing], countryCode: "AU").map(\.id) == [.coles, .synthetic])
+        let legacyJSON = String(data: data, encoding: .utf8)!
+        let classifiedJSON = legacyJSON.replacingOccurrences(of: "\"schemaVersion\": 2,", with:
+            "\"schemaVersion\": 6,\n          \"automationSchemaVersion\": 2,\n          \"categories\": [\"hardwareGarden\"],")
+        let classified = try StoreDefinition.decodeConfiguration(from: Data(classifiedJSON.utf8))
+        precondition(classified.schemaVersion == 6 && classified.categories == [.hardwareGarden]
+                     && classified.isConfigurationValid, "schema-6 categories remain reusable metadata, not store identity")
 
         let suite = "ListRunnerSyntheticProof.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

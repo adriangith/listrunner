@@ -1,6 +1,8 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 6,
   "id": "coles",
+  "categories": ["grocery", "pharmacyBeauty", "petSupplies"],
+  "automationSchemaVersion": 2,
   "displayName": "Coles",
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.coles.com.au",

@@ -1,6 +1,8 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 6,
   "id": "bigW",
+  "categories": ["departmentStore", "hardwareGarden", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies", "outdoorCamping"],
+  "automationSchemaVersion": 3,
   "displayName": "BIG W",
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.bigw.com.au",

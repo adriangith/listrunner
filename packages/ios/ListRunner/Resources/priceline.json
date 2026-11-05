@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 4, "id": "priceline", "displayName": "Priceline",
+  "schemaVersion": 6, "id": "priceline", "displayName": "Priceline",
+  "categories": ["pharmacyBeauty"],
+  "automationSchemaVersion": 4,
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.priceline.com.au",
   "allowedHosts": ["www.priceline.com.au", "priceline.com.au"],

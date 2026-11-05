@@ -1,6 +1,8 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 6,
   "id": "kmart",
+  "categories": ["departmentStore", "hardwareGarden", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies", "outdoorCamping"],
+  "automationSchemaVersion": 3,
   "displayName": "Kmart",
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.kmart.com.au",

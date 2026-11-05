@@ -34,6 +34,12 @@
   when their cart detector is not yet verified. The twenty-store verification goal
   stays paused; this availability change does not certify additional stores.
 
+### Native retailer categories (schema 6)
+
+* All 33 native bundled retailer definitions use schema 6 with a required, non-empty array of stable values from the app-defined retailer-type taxonomy in `docs/store-categories.md`. All registered destinations, including temporarily hidden ones, are classified explicitly; multiple categories have equal status and no ordering meaning. A separate `automationSchemaVersion` preserves each store's prior detector rules across the format-only migration.
+* Schemas 2–5 remain readable in their original wire format with unknown categories. Category metadata never infers or enables search, cart detection, Undo, host trust, store visibility or product availability. Category-based UI/filtering and user-defined categories are not part of this change.
+* Legacy schema 2–5 files retain their exact field set and infer their automation-rule version from that schema. Schema 5 remains IKEA's reviewed snapshot engine; schema 6 adds categories without changing that engine. This is not a SwiftData migration; the grocery-list database schema remains unchanged.
+
 ### Twenty additional retailer destinations (1 November 2026)
 
 * The user requested search and cart-addition detection for twenty more popular stores and authorized test additions, but no checkout/purchase, sign-in, account/fulfilment changes or verification bypass. The chosen AU/NZ/GB/US set and evidence are recorded in `docs/retailer-expansion-2026-11-01.md`.

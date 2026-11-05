@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 4, "id": "jbHiFi", "displayName": "JB Hi-Fi",
+  "schemaVersion": 6, "id": "jbHiFi", "displayName": "JB Hi-Fi",
+  "categories": ["electronics"],
+  "automationSchemaVersion": 4,
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.jbhifi.com.au",
   "allowedHosts": ["www.jbhifi.com.au", "jbhifi.com.au"],

@@ -14,8 +14,13 @@ test('intercepting engine installs before retailer handlers; passive engines ret
 
 // Deterministic semantic DOM. Every cart document is a new server snapshot,
 // independent of the purchase draft and family-only success toast.
-function fixture({ before = 0, detail = false, amount = 1, fault = '', production = false, loading = false } = {}) {
+function fixture({ before = 0, detail = false, amount = 1, fault = '', production = false, loading = false, legacy = false } = {}) {
   const config = structuredClone(bundled);
+  if (legacy) {
+    config.schemaVersion = 5;
+    delete config.categories;
+    delete config.automationSchemaVersion;
+  }
   if (!production) config.capabilities = { search: true, cartDetection: true, cartUndo: true };
   const id = '40515525', otherID = '80515528';
   const server = new Map([[otherID, 2]]);
@@ -141,6 +146,15 @@ for (const fault of ['articleMismatch', 'invalidQuantity', 'duplicateRow', 'erro
     }
   });
 }
+test('IKEA schema-6 metadata preserves the legacy schema-5 snapshot engine', async () => {
+  const current = fixture();
+  const legacy = fixture({ legacy: true });
+  for (const page of [current, legacy]) { page.click(); await page.flush(); }
+  assert.ok(current.detected());
+  assert.deepEqual(current.messages, legacy.messages);
+  assert.deepEqual(current.changes, legacy.changes);
+});
+
 test('synthetic taps and intended draft changes do not arm snapshot verification', async () => {
   const f = fixture({ detail: true, amount: 4 }); f.click(false); await f.flush();
   assert.equal(f.loads, 0); assert.equal(f.detected(), undefined);

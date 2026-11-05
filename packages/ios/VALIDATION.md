@@ -1,5 +1,35 @@
 # Reusable store framework validation
 
+## Native retailer categories — schema 5 (5 November 2026, Linux checks)
+
+Implementation is in progress on `feat/store-category-schema`, based on
+`e824e313846493633979be8b554819f185e10bf9`; changes are not committed yet.
+All 32 registered native retailer JSON definitions now include explicit typed
+category metadata and each destination's prior `automationSchemaVersion`. The Python
+contract test verifies exhaustive registry coverage and hashes each baseline
+configuration after removing only the schema/category/compatibility metadata,
+proving that hosts, search, colors, capabilities and cart configuration are unchanged.
+The category assignment and its editorial limits are documented in
+`docs/store-categories.md`.
+
+Linux checks passed:
+
+- `test-store-categories.py`: 2 checks, including 32-way classification and
+  unchanged-configuration fingerprints.
+- `test-store-expansion.py`: 3 checks; all twenty expansion resources are schema 5.
+- `test-bundled-resources.py`: 7 checks.
+- `test-release-metadata.py`: 2 checks.
+- `test-cloud-ci.py`: 10 checks.
+- Node DOM regression suites (`coles-add-detection`, `bigw-cart-detection`,
+  `profiled-expansion-cart`): 256 tests passed, including parity checks between
+  schema-5 definitions and legacy schema-2/3/4 definitions, with reordered categories.
+
+Mac-only validation remains outstanding: this Linux environment has neither
+`swiftc` nor `xcrun`, so `RecoveryTests.swift`, `SyntheticStoreTests.swift`, Xcode
+Debug/Release builds, focused iOS UI tests and the actual built-app resource-byte
+audit have not run. `test-bundled-resources.py` is a source/project check, not a
+substitute for the built-app audit. No retailer sites, carts, devices or user data
+were accessed or changed.
 ## Change-gated nightly beta pipeline — 4 November 2026
 
 Implementation `02f6c54` plus queued-source-metadata safeguard `2ee3ac492571f0db09b32dd8587231f0a2034209` provides the user-approved policy: **beta prereleases and app-related changes only**. GitHub owns the approximately 02:07 Melbourne decision; a net diff against the last published automated prerelease determines whether to build. Bootstrap is uploaded/processed 1.0 (5), source `28baa28`. Annotated daily request tags pin source, baseline and generated notes; successful releases—not requests or archive results—advance the baseline. Retries/reconciliation survive failed jobs, invalid uploads, pending metadata and runner cancellation; same-date requests never start twice. App Markdown, website and tester-notes-only updates skip new builds. No release-note commits are pushed to main.

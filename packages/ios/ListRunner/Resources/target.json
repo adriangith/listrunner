@@ -1,6 +1,8 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 6,
   "id": "target",
+  "categories": ["grocery", "departmentStore", "hardwareGarden", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies", "automotive", "outdoorCamping"],
+  "automationSchemaVersion": 2,
   "displayName": "Target US",
   "serviceArea": {"countryCodes": ["US"]},
   "homepage": "https://www.target.com",

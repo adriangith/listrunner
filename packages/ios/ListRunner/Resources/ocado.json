@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 4, "id": "ocado", "displayName": "Ocado",
+  "schemaVersion": 6, "id": "ocado", "displayName": "Ocado",
+  "categories": ["grocery", "pharmacyBeauty", "petSupplies"],
+  "automationSchemaVersion": 4,
   "serviceArea": {"countryCodes": ["GB"]},
   "homepage": "https://www.ocado.com",
   "allowedHosts": ["www.ocado.com", "ocado.com"],

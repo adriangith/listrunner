@@ -42,6 +42,22 @@ def validate(config):
         errors.append('Invalid store id')
     required = {'schemaVersion', 'id', 'displayName', 'serviceArea', 'homepage', 'allowedHosts',
                 'search', 'addedColor', 'capabilities', 'cart'}
+    version = config.get('schemaVersion')
+    if type(version) is not int or version not in (2, 3, 4, 5, 6):
+        errors.append('Unsupported store schema version')
+    if version == 6:
+        required |= {'categories', 'automationSchemaVersion'}
+        vocabulary = {'grocery', 'departmentStore', 'warehouseClub', 'onlineMarketplace',
+                      'hardwareGarden', 'pharmacyBeauty', 'electronics', 'officeSupplies',
+                      'petSupplies', 'automotive', 'outdoorCamping'}
+        categories = config.get('categories')
+        if (not isinstance(categories, list) or not categories or
+                any(not isinstance(c, str) or c not in vocabulary for c in categories) or
+                len(set(categories)) != len(categories)):
+            errors.append('Categories must be nonempty, distinct known retailer types')
+        automation = config.get('automationSchemaVersion')
+        if type(automation) is not int or automation not in (2, 3, 4, 5):
+            errors.append('Unsupported automation schema version')
     if not required.issubset(config) or set(config) - required - {'brandColors'}:
         errors.append('Missing or unknown store configuration fields')
     if not isinstance(config.get('displayName'), str) or not config['displayName'].strip():

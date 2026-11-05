@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 2, "id": "bcf", "displayName": "BCF",
+  "schemaVersion": 6, "id": "bcf", "displayName": "BCF",
+  "categories": ["hardwareGarden", "electronics", "automotive", "outdoorCamping"],
+  "automationSchemaVersion": 2,
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.bcf.com.au",
   "allowedHosts": ["www.bcf.com.au", "bcf.com.au"],

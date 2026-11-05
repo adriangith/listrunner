@@ -290,6 +290,20 @@ enum StoreProbeIsolation {
     }
 }
 
+enum StoreCategory: String, Codable, CaseIterable, Hashable {
+    case grocery
+    case departmentStore
+    case warehouseClub
+    case onlineMarketplace
+    case hardwareGarden
+    case pharmacyBeauty
+    case electronics
+    case officeSupplies
+    case petSupplies
+    case automotive
+    case outdoorCamping
+}
+
 // In-memory provenance for one trusted Add interrupted by the reviewed Tesco
 // authentication route. A guest quantity is deliberately NOT carried into the
 // account basket, and this receipt never grants retailer-cart Undo permission.
@@ -356,8 +370,8 @@ struct StoreLoginReplay {
 
 struct StoreDefinition: Codable {
     private enum CodingKeys: String, CodingKey, CaseIterable {
-        case schemaVersion, id, displayName, serviceArea, homepage, allowedHosts
-        case search, addedColor, brandColors, capabilities, cart
+        case schemaVersion, automationSchemaVersion, id, displayName, serviceArea, homepage, allowedHosts
+        case search, addedColor, brandColors, categories, capabilities, cart
     }
 
     struct ServiceArea: Codable {
@@ -466,6 +480,7 @@ struct StoreDefinition: Codable {
         let highlight: AddedColor
     }
     let schemaVersion: Int
+    let automationSchemaVersion: Int
     let id: StoreID
     let displayName: String
     let serviceArea: ServiceArea
@@ -474,13 +489,16 @@ struct StoreDefinition: Codable {
     let search: Search
     let addedColor: AddedColor
     var brandColors: BrandColors? = nil
+    var categories: [StoreCategory] = []
     var capabilities: Capabilities
     let cart: Cart?
 
     init(schemaVersion: Int, id: StoreID, displayName: String, serviceArea: ServiceArea,
          homepage: URL, allowedHosts: [String], search: Search, addedColor: AddedColor,
-         brandColors: BrandColors? = nil, capabilities: Capabilities, cart: Cart?) {
+         brandColors: BrandColors? = nil, automationSchemaVersion: Int? = nil,
+         categories: [StoreCategory] = [], capabilities: Capabilities, cart: Cart?) {
         self.schemaVersion = schemaVersion
+        self.automationSchemaVersion = automationSchemaVersion ?? schemaVersion
         self.id = id
         self.displayName = displayName
         self.serviceArea = serviceArea
@@ -489,17 +507,32 @@ struct StoreDefinition: Codable {
         self.search = search
         self.addedColor = addedColor
         self.brandColors = brandColors
+        self.categories = categories
         self.capabilities = capabilities
         self.cart = cart
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        guard Set(container.allKeys.map(\.stringValue)) == Set(CodingKeys.allCases.map(\.stringValue))
-                .subtracting(container.contains(.brandColors) ? [] : [CodingKeys.brandColors.rawValue]) else {
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        let hasCategories = schemaVersion == 6
+        let hasAutomationSchemaVersion = schemaVersion == 6
+        guard [2, 3, 4, 5, 6].contains(schemaVersion) else { throw ConfigurationError.invalid }
+        var expectedKeys = Set(CodingKeys.allCases.map(\.stringValue))
+        if !hasCategories { expectedKeys.remove(CodingKeys.categories.rawValue) }
+        if !hasAutomationSchemaVersion { expectedKeys.remove(CodingKeys.automationSchemaVersion.rawValue) }
+        if !container.contains(.brandColors) { expectedKeys.remove(CodingKeys.brandColors.rawValue) }
+        guard Set(container.allKeys.map(\.stringValue)) == expectedKeys else {
             throw ConfigurationError.invalid
         }
-        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        if hasAutomationSchemaVersion {
+            automationSchemaVersion = try container.decode(Int.self, forKey: .automationSchemaVersion)
+        } else {
+            automationSchemaVersion = schemaVersion
+        }
+        guard !hasAutomationSchemaVersion || [2, 3, 4, 5].contains(automationSchemaVersion) else {
+            throw ConfigurationError.invalid
+        }
         id = try container.decode(StoreID.self, forKey: .id)
         displayName = try container.decode(String.self, forKey: .displayName)
         serviceArea = try container.decode(ServiceArea.self, forKey: .serviceArea)
@@ -508,9 +541,39 @@ struct StoreDefinition: Codable {
         search = try container.decode(Search.self, forKey: .search)
         addedColor = try container.decode(AddedColor.self, forKey: .addedColor)
         brandColors = try container.decodeIfPresent(BrandColors.self, forKey: .brandColors)
+        if hasCategories {
+            categories = try container.decode([StoreCategory].self, forKey: .categories)
+        } else {
+            categories = []
+        }
+        guard !hasCategories || (!categories.isEmpty && categories.count <= StoreCategory.allCases.count
+              && Set(categories).count == categories.count) else { throw ConfigurationError.invalid }
         capabilities = try container.decode(Capabilities.self, forKey: .capabilities)
         cart = try container.decodeIfPresent(Cart.self, forKey: .cart)
     }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        if schemaVersion == 6 {
+            try container.encode(automationSchemaVersion, forKey: .automationSchemaVersion)
+        }
+        try container.encode(id, forKey: .id)
+        try container.encode(displayName, forKey: .displayName)
+        try container.encode(serviceArea, forKey: .serviceArea)
+        try container.encode(homepage, forKey: .homepage)
+        try container.encode(allowedHosts, forKey: .allowedHosts)
+        try container.encode(search, forKey: .search)
+        try container.encode(addedColor, forKey: .addedColor)
+        try container.encodeIfPresent(brandColors, forKey: .brandColors)
+        if schemaVersion == 6 { try container.encode(categories, forKey: .categories) }
+        try container.encode(capabilities, forKey: .capabilities)
+        // The wire contract requires the cart key even for browsing-only stores.
+        try container.encode(cart, forKey: .cart)
+    }
+
+    private var supportsSchema4Features: Bool { automationSchemaVersion == 4 }
+    private var supportsProfiledCart: Bool { [3, 4].contains(automationSchemaVersion) }
 
     enum ConfigurationError: Error { case invalid }
 
@@ -522,7 +585,12 @@ struct StoreDefinition: Codable {
     func validate() throws {
         let countries = serviceArea.countryCodes
         let supportedCountryCodes = Set(Locale.Region.isoRegions.map(\.identifier))
-        guard [2, 3, 4, 5].contains(schemaVersion), displayName == id.displayName,
+        guard [2, 3, 4, 5, 6].contains(schemaVersion),
+              (schemaVersion == 6
+                ? (!categories.isEmpty && categories.count <= StoreCategory.allCases.count
+                    && Set(categories).count == categories.count && [2, 3, 4, 5].contains(automationSchemaVersion))
+                : (categories.isEmpty && automationSchemaVersion == schemaVersion)),
+              displayName == id.displayName,
               !countries.isEmpty, Set(countries).count == countries.count,
               countries.allSatisfy({ $0.range(of: "^[A-Z]{2}$", options: .regularExpression) != nil
                   && supportedCountryCodes.contains($0) }),
@@ -553,7 +621,7 @@ struct StoreDefinition: Codable {
             // Snapshot verification is a separately reviewed engine, not a way
             // for a data file to upgrade an existing retailer's capabilities.
             if cart.strategy == .verifiedCartSnapshot {
-                guard schemaVersion == 5, id == .ikeaAU,
+                guard automationSchemaVersion == 5, id == .ikeaAU,
                       cart.identityStrategy == .numericURLSuffix,
                       let snapshot = cart.snapshot,
                       snapshot.path == "/au/en/shoppingcart/",
@@ -564,12 +632,12 @@ struct StoreDefinition: Codable {
                 }
                 guard !snapshot.emptyText.isEmpty, snapshot.emptyText.utf8.count <= 256 else { throw ConfigurationError.invalid }
             } else {
-                guard schemaVersion != 5, cart.snapshot == nil else { throw ConfigurationError.invalid }
+                guard automationSchemaVersion != 5, cart.snapshot == nil else { throw ConfigurationError.invalid }
             }
-            guard (schemaVersion == 2 && cart.strategy == .trustedTileQuantity && cart.profiles == nil)
-                || ([3, 4].contains(schemaVersion) && cart.strategy == .profiled && cart.profiles?.isEmpty == false)
-                || (schemaVersion == 5 && cart.strategy == .verifiedCartSnapshot) else { throw ConfigurationError.invalid }
-            guard schemaVersion == 4 || cart.identityStrategy == .numericURLSuffix else { throw ConfigurationError.invalid }
+            guard (automationSchemaVersion == 2 && cart.strategy == .trustedTileQuantity && cart.profiles == nil)
+                || (supportsProfiledCart && cart.strategy == .profiled && cart.profiles?.isEmpty == false)
+                || (automationSchemaVersion == 5 && cart.strategy == .verifiedCartSnapshot) else { throw ConfigurationError.invalid }
+            guard supportsSchema4Features || cart.identityStrategy == .numericURLSuffix else { throw ConfigurationError.invalid }
             if cart.identityStrategy == .capturedURLComponent {
                 guard [.officeworks, .jbHiFi, .petbarn, .sainsburys, .walgreens, .boots, .theWarehouse, .waitrose].contains(id),
                       !capabilities.cartUndo else { throw ConfigurationError.invalid }
@@ -602,23 +670,23 @@ struct StoreDefinition: Codable {
                         _ = try NSRegularExpression(pattern: pattern)
                     }
                     if profile.quantityDraftSelector != nil {
-                        guard schemaVersion == 4, profile.confirmation == .quantityIncrease,
+                        guard supportsSchema4Features, profile.confirmation == .quantityIncrease,
                               profile.undo == nil, !capabilities.cartUndo else { throw ConfigurationError.invalid }
                     }
                     if profile.quantityText != nil {
-                        guard schemaVersion == 4, profile.quantityText == true,
+                        guard supportsSchema4Features, profile.quantityText == true,
                               profile.confirmation == .quantityIncrease,
                               profile.quantitySelector != nil else { throw ConfigurationError.invalid }
                     }
                     switch profile.confirmation {
                     case .cartSnapshot:
-                        guard schemaVersion == 5, cart.strategy == .verifiedCartSnapshot,
+                        guard automationSchemaVersion == 5, cart.strategy == .verifiedCartSnapshot,
                               profile.quantitySelector == nil, profile.receipt == nil,
                               profile.acknowledgement == nil, profile.undo == nil,
                               profile.emptyStatusText == nil, profile.setupPrompt == nil,
                               profile.quantityDraftSelector == nil, profile.quantityText == nil else { throw ConfigurationError.invalid }
                     case .productReceipt:
-                        guard schemaVersion != 5 else { throw ConfigurationError.invalid }
+                        guard automationSchemaVersion != 5 else { throw ConfigurationError.invalid }
                         guard let receipt = profile.receipt, profile.acknowledgement == nil, profile.quantitySelector == nil, profile.emptyStatusText == nil, profile.undo == nil,
                                !receipt.successText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                                receipt.successText.utf8.count <= 256 else { throw ConfigurationError.invalid }
@@ -627,11 +695,11 @@ struct StoreDefinition: Codable {
                                   pattern.utf8.count <= 512,
                                   try NSRegularExpression(pattern: pattern).numberOfCaptureGroups == 1 else { throw ConfigurationError.invalid }
                         } else {
-                            guard schemaVersion == 4, receipt.productSelector != nil,
+                            guard supportsSchema4Features, receipt.productSelector != nil,
                                   receipt.quantitySelector != nil, receipt.failureSelector != nil else { throw ConfigurationError.invalid }
                         }
                         if let image = receipt.imageIdentity {
-                            guard schemaVersion == 4, id == .priceline,
+                            guard supportsSchema4Features, id == .priceline,
                                   image.allowedHosts == ["api.priceline.com.au"],
                                   !image.selector.isEmpty, image.selector.utf8.count <= 1_024,
                                   image.productURLPattern.utf8.count <= 512,
@@ -639,10 +707,10 @@ struct StoreDefinition: Codable {
                                   try NSRegularExpression(pattern: image.productURLPattern).numberOfCaptureGroups == 1 else { throw ConfigurationError.invalid }
                         }
                     case .quantityIncrease:
-                        guard schemaVersion != 5 else { throw ConfigurationError.invalid }
+                        guard automationSchemaVersion != 5 else { throw ConfigurationError.invalid }
                         guard profile.quantitySelector != nil, profile.receipt == nil, profile.acknowledgement == nil else { throw ConfigurationError.invalid }
                     case .productAcknowledgement:
-                        guard schemaVersion == 4, let acknowledgement = profile.acknowledgement,
+                        guard supportsSchema4Features, let acknowledgement = profile.acknowledgement,
                               !acknowledgement.successText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                               acknowledgement.successText.utf8.count <= 256,
                               profile.receipt == nil, profile.quantitySelector == nil, profile.emptyStatusText == nil,
@@ -668,7 +736,7 @@ struct StoreDefinition: Codable {
                     }
                 }
             }
-        } else if [3, 4, 5].contains(schemaVersion) {
+        } else if [3, 4, 5].contains(automationSchemaVersion) {
             throw ConfigurationError.invalid
         }
     }
@@ -711,7 +779,7 @@ struct StoreDefinition: Codable {
 
     func acceptsProductIdentity(_ value: String) -> Bool {
         if id == .ikeaAU { return value.utf8.count == 8 && value.utf8.allSatisfy { (48...57).contains($0) } }
-        if schemaVersion == 4 && cart?.identityStrategy == .capturedURLComponent {
+        if supportsSchema4Features && cart?.identityStrategy == .capturedURLComponent {
             if id == .waitrose {
                 let components = value.split(separator: "-", omittingEmptySubsequences: false)
                 return components.count == 3 && components.allSatisfy {
@@ -778,8 +846,8 @@ struct StoreDefinition: Codable {
         guard data.count <= 65_536 else { throw ConfigurationError.invalid }
         try rejectDuplicateKeys(in: data)
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              hasOnlyKeys(root, ["schemaVersion", "id", "displayName", "serviceArea", "homepage", "allowedHosts",
-                                 "search", "addedColor", "brandColors", "capabilities", "cart"]),
+              hasOnlyKeys(root, ["schemaVersion", "automationSchemaVersion", "id", "displayName", "serviceArea", "homepage", "allowedHosts",
+                                 "search", "addedColor", "brandColors", "categories", "capabilities", "cart"]),
               hasOnlyKeys(root["serviceArea"] as? [String: Any], ["countryCodes"]),
               hasOnlyKeys(root["search"] as? [String: Any], ["strategy", "template", "resultsSelector", "resultsTopOffset"]),
               hasOnlyKeys(root["addedColor"] as? [String: Any], ["red", "green", "blue"]),
@@ -1246,7 +1314,7 @@ enum StoreBridge {
                   let before = integer(object["beforeQuantity"]), let after = integer(object["resultingQuantity"]),
                    (0...9_999).contains(before), (1...9_999).contains(after), after > before else { return nil }
         case "addAcknowledged":
-            guard store.schemaVersion == 4, !store.capabilities.cartUndo,
+            guard store.automationSchemaVersion == 4, !store.capabilities.cartUndo,
                   Set(object.keys) == common.union(["productID", "confirmationID", "profileID"]),
                   let product = object["productID"] as? String, store.acceptsProductIdentity(product),
                   productID(object["confirmationID"]),

@@ -1392,6 +1392,9 @@ final class StoreBrowser: ObservableObject {
       const config = window.__listRunnerStoreConfig;
       if (!config || !config.capabilities.cartDetection || !config.cart || location.protocol !== 'https:' || !config.allowedHosts.includes(location.hostname.toLowerCase())) return;
       const rules = config.cart;
+      const automationSchemaVersion = Number.isInteger(config.automationSchemaVersion)
+        ? config.automationSchemaVersion : config.schemaVersion;
+      const supportsSchema4Features = automationSchemaVersion === 4;
       // Woolworths' web components settle more slowly after their asynchronous
       // cart request. This only widens observation; it never clicks controls.
       const confirmationWindow = config.id === 'woolworths' ? 8000 : 3000;
@@ -1445,7 +1448,7 @@ final class StoreBrowser: ObservableObject {
         return null;
       };
       const validProductIdentity = value => typeof value === 'string' &&
-        (config.schemaVersion === 4 && rules.identityStrategy === 'capturedURLComponent'
+        (supportsSchema4Features && rules.identityStrategy === 'capturedURLComponent'
           ? value.length <= 256 && /^[A-Za-z0-9]/.test(value) && !/[^A-Za-z0-9_-]/.test(value)
           : value.length >= 1 && value.length <= 32 && !/[^0-9]/.test(value));
       const linkedProductIDs = root => {
@@ -1606,7 +1609,7 @@ final class StoreBrowser: ObservableObject {
         // Responsive pages may duplicate the same heading. Different names are
         // ambiguous; never choose an arbitrary page title or seller badge.
         const titles = deepQueryAll(root, profile.titleSelector);
-        if (config.schemaVersion === 4 && root.matches?.(profile.titleSelector)) titles.unshift(root);
+        if (supportsSchema4Features && root.matches?.(profile.titleSelector)) titles.unshift(root);
         const names = new Set(titles
           .map(title => normalize(title.textContent)).filter(Boolean));
         return names.size === 1 ? [...names][0] : null;
@@ -1647,7 +1650,7 @@ final class StoreBrowser: ObservableObject {
           const start = text.lastIndexOf(normalize(profile.receipt.successText));
           if (start < 0) continue;
           const receipt = text.slice(start);
-          if (config.schemaVersion === 4 && profile.receipt.productSelector && profile.receipt.quantitySelector) {
+          if (supportsSchema4Features && profile.receipt.productSelector && profile.receipt.quantitySelector) {
             if (!root.getClientRects().length || getComputedStyle(root).visibility === 'hidden') continue;
             if (deepQueryAll(root, profile.receipt.failureSelector).some(error => error.getClientRects().length &&
                 getComputedStyle(error).visibility !== 'hidden' && normalize(error.innerText || error.textContent))) continue;
@@ -1691,13 +1694,13 @@ final class StoreBrowser: ObservableObject {
         if (!tile?.isConnected) return null;
         // Editable retailer quantities can be drafts awaiting an explicit Update.
         // Never arm detection from, or confirm against, an unapplied draft.
-        if (config.schemaVersion === 4 && profile.quantityDraftSelector &&
+        if (supportsSchema4Features && profile.quantityDraftSelector &&
             deepQueryAll(tile, profile.quantityDraftSelector).some(element =>
               element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')) return null;
         const inputs = deepQueryAll(tile, profile.quantitySelector);
         const values = new Set();
         for (const input of inputs) {
-          const textQuantity = config.schemaVersion === 4 && profile.quantityText === true;
+          const textQuantity = supportsSchema4Features && profile.quantityText === true;
           // Text quantities must be non-editable visible labels, never intended
           // quantities, hidden templates, or arbitrary text coerced by Number().
           if (textQuantity && (!['SPAN', 'OUTPUT'].includes(input.tagName) ||
@@ -1716,7 +1719,7 @@ final class StoreBrowser: ObservableObject {
          if (!inputs.length && profile.emptyStatusText && deepQueryAll(tile, profile.addSelector)
              .some(control => profileControlMatches(control, profile) &&
                (normalize(control.getAttribute('aria-label') || control.textContent) === normalize(profile.emptyStatusText) ||
-                 (config.schemaVersion === 4 && normalize(control.textContent) === normalize(profile.emptyStatusText))))) return 0;
+                 (supportsSchema4Features && normalize(control.textContent) === normalize(profile.emptyStatusText))))) return 0;
         return null;
       };
       const profileAcknowledgement = (profile, name) => {
@@ -1970,7 +1973,7 @@ final class StoreBrowser: ObservableObject {
         if (!context) return;
         // A second real action, including manually opening an old cart receipt,
         // cannot complete a previous Add. Synthetic site updates do not arm it.
-        if (config.schemaVersion === 4) candidate = null;
+        if (supportsSchema4Features) candidate = null;
         // Events from web components are retargeted at each shadow boundary. The
         // composed path retains the original trusted control for exact attribution.
         const origin = event.composedPath?.().find(node => node instanceof Element) || event.target;
@@ -2025,7 +2028,7 @@ final class StoreBrowser: ObservableObject {
 
     private var isLiveCartProbe: Bool {
         #if DEBUG
-        return uiTestMode && [4, 5].contains(store.schemaVersion) && store.cart != nil &&
+        return uiTestMode && [4, 5].contains(store.automationSchemaVersion) && store.cart != nil &&
             StoreProbeIsolation.permitsCartProbe(for: store.id, isPersistent: websiteDataStore.isPersistent,
                                                 identifier: websiteDataStore.identifier,
                                                 environment: ProcessInfo.processInfo.environment)
@@ -2057,7 +2060,7 @@ final class StoreBrowser: ObservableObject {
         if StoreProbeIsolation.permitsCartProbe(for: store.id, isPersistent: websiteDataStore.isPersistent,
                                                identifier: websiteDataStore.identifier,
                                                environment: ProcessInfo.processInfo.environment),
-           [4, 5].contains(store.schemaVersion), store.cart != nil {
+           [4, 5].contains(store.automationSchemaVersion), store.cart != nil {
             store.capabilities.cartDetection = true
             // Reversal needs its own explicit opt-in in the already isolated
             // single-store probe, plus a complete quantity/decrement contract.
@@ -3287,7 +3290,7 @@ final class StoreBrowser: ObservableObject {
 
         let commonKeys: Set<String> = ["schemaVersion", "type", "storeID", "sessionID", "interactionID", "itemID", "documentGeneration", "pageURL"]
         if type == "addAcknowledged" {
-            guard store.schemaVersion == 4, !store.capabilities.cartUndo,
+            guard store.automationSchemaVersion == 4, !store.capabilities.cartUndo,
                   Set(object.keys) == commonKeys.union(["confirmationID", "productID", "profileID"]),
                   let confirmationID = object["confirmationID"] as? String,
                   let sequence = UInt64(confirmationID), sequence > 0,

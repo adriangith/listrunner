@@ -27,7 +27,7 @@ class StoreExpansionTests(unittest.TestCase):
                 self.assertEqual(data["capabilities"]["cartDetection"], store in {"priceline", "supercheapAuto", "ocado", "chemistWarehouse", "waitrose", "jbHiFi", "bunningsNZ", "officeworks"})
                 self.assertFalse(data["capabilities"]["cartUndo"])
                 if data["cart"] is not None:
-                    self.assertEqual(data["schemaVersion"], 4)
+                    self.assertEqual(data["schemaVersion"], 6)
                     self.assertEqual(data["cart"]["strategy"], "profiled")
                     self.assertTrue(data["cart"]["profiles"])
                 for prefix in ("1", "2"):

@@ -9,6 +9,7 @@ done
 node -e 'if (Number(process.versions.node.split(".")[0]) < 22) { console.error("Node.js 22 or later is required"); process.exit(1); }'
 
 python3 -B "$base/tests/test-release-metadata.py"
+python3 -B "$base/tests/test-store-categories.py"
 python3 -B "$base/tests/test-store-expansion.py"
 python3 -B "$base/tests/test-store-onboarding.py"
 python3 -B "$base/tests/test-bundled-resources.py"

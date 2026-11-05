@@ -1,6 +1,8 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 6,
   "id": "woolworths",
+  "categories": ["grocery", "pharmacyBeauty", "petSupplies"],
+  "automationSchemaVersion": 2,
   "displayName": "Woolworths",
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.woolworths.com.au",

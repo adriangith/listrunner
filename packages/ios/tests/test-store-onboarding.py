@@ -68,6 +68,20 @@ class OnboardingTests(unittest.TestCase):
                     self.assertEqual(tool.validate(config), [])
                     self.assertEqual(tool.resource_contract(project, config['id']), [])
 
+    def test_category_format_and_legacy_preflight(self):
+        config = json.loads((tool.RESOURCES / 'coles.json').read_text())
+        self.assertEqual(tool.validate(config), [])
+        for value in [None, [], ['grocery', 'grocery'], ['unknown'], [['grocery']], 'grocery']:
+            with self.subTest(categories=value):
+                changed = dict(config, categories=value)
+                self.assertTrue(tool.validate(changed))
+        for value in [None, True, 1, 6, '2']:
+            self.assertTrue(tool.validate(dict(config, automationSchemaVersion=value)))
+        legacy = {k: v for k, v in config.items() if k not in {'categories', 'automationSchemaVersion'}}
+        legacy['schemaVersion'] = 2
+        self.assertEqual(tool.validate(legacy), [])
+        self.assertTrue(tool.validate(dict(legacy, categories=['grocery'])))
+
     def test_invalid_capability_types(self):
         config = json.loads((tool.RESOURCES / 'coles.json').read_text())
         config['capabilities']['search'] = 'true'

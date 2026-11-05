@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 2, "id": "cvs", "displayName": "CVS",
+  "schemaVersion": 6, "id": "cvs", "displayName": "CVS",
+  "categories": ["grocery", "pharmacyBeauty"],
+  "automationSchemaVersion": 2,
   "serviceArea": {"countryCodes": ["US"]},
   "homepage": "https://www.cvs.com",
   "allowedHosts": ["www.cvs.com", "cvs.com"],

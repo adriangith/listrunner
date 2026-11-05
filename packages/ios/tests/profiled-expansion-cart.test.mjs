@@ -10,8 +10,16 @@ const load = id => JSON.parse(readFileSync(new URL(`../ListRunner/Resources/${id
 // Semantic markup observed live: real cart quantity inputs (not intended
 // selectors), Priceline's linkless product-image-identified cart rows, and
 // Supercheap's duplicate image/title links and React/jQuery control updates.
-function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
+function fixture(store = 'priceline', { before = 0, captured = false, schemaVersion = null, categories = null } = {}) {
   const config = load(store);
+  if (schemaVersion !== null) {
+    config.schemaVersion = schemaVersion;
+    if (schemaVersion < 6) {
+      delete config.categories;
+      delete config.automationSchemaVersion;
+    }
+  }
+  if (categories) config.categories = categories;
   config.capabilities.cartDetection = true; // test only; production ceilings stay off until certified
   const petbarn = store === 'petbarn';
   const waitrose = store === 'waitrose';
@@ -207,6 +215,24 @@ function fixture(store = 'priceline', { before = 0, captured = false } = {}) {
   };
 }
 
+for (const [store, version, action] of [
+  ['priceline', 4, p => { p.tap(); p.receipt(); p.tick(); }],
+  ['waitrose', 4, p => { p.tap(); p.quantity(1); p.tick(); }],
+  ['jbHiFi', 4, p => { p.tap(); p.acknowledge(); p.tick(); }],
+  ['morrisons', 4, p => { p.tap(); p.quantity(1); p.tick(); }],
+]) {
+  test(`${store} schema-6 automation matches its schema-${version} wire definition`, () => {
+    const current = fixture(store);
+    const legacy = fixture(store, { schemaVersion: version });
+    const reordered = fixture(store, { categories: [...load(store).categories].reverse() });
+    for (const scenario of [current, legacy, reordered]) action(scenario);
+    assert.deepEqual(legacy.additions, current.additions);
+    assert.deepEqual(legacy.acknowledgements, current.acknowledgements);
+    assert.deepEqual(reordered.additions, current.additions);
+    assert.deepEqual(reordered.acknowledgements, current.acknowledgements);
+  });
+}
+
 test('JB confirms a fresh product-specific acknowledgement without inventing quantities', () => {
   const p = fixture('jbHiFi'); p.tap(); p.tick(2);
   assert.equal(p.acknowledgements.length, 0, 'static Added span is not evidence');
@@ -300,7 +326,7 @@ test('Priceline confirms only a new, stable product-image-identified quantity re
 });
 
 for (const scenario of ['passive', 'synthetic', 'unrelatedClick', 'foreignImage', 'wrongID', 'wrongName', 'hidden', 'error', 'cartError', 'duplicate', 'conflict', 'stale', 'navigation', 'expired', 'ended']) {
-  test(`schema-4 receipt rejects ${scenario}`, () => {
+  test(`schema-6 receipt rejects ${scenario}`, () => {
     const p = fixture();
     if (scenario === 'stale') p.receipt();
     if (scenario !== 'passive') p.tap(scenario !== 'synthetic');
@@ -412,7 +438,7 @@ for (const scenario of ['passive', 'synthetic', 'unrelatedClick', 'unchanged', '
 }
 
 for (const store of ['supercheapAuto', 'bunningsNZ', 'morrisons', 'ocado', 'waitrose']) for (const scenario of ['synthetic', 'foreign', 'recycled', 'unchanged', 'unrelatedClick', 'navigation']) {
-  test(`${store} schema-4 quantity rejects ${scenario}`, () => {
+  test(`${store} schema-6 quantity rejects ${scenario}`, () => {
     const p = fixture(store);
     if (scenario === 'foreign') p.foreignLink();
     p.tap(scenario !== 'synthetic');

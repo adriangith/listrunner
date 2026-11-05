@@ -10,7 +10,8 @@ const profile = config.cart.profiles[0];
 
 function quantity(nodes, overrides = {}, add = false) {
   const context = vm.createContext({
-    config, getComputedStyle: node => ({ visibility: node.hidden ? 'hidden' : 'visible' }),
+    config, supportsSchema4Features: (config.automationSchemaVersion ?? config.schemaVersion) === 4,
+    getComputedStyle: node => ({ visibility: node.hidden ? 'hidden' : 'visible' }),
     deepQueryAll: (_tile, selector) => selector === profile.quantitySelector ? nodes : add ? [{ textContent: 'Add', getAttribute: () => 'add 1 Milk' }] : [],
     profileControlMatches: () => true, normalize: text => text.trim().toLowerCase(),
   });

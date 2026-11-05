@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 4, "id": "bunningsNZ", "displayName": "Bunnings New Zealand",
+  "schemaVersion": 6, "id": "bunningsNZ", "displayName": "Bunnings New Zealand",
+  "categories": ["hardwareGarden", "electronics", "petSupplies", "automotive", "outdoorCamping"],
+  "automationSchemaVersion": 4,
   "serviceArea": {"countryCodes": ["NZ"]},
   "homepage": "https://www.bunnings.co.nz",
   "allowedHosts": ["www.bunnings.co.nz", "bunnings.co.nz"],

@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 2, "id": "theWarehouse", "displayName": "The Warehouse",
+  "schemaVersion": 6, "id": "theWarehouse", "displayName": "The Warehouse",
+  "categories": ["departmentStore", "hardwareGarden", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies", "outdoorCamping"],
+  "automationSchemaVersion": 2,
   "serviceArea": {"countryCodes": ["NZ"]},
   "homepage": "https://www.thewarehouse.co.nz",
   "allowedHosts": ["www.thewarehouse.co.nz", "thewarehouse.co.nz"],

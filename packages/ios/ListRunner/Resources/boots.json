@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 2, "id": "boots", "displayName": "Boots",
+  "schemaVersion": 6, "id": "boots", "displayName": "Boots",
+  "categories": ["pharmacyBeauty"],
+  "automationSchemaVersion": 2,
   "serviceArea": {"countryCodes": ["GB"]},
   "homepage": "https://www.boots.com",
   "allowedHosts": ["www.boots.com", "boots.com"],

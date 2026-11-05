@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 2, "id": "walgreens", "displayName": "Walgreens",
+  "schemaVersion": 6, "id": "walgreens", "displayName": "Walgreens",
+  "categories": ["grocery", "pharmacyBeauty"],
+  "automationSchemaVersion": 2,
   "serviceArea": {"countryCodes": ["US"]},
   "homepage": "https://www.walgreens.com",
   "allowedHosts": ["www.walgreens.com", "walgreens.com"],

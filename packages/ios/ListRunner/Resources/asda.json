@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 2, "id": "asda", "displayName": "Asda",
+  "schemaVersion": 6, "id": "asda", "displayName": "Asda",
+  "categories": ["grocery", "departmentStore", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies"],
+  "automationSchemaVersion": 2,
   "serviceArea": {"countryCodes": ["GB"]},
   "homepage": "https://www.asda.com/groceries",
   "allowedHosts": ["www.asda.com", "asda.com", "groceries.asda.com"],

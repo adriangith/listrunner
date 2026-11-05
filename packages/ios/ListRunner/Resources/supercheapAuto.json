@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 4, "id": "supercheapAuto", "displayName": "Supercheap Auto",
+  "schemaVersion": 6, "id": "supercheapAuto", "displayName": "Supercheap Auto",
+  "categories": ["electronics", "automotive", "outdoorCamping"],
+  "automationSchemaVersion": 4,
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.supercheapauto.com.au",
   "allowedHosts": ["www.supercheapauto.com.au", "supercheapauto.com.au"],
