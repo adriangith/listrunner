@@ -417,7 +417,6 @@ private struct AllItemsScreen: View {
                             Spacer()
                             Text("\(group.items.count)").foregroundStyle(.secondary)
                         }
-                        .id("header-" + group.id)
                         .foregroundStyle(grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary)
                     }
                 }
@@ -431,15 +430,16 @@ private struct AllItemsScreen: View {
         }
         .listStyle(.insetGrouped)
         .contentMargins(.top, 0, for: .scrollContent)
+        .id(groupingRawValue)
         .onChange(of: recentItemOrderRawValue) { _, value in
-            if let group = groups.first {
+            if let item = groups.first?.items.first {
                 // Only the item region scrolls; the composer and its responder
                 // stay in place above it, including with the keyboard visible.
-                proxy.scrollTo("header-" + group.id, anchor: .top)
+                proxy.scrollTo(item.id, anchor: .bottom)
             }
         }
         .onChange(of: groupingRawValue) { _, _ in
-            if let group = groups.first { proxy.scrollTo("header-" + group.id, anchor: .top) }
+            if let item = groups.first?.items.first { proxy.scrollTo(item.id, anchor: .bottom) }
         }
         .task(id: recentItemOrderRawValue) {
             guard !highlightedItemIDs.isEmpty else { return }
