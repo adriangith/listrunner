@@ -37,6 +37,13 @@ active after setup selected Woolworths. Test-only follow-up explicitly selects C
 for those cases and asserts unverified-search destinations remain hidden.
 No physical-device install, live retailer/cart operation, user-data reset,
 distribution, or SwiftData migration was performed.
+
+At `f007162`, the corrected focused fixture UI rerun passed **3/3 tests, zero
+failures**, on a dedicated iPhone 17 / iOS 27.2 simulator: expansion discovery and
+separate Target brands, store-list/status isolation, and hide/re-enable list
+preservation. Result bundle: `/tmp/listrunner-categories-ui-rerun.xcresult`;
+console: `/tmp/listrunner-categories-ui-rerun.log`. The initial failed run is retained
+at `/tmp/listrunner-categories-ui.xcresult`; it is not counted as a pass.
 ## Change-gated nightly beta pipeline — 4 November 2026
 
 Implementation `02f6c54` plus queued-source-metadata safeguard `2ee3ac492571f0db09b32dd8587231f0a2034209` provides the user-approved policy: **beta prereleases and app-related changes only**. GitHub owns the approximately 02:07 Melbourne decision; a net diff against the last published automated prerelease determines whether to build. Bootstrap is uploaded/processed 1.0 (5), source `28baa28`. Annotated daily request tags pin source, baseline and generated notes; successful releases—not requests or archive results—advance the baseline. Retries/reconciliation survive failed jobs, invalid uploads, pending metadata and runner cancellation; same-date requests never start twice. App Markdown, website and tester-notes-only updates skip new builds. No release-note commits are pushed to main.
