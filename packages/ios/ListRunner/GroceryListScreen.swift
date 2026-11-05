@@ -216,13 +216,16 @@ private struct AllItemsScreen: View {
     private var grouping: AllItemsGrouping {
         AllItemsGrouping(rawValue: groupingRawValue) ?? .store
     }
+    private var shoppingVisibleIDs: Set<StoreID> {
+        sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs)
+    }
     private var destinationID: StoreID? {
         let id = StoreID(rawValue: destinationRawValue)
-        return id.flatMap { visibility.shoppingVisibleIDs(in: sessions.definitions).contains($0) ? $0 : nil }
+        return id.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil }
     }
     private var visibleStores: [StoreDefinition] {
         StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
-                               enabledIDs: visibility.shoppingVisibleIDs(in: sessions.definitions))
+                               enabledIDs: shoppingVisibleIDs)
     }
     private var pendingCount: Int { allItems.filter { $0.status == .pending }.count }
     private var addedCount: Int { allItems.filter { $0.status == .added }.count }
@@ -252,7 +255,9 @@ private struct AllItemsScreen: View {
         }
         if grouping == .store {
             let known = StoreID.allCases.compactMap { id -> AllItemsGroup? in
-                let values = owned.filter { $0.0 == id }.map(\.1).sorted { $0.position < $1.position }
+                let values = owned.filter { $0.0 == id }.map(\.1).sorted {
+                    $0.position == $1.position ? $0.id.uuidString < $1.id.uuidString : $0.position < $1.position
+                }
                 guard !values.isEmpty else { return nil }
                 return AllItemsGroup(id: "store-\(id.rawValue)", title: id.displayName, storeIDs: [id], items: values)
             }.sorted { lhs, rhs in
@@ -274,9 +279,8 @@ private struct AllItemsScreen: View {
                 let li = lhs.0.flatMap { order[$0] } ?? Int.max, ri = rhs.0.flatMap { order[$0] } ?? Int.max
                 return li == ri ? (lhs.1.position == rhs.1.position ? lhs.1.id.uuidString < rhs.1.id.uuidString : lhs.1.position < rhs.1.position) : li < ri
             }.map(\.1)
-            let ranks = ItemPromotionOrder.ranks(recentItemOrderRawValue)
             let sortedItems = historicalItems.enumerated().sorted { lhs, rhs in
-                let left = ranks[lhs.element.id] ?? Int.max, right = ranks[rhs.element.id] ?? Int.max
+                let left = itemRanks[lhs.element.id] ?? Int.max, right = itemRanks[rhs.element.id] ?? Int.max
                 return left == right ? lhs.offset < rhs.offset : left < right
             }.map(\.element)
             return AllItemsGroup(id: "category-\(category.rawValue)", title: category.displayName,
@@ -537,7 +541,7 @@ private struct AllItemsScreen: View {
             .background(Color(uiColor: .systemGroupedBackground))
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !allItems.isEmpty {
+            if !allItems.isEmpty && !visibleStores.isEmpty {
                 Menu {
                     ForEach(visibleStores, id: \.id) { store in
                         Button("Shop at \(store.displayName)") { shoppingDestination = store.id }
@@ -549,7 +553,12 @@ private struct AllItemsScreen: View {
                 .buttonStyle(.borderedProminent)
                 .tint(Color.accentColor.opacity(0.28))
                 .foregroundStyle(Color.accentColor)
-                .padding(.horizontal, 20).padding(.top, 8)
+                 .padding(.horizontal, 20).padding(.top, 8)
+            } else if !allItems.isEmpty {
+                Button("Manage Stores") { showingStoreManagement = true }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .buttonStyle(.bordered)
+                    .padding(.horizontal, 20)
             }
         }
         .onAppear {
@@ -573,14 +582,15 @@ private struct AllItemsScreen: View {
 
     private func allItemRow(_ item: GroceryItem) -> some View {
         let owner = StoreID.allCases.first { $0.listID == item.listID }
+        let available = owner.map { shoppingVisibleIDs.contains($0) } ?? false
         return HStack(spacing: 10) {
             Button {
                 guard let owner else {
                     notice = "This saved item has no recognized store list. It remains visible and has not been moved or deleted."
                     return
                 }
-                guard visibility.shoppingVisibleIDs(in: sessions.definitions).contains(owner) else {
-                    notice = "This item belongs to the disabled \(owner.displayName) list. It remains visible here; enable that store to open its list."
+                guard available else {
+                    notice = "Shopping with \(owner.displayName) is unavailable. This saved item remains editable here; use its Actions menu to edit or move it."
                     return
                 }
                 let list = lists.first { $0.id == owner.listID }
@@ -589,13 +599,14 @@ private struct AllItemsScreen: View {
             } label: {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(item.name).font(.body.weight(.medium)).foregroundStyle(.primary)
-                    Text("\(owner?.displayName ?? "Uncategorised") · \(item.displayQuantity)\(owner.map { visibility.shoppingVisibleIDs(in: sessions.definitions).contains($0) ? "" : " · Unavailable" } ?? "")")
+                    Text("\(owner?.displayName ?? "Uncategorised") · \(item.displayQuantity)\(available ? "" : " · Unavailable")")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(owner.map { ", \($0.displayName)" } ?? ", Uncategorised")")
+            .accessibilityLabel("\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(owner.map { ", \($0.displayName)" } ?? ", Uncategorised")\(available ? "" : ", Unavailable")")
             Spacer(minLength: 4)
             Text(item.status.rawValue)
                 .font(.caption2.weight(.semibold))
@@ -739,9 +750,6 @@ private struct AllItemsScreen: View {
         }
     }
 
-    private static func normalizedUnit(_ unit: String?) -> String? {
-        unit?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    }
 }
 
 struct GroceryListScreen: View {
@@ -1675,7 +1683,6 @@ struct GroceryListScreen: View {
         addedItemScrollRequestID = UUID()
     }
 
-    private static func normalizedUnit(_ unit: String?) -> String { unit?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "" }
 
     private func delete(_ item: GroceryItem) {
         pendingReminderWrites.removeValue(forKey: item.id)
@@ -1824,9 +1831,11 @@ struct GroceryListScreen: View {
                 }
                 let alreadyImportedCount = Set(snapshot.map(\.id)).intersection(linkedIDs).count
                 var importedItemIDs: [UUID] = []
+                let previousItems = items
                 do {
                     try modelContext.transaction {
                         var position = (items.map(\.position).max() ?? -1) + 1
+                        var importedItems: [GroceryItem] = []
                         for entry in staged {
                             let item = GroceryItem(name: entry.grocery.name,
                                                    amount: entry.grocery.amount,
@@ -1836,8 +1845,10 @@ struct GroceryListScreen: View {
                             item.paprikaReminderID = entry.reminderID
                             modelContext.insert(item)
                             importedItemIDs.append(item.id)
+                            importedItems.append(item)
                             position += 1
                         }
+                        for (index, item) in (importedItems + previousItems).enumerated() { item.position = index }
                     }
                     saveFailed = false
                 } catch {

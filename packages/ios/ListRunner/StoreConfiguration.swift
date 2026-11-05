@@ -339,6 +339,9 @@ enum StoreCategory: String, Codable, CaseIterable, Hashable {
     case automotive
     case outdoorCamping
 
+    static let legacyCases = Set(allCases).subtracting([.groceryHome, .clothingHome, .homeFurniture])
+    static let currentCases = Set(allCases).subtracting([.departmentStore, .warehouseClub])
+
     var displayName: String {
         switch self {
         case .grocery: "Grocery"
@@ -607,9 +610,9 @@ struct StoreDefinition: Codable {
             categories = []
         }
         if hasCategory { category = try container.decode(StoreCategory.self, forKey: .category) }
-        guard !hasCategories || (!categories.isEmpty && categories.count <= StoreCategory.allCases.count
+        guard !hasCategories || (!categories.isEmpty && Set(categories).isSubset(of: StoreCategory.legacyCases)
               && Set(categories).count == categories.count) else { throw ConfigurationError.invalid }
-        guard !hasCategory || (category != nil && categories.isEmpty) else { throw ConfigurationError.invalid }
+        guard !hasCategory || (category.map(StoreCategory.currentCases.contains) == true && categories.isEmpty) else { throw ConfigurationError.invalid }
         capabilities = try container.decode(Capabilities.self, forKey: .capabilities)
         cart = try container.decodeIfPresent(Cart.self, forKey: .cart)
     }
@@ -650,10 +653,10 @@ struct StoreDefinition: Codable {
         let supportedCountryCodes = Set(Locale.Region.isoRegions.map(\.identifier))
         guard [2, 3, 4, 5, 6, 7].contains(schemaVersion),
               (schemaVersion == 6
-                ? (!categories.isEmpty && categories.count <= StoreCategory.allCases.count
+                ? (!categories.isEmpty && Set(categories).isSubset(of: StoreCategory.legacyCases)
                     && Set(categories).count == categories.count && [2, 3, 4, 5].contains(automationSchemaVersion))
                 : schemaVersion == 7
-                    ? (category != nil && categories.isEmpty && [2, 3, 4, 5].contains(automationSchemaVersion))
+                    ? (category.map(StoreCategory.currentCases.contains) == true && categories.isEmpty && [2, 3, 4, 5].contains(automationSchemaVersion))
                     : (category == nil && categories.isEmpty && automationSchemaVersion == schemaVersion)),
               displayName == id.displayName,
               !countries.isEmpty, Set(countries).count == countries.count,
@@ -1274,6 +1277,7 @@ final class StoreVisibilityPreferences: ObservableObject {
         nonEmptyListIDs = ids
     }
 
+    @discardableResult
     func setVisible(_ visible: Bool, for id: StoreID) -> Bool {
         guard visible || canDisable([id]) else { return false }
         var updated = visibleIDs
@@ -1341,6 +1345,7 @@ final class StoreVisibilityPreferences: ObservableObject {
             ?? brand.regions[0]
     }
 
+    @discardableResult
     func setBrandVisible(_ visible: Bool, brand: StoreBrand) -> Bool {
         let selected = selectedRegion(for: brand)
         let siblings = StoreID.allCases.filter { $0.brandID == brand.id }
@@ -1355,6 +1360,7 @@ final class StoreVisibilityPreferences: ObservableObject {
         return true
     }
 
+    @discardableResult
     func chooseRegion(_ id: StoreID, for brand: StoreBrand) -> Bool {
         guard brand.regions.contains(where: { $0.id == id }) else { return false }
         let siblings = StoreID.allCases.filter { $0.brandID == brand.id }

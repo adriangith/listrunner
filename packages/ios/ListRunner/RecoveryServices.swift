@@ -26,6 +26,11 @@ final class LocalDataController: ObservableObject {
                 context.insert(GroceryItem(name: "Coles fixture item", amount: 2, position: 0, listID: StoreID.coles.listID))
                 context.insert(GroceryItem(name: "Woolworths fixture item", amount: 1, position: 0, listID: StoreID.woolworths.listID))
                 context.insert(GroceryItem(name: "Bunnings fixture item", amount: 1, position: 0, listID: StoreID.bunnings.listID))
+                if ProcessInfo.processInfo.environment["LISTRUNNER_ALL_ITEMS_RECOVERY_TEST_FIXTURE"] == "1" {
+                    context.insert(GroceryItem(name: "Unavailable saved item", amount: 1, position: 0, listID: StoreID.tesco.listID))
+                    context.insert(GroceryItem(name: "Uncategorised saved item", amount: 1, position: 0,
+                                               listID: UUID(uuidString: "00000000-0000-0000-0000-000000000099")!))
+                }
                 try? context.save()
             }
             return controller

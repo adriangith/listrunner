@@ -115,15 +115,18 @@ enum ShoppingLists {
             $0.position == $1.position ? $0.id.uuidString < $1.id.uuidString : $0.position < $1.position
         }
         var promoted: [GroceryItem] = []
-        func unit(_ value: String?) -> String? {
-            value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        func unit(_ value: String?) -> String {
+            value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
         }
         for entry in entries {
             if let existing = staged.first(where: {
                 GroceryParser.normalizedName($0.name) == GroceryParser.normalizedName(entry.name)
                     && (unit($0.quantityUnit) == unit(entry.unit) || $0.quantityAmount == nil || entry.amount == nil)
             }) {
-                if let amount = entry.amount { existing.quantityAmount = (existing.quantityAmount ?? 0) + amount }
+                if let amount = entry.amount {
+                    if existing.quantityAmount == nil { existing.quantityUnit = entry.unit }
+                    existing.quantityAmount = (existing.quantityAmount ?? 0) + amount
+                }
                 existing.status = .pending
                 if !promoted.contains(where: { $0.id == existing.id }) { promoted.append(existing) }
             } else {

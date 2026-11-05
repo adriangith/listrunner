@@ -203,12 +203,15 @@ private struct StoreSettingsScreen: View {
 
 private struct WelcomeStoreSetupScreen: View {
     let store: StoreDefinition
-    let enableStore: () -> Void
+    let enableStore: () -> Bool
+    @State private var replacementBlocked = false
 
     var body: some View {
         Form {
             Section {
-                Button(action: enableStore) {
+                Button {
+                    replacementBlocked = !enableStore()
+                } label: {
                     Text("Enable \(store.displayName)")
                         .font(.headline)
                         .frame(maxWidth: .infinity, minHeight: 44)
@@ -227,6 +230,11 @@ private struct WelcomeStoreSetupScreen: View {
             } footer: {
                 Text(store.homepage.host ?? "")
             }
+        }
+        .alert("Saved list needs attention", isPresented: $replacementBlocked) {
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This would replace a regional list that still has saved or unsaved items. Return to your saved items and move or clear them first. Nothing was changed.")
         }
         .navigationTitle(store.displayName)
         .navigationBarTitleDisplayMode(.inline)
@@ -596,8 +604,9 @@ struct StoreVisibilityScreen: View {
                 if let onWelcomeStoreEnabled {
                     let store = visibility.selectedRegion(for: selectedBrand)
                     WelcomeStoreSetupScreen(store: store) {
-                        visibility.setBrandVisible(true, brand: selectedBrand)
+                        guard visibility.setBrandVisible(true, brand: selectedBrand) else { return false }
                         onWelcomeStoreEnabled(store.id)
+                        return true
                     }
                 } else {
                     StoreSettingsScreen(brand: selectedBrand, sessions: sessions, visibility: visibility,

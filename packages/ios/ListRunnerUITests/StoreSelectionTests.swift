@@ -453,6 +453,9 @@ final class StoreSelectionTests: XCTestCase {
         if name.contains("Paprika") {
             app.launchEnvironment["LISTRUNNER_PAPRIKA_TEST_FIXTURE"] = "enabled"
         }
+        if name.contains("AllItemsUnavailable") {
+            app.launchEnvironment["LISTRUNNER_ALL_ITEMS_RECOVERY_TEST_FIXTURE"] = "1"
+        }
         if name.contains("Verification") {
             app.launchEnvironment["LISTRUNNER_VERIFICATION_TEST_FIXTURE"] = "enabled"
         }
@@ -1557,10 +1560,12 @@ final class StoreSelectionTests: XCTestCase {
         screenshot.name = "All items — pinned entry with keyboard"
         screenshot.lifetime = .keepAlways
         self.add(screenshot)
+        entry.tap(); entry.typeText("Persisted unsubmitted draft")
         app.terminate(); app.launch()
         XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.buttons["all-items-add"].label, destination)
         XCTAssertTrue(app.segmentedControls.buttons["By category"].isSelected)
+        XCTAssertEqual(app.textFields["all-items-entry"].value as? String, "Persisted unsubmitted draft")
     }
 
     func testAllItemsPaprikaImportRetainsScopeDraftAndDestination() {
@@ -1609,6 +1614,28 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Dismiss store"].tap()
         XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["store-picker"].exists)
+    }
+
+    func testAllItemsUnavailableAndUnknownOwnersRemainRecoverable() {
+        choose("All items")
+        let hiddenRow = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Unavailable saved item, quantity")).firstMatch
+        for _ in 0..<6 where !hiddenRow.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(hiddenRow.label.contains("Unavailable"))
+        hiddenRow.tap()
+        XCTAssertFalse(app.buttons["Dismiss store"].exists)
+        app.buttons["Actions for Unavailable saved item"].tap()
+        app.buttons["Mark Added"].tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@",
+                                                      "Unavailable saved item, quantity", "Added")).firstMatch.exists)
+        let orphan = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Uncategorised saved item, quantity")).firstMatch
+        for _ in 0..<6 where !orphan.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(app.staticTexts["Uncategorised"].exists)
+        app.buttons["Actions for Uncategorised saved item"].tap()
+        app.buttons["Move to Another Store"].tap()
+        app.buttons["Woolworths"].firstMatch.tap()
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Woolworths"].firstMatch.tap()
+        XCTAssertTrue(row("Uncategorised saved item", status: "Pending").waitForExistence(timeout: 5))
     }
 
     func testAllItemsCategoryOrderingUsesRecentItemsAcrossStores() {

@@ -28,6 +28,10 @@ struct RecoveryTests {
         check(addedRows.count == 2 && addedRows[0].name.lowercased() == "milk" && addedRows[0].quantityAmount == 5
               && addedRows[1].position == 1 && otherStoreItem.quantityAmount == 9,
               "shared manual add merges only within destination, preserves batch order and does not duplicate promoted rows")
+        let measuredRows = ShoppingLists.stageAdd([ParsedGrocery(name: "bread", amount: 2, unit: "kg")],
+                                                  to: .coles, allItems: addedRows + [otherStoreItem], context: addContext)
+        check(measuredRows.count == 1 && measuredRows[0].quantityAmount == 2 && measuredRows[0].quantityUnit == "kg",
+              "reactivating an unspecified quantity preserves the newly parsed unit")
         addContext.rollback()
         let remainingAddRows = try addContext.fetchCount(FetchDescriptor<GroceryItem>())
         check(remainingAddRows == 1,
@@ -90,6 +94,18 @@ struct RecoveryTests {
         schema6Object["categories"] = ["grocery", "pharmacyBeauty", "petSupplies"]
         let schema6Data = try JSONSerialization.data(withJSONObject: schema6Object)
         let schema6 = try StoreDefinition.decodeConfiguration(from: schema6Data)
+        for invalidCategory in ["departmentStore", "warehouseClub"] {
+            var invalid = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
+            invalid["category"] = invalidCategory
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: invalid))) == nil,
+                  "schema 7 rejects legacy-only categories just like the onboarding validator")
+        }
+        for futureCategory in ["groceryHome", "clothingHome", "homeFurniture"] {
+            var invalid = schema6Object
+            invalid["categories"] = [futureCategory]
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: invalid))) == nil,
+                  "schema 6 retains its original category vocabulary")
+        }
         check(schema6.schemaVersion == 6 && schema6.category == nil && schema6.categories.count == 3,
               "legacy schema-6 category arrays remain readable without choosing an implicit primary category")
         var missingCategory = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
