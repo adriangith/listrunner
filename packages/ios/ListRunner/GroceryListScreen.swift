@@ -254,13 +254,18 @@ private struct AllItemsScreen: View {
             return ranked
         }
         if grouping == .store {
-            let known = StoreID.allCases.compactMap { id -> AllItemsGroup? in
-                let values = owned.filter { $0.0 == id }.map(\.1).sorted {
-                    $0.position == $1.position ? $0.id.uuidString < $1.id.uuidString : $0.position < $1.position
+            var known: [AllItemsGroup] = []
+            for id in StoreID.allCases {
+                let matching: [GroceryItem] = owned.filter { $0.0 == id }.map(\.1)
+                let values = matching.sorted { left, right in
+                    if left.position == right.position { return left.id.uuidString < right.id.uuidString }
+                    return left.position < right.position
                 }
-                guard !values.isEmpty else { return nil }
-                return AllItemsGroup(id: "store-\(id.rawValue)", title: id.displayName, storeIDs: [id], items: values)
-            }.sorted { lhs, rhs in
+                if !values.isEmpty {
+                    known.append(AllItemsGroup(id: "store-\(id.rawValue)", title: id.displayName, storeIDs: [id], items: values))
+                }
+            }
+            known.sort { lhs, rhs in
                 let li = groupRank(lhs), ri = groupRank(rhs)
                 return li == ri ? lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending : li < ri
             }

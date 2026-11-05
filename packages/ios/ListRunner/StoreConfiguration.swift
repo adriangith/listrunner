@@ -87,7 +87,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         #endif
         }
     }
-    var defaultCategory: StoreCategory {
+    var defaultCategory: StoreCategory? {
         switch self {
         case .coles, .woolworths, .kroger, .morrisons, .newWorld, .ocado, .paknsave, .sainsburys, .tesco, .waitrose:
             .grocery
@@ -117,6 +117,9 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .synthetic:
             .grocery
         #endif
+        // Unreviewed disabled onboarding drafts have no compatibility mapping.
+        // Do not guess a category for a newly generated registration.
+        default: nil
         }
     }
     var hosts: Set<String> {
