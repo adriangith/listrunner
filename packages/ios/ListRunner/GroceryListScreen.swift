@@ -9,6 +9,12 @@ struct ShoppingRootScreen: View {
     @StateObject private var paprikaReminders = PaprikaReminders()
     @AppStorage("activeStoreID") private var activeStoreID = StoreID.coles.rawValue
     @State private var drafts: [StoreID: String] = [:]
+    @State private var showingAllItems = false
+    @State private var storeLaunchRequested = false
+    @State private var importLaunchRequested = false
+    @AppStorage("allItemsRecentStoreOrder.v1") private var allItemsRecentStoreOrder = ""
+    @State private var allItemsDraft = ""
+    @AppStorage("allItemsAddDestination.v1") private var allItemsAddDestination = ""
     @State private var welcomeCompletion = 0
     @State private var welcomeTransition = WelcomeCompletionTransition()
     @State private var previewingStoreWelcome: Bool = {
@@ -30,6 +36,33 @@ struct ShoppingRootScreen: View {
     var body: some View {
         let storeID = StoreID(rawValue: activeStoreID) ?? .coles
         ZStack {
+        Group {
+        if showingAllItems {
+            NavigationStack {
+            AllItemsScreen(sessions: sessions, visibility: visibility, paprikaReminders: paprikaReminders,
+                           draft: $allItemsDraft, destinationRawValue: $allItemsAddDestination,
+                           onChooseStoreList: { id in
+                               sessions.endAllInteractions()
+                               activeStoreID = id.rawValue
+                               showingAllItems = false
+                            }, onShopAtStore: { id in
+                                sessions.endAllInteractions()
+                                activeStoreID = id.rawValue
+                                storeLaunchRequested = true
+                                showingAllItems = false
+                            }, onImportToStore: { id in
+                                sessions.endAllInteractions()
+                                activeStoreID = id.rawValue
+                                importLaunchRequested = true
+                                showingAllItems = false
+                           }, onPromoteStore: { id in
+                               var order = allItemsRecentStoreOrder.split(separator: ",")
+                                   .compactMap { StoreID(rawValue: String($0)) }.filter { $0 != id }
+                               order.insert(id, at: 0)
+                               allItemsRecentStoreOrder = order.map(\.rawValue).joined(separator: ",")
+                           })
+            }
+        } else {
         GroceryListScreen(storeID: storeID, sessions: sessions, visibility: visibility, paprikaReminders: paprikaReminders,
                            previewingStoreWelcome: $previewingStoreWelcome,
                            rawInput: Binding(get: { drafts[storeID] ?? "" }, set: { drafts[storeID] = $0 }),
@@ -45,9 +78,21 @@ struct ShoppingRootScreen: View {
                                    welcomeCompletion += 1
                                }
                            }, onSelectStore: { id in
-                              sessions.endAllInteractions()
-                              activeStoreID = id.rawValue
-                          })
+                               sessions.endAllInteractions()
+                               activeStoreID = id.rawValue
+                           }, onSelectAllItems: {
+                               if allItemsAddDestination.isEmpty { allItemsAddDestination = storeID.rawValue }
+                               showingAllItems = true
+                           }, storeLaunchRequested: $storeLaunchRequested,
+                           importLaunchRequested: $importLaunchRequested,
+                           onPromoteStore: { id in
+                               var order = allItemsRecentStoreOrder.split(separator: ",")
+                                   .compactMap { StoreID(rawValue: String($0)) }.filter { $0 != id }
+                               order.insert(id, at: 0)
+                               allItemsRecentStoreOrder = order.map(\.rawValue).joined(separator: ",")
+                           })
+        }
+        }
             .id("\(storeID.rawValue)-\(welcomeCompletion)")
         }
             .background(WelcomeTransitionAnchor(transition: welcomeTransition))
@@ -114,6 +159,492 @@ private struct WelcomeTransitionAnchor: UIViewRepresentable {
     }
 }
 
+private enum AllItemsGrouping: String {
+    case store
+    case category
+}
+
+private struct AllItemsGroup: Identifiable {
+    let id: String
+    let title: String
+    let storeIDs: [StoreID]
+    let items: [GroceryItem]
+}
+
+private struct AllItemsScreen: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \GroceryItem.position) private var allItems: [GroceryItem]
+    @Query private var lists: [GroceryList]
+    @ObservedObject var sessions: StoreSessions
+    @ObservedObject var visibility: StoreVisibilityPreferences
+    @ObservedObject var paprikaReminders: PaprikaReminders
+    @Binding var draft: String
+    @Binding var destinationRawValue: String
+    let onChooseStoreList: (StoreID) -> Void
+    let onShopAtStore: (StoreID) -> Void
+    let onImportToStore: (StoreID) -> Void
+    let onPromoteStore: (StoreID) -> Void
+    @AppStorage("allItemsGrouping.v1") private var groupingRawValue = AllItemsGrouping.store.rawValue
+    @AppStorage("allItemsRecentStoreOrder.v1") private var recentStoreOrderRawValue = ""
+    @State private var notice: String?
+    @State private var showingStoreManagement = false
+    @State private var itemToDelete: GroceryItem?
+    @State private var pendingReminderWrites: [UUID: ReminderWriteback] = [:]
+    @AppStorage(GroceryImportSource.removeRemindersKey) private var removeRemindersAfterImport = true
+
+    private var grouping: AllItemsGrouping {
+        AllItemsGrouping(rawValue: groupingRawValue) ?? .store
+    }
+    private var destinationID: StoreID? {
+        let id = StoreID(rawValue: destinationRawValue)
+        return id.flatMap { visibility.shoppingVisibleIDs(in: sessions.definitions).contains($0) ? $0 : nil }
+    }
+    private var visibleStores: [StoreDefinition] {
+        StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
+                               enabledIDs: visibility.shoppingVisibleIDs(in: sessions.definitions))
+    }
+    private var pendingCount: Int { allItems.filter { $0.status == .pending }.count }
+    private var addedCount: Int { allItems.filter { $0.status == .added }.count }
+    private var skippedCount: Int { allItems.filter { $0.status == .skipped }.count }
+    private var recency: [StoreID] {
+        recentStoreOrderRawValue.split(separator: ",").compactMap { StoreID(rawValue: String($0)) }
+    }
+
+    private var groups: [AllItemsGroup] {
+        let storesByList = Dictionary(uniqueKeysWithValues: StoreID.allCases.map { ($0.listID, $0) })
+        let owned = allItems.compactMap { item -> (StoreID?, GroceryItem)? in
+            guard let listID = item.listID, let store = storesByList[listID] else { return (nil, item) }
+            return (store, item)
+        }
+        let definitions = Dictionary(uniqueKeysWithValues: sessions.definitions.map { ($0.id, $0) })
+        func storeOrder(_ ids: [StoreID]) -> [StoreID] {
+            let ranked = ids.sorted { lhs, rhs in
+                let li = recency.firstIndex(of: lhs) ?? Int.max
+                let ri = recency.firstIndex(of: rhs) ?? Int.max
+                return li == ri ? lhs.displayName.localizedStandardCompare(rhs.displayName) == .orderedAscending : li < ri
+            }
+            return ranked
+        }
+        if grouping == .store {
+            let known = StoreID.allCases.compactMap { id -> AllItemsGroup? in
+                let values = owned.filter { $0.0 == id }.map(\.1).sorted { $0.position < $1.position }
+                guard !values.isEmpty else { return nil }
+                return AllItemsGroup(id: "store-\(id.rawValue)", title: id.displayName, storeIDs: [id], items: values)
+            }.sorted { lhs, rhs in
+                let left = lhs.storeIDs[0], right = rhs.storeIDs[0]
+                let li = recency.firstIndex(of: left) ?? Int.max, ri = recency.firstIndex(of: right) ?? Int.max
+                return li == ri ? lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending : li < ri
+            }
+            let orphaned = owned.filter { $0.0 == nil }.map(\.1).sorted { $0.position < $1.position }
+            return known + (orphaned.isEmpty ? [] : [AllItemsGroup(id: "uncategorised", title: "Uncategorised", storeIDs: [], items: orphaned)])
+        }
+        let byCategory: [StoreCategory?: [(StoreID?, GroceryItem)]] = Dictionary(grouping: owned) { pair in
+            pair.0.flatMap { definitions[$0]?.category ?? $0.defaultCategory }
+        }
+        let categorized = StoreCategory.allCases.compactMap { category -> AllItemsGroup? in
+            let values = byCategory[.some(category)] ?? []
+            guard !values.isEmpty else { return nil }
+            let storeIDs = storeOrder(Array(Set(values.compactMap(\.0))))
+            let order = Dictionary(uniqueKeysWithValues: storeIDs.enumerated().map { ($1, $0) })
+            let sortedItems = values.sorted { lhs, rhs in
+                let li = lhs.0.flatMap { order[$0] } ?? Int.max, ri = rhs.0.flatMap { order[$0] } ?? Int.max
+                return li == ri ? lhs.1.position < rhs.1.position : li < ri
+            }.map(\.1)
+            return AllItemsGroup(id: "category-\(category.rawValue)", title: category.displayName,
+                                 storeIDs: storeIDs, items: sortedItems)
+        }.sorted { lhs, rhs in
+            let left = lhs.storeIDs.first, right = rhs.storeIDs.first
+            let li = left.flatMap { recency.firstIndex(of: $0) } ?? Int.max
+            let ri = right.flatMap { recency.firstIndex(of: $0) } ?? Int.max
+            return li == ri ? lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending : li < ri
+        }
+        let orphaned = byCategory[.none] ?? []
+        guard !orphaned.isEmpty else { return categorized }
+        return categorized + [AllItemsGroup(id: "uncategorised", title: "Uncategorised", storeIDs: [],
+                                             items: orphaned.map(\.1).sorted { $0.position < $1.position })]
+    }
+
+    var body: some View {
+        List {
+            Section {
+                HStack {
+                    countLabel(pendingCount, title: "Pending", tint: .blue)
+                    Spacer()
+                    countLabel(addedCount, title: "Added", tint: .blue)
+                    Spacer()
+                    countLabel(skippedCount, title: "Skipped", tint: .secondary)
+                }
+                .padding(.vertical, 8)
+            }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+
+            Section("Add products") {
+                VStack(spacing: 12) {
+                    TextField("Milk, bread, eggs", text: $draft, axis: .vertical)
+                        .lineLimit(1...3)
+                        .submitLabel(.done)
+                        .onSubmit(addItems)
+                        .accessibilityIdentifier("all-items-entry")
+                    Divider()
+                    HStack(spacing: 8) {
+                        Button("Import") { importItems() }
+                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                        .accessibilityHint("Import items into the selected destination store")
+                        Spacer(minLength: 4)
+                        if let destinationID {
+                            HStack(spacing: 0) {
+                                Button("Add to \(destinationID.displayName)", action: addItems)
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(minHeight: 44)
+                                    .padding(.leading, 14)
+                                    .disabled(IngredientParser.application.parseProductEntry(draft).isEmpty)
+                                    .accessibilityIdentifier("all-items-add")
+                                Rectangle().fill(.white.opacity(0.35)).frame(width: 1, height: 26)
+                                Menu {
+                                    ForEach(visibleStores, id: \.id) { store in
+                                        Button {
+                                            destinationRawValue = store.id.rawValue
+                                        } label: {
+                                            if store.id == destinationID {
+                                                Label(store.displayName, systemImage: "checkmark")
+                                            } else {
+                                                Text(store.displayName)
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    Image(systemName: "chevron.down")
+                                        .font(.caption.weight(.bold))
+                                        .frame(width: 44, height: 44)
+                                        .contentShape(Rectangle())
+                                }
+                                .accessibilityLabel("Choose add destination")
+                                .accessibilityValue(destinationID.displayName)
+                                .accessibilityIdentifier("all-items-add-destination")
+                            }
+                            .foregroundStyle(.white)
+                            .background(Color.accentColor, in: Capsule())
+                        } else {
+                            Menu {
+                                if visibleStores.isEmpty {
+                                    Button("Manage Stores") { showingStoreManagement = true }
+                                } else {
+                                    ForEach(visibleStores, id: \.id) { store in
+                                        Button(store.displayName) { destinationRawValue = store.id.rawValue }
+                                    }
+                                }
+                            } label: {
+                                Label("Choose Store", systemImage: "chevron.down")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(minHeight: 44)
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+
+            Section {
+                Picker("Group items", selection: $groupingRawValue) {
+                    Text("By store").tag(AllItemsGrouping.store.rawValue)
+                    Text("By category").tag(AllItemsGrouping.category.rawValue)
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("all-items-grouping")
+            }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+
+            if groups.isEmpty {
+                ContentUnavailableView("Your lists are empty", systemImage: "basket",
+                                       description: Text("Add products above, or choose a store list."))
+                    .listRowBackground(Color.clear)
+            } else {
+                ForEach(groups) { group in
+                    Section {
+                        ForEach(group.items, id: \.id) { item in
+                            allItemRow(item)
+                        }
+                    } header: {
+                        HStack {
+                            Text(group.title)
+                            Spacer()
+                            Text("\(group.items.count)").foregroundStyle(.secondary)
+                        }
+                        .foregroundStyle(grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary)
+                    }
+                }
+            }
+            if let notice {
+                Section { Text(notice).font(.footnote).foregroundStyle(.secondary) }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .contentMargins(.top, 0, for: .scrollContent)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .navigationDestination(isPresented: $showingStoreManagement) {
+            StoreVisibilityScreen(sessions: sessions, visibility: visibility,
+                onOpenStoreList: { id in
+                    showingStoreManagement = false
+                    onChooseStoreList(id)
+                })
+        }
+        .confirmationDialog("Delete this item?", isPresented: Binding(
+            get: { itemToDelete != nil }, set: { if !$0 { itemToDelete = nil } }), titleVisibility: .visible) {
+            Button("Delete Item", role: .destructive) {
+                guard let itemToDelete else { return }
+                delete(itemToDelete)
+                self.itemToDelete = nil
+            }
+            Button("Cancel", role: .cancel) { itemToDelete = nil }
+        } message: {
+            Text("This removes the row from its ListRunner store list only. It does not change a retailer cart or Apple Reminders.")
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            HStack {
+                Text("Your list").font(.largeTitle.weight(.bold))
+                Spacer(minLength: 8)
+                Menu {
+                    Label("All items", systemImage: "checkmark")
+                    Divider()
+                    ForEach(visibleStores, id: \.id) { store in
+                        Button(store.displayName) { onChooseStoreList(store.id) }
+                    }
+                    Divider()
+                    Button("Manage Stores") { showingStoreManagement = true }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("All items").font(.title3.weight(.heavy)).lineLimit(1)
+                        Image(systemName: "chevron.up.chevron.down").font(.caption2.weight(.black))
+                    }
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 13).padding(.vertical, 9)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
+                }
+                .accessibilityIdentifier("all-items-scope-picker")
+            }
+            .padding(.horizontal, 20).padding(.vertical, 10)
+            .background(Color(uiColor: .systemGroupedBackground))
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !allItems.isEmpty {
+                Menu {
+                    ForEach(visibleStores, id: \.id) { store in
+                        Button("Shop at \(store.displayName)") { onShopAtStore(store.id) }
+                    }
+                } label: {
+                    Label("Choose Store", systemImage: "cart.fill")
+                        .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.accentColor.opacity(0.28))
+                .foregroundStyle(Color.accentColor)
+                .padding(.horizontal, 20).padding(.top, 8)
+            }
+        }
+        .onAppear {
+            if destinationRawValue.isEmpty, !visibleStores.isEmpty {
+                let previouslyViewed = StoreID(rawValue: UserDefaults.standard.string(forKey: "activeStoreID") ?? "")
+                destinationRawValue = previouslyViewed.flatMap { id in
+                    visibleStores.contains(where: { $0.id == id }) ? id.rawValue : nil
+                } ?? visibleStores[0].id.rawValue
+            }
+        }
+    }
+
+    private func countLabel(_ count: Int, title: String, tint: Color) -> some View {
+        VStack(spacing: 3) {
+            Text("\(count)").font(.title3.weight(.semibold)).foregroundStyle(tint)
+            Text(title).font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(minWidth: 68)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func allItemRow(_ item: GroceryItem) -> some View {
+        let owner = StoreID.allCases.first { $0.listID == item.listID }
+        return HStack(spacing: 10) {
+            Button {
+                guard let owner else {
+                    notice = "This saved item has no recognized store list. It remains visible and has not been moved or deleted."
+                    return
+                }
+                guard visibility.shoppingVisibleIDs(in: sessions.definitions).contains(owner) else {
+                    notice = "This item belongs to the disabled \(owner.displayName) list. It remains visible here; enable that store to open its list."
+                    return
+                }
+                let list = lists.first { $0.id == owner.listID }
+                list?.selectedItemID = item.id
+                try? modelContext.save()
+                onChooseStoreList(owner)
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.name).font(.body.weight(.medium)).foregroundStyle(.primary)
+                    Text("\(owner?.displayName ?? "Uncategorised") · \(item.displayQuantity)")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(owner.map { ", \($0.displayName)" } ?? ", Uncategorised")")
+            Spacer(minLength: 4)
+            Text(item.status.rawValue)
+                .font(.caption2.weight(.semibold))
+                .padding(.horizontal, 9).padding(.vertical, 6)
+                .background(statusTint(item.status).opacity(0.14), in: Capsule())
+                .foregroundStyle(statusTint(item.status))
+            Menu {
+                if item.status == .pending {
+                    Button("Mark Added", systemImage: "checkmark.circle") { setStatus(.added, for: item) }
+                } else if item.status == .added {
+                    Button("Mark Pending", systemImage: "arrow.uturn.backward.circle") { setStatus(.pending, for: item) }
+                }
+                if item.status != .skipped {
+                    Button("Mark Skipped", systemImage: "forward.end") { setStatus(.skipped, for: item) }
+                } else {
+                    Button("Mark Pending", systemImage: "arrow.uturn.backward.circle") { setStatus(.pending, for: item) }
+                }
+                if let owner {
+                    Menu("Move to Another Store", systemImage: "arrow.right.arrow.left") {
+                        ForEach(visibleStores.filter { $0.id != owner }, id: \.id) { store in
+                            Button(store.displayName) { move(item, to: store.id) }
+                        }
+                    }
+                }
+                Button("Delete Item", systemImage: "trash", role: .destructive) { itemToDelete = item }
+            } label: {
+                Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Actions for \(item.name)")
+        }
+        .frame(minHeight: 48)
+        .accessibilityIdentifier("all-item-\(item.id.uuidString)")
+    }
+
+    private func setStatus(_ status: GroceryStatus, for item: GroceryItem) {
+        item.status = status
+        stageReminderWriteback(for: item)
+        saveChanges()
+    }
+
+    private func move(_ item: GroceryItem, to destination: StoreID) {
+        guard let source = StoreID.allCases.first(where: { $0.listID == item.listID }) else { return }
+        if let sourceList = lists.first(where: { $0.id == source.listID }), sourceList.selectedItemID == item.id {
+            sourceList.selectedItemID = ShoppingLists.selection(afterRemoving: item.id,
+                from: allItems.filter { $0.listID == source.listID })
+        }
+        sessions.browser(for: source).endInteraction()
+        ShoppingLists.move(item, to: destination, allItems: allItems)
+        stageReminderWriteback(for: item)
+        saveChanges()
+        notice = "Moved item to \(destination.displayName)."
+    }
+
+    private func delete(_ item: GroceryItem) {
+        if let owner = StoreID.allCases.first(where: { $0.listID == item.listID }) {
+            let sourceItems = allItems.filter { $0.listID == owner.listID }
+            if let list = lists.first(where: { $0.id == owner.listID }), list.selectedItemID == item.id {
+                list.selectedItemID = ShoppingLists.selection(afterRemoving: item.id, from: sourceItems)
+            }
+            for (position, remaining) in sourceItems.filter({ $0.id != item.id }).enumerated() {
+                remaining.position = position
+            }
+        }
+        modelContext.delete(item)
+        pendingReminderWrites.removeValue(forKey: item.id)
+        paprikaReminders.cancelQueuedWriteback(for: item)
+        saveChanges()
+    }
+
+    private func stageReminderWriteback(for item: GroceryItem) {
+        guard !removeRemindersAfterImport else { return }
+        if let write = paprikaReminders.desiredWriteback(for: item) { pendingReminderWrites[item.id] = write }
+    }
+
+    private func saveChanges() {
+        do {
+            try modelContext.save()
+            let writes = Array(pendingReminderWrites.values)
+            pendingReminderWrites.removeAll()
+            for write in writes { paprikaReminders.queueWriteback(write) }
+        } catch {
+            notice = "Changes may not be saved. Try again."
+        }
+    }
+
+    private func importItems() {
+        guard let destinationID else {
+            notice = "Choose an enabled store before importing."
+            return
+        }
+        onImportToStore(destinationID)
+    }
+
+    private func addItems() {
+        guard let destinationID, !IngredientParser.application.parseProductEntry(draft).isEmpty else { return }
+        let parsed = IngredientParser.application.parseProductEntry(draft)
+        let targetItems = allItems.filter { $0.listID == destinationID.listID }.sorted { $0.position < $1.position }
+        var promoted: [GroceryItem] = []
+        var staged = targetItems
+        for entry in parsed {
+            if let existing = staged.first(where: {
+                GroceryParser.normalizedName($0.name) == GroceryParser.normalizedName(entry.name)
+                    && (Self.normalizedUnit($0.quantityUnit) == Self.normalizedUnit(entry.unit)
+                        || $0.quantityAmount == nil || entry.amount == nil)
+            }) {
+                if let amount = entry.amount { existing.quantityAmount = (existing.quantityAmount ?? 0) + amount }
+                existing.status = .pending
+                if !promoted.contains(where: { $0.id == existing.id }) { promoted.append(existing) }
+            } else {
+                let item = GroceryItem(name: entry.name, amount: entry.amount, unit: entry.unit,
+                                       position: staged.count, listID: destinationID.listID)
+                modelContext.insert(item)
+                staged.append(item)
+                promoted.append(item)
+            }
+        }
+        let promotedIDs = Set(promoted.map(\.id))
+        for (index, item) in (promoted + staged.filter { !promotedIDs.contains($0.id) }).enumerated() {
+            item.position = index
+        }
+        do {
+            try modelContext.save()
+            var order = recency.filter { $0 != destinationID }
+            order.insert(destinationID, at: 0)
+            recentStoreOrderRawValue = order.map(\.rawValue).joined(separator: ",")
+            onPromoteStore(destinationID)
+            draft = ""
+            notice = "Added \(promoted.count) \(promoted.count == 1 ? "item" : "items") to \(destinationID.displayName)."
+        } catch {
+            modelContext.rollback()
+            notice = "Could not save the items. Your text is still here; try again."
+        }
+    }
+
+    private func storeTint(_ id: StoreID) -> Color {
+        guard let definition = sessions.definitions.first(where: { $0.id == id }) else { return .secondary }
+        let color = definition.brandColors?.primary ?? definition.addedColor
+        return Color(red: Double(color.red) / 255, green: Double(color.green) / 255, blue: Double(color.blue) / 255)
+    }
+
+    private func statusTint(_ status: GroceryStatus) -> Color {
+        switch status {
+        case .pending: .accentColor
+        case .added: .green
+        case .skipped: .secondary
+        }
+    }
+
+    private static func normalizedUnit(_ unit: String?) -> String? {
+        unit?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+}
+
 struct GroceryListScreen: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
@@ -126,6 +657,10 @@ struct GroceryListScreen: View {
     let storeID: StoreID
     let sessions: StoreSessions
     let onSelectStore: (StoreID) -> Void
+    let onSelectAllItems: () -> Void
+    @Binding var storeLaunchRequested: Bool
+    @Binding var importLaunchRequested: Bool
+    let onPromoteStore: (StoreID) -> Void
     let onWelcomeStoreEnabled: (StoreID) -> Void
     @Binding private var rawInput: String
     @State private var routedLaunch = false
@@ -173,14 +708,22 @@ struct GroceryListScreen: View {
 
     init(storeID: StoreID, sessions: StoreSessions, visibility: StoreVisibilityPreferences, paprikaReminders: PaprikaReminders,
          previewingStoreWelcome: Binding<Bool>, rawInput: Binding<String>,
-         onWelcomeStoreEnabled: @escaping (StoreID) -> Void,
-         onSelectStore: @escaping (StoreID) -> Void) {
+          onWelcomeStoreEnabled: @escaping (StoreID) -> Void,
+          onSelectStore: @escaping (StoreID) -> Void,
+          onSelectAllItems: @escaping () -> Void,
+          storeLaunchRequested: Binding<Bool>,
+          importLaunchRequested: Binding<Bool>,
+          onPromoteStore: @escaping (StoreID) -> Void) {
         self.storeID = storeID; self.sessions = sessions
         self.visibility = visibility
         self.paprikaReminders = paprikaReminders
         self.onWelcomeStoreEnabled = onWelcomeStoreEnabled
         self._previewingStoreWelcome = previewingStoreWelcome
         self.onSelectStore = onSelectStore; self._rawInput = rawInput
+        self.onSelectAllItems = onSelectAllItems
+        self._storeLaunchRequested = storeLaunchRequested
+        self._importLaunchRequested = importLaunchRequested
+        self.onPromoteStore = onPromoteStore
         _browser = StateObject(wrappedValue: sessions.browser(for: storeID))
     }
 
@@ -391,6 +934,18 @@ struct GroceryListScreen: View {
             }
             .onAppear {
                 isListScreenVisible = true
+                if storeLaunchRequested {
+                    storeLaunchRequested = false
+                    presentStore()
+                }
+                if importLaunchRequested {
+                    importLaunchRequested = false
+                    if GroceryImportSource(rawValue: importSourceID) == .paprika {
+                        importPaprika()
+                    } else {
+                        showingImportSetup = true
+                    }
+                }
                 if let selected = visibility.selectionForList(current: storeID, definitions: sessions.definitions),
                    selected != storeID {
                     onSelectStore(selected)
@@ -438,6 +993,12 @@ struct GroceryListScreen: View {
                     Spacer(minLength: 8)
                     if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty {
                         Menu {
+                            Button {
+                                onSelectAllItems()
+                            } label: {
+                                Label("All items", systemImage: "square.grid.2x2")
+                            }
+                            Divider()
                             ForEach(StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
                                                             enabledIDs: shoppingVisibleIDs), id: \.id) { store in
                                 Button(store.displayName) { onSelectStore(store.id) }
@@ -502,7 +1063,11 @@ struct GroceryListScreen: View {
                         // Let the root crossfade to a fresh list navigation stack.
                         // Do not pop this outgoing stack during its fade.
                         onWelcomeStoreEnabled(id)
-                    } : nil)
+                    } : nil,
+                    onOpenStoreList: { id in
+                        showingStoreManagement = false
+                        onSelectStore(id)
+                    })
             }
             .onChange(of: showingStoreManagement) { _, presented in
                 if !presented { managingWelcomeStores = false }
@@ -908,6 +1473,7 @@ struct GroceryListScreen: View {
             rawInput = ""
             groceryInputFocused = keepingInputFocused
             saveChanges()
+            if !saveFailed { onPromoteStore(storeID) }
         }
 
         guard !newlyAddedIDs.isEmpty else { return }
@@ -1178,6 +1744,7 @@ struct GroceryListScreen: View {
                     throw PaprikaImportError.transaction
                 }
                 importSourceID = GroceryImportSource.paprika.rawValue
+                onPromoteStore(storeID)
                 if removeAfterImport {
                     let savedIDs = linkedIDs.union(staged.compactMap(\.reminderID))
                     let failed = paprikaReminders.removeImportedReminders(PaprikaImportPlanner.removalCandidates(reminders: snapshot, savedIDs: savedIDs), calendarID: sourceListID)

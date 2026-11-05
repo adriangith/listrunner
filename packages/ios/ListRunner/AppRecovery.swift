@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct LocalDataRecoveryScreen: View {
     @ObservedObject var storage: LocalDataController
@@ -25,12 +26,30 @@ struct LocalDataRecoveryScreen: View {
 }
 
 struct SettingsScreen: View {
+    @Environment(\.dismiss) private var dismiss
+    @Query private var allItems: [GroceryItem]
     @ObservedObject var browser: StoreBrowser
     let brand: StoreBrand
     @ObservedObject var visibility: StoreVisibilityPreferences
     @State private var confirmingReset = false
     @State private var diagnosticsNotice: String?
     @State private var choosingRegion = false
+    @State private var storeDisableBlocked = false
+    let onOpenStoreList: ((StoreID) -> Void)?
+
+    private var nonEmptyListIDs: Set<UUID> {
+        Set(allItems.compactMap { item in
+            guard let id = item.listID, StoreID.allCases.contains(where: { $0.listID == id }) else { return nil }
+            return id
+        })
+    }
+    private var affectedNonEmptyStores: [(StoreID, Int)] {
+        brand.regions.compactMap { definition in
+            guard visibility.visibleIDs.contains(definition.id),
+                  nonEmptyListIDs.contains(definition.id.listID) else { return nil }
+            return (definition.id, allItems.filter { $0.listID == definition.id.listID }.count)
+        }
+    }
 
     private var configurationValid: Bool { browser.store.isConfigurationValid }
 
@@ -50,11 +69,25 @@ struct SettingsScreen: View {
             Section {
                 Toggle("Enable store", isOn: Binding(
                     get: { !visibility.shoppingVisibleIDs(in: brand.regions).isEmpty },
-                    set: { visibility.setBrandVisible($0, brand: brand) }
+                    set: {
+                        visibility.updateNonEmptyListIDs(nonEmptyListIDs)
+                        if !visibility.setBrandVisible($0, brand: brand) { storeDisableBlocked = true }
+                    }
                 ))
                 .accessibilityLabel("Enable \(brand.name)")
                 .accessibilityIdentifier("store-visibility-\(brand.id)")
                 .disabled(browser.resetPhase != .ready)
+                .alert("Store can’t be disabled yet", isPresented: $storeDisableBlocked) {
+                    Button("View List") {
+                        if let onOpenStoreList, let affected = affectedNonEmptyStores.first {
+                            onOpenStoreList(affected.0)
+                        }
+                        else { dismiss() }
+                    }
+                    Button("OK", role: .cancel) { }
+                } message: {
+                    Text("Move or clear the saved items in \(affectedNonEmptyStores.map { "\($0.1) in \($0.0.displayName)" }.joined(separator: ", ")). This includes Added and Skipped items. Nothing was changed.")
+                }
                 if brand.isRegional {
                     Button { choosingRegion = true } label: {
                         LabeledContent("Region", value: browser.store.id.regionalCountryCode.map { ShoppingCountry.name($0) } ?? browser.store.displayName)
@@ -127,8 +160,10 @@ struct SettingsScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(browser.resetPhase != .ready)
         .sheet(isPresented: $choosingRegion) {
-            NavigationStack { StoreRegionScreen(brand: brand, visibility: visibility) }
+            NavigationStack { StoreRegionScreen(brand: brand, visibility: visibility, onOpenStoreList: onOpenStoreList) }
         }
+        .onAppear { visibility.updateNonEmptyListIDs(nonEmptyListIDs) }
+        .onChange(of: nonEmptyListIDs) { _, ids in visibility.updateNonEmptyListIDs(ids) }
         .alert(browser.resetPhase == .failed ? "Could not reset \(browser.store.displayName) session" : "Reset \(browser.store.displayName) Session?",
                isPresented: Binding(get: { confirmingReset || browser.resetPhase == .failed },
                                     set: { if !$0 { confirmingReset = false } })) {
@@ -156,10 +191,12 @@ private struct StoreSettingsScreen: View {
     let brand: StoreBrand
     @ObservedObject var sessions: StoreSessions
     @ObservedObject var visibility: StoreVisibilityPreferences
+    let onOpenStoreList: ((StoreID) -> Void)?
 
     var body: some View {
         let store = visibility.selectedRegion(for: brand).id
-        SettingsScreen(browser: sessions.browser(for: store), brand: brand, visibility: visibility)
+        SettingsScreen(browser: sessions.browser(for: store), brand: brand, visibility: visibility,
+                       onOpenStoreList: onOpenStoreList)
             .id(store)
     }
 }
@@ -481,6 +518,7 @@ struct StoreVisibilityScreen: View {
     // Non-nil only for the welcome entry point. Normal management retains all
     // settings, toggles and region/session controls.
     var onWelcomeStoreEnabled: ((StoreID) -> Void)? = nil
+    var onOpenStoreList: ((StoreID) -> Void)? = nil
     @State private var searchText = ""
     @State private var selectedBrand: StoreBrand?
 
@@ -499,6 +537,7 @@ struct StoreVisibilityScreen: View {
                     addedColor: definition.addedColor, brandColors: definition.brandColors,
                     automationSchemaVersion: definition.automationSchemaVersion,
                     categories: definition.categories,
+                    category: definition.category,
                     capabilities: definition.capabilities, cart: definition.cart)
             }
         }
@@ -549,7 +588,8 @@ struct StoreVisibilityScreen: View {
                         onWelcomeStoreEnabled(store.id)
                     }
                 } else {
-                    StoreSettingsScreen(brand: selectedBrand, sessions: sessions, visibility: visibility)
+                    StoreSettingsScreen(brand: selectedBrand, sessions: sessions, visibility: visibility,
+                                        onOpenStoreList: onOpenStoreList)
                 }
             }
         }
@@ -557,11 +597,20 @@ struct StoreVisibilityScreen: View {
 }
 
 private struct StoreRegionScreen: View {
+    @Query private var allItems: [GroceryItem]
     let brand: StoreBrand
     @ObservedObject var visibility: StoreVisibilityPreferences
+    let onOpenStoreList: ((StoreID) -> Void)?
     @Environment(\.dismiss) private var dismiss
     @State private var pendingRegion: StoreID?
+    @State private var regionChangeBlocked = false
     private var availableRegions: [StoreDefinition] { brand.regions.filter(\.isAvailableForShopping) }
+    private var nonEmptyListIDs: Set<UUID> {
+        Set(allItems.compactMap { item in
+            guard let id = item.listID, StoreID.allCases.contains(where: { $0.listID == id }) else { return nil }
+            return id
+        })
+    }
 
     var body: some View {
         List {
@@ -604,17 +653,37 @@ private struct StoreRegionScreen: View {
                 .font(.body).frame(maxWidth: .infinity, minHeight: 44)
                 .buttonStyle(.borderedProminent).padding()
                 .background(Color(uiColor: .systemGroupedBackground))
+                .alert("Region can’t be changed yet", isPresented: $regionChangeBlocked) {
+                    Button("View List") {
+                        if let affected = brand.regions.first(where: {
+                            visibility.visibleIDs.contains($0.id) && visibility.nonEmptyListIDs.contains($0.id.listID)
+                        }) {
+                            onOpenStoreList?(affected.id)
+                        } else {
+                            dismiss()
+                        }
+                    }
+                    Button("OK", role: .cancel) { pendingRegion = nil }
+                } message: {
+                    Text("The enabled region has saved items, including Added or Skipped items. Move them to another store or clear its list before switching regions. Nothing was changed.")
+                }
         }
         .alert("Change \(brand.name) region?", isPresented: Binding(get: { pendingRegion != nil }, set: { if !$0 { pendingRegion = nil } })) {
             Button("Use this regional website") {
-                if let id = pendingRegion { visibility.chooseRegion(id, for: brand) }
-                pendingRegion = nil
-                dismiss()
+                visibility.updateNonEmptyListIDs(nonEmptyListIDs)
+                if let id = pendingRegion, !visibility.chooseRegion(id, for: brand) {
+                    regionChangeBlocked = true
+                } else {
+                    pendingRegion = nil
+                    dismiss()
+                }
             }
             Button("Cancel", role: .cancel) { pendingRegion = nil }
         } message: {
             Text("Your old region's list and website session are kept. If this brand is enabled, the new region replaces it in the chooser. If your active region is disabled, returning to your list selects an enabled store. No store website is opened automatically.")
         }
+        .onAppear { visibility.updateNonEmptyListIDs(nonEmptyListIDs) }
+        .onChange(of: nonEmptyListIDs) { _, ids in visibility.updateNonEmptyListIDs(ids) }
     }
 }
 

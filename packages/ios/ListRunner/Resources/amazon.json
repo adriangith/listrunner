@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "id": "amazon",
-  "categories": ["grocery", "onlineMarketplace", "hardwareGarden", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies", "automotive", "outdoorCamping"],
+  "category": "onlineMarketplace",
   "automationSchemaVersion": 2,
   "displayName": "Amazon US",
   "serviceArea": {"countryCodes": ["US"]},

@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "id": "tesco",
-  "categories": ["grocery", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies"],
+  "category": "grocery",
   "automationSchemaVersion": 4,
   "displayName": "Tesco",
   "serviceArea": {"countryCodes": ["GB"]},

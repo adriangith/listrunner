@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 6, "id": "morrisons", "displayName": "Morrisons",
-  "categories": ["grocery", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies"],
+  "schemaVersion": 7, "id": "morrisons", "displayName": "Morrisons",
+  "category": "grocery",
   "automationSchemaVersion": 4,
   "serviceArea": {"countryCodes": ["GB"]},
   "homepage": "https://groceries.morrisons.com",

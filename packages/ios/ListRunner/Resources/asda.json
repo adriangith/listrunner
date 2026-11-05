@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 6, "id": "asda", "displayName": "Asda",
-  "categories": ["grocery", "departmentStore", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies"],
+  "schemaVersion": 7, "id": "asda", "displayName": "Asda",
+  "category": "groceryHome",
   "automationSchemaVersion": 2,
   "serviceArea": {"countryCodes": ["GB"]},
   "homepage": "https://www.asda.com/groceries",

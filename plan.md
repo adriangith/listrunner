@@ -1,5 +1,14 @@
 ## ListRunner Build Specification
 
+### All items across store lists (5 November 2026)
+
+* `All items` is a scope in the existing store chooser, not a new store, basket or tab. It reads the existing store-owned lists and keeps their distinct ownership, status, order, selection and shopping sessions. Items with missing/unrecognized ownership remain visible in an **Uncategorised** group and are not silently assigned or removed.
+* The scope has no separate search bar. Its fixed entry area remains above the rows when groups reorder. Show Pending/Added/Skipped counts, `By store` and `By category` grouping (remember the choice), and promote the store/group that most recently received additions without moving the entry controls.
+* The split Add control adds the draft to its named destination; its arrow changes only the destination. Keep draft text when changing destination and remember the last destination. On first entry inherit the previously viewed store when enabled, otherwise suggest the first enabled store. A newly added item belongs to only that store's existing list. Store grouping uses retailer identity; category grouping uses the single reviewed retailer category. Grocery and Groceries & Home stay distinct.
+* `Import` reuses the configured app-wide import source and the existing import transaction, duplicate detection, selected Paprika list identity, save-before-removal safeguards and destination ownership. If no source has been chosen, continue through the existing source setup. Importing from All items uses the currently named destination; it never merges lists or changes a retailer cart.
+* A store cannot be disabled while its list contains any row, including Added or Skipped. A regional switch that would disable a nonempty region is likewise blocked. Explain that items must first be explicitly moved or cleared; keep all saved rows and website sessions. Enabling a store and selecting an already enabled region are unaffected.
+* `Choose Store` in the All items footer is the only route into a retailer shopping session. Choosing a retailer in the scope menu changes list scope only and never opens its website. Category schema 7 requires one `category`; schemas 2–6 remain readable, and schema-6 category array order has no primary-category meaning. See `docs/store-categories.md`.
+
 ### Auto-scroll to search results (4 November 2026)
 
 * Native store search definitions may optionally supply a results-container or first-result CSS selector (`resultsSelector`) and a 0–500 CSS-pixel sticky-header allowance (`resultsTopOffset`, default 12). These additive fields do not change the existing search/cart capability ceilings or require existing definitions to migrate.

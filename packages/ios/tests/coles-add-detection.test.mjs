@@ -587,7 +587,9 @@ test('Coles schema-6 trusted-tile behavior matches the schema-2 wire definition'
   current.tick(4); legacy.tick(4);
   assert.deepEqual(legacy.messages, current.messages);
   const alteredCategories = structuredClone(coles);
-  alteredCategories.categories = [...alteredCategories.categories].reverse();
+  alteredCategories.categories = ['petSupplies', 'pharmacyBeauty', 'grocery'];
+  alteredCategories.schemaVersion = 6;
+  delete alteredCategories.category;
   const reordered = fixture({ config: alteredCategories });
   reordered.click(); reordered.setQuantity(1); reordered.tick(4);
   assert.deepEqual(reordered.messages, current.messages);

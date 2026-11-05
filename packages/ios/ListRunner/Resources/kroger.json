@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "id": "kroger",
-  "categories": ["grocery", "pharmacyBeauty", "petSupplies"],
+  "category": "grocery",
   "automationSchemaVersion": 2,
   "displayName": "Kroger",
   "serviceArea": {"countryCodes": ["US"]},

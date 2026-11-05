@@ -80,13 +80,20 @@ as well as every canonical JSON file.
 
 ### Twenty-store expansion (1 November 2026 — partial delivery)
 
-Native store definitions use retailer JSON schema 6 for their required multi-category
-metadata (33 destinations, including IKEA AU). Schemas 2–5 remain readable with category unknown; category values do not
-grant automation or alter discovery. Schema-6 definitions preserve their previous
-automation-rule version separately so this metadata upgrade does not change detection
-behavior. The taxonomy and full assignment are in
+Native store definitions use retailer JSON schema 7 for one required category per
+destination (33 destinations, including IKEA AU). Schemas 2–5 remain readable with
+category unknown; schema 6's multi-category arrays remain readable without assigning
+a primary category by array order. Categories do not grant automation or alter
+discovery. Schema-6/7 definitions preserve their previous automation-rule version
+separately so the metadata upgrade does not change detection behavior. The taxonomy and full assignment are in
 `../../docs/store-categories.md`. This JSON format version is independent of the
 SwiftData shopping-list schema.
+
+The All items scope reads existing store lists without creating a shared basket. It
+supports remembered store/category grouping, destination-specific text entry and
+the existing import flow. Disabling a store/region with saved items is blocked until
+the user explicitly moves or clears them. Verify these behaviors on the Mac build;
+Linux cannot run the iOS target.
 
 Twenty additional AU/NZ/GB/US destinations are registered, disabled by default,
 with independent saved lists, website sessions and diagnostics/reset scopes.

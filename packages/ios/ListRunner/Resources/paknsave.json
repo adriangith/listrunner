@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 6, "id": "paknsave", "displayName": "PAK’nSAVE",
-  "categories": ["grocery", "pharmacyBeauty", "petSupplies"],
+  "schemaVersion": 7, "id": "paknsave", "displayName": "PAK’nSAVE",
+  "category": "grocery",
   "automationSchemaVersion": 2,
   "serviceArea": {"countryCodes": ["NZ"]},
   "homepage": "https://www.paknsave.co.nz",

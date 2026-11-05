@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 6, "id": "walgreens", "displayName": "Walgreens",
-  "categories": ["grocery", "pharmacyBeauty"],
+  "schemaVersion": 7, "id": "walgreens", "displayName": "Walgreens",
+  "category": "pharmacyBeauty",
   "automationSchemaVersion": 2,
   "serviceArea": {"countryCodes": ["US"]},
   "homepage": "https://www.walgreens.com",

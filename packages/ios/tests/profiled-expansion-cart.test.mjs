@@ -14,8 +14,13 @@ function fixture(store = 'priceline', { before = 0, captured = false, schemaVers
   const config = load(store);
   if (schemaVersion !== null) {
     config.schemaVersion = schemaVersion;
+    if (schemaVersion === 6) {
+      config.categories = [config.category];
+      delete config.category;
+    }
     if (schemaVersion < 6) {
       delete config.categories;
+      delete config.category;
       delete config.automationSchemaVersion;
     }
   }
@@ -224,7 +229,7 @@ for (const [store, version, action] of [
   test(`${store} schema-6 automation matches its schema-${version} wire definition`, () => {
     const current = fixture(store);
     const legacy = fixture(store, { schemaVersion: version });
-    const reordered = fixture(store, { categories: [...load(store).categories].reverse() });
+    const reordered = fixture(store, { categories: ['petSupplies', 'grocery', load(store).category] });
     for (const scenario of [current, legacy, reordered]) action(scenario);
     assert.deepEqual(legacy.additions, current.additions);
     assert.deepEqual(legacy.acknowledgements, current.acknowledgements);

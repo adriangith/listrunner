@@ -1,6 +1,29 @@
 # Reusable store framework validation
 
-## Native retailer categories — schema 6 (5 November 2026)
+## All items scope and category schema 7 — in progress
+
+Implementation is under way in the current Linux checkout and is not yet Mac- or
+simulator-validated. All Items reads existing `GroceryItem` rows, uses the
+destination's list ID for manual additions and redirects Import to the existing
+configured store importer, so its transaction and reminder-removal safeguards remain
+the same. Unknown/orphaned rows are surfaced as Uncategorised. Store/brand disable
+and active-region replacement are blocked when an affected list has any rows.
+
+Checks run in this checkout:
+
+- `python3 -B packages/ios/tests/test-store-categories.py` — 2 passed.
+- `python3 -B packages/ios/tests/test-store-onboarding.py` — 20 passed.
+- `python3 -B packages/ios/tests/test-store-expansion.py` — 3 passed.
+- Focused retailer automation tests (`coles-add-detection`, `ikea-cart-snapshot`,
+  `bigw-cart-detection`, `profiled-expansion-cart`) — 303 passed after schema-fixture
+  updates.
+
+Still required: Xcode build, native RecoveryTests, focused All items UI coverage for
+scope/grouping/add/import/disable recovery, and app-bundle resource verification on
+the Mac checkout. No install, retailer cart mutation, release or distribution was
+performed.
+
+## Native retailer categories — schema 6 (5 November 2026, historical validation)
 
 Review reconciled this change with main at `a39376ff184769349c711824d9399067754f97f4`.
 Schema 5 was already used by IKEA's snapshot engine, so category metadata now uses
