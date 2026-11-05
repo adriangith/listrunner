@@ -1509,9 +1509,10 @@ final class StoreSelectionTests: XCTestCase {
             XCTAssertTrue(row.waitForExistence(timeout: 3), "All items should include the existing \(item)")
         }
 
-        let entry = app.descendants(matching: .any)["all-items-entry"]
+        let entry = app.textFields["all-items-entry"]
         XCTAssertTrue(entry.waitForExistence(timeout: 3))
-        entry.tap()
+        entry.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3), app.debugDescription)
         entry.typeText("All items destination item")
         app.buttons["all-items-add-destination"].tap()
         app.buttons["Woolworths"].firstMatch.tap()
@@ -1559,7 +1560,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Settings"].tap()
         app.buttons["Manage Stores"].tap()
         openStoreSettings("coles")
-        app.switches["store-visibility-coles"].tap()
+        app.switches["store-visibility-coles"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         let blocker = app.alerts["Store can’t be disabled yet"]
         XCTAssertTrue(blocker.waitForExistence(timeout: 3), app.debugDescription)
         XCTAssertTrue(blocker.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Coles")).firstMatch.exists)
@@ -1590,7 +1591,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["store-picker"].tap()
         app.buttons["store-picker-manage-stores"].tap()
         openStoreSettings("bunnings")
-        app.switches["store-visibility-bunnings"].tap()
+        app.switches["store-visibility-bunnings"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         let blocker = app.alerts["Store can’t be disabled yet"]
         XCTAssertTrue(blocker.waitForExistence(timeout: 3))
         blocker.buttons["View List"].tap()
