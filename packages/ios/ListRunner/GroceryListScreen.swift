@@ -405,19 +405,20 @@ private struct AllItemsScreen: View {
             } else {
                 ForEach(groups) { group in
                     Section {
+                        HStack {
+                            Text(group.title).font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Text("\(group.items.count)").foregroundStyle(.secondary)
+                        }
+                        .foregroundStyle(grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary)
+                        .accessibilityAddTraits(.isHeader)
+                        .id(group.id)
                         ForEach(group.items, id: \.id) { item in
                             allItemRow(item)
                                 .id(item.id)
                                 .listRowBackground(highlightedItemIDs.contains(item.id)
                                     ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
                         }
-                    } header: {
-                        HStack {
-                            Text(group.title)
-                            Spacer()
-                            Text("\(group.items.count)").foregroundStyle(.secondary)
-                        }
-                        .foregroundStyle(grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary)
                     }
                 }
             }
@@ -432,14 +433,14 @@ private struct AllItemsScreen: View {
         .contentMargins(.top, 0, for: .scrollContent)
         .id(groupingRawValue)
         .onChange(of: recentItemOrderRawValue) { _, value in
-            if let item = groups.first?.items.first {
+            if let group = groups.first {
                 // Only the item region scrolls; the composer and its responder
                 // stay in place above it, including with the keyboard visible.
-                proxy.scrollTo(item.id, anchor: .bottom)
+                proxy.scrollTo(group.id, anchor: .top)
             }
         }
         .onChange(of: groupingRawValue) { _, _ in
-            if let item = groups.first?.items.first { proxy.scrollTo(item.id, anchor: .bottom) }
+            if let group = groups.first { proxy.scrollTo(group.id, anchor: .top) }
         }
         .task(id: recentItemOrderRawValue) {
             guard !highlightedItemIDs.isEmpty else { return }
