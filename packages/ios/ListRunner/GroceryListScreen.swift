@@ -298,9 +298,6 @@ private struct AllItemsScreen: View {
                 }
                 .padding(.vertical, 8)
             }
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-
             GroupBox("Add products") {
                 VStack(spacing: 12) {
                     TextField("Milk, bread, eggs", text: $draft, axis: .vertical)

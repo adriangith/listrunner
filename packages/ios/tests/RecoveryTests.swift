@@ -21,7 +21,9 @@ struct RecoveryTests {
         let otherStoreItem = GroceryItem(name: "milk", amount: 9, position: 0, listID: StoreID.woolworths.listID)
         addContext.insert(otherStoreItem)
         try addContext.save()
-        let addedRows = ShoppingLists.stageAdd(IngredientParser.application.parseProductEntry("2 milk; bread; 3 milk"),
+        let addedRows = ShoppingLists.stageAdd([ParsedGrocery(name: "milk", amount: 2, unit: nil),
+                                               ParsedGrocery(name: "bread", amount: nil, unit: nil),
+                                               ParsedGrocery(name: "milk", amount: 3, unit: nil)],
                                                to: .coles, allItems: [otherStoreItem], context: addContext)
         check(addedRows.count == 2 && addedRows[0].name.lowercased() == "milk" && addedRows[0].quantityAmount == 5
               && addedRows[1].position == 1 && otherStoreItem.quantityAmount == 9,
