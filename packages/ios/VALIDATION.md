@@ -1,35 +1,36 @@
 # Reusable store framework validation
 
-## Native retailer categories — schema 5 (5 November 2026, Linux checks)
+## Native retailer categories — schema 6 (5 November 2026)
 
-Implementation is in progress on `feat/store-category-schema`, based on
-`e824e313846493633979be8b554819f185e10bf9`; changes are not committed yet.
-All 32 registered native retailer JSON definitions now include explicit typed
-category metadata and each destination's prior `automationSchemaVersion`. The Python
-contract test verifies exhaustive registry coverage and hashes each baseline
-configuration after removing only the schema/category/compatibility metadata,
-proving that hosts, search, colors, capabilities and cart configuration are unchanged.
-The category assignment and its editorial limits are documented in
-`docs/store-categories.md`.
+Review reconciled this change with main at `a39376ff184769349c711824d9399067754f97f4`.
+Schema 5 was already used by IKEA's snapshot engine, so category metadata now uses
+schema 6. All **33 destinations** have typed categories and preserve their prior
+`automationSchemaVersion` (2–5). Schemas 2–5 retain their original wire format.
+The review also fixed encoding of the required null cart field and added all-store
+round-trip coverage. The taxonomy and assignment are in `docs/store-categories.md`.
 
-Linux checks passed:
+The exhaustive category test fingerprints each current-main resource after removing
+only schema/category/compatibility metadata. No host, capability, cart rule, result
+target, or search route differs from that baseline. Existing Tesco sign-in/quantity
+and IKEA snapshot behavior remain version-gated by the preserved automation version.
+Inherited marketing-site commits were excluded from the task-only integration.
 
-- `test-store-categories.py`: 2 checks, including 32-way classification and
-  unchanged-configuration fingerprints.
-- `test-store-expansion.py`: 3 checks; all twenty expansion resources are schema 5.
-- `test-bundled-resources.py`: 7 checks.
-- `test-release-metadata.py`: 2 checks.
-- `test-cloud-ci.py`: 10 checks.
-- Node DOM regression suites (`coles-add-detection`, `bigw-cart-detection`,
-  `profiled-expansion-cart`): 256 tests passed, including parity checks between
-  schema-5 definitions and legacy schema-2/3/4 definitions, with reordered categories.
+Validation of application revision `63b8e08` on an isolated Mac checkout passed:
 
-Mac-only validation remains outstanding: this Linux environment has neither
-`swiftc` nor `xcrun`, so `RecoveryTests.swift`, `SyntheticStoreTests.swift`, Xcode
-Debug/Release builds, focused iOS UI tests and the actual built-app resource-byte
-audit have not run. `test-bundled-resources.py` is a source/project check, not a
-substitute for the built-app audit. No retailer sites, carts, devices or user data
-were accessed or changed.
+- Complete `run-cloud-checks.sh`: Python and Node gates, 449 parser checks,
+  195 regional search checks, synthetic-store proof and **1,862 native checks**.
+- Xcode 27.2 Debug simulator `build-for-testing` and Release simulator build.
+- Actual Debug and Release app bundles: all **35 JSON and 1 JavaScript** resources byte-match
+  canonical source, with no legacy `-v2` resources.
+- Subsequent Linux run: all **431 JavaScript tests** passed, including added
+  schema-5/6 IKEA parity; onboarding suite **20 tests**, category suite **2 tests**.
+
+Application source, project and UI-test source in task-only integration `3ab9a2a`
+are identical to validated `63b8e08`; subsequent differences are tests/docs only.
+Mac logs and result bundles remain outside the checkout under
+`/tmp/listrunner-categories-*`. Focused fixture UI results are recorded below when
+complete. No physical-device install, live retailer/cart operation, user-data reset,
+distribution, or SwiftData migration was performed.
 ## Change-gated nightly beta pipeline — 4 November 2026
 
 Implementation `02f6c54` plus queued-source-metadata safeguard `2ee3ac492571f0db09b32dd8587231f0a2034209` provides the user-approved policy: **beta prereleases and app-related changes only**. GitHub owns the approximately 02:07 Melbourne decision; a net diff against the last published automated prerelease determines whether to build. Bootstrap is uploaded/processed 1.0 (5), source `28baa28`. Annotated daily request tags pin source, baseline and generated notes; successful releases—not requests or archive results—advance the baseline. Retries/reconciliation survive failed jobs, invalid uploads, pending metadata and runner cancellation; same-date requests never start twice. App Markdown, website and tester-notes-only updates skip new builds. No release-note commits are pushed to main.

@@ -18,6 +18,8 @@ node --test \
   "$base/tests/results-scroll.test.mjs" \
   "$base/tests/bigw-cart-detection.test.mjs" \
   "$base/tests/coles-add-detection.test.mjs" \
+  "$base/tests/ikea-cart-snapshot.test.mjs" \
+  "$base/tests/tesco-quantity.test.mjs" \
   "$base/tests/profiled-expansion-cart.test.mjs"
 node --test "$base/tests/store-inspection.test.mjs"
 node --test "$base/tests/nightly-beta.test.mjs"
