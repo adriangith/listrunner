@@ -468,6 +468,12 @@ final class StoreSelectionTests: XCTestCase {
         if name.contains("UnsetShoppingCountry") {
             app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "ZZ"
         }
+        if ["SettingsHasCountryAndNoStoreRows", "SettingsWithAllStoresHiddenKeepsManagementAvailable",
+            "AllHiddenStoresHidePickerAndKeepManagementAvailable", "MixedCountrySectionsKeepNativeIndexSeparateFromSwitches",
+            "DisablingActiveBunningsSelectsEnabledColesAndKeepsItems", "AllDisabledBunningsThenColesSelectsEnabledListAndPreservesSavedLists"]
+            .contains(where: { name.contains($0) }) {
+            app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
+        }
         if name.contains("MixedCountry") {
             app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_CATALOGUE"] = "mixed"
         }
@@ -1490,6 +1496,32 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("Coles fixture item", status: "Skipped").waitForExistence(timeout: 3))
     }
 
+    func testAllItemsScopeShowsExistingListsAndAddsToChosenDestination() {
+        choose("All items")
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Coles fixture item"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Woolworths fixture item"].exists)
+        XCTAssertTrue(app.staticTexts["Bunnings fixture item"].exists)
+
+        let entry = app.descendants(matching: .any)["all-items-entry"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 3))
+        entry.tap()
+        entry.typeText("All items destination item")
+        app.buttons["all-items-add-destination"].tap()
+        app.buttons["Woolworths"].firstMatch.tap()
+        XCTAssertEqual(entry.value as? String, "All items destination item", "Changing destination must preserve the draft")
+        XCTAssertTrue(app.buttons["all-items-add"].label.contains("Woolworths"))
+        app.buttons["all-items-add"].tap()
+        XCTAssertTrue(app.staticTexts["All items destination item"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Woolworths ·")).firstMatch.exists)
+
+        let categoryMode = app.segmentedControls.buttons["By category"]
+        XCTAssertTrue(categoryMode.waitForExistence(timeout: 3))
+        categoryMode.tap()
+        XCTAssertTrue(app.staticTexts["Grocery"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Hardware & Garden"].exists)
+    }
+
     func testMostRecentlyEnabledStoreBecomesActiveOnReturn() {
         app.buttons["Settings"].tap()
         app.buttons["Manage Stores"].tap()
@@ -1517,42 +1549,31 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(app.buttons["store-picker"].label, "BIG W")
     }
 
-    func testHidingAndReenablingStorePreservesItsList() {
+    func testDisablingNonemptyStoreIsBlockedUntilItsListIsCleared() {
         app.buttons["Settings"].tap()
-        XCTAssertTrue(app.buttons["Manage Stores"].waitForExistence(timeout: 5))
         app.buttons["Manage Stores"].tap()
+        openStoreSettings("coles")
+        app.switches["store-visibility-coles"].tap()
+        let blocker = app.alerts["Store can’t be disabled yet"]
+        XCTAssertTrue(blocker.waitForExistence(timeout: 3), app.debugDescription)
+        XCTAssertTrue(blocker.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Coles")).firstMatch.exists)
+        blocker.buttons["View List"].tap()
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Coles"))
+        XCTAssertFalse(app.webViews.firstMatch.exists, "Viewing a blocked list must not launch its retailer website")
+
+        app.buttons["Clear List"].tap()
+        app.buttons["Clear All"].tap()
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
+        app.buttons["store-picker"].tap()
+        app.buttons["store-picker-manage-stores"].tap()
         setStoreVisibility("coles", shown: false)
-        app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(app.buttons["Clear All Diagnostics"].waitForExistence(timeout: 3))
-        app.navigationBars.buttons.firstMatch.tap()
-
-        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"))
-        XCTAssertTrue(row("Bunnings fixture item", status: "Pending").waitForExistence(timeout: 3))
-        XCTAssertFalse(row("Coles fixture item", status: "Pending").exists)
-        app.terminate()
-        app.launch()
-        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"))
-        XCTAssertFalse(app.webViews.firstMatch.exists, "Changing the active list must not open a retailer website")
-        choose("Woolworths")
-        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").waitForExistence(timeout: 3))
-
-        app.buttons["Settings"].tap()
-        app.buttons["Manage Stores"].tap()
-        setStoreVisibility("coles", shown: true)
-        app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(app.buttons["Clear All Diagnostics"].waitForExistence(timeout: 3))
-        app.navigationBars.buttons.firstMatch.tap()
-
-        choose("Coles")
-        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["store-picker"].label.contains("Coles"))
     }
 
-    func testDisablingActiveBunningsSelectsEnabledColesAndKeepsItems() {
+    func testDisablingActiveBunningsRequiresClearingItsList() {
         choose("Bunnings")
-        app.buttons["Actions for Bunnings fixture item"].tap()
-        app.buttons["Mark Skipped"].tap()
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
         input.typeText("Bunnings saved item")
@@ -1562,29 +1583,28 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Mark Added"].tap()
         app.buttons["store-picker"].tap()
         app.buttons["store-picker-manage-stores"].tap()
+        openStoreSettings("bunnings")
+        app.switches["store-visibility-bunnings"].tap()
+        let blocker = app.alerts["Store can’t be disabled yet"]
+        XCTAssertTrue(blocker.waitForExistence(timeout: 3))
+        blocker.buttons["View List"].tap()
+        XCTAssertTrue(row("Bunnings saved item", status: "Added").waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"))
+        app.buttons["Clear List"].tap()
+        app.buttons["Clear All"].tap()
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
+        app.buttons["store-picker"].tap()
+        app.buttons["store-picker-manage-stores"].tap()
         setStoreVisibility("bunnings", shown: false)
-        XCTAssertTrue(app.navigationBars["Manage Stores"].exists, "Do not dismiss management during a toggle")
-        tapNavigationBack()
-        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["store-picker"].label.contains("Coles"))
-        XCTAssertFalse(row("Bunnings saved item", status: "Added").exists)
-        XCTAssertFalse(row("Bunnings fixture item", status: "Skipped").exists)
-        XCTAssertTrue(app.buttons["Show Store"].isEnabled)
         XCTAssertFalse(app.webViews.firstMatch.exists)
-        let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "Disabled Bunnings — enabled Coles list and branding"
-        screenshot.lifetime = .keepAlways
-        add(screenshot)
-        app.terminate()
-        app.launch()
-        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 10))
         app.buttons["store-picker"].tap()
         app.buttons["store-picker-manage-stores"].tap()
         setStoreVisibility("bunnings", shown: true)
         tapNavigationBack()
         XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"), "Re-enabling a store makes it active on return")
-        XCTAssertTrue(row("Bunnings fixture item", status: "Skipped").waitForExistence(timeout: 5))
-        XCTAssertTrue(row("Bunnings saved item", status: "Added").exists)
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 5))
     }
 
     func testSettingsHasCountryAndNoStoreRows() {
@@ -1634,7 +1654,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.buttons["settings-store-coles"].exists)
         XCTAssertFalse(app.buttons["settings-store-bunnings"].exists)
         tapNavigationBack()
-        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["store-picker"].label.contains("Woolworths"))
     }
 
@@ -1699,6 +1719,16 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("Bunnings saved list item", status: "Pending").waitForExistence(timeout: 3))
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
+        openStoreSettings("bunnings")
+        app.switches["store-visibility-bunnings"].tap()
+        let blocker = app.alerts["Store can’t be disabled yet"]
+        XCTAssertTrue(blocker.waitForExistence(timeout: 3))
+        blocker.buttons["View List"].tap()
+        XCTAssertTrue(row("Bunnings saved list item", status: "Pending").waitForExistence(timeout: 3))
+        app.buttons["Clear List"].tap()
+        app.buttons["Clear All"].tap()
+        app.buttons["store-picker"].tap()
+        app.buttons["store-picker-manage-stores"].tap()
         for id in ["coles", "woolworths", "bunnings"] { setStoreVisibility(id, shown: false) }
         tapNavigationBack()
         XCTAssertTrue(app.staticTexts["No stores enabled"].waitForExistence(timeout: 3))
@@ -1720,18 +1750,18 @@ final class StoreSelectionTests: XCTestCase {
         // Enabling a store must not pop Manage Stores out from under the user.
         XCTAssertTrue(app.navigationBars["Manage Stores"].exists)
         tapNavigationBack()
-        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["store-picker"].label.contains("Coles"))
         XCTAssertFalse(row("Bunnings saved list item", status: "Pending").exists)
         app.terminate()
         app.launch()
-        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 10))
         app.buttons["store-picker"].tap()
         app.buttons["Manage Stores"].tap()
         setStoreVisibility("bunnings", shown: true)
         tapNavigationBack()
         choose("Bunnings")
-        XCTAssertTrue(row("Bunnings saved list item", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 5))
     }
 
     func testStoreManagementSearchAndClearDoNotChangeVisibility() {
@@ -1826,13 +1856,12 @@ final class StoreSelectionTests: XCTestCase {
     func testShoppingCountryChangePersistsWithoutChangingVisibilityOrActiveStore() {
         app.buttons["Settings"].tap()
         app.buttons["Manage Stores"].tap()
-        setStoreVisibility("bunnings", shown: false)
         tapNavigationBack()
         changeCountry("NZ", name: "New Zealand")
         app.buttons["Manage Stores"].tap()
         XCTAssertTrue(app.staticTexts["OTHER STORES"].waitForExistence(timeout: 3))
         openStoreSettings("bunnings")
-        XCTAssertEqual(app.switches["store-visibility-bunnings"].value as? String, "0")
+        XCTAssertEqual(app.switches["store-visibility-bunnings"].value as? String, "1")
         app.terminate()
         app.launch()
         XCTAssertEqual(app.buttons["store-picker"].label, "Coles")
@@ -1842,7 +1871,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(country.label.contains("New Zealand") || country.value as? String == "New Zealand")
         app.buttons["Manage Stores"].tap()
         openStoreSettings("bunnings")
-        XCTAssertEqual(app.switches["store-visibility-bunnings"].value as? String, "0")
+        XCTAssertEqual(app.switches["store-visibility-bunnings"].value as? String, "1")
         XCTAssertFalse(app.alerts["Location unavailable"].exists)
     }
 
