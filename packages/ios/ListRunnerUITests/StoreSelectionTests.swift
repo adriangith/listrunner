@@ -1547,6 +1547,7 @@ final class StoreSelectionTests: XCTestCase {
         let before = entry.frame
         add.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["Choose Store"].exists, "Secondary shopping chrome must not obscure entry feedback")
         XCTAssertLessThan(abs(entry.frame.minY - before.minY), 2)
         entry.typeText("Second aggregate item")
         add.tap()

@@ -317,7 +317,10 @@ private struct AllItemsScreen: View {
                     TextField("Milk, bread, eggs", text: $draft, axis: .vertical)
                         .lineLimit(1...3)
                         .submitLabel(.done)
-                        .onSubmit(addItems)
+                        .onSubmit {
+                            if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { entryFocused = false }
+                            else { addItems() }
+                        }
                         .focused($entryFocused)
                         .accessibilityIdentifier("all-items-entry")
                     Divider()
@@ -439,6 +442,7 @@ private struct AllItemsScreen: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollDismissesKeyboard(.interactively)
         .contentMargins(.top, 0, for: .scrollContent)
         .id(groupingRawValue)
         .onChange(of: recentItemOrderRawValue) { _, value in
@@ -546,7 +550,7 @@ private struct AllItemsScreen: View {
             .background(Color(uiColor: .systemGroupedBackground))
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !allItems.isEmpty && !visibleStores.isEmpty {
+            if !entryFocused && !allItems.isEmpty && !visibleStores.isEmpty {
                 Menu {
                     ForEach(visibleStores, id: \.id) { store in
                         Button("Shop at \(store.displayName)") { shoppingDestination = store.id }
@@ -559,7 +563,7 @@ private struct AllItemsScreen: View {
                 .tint(Color.accentColor.opacity(0.28))
                 .foregroundStyle(Color.accentColor)
                  .padding(.horizontal, 20).padding(.top, 8)
-            } else if !allItems.isEmpty {
+            } else if !entryFocused && !allItems.isEmpty {
                 Button("Manage Stores") { showingStoreManagement = true }
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .buttonStyle(.bordered)
