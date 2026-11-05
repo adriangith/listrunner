@@ -1620,7 +1620,7 @@ final class StoreSelectionTests: XCTestCase {
         choose("All items")
         let hiddenRow = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Unavailable saved item, quantity")).firstMatch
         for _ in 0..<6 where !hiddenRow.isHittable { app.collectionViews.firstMatch.swipeUp() }
-        XCTAssertTrue(hiddenRow.label.contains("Unavailable"))
+        XCTAssertTrue(hiddenRow.label.hasSuffix(", Unavailable"))
         hiddenRow.tap()
         XCTAssertFalse(app.buttons["Dismiss store"].exists)
         app.buttons["Actions for Unavailable saved item"].tap()
