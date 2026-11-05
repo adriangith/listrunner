@@ -462,7 +462,7 @@ final class StoreSelectionTests: XCTestCase {
         if name.contains("CartDetection") {
             app.launchEnvironment["LISTRUNNER_CART_DETECTION_TEST_FIXTURE"] = "quantityUnavailable"
         }
-        if name.contains("EmptyList") {
+        if name.contains("EmptyList") || name.contains("FirstStoreWelcome") {
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
         }
         if name.contains("NativeStoreIndex") {
@@ -2329,6 +2329,10 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testMoveDestinationsHideUnverifiedSearchStores() {
+        app.buttons["store-picker"].tap()
+        app.buttons["store-picker-manage-stores"].tap()
+        setStoreVisibility("costco", shown: true)
+        tapNavigationBack()
         choose("Coles")
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
         app.buttons["Actions for Coles fixture item"].tap()
@@ -2337,7 +2341,8 @@ final class StoreSelectionTests: XCTestCase {
             XCTAssertFalse(app.buttons["Move to \(name)"].exists, name)
         }
         XCTAssertTrue(app.buttons["Move to Costco"].exists,
-                      "Search-verified/manual-cart stores remain valid destinations")
+                       "Search-verified/manual-cart stores remain valid destinations")
+        XCTAssertFalse(app.buttons["Move to Kmart"].exists, "Disabled stores are not offered as move destinations")
         // iOS 27 can present this as a native menu with outside-tap dismissal,
         // not a sheet exposing Cancel. Teardown closes this isolated test app;
         // do not select a destination merely to dismiss a read-only inspection.
