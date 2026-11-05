@@ -25,11 +25,17 @@ Validation of application revision `63b8e08` on an isolated Mac checkout passed:
 - Subsequent Linux run: all **431 JavaScript tests** passed, including added
   schema-5/6 IKEA parity; onboarding suite **20 tests**, category suite **2 tests**.
 
-Application source, project and UI-test source in task-only integration `3ab9a2a`
+Application source and project in task-only integration `3ab9a2a`
 are identical to validated `63b8e08`; subsequent differences are tests/docs only.
+The full Mac offline gate passed again at integration revision `4c6d7a3`, including
+the expanded IKEA/Tesco JavaScript allowlist and 20 onboarding tests.
 Mac logs and result bundles remain outside the checkout under
 `/tmp/listrunner-categories-*`. Focused fixture UI results are recorded below when
-complete. No physical-device install, live retailer/cart operation, user-data reset,
+complete. The first three UI cases failed on stale main-branch fixture assumptions:
+discovery expected intentionally hidden New World, and two cases assumed Coles was
+active after setup selected Woolworths. Test-only follow-up explicitly selects Coles
+for those cases and asserts unverified-search destinations remain hidden.
+No physical-device install, live retailer/cart operation, user-data reset,
 distribution, or SwiftData migration was performed.
 ## Change-gated nightly beta pipeline — 4 November 2026
 

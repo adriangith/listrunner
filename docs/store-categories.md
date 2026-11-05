@@ -24,6 +24,17 @@ Values are stable identifiers. Unknown values, wrong casing, whitespace, duplica
 
 Definitions using schema versions 2–5 remain supported with their original field set. Their category value is unknown (represented in memory by an empty array), not inferred, and their automation-rule version is the same as their schema version. A categories or `automationSchemaVersion` field on a legacy-version definition is rejected. Schema 6 preserves each retailer's prior search/cart behavior using its explicit automation-rule version; it does not widen any native capability ceiling. SwiftData database schema V3 is unrelated and unchanged.
 
+Example fragment (all other required retailer fields remain unchanged):
+
+```json
+{
+  "schemaVersion": 6,
+  "automationSchemaVersion": 2,
+  "id": "coles",
+  "categories": ["grocery", "pharmacyBeauty", "petSupplies"]
+}
+```
+
 ## Current retailer classification
 
 This broad editorial classification includes meaningful secondary ranges where appropriate. It is not an exhaustive department inventory, and retail ranges vary by market and over time.

@@ -503,7 +503,7 @@ final class StoreSelectionTests: XCTestCase {
         // These list-layout cases assert the Coles fixture specifically. First
         // store setup enables Woolworths last, which intentionally selects it;
         // make the test's starting list explicit rather than depending on order.
-        if ["AlreadyVisibleNewItem", "FocusedProductEntry", "GroceryInputEmptyReturn", "RepeatedNewItemsAreFullyRevealed", "ResultsScroll", "Paprika"]
+        if ["AlreadyVisibleNewItem", "FocusedProductEntry", "GroceryInputEmptyReturn", "RepeatedNewItemsAreFullyRevealed", "ResultsScroll", "Paprika", "StorePickerKeepsListsAndStatusesSeparate", "HidingAndReenablingStorePreservesItsList"]
             .contains(where: { name.contains($0) }) {
             choose("Coles")
         }
@@ -1225,15 +1225,21 @@ final class StoreSelectionTests: XCTestCase {
             ("officeworks", "Officeworks"), ("jbHiFi", "JB Hi-Fi"), ("targetAU", "Target Australia"),
             ("petbarn", "Petbarn"), ("supercheapAuto", "Supercheap Auto"), ("bcf", "BCF"),
             ("bunnings", "Bunnings New Zealand"), ("theWarehouse", "The Warehouse"),
-            ("newWorld", "New World"), ("paknsave", "PAK"), ("sainsburys", "Sainsbury"),
+            ("sainsburys", "Sainsbury"),
             ("asda", "Asda"), ("morrisons", "Morrisons"), ("ocado", "Ocado"),
-            ("waitrose", "Waitrose"), ("boots", "Boots"), ("walgreens", "Walgreens"), ("cvs", "CVS")
+            ("waitrose", "Waitrose"), ("walgreens", "Walgreens")
         ]
         for (id, name) in stores {
             search.tap()
             if search.buttons["Clear text"].exists { search.buttons["Clear text"].tap() }
             search.typeText(name)
             XCTAssertTrue(manageRow(id).waitForExistence(timeout: 5), "Missing new store: \(name)")
+        }
+        for (id, name) in [("newWorld", "New World"), ("paknsave", "PAK"), ("boots", "Boots"), ("cvs", "CVS")] {
+            search.tap()
+            if search.buttons["Clear text"].exists { search.buttons["Clear text"].tap() }
+            search.typeText(name)
+            XCTAssertFalse(manageRow(id).exists, "Unverified-search destination must stay hidden: \(name)")
         }
         search.buttons["Clear text"].tap()
         search.typeText("Target")
