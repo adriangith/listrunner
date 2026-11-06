@@ -1540,6 +1540,7 @@ final class StoreSelectionTests: XCTestCase {
         let entry = app.textViews["all-items-entry"]
         let add = app.buttons["all-items-add"]
         XCTAssertGreaterThanOrEqual(add.frame.height, 44)
+        XCTAssertLessThanOrEqual(add.frame.height, 48, "The split Add label should stay on one line at standard text size")
         XCTAssertGreaterThanOrEqual(app.buttons["all-items-add-destination"].frame.width, 44)
         XCTAssertGreaterThanOrEqual(app.buttons["all-items-add-destination"].frame.height, 44)
         entry.tap()
@@ -1557,6 +1558,8 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertLessThanOrEqual(newest.frame.maxY, app.keyboards.firstMatch.frame.minY)
         app.segmentedControls.buttons["By category"].tap()
         let destination = add.label
+        entry.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "All items — pinned entry with keyboard"
         screenshot.lifetime = .keepAlways

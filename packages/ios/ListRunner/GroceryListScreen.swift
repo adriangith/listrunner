@@ -350,6 +350,8 @@ private struct AllItemsScreen: View {
                                 Button(action: addItems) {
                                     Text("Add to \(destinationID.displayName)")
                                         .font(.body)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.75)
                                         .frame(minWidth: 44, minHeight: 44)
                                         .padding(.leading, 14)
                                         .padding(.trailing, 12)
@@ -382,6 +384,7 @@ private struct AllItemsScreen: View {
                                 .accessibilityIdentifier("all-items-add-destination")
                             }
                             .foregroundStyle(.white)
+                            .layoutPriority(1)
                             .background(Color.accentColor, in: Capsule())
                         } else {
                             Menu {
