@@ -74,6 +74,21 @@ been updated; the approved plan and repository specifications remain authoritati
 No physical-device install, live retailer/cart or live Reminders operation, merge,
 TestFlight delivery or release was performed.
 
+### Authorized iPhone deployment (6 November 2026)
+
+At the user's explicit request, revision
+`cd2c3198a6cd07c44e5f313abbeb412aad1bab14` from `feature/all-items-screen` was
+built, installed in place and launched on **Adrian’s iPhone / iOS 27.2** through
+Xcode's `RunProject` action. No build errors; launch succeeded (PID **18513**).
+The scheme had no enabled launch arguments or environment overrides. Actual
+Debug-iphoneos bundle verification passed for all **35 JSON + 1 JavaScript** resources.
+No reset, test fixture, import/reminder operation or retailer/cart interaction was
+performed; existing app data and sessions were left intact. This is a development
+installation, not a merge, TestFlight delivery or release.
+
+Mac evidence:
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261106-112309.txt`.
+
 ## Native retailer categories — schema 6 (5 November 2026, historical validation)
 
 Review reconciled this change with main at `a39376ff184769349c711824d9399067754f97f4`.
