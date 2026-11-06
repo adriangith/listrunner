@@ -1631,7 +1631,8 @@ final class StoreSelectionTests: XCTestCase {
                 .withOffset(CGVector(dx: list.frame.midX, dy: (top + bottom) / 2))
             let direction: CGFloat = clear.exists && clear.frame.minY < top ? 1 : -1
             let end = start.withOffset(CGVector(dx: 0, dy: direction * min(90, (bottom - top) / 3)))
-            start.press(forDuration: 0.05, thenDragTo: end)
+            start.press(forDuration: 0.05, thenDragTo: end,
+                        withVelocity: XCUIGestureVelocity(rawValue: 80), thenHoldForDuration: 0.4)
         }
         XCTAssertTrue(clear.isHittable, app.debugDescription)
         XCTAssertTrue(fullyVisible(), "The entire clear action must be above Show Store, not merely tappable through glass")
@@ -1667,6 +1668,7 @@ final class StoreSelectionTests: XCTestCase {
         add(screenshot)
         openAllItemsClearOptions("store-coles")
         app.buttons["Clear Added"].tap()
+        app.collectionViews.firstMatch.swipeDown(velocity: .fast)
         XCTAssertTrue(app.buttons["Actions for Coles fixture item"].waitForNonExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Actions for Keep pending"].exists)
         XCTAssertTrue(app.buttons["Actions for Keep skipped"].exists)
@@ -1704,6 +1706,7 @@ final class StoreSelectionTests: XCTestCase {
         openAllItemsClearOptions("category-grocery")
         XCTAssertTrue(app.buttons["Clear Added"].exists)
         app.buttons["Clear Added"].tap()
+        app.collectionViews.firstMatch.swipeDown(velocity: .fast)
         XCTAssertTrue(app.buttons["Actions for Coles fixture item"].waitForNonExistence(timeout: 3))
         XCTAssertFalse(app.buttons["Actions for Woolworths fixture item"].exists)
         XCTAssertTrue(app.buttons["Actions for Category keep pending"].exists)
