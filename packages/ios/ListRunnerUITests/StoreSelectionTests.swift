@@ -1629,6 +1629,8 @@ final class StoreSelectionTests: XCTestCase {
 
     func testAllItemsEditReordersWithinStoreAndRestoresGrouping() {
         choose("All items")
+        app.buttons["all-items-add-destination"].tap()
+        app.buttons["Coles"].firstMatch.tap()
         let entry = app.textViews["all-items-entry"]
         entry.tap()
         entry.typeText("First reorder item, Second reorder item")
@@ -1646,8 +1648,13 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertLessThan(first.frame.minY, second.frame.minY)
         let handles = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Reorder"))
         XCTAssertGreaterThanOrEqual(handles.count, 2, app.debugDescription)
-        handles.element(boundBy: 0).press(forDuration: 1, thenDragTo: handles.element(boundBy: 1))
-        XCTAssertLessThan(second.frame.minY, first.frame.minY)
+        let target = handles.element(boundBy: 0).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+        handles.element(boundBy: 1).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 1, thenDragTo: target)
+        let reordered = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            second.frame.minY < first.frame.minY
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [reordered], timeout: 5), .completed)
         app.buttons["Done"].tap()
         XCTAssertTrue(app.segmentedControls.buttons["By category"].isSelected)
         app.buttons["all-items-scope-picker"].tap()
