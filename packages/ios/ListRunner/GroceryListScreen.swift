@@ -943,6 +943,7 @@ private struct AllItemsScreen: View {
         .frame(minHeight: 48)
         .padding(.vertical, 15)
         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+        .tint(owner.map(storeTint) ?? .accentColor)
         .accessibilityIdentifier("all-item-\(item.id.uuidString)")
     }
 

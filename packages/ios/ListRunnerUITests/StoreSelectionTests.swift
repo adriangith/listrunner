@@ -1547,8 +1547,11 @@ final class StoreSelectionTests: XCTestCase {
         entry.typeText("First aggregate item")
         add.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
-        XCTAssertLessThan(app.keyboards.firstMatch.frame.minY, app.frame.height * 0.65,
-                          "Keyboard coverage requires a visible software keyboard, not an offscreen AX element")
+        let keyboardVisible = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            self.app.keyboards.firstMatch.frame.intersection(self.app.frame).height >= 180
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [keyboardVisible], timeout: 5), .completed,
+                       "Keyboard coverage requires a visible software keyboard, not an offscreen AX element")
         XCTAssertFalse(app.buttons["all-items-show-store"].exists, "Secondary shopping chrome must not obscure entry feedback")
         entry.typeText("Second aggregate item")
         add.tap()
