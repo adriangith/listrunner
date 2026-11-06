@@ -1545,23 +1545,21 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(app.buttons["all-items-add-destination"].frame.height, 44)
         entry.tap()
         entry.typeText("First aggregate item")
-        let before = entry.frame
         add.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["all-items-show-store"].exists, "Secondary shopping chrome must not obscure entry feedback")
-        XCTAssertLessThan(abs(entry.frame.minY - before.minY), 2)
         entry.typeText("Second aggregate item")
         add.tap()
         let newest = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Second aggregate item")).firstMatch
         XCTAssertTrue(newest.waitForExistence(timeout: 5))
-        XCTAssertGreaterThanOrEqual(newest.frame.minY, entry.frame.maxY)
+        XCTAssertGreaterThanOrEqual(newest.frame.minY, app.buttons["all-items-scope-picker"].frame.maxY)
         XCTAssertLessThanOrEqual(newest.frame.maxY, app.keyboards.firstMatch.frame.minY)
         app.segmentedControls.buttons["By category"].tap()
         let destination = add.label
         entry.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
         let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "All items — pinned entry with keyboard"
+        screenshot.name = "All items — shared scrolling entry with keyboard"
         screenshot.lifetime = .keepAlways
         self.add(screenshot)
         entry.tap(); entry.typeText("Persisted unsubmitted draft")
@@ -1570,6 +1568,36 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(app.buttons["all-items-add"].label, destination)
         XCTAssertTrue(app.segmentedControls.buttons["By category"].isSelected)
         XCTAssertEqual(app.textViews["all-items-entry"].value as? String, "Persisted unsubmitted draft")
+    }
+
+    func testAllItemsSharedPageKeepsOnlyHeaderPinned() {
+        let storeEntry = app.textViews["grocery-input"]
+        XCTAssertTrue(storeEntry.waitForExistence(timeout: 5))
+        let standardFrame = storeEntry.frame
+        choose("All items")
+        let entry = app.textViews["all-items-entry"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        XCTAssertEqual(entry.frame.minX, standardFrame.minX, accuracy: 1)
+        XCTAssertEqual(entry.frame.width, standardFrame.width, accuracy: 1)
+        XCTAssertEqual(entry.frame.height, standardFrame.height, accuracy: 1)
+        XCTAssertEqual(entry.frame.minY, standardFrame.minY, accuracy: 2)
+        let scope = app.buttons["all-items-scope-picker"]
+        let headerFrame = scope.frame
+        let titleFrame = app.staticTexts["Your list"].frame
+        let list = app.collectionViews.firstMatch
+        for _ in 0..<3 { list.swipeUp() }
+        XCTAssertTrue(scope.isHittable)
+        XCTAssertEqual(scope.frame.minY, headerFrame.minY, accuracy: 1)
+        XCTAssertEqual(app.staticTexts["Your list"].frame.minY, titleFrame.minY, accuracy: 1)
+        XCTAssertFalse(entry.isHittable, "The Add products section scrolls with the list")
+        XCTAssertFalse(app.segmentedControls["all-items-grouping"].isHittable, "Grouping also scrolls, not just the rows")
+        XCTAssertTrue(app.buttons["all-items-show-store"].isHittable)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "All items — shared page with only header pinned"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        for _ in 0..<3 { list.swipeDown() }
+        XCTAssertTrue(entry.isHittable)
     }
 
     func testAllItemsPaprikaImportRetainsScopeDraftAndDestination() {

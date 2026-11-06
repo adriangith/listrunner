@@ -174,6 +174,322 @@ private struct WelcomeTransitionAnchor: UIViewRepresentable {
     }
 }
 
+// Shared presentation for store lists and the aggregate. Each screen supplies
+// its data/actions, not a second implementation of the page's visual structure.
+private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
+    var isWelcome = false
+    var keyboardDismissMode: ScrollDismissesKeyboardMode = .interactively
+    var onViewportChange: (CGRect) -> Void = { _ in }
+    @ViewBuilder let scope: () -> Scope
+    @ViewBuilder let footer: () -> Footer
+    @ViewBuilder let rows: () -> Rows
+
+    var body: some View {
+        List { rows() }
+            .listStyle(.insetGrouped)
+            .contentMargins(.top, 0, for: .scrollContent)
+            .listSectionSpacing(.compact)
+            .scrollDismissesKeyboard(keyboardDismissMode)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { onViewportChange($0) }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                HStack(alignment: .center) {
+                    Text(isWelcome ? "ListRunner" : "Your list")
+                        .font(isWelcome ? .title3.weight(.bold) : .largeTitle.weight(.bold))
+                        .foregroundStyle(.primary)
+                    Spacer(minLength: 8)
+                    scope()
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(Color(uiColor: .systemGroupedBackground))
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) { footer() }
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(isWelcome ? .hidden : .visible, for: .navigationBar)
+    }
+}
+
+private struct ListScopePicker: View {
+    let stores: [StoreDefinition]
+    let selectedStoreID: StoreID?
+    let tint: Color
+    let onChooseAllItems: () -> Void
+    let onChooseStore: (StoreID) -> Void
+    let onManageStores: () -> Void
+
+    var body: some View {
+        Menu {
+            if selectedStoreID == nil {
+                Label("All items", systemImage: "checkmark")
+            } else {
+                Button(action: onChooseAllItems) { Label("All items", systemImage: "square.grid.2x2") }
+            }
+            Divider()
+            ForEach(stores, id: \.id) { store in
+                Button(store.displayName) { onChooseStore(store.id) }
+            }
+            Divider()
+            Button("Manage Stores", action: onManageStores)
+                .accessibilityIdentifier("store-picker-manage-stores")
+        } label: {
+            HStack(spacing: 6) {
+                Text(selectedStoreID?.displayName ?? "All items")
+                    .font(.system(.title3, design: .default, weight: .heavy))
+                    .lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down").font(.caption2.weight(.black))
+            }
+            .foregroundStyle(tint)
+            .contentShape(Rectangle())
+            .padding(.horizontal, 13)
+            .padding(.vertical, 9)
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
+        }
+        .accessibilityIdentifier(selectedStoreID == nil ? "all-items-scope-picker" : "store-picker")
+        .accessibilityHint("Each store has its own grocery list and basket")
+    }
+}
+
+private struct ListPageToolbar: ToolbarContent {
+    let showEdit: Bool
+    var showSettings = true
+    let onSettings: () -> Void
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            if showEdit { EditButton() }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            if showSettings {
+                Button(action: onSettings) { Image(systemName: "gearshape") }
+                    .accessibilityLabel("Settings")
+            }
+        }
+    }
+}
+
+private struct ListPageSummary: View {
+    let pending: Int
+    let added: Int
+    let skipped: Int
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(pending + added + skipped > 0 && pending == 0 ? "Complete" : "Ready when you are")
+                .font(.subheadline).foregroundStyle(.secondary)
+            HStack(spacing: 0) {
+                ListSummaryMetric(count: pending, title: "Pending", tint: tint)
+                Divider().frame(height: 32)
+                ListSummaryMetric(count: added, title: "Added", tint: tint)
+                Divider().frame(height: 32)
+                ListSummaryMetric(count: skipped, title: "Skipped", tint: .secondary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(pending) pending, \(added) added, \(skipped) skipped")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct ListSummaryMetric: View {
+    let count: Int
+    let title: LocalizedStringKey
+    let tint: Color
+
+    var body: some View {
+        VStack(spacing: 1) {
+            Text(count, format: .number).font(.headline.monospacedDigit()).foregroundStyle(tint)
+            Text(title).font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct ProductEntrySection<AddButton: View>: View {
+    @Binding var text: String
+    @Binding var isFocused: Bool
+    let focusControl: ProductEntryFocus
+    let tint: Color
+    var accessibilityIdentifier = "grocery-input"
+    let importing: Bool
+    let importConfigured: Bool
+    var importDisabled = false
+    var compactImport = false
+    let removeReminders: Bool
+    let onSubmit: () -> Void
+    let onImport: () -> Void
+    let onTextChange: (String) -> Void
+    var onEditorFrame: (CGRect) -> Void = { _ in }
+    var onActionsFrame: (CGRect) -> Void = { _ in }
+    @ViewBuilder let addButton: () -> AddButton
+
+    var body: some View {
+        Section("Add products") {
+            ProductEntryEditor(text: $text, isFocused: $isFocused, focusControl: focusControl,
+                               onSubmit: onSubmit, accessibilityIdentifier: accessibilityIdentifier)
+                .onChange(of: text) { _, value in onTextChange(value) }
+                .modifier(ProductEntryFieldStyle(tint: tint, isFocused: isFocused))
+                .simultaneousGesture(TapGesture().onEnded { isFocused = true })
+                .onGeometryChange(for: CGRect?.self) { isFocused ? $0.frame(in: .global) : nil } action: { frame in
+                    if let frame { onEditorFrame(frame) }
+                }
+                .padding(.vertical, 4)
+                .id("product-entry-editor")
+            HStack {
+                Button(action: onImport) {
+                    Label(importing ? "Importing…" : compactImport ? "Import" :
+                            importConfigured ? "Import from Paprika" : "Import items...",
+                          systemImage: importing ? "hourglass" : "checklist")
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .font(.footnote.weight(.semibold))
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+                .disabled(importing || importDisabled)
+                .accessibilityIdentifier(importConfigured ? "import-from-paprika" : "set-import-source")
+                .accessibilityHint(importConfigured ?
+                    (removeReminders ? "Imports unchecked Paprika reminders and removes them after saving groceries" : "Imports unchecked Paprika reminders and keeps them linked") : "Choose your grocery import source")
+                Spacer(minLength: 8)
+                addButton()
+            }
+            .padding(.vertical, 4)
+            .id("product-entry-actions")
+            .onGeometryChange(for: CGRect?.self) { isFocused ? $0.frame(in: .global) : nil } action: { frame in
+                if let frame { onActionsFrame(frame) }
+            }
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+        }
+    }
+}
+
+private struct ListItemContent: View {
+    let name: String
+    let quantity: String
+    var ownerName: String?
+    var unavailable = false
+    let status: GroceryStatus
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(sentenceCase(name)).font(.body.weight(.medium)).foregroundStyle(.primary)
+                if let ownerName {
+                    Text("\(ownerName) · Quantity \(quantity)\(unavailable ? " · Unavailable" : "")")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("Quantity \(quantity)").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 6)
+            Text(status.rawValue)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(tint)
+                .padding(.horizontal, 9).padding(.vertical, 6)
+                .background(tint.opacity(0.11), in: Capsule())
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+private struct ListItemActions<Actions: View>: View {
+    let name: String
+    @ViewBuilder let actions: () -> Actions
+
+    var body: some View {
+        Menu { actions() } label: {
+            Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle())
+        }
+        .accessibilityLabel("Actions for \(name)")
+    }
+}
+
+private struct AllItemsAddButton: View {
+    let destination: StoreID?
+    let stores: [StoreDefinition]
+    @Binding var destinationRawValue: String
+    let canAdd: Bool
+    let onAdd: () -> Void
+    let onManageStores: () -> Void
+
+    var body: some View {
+        if let destination {
+            HStack(spacing: 0) {
+                Button(action: onAdd) {
+                    Text("Add to \(destination.displayName)")
+                        .font(.body).lineLimit(1).minimumScaleFactor(0.75)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .padding(.leading, 14).padding(.trailing, 12)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).disabled(!canAdd)
+                .accessibilityIdentifier("all-items-add")
+                Rectangle().fill(.white.opacity(0.35)).frame(width: 1, height: 26)
+                Menu {
+                    ForEach(stores, id: \.id) { store in
+                        Button { destinationRawValue = store.id.rawValue } label: {
+                            if store.id == destination { Label(store.displayName, systemImage: "checkmark") }
+                            else { Text(store.displayName) }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "chevron.down").font(.caption.weight(.bold))
+                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                }
+                .accessibilityLabel("Choose add destination")
+                .accessibilityValue(destination.displayName)
+                .accessibilityIdentifier("all-items-add-destination")
+            }
+            .foregroundStyle(.white).layoutPriority(1)
+            .background(Color.accentColor, in: Capsule())
+        } else {
+            Menu {
+                if stores.isEmpty { Button("Manage Stores", action: onManageStores) }
+                else {
+                    ForEach(stores, id: \.id) { store in
+                        Button(store.displayName) { destinationRawValue = store.id.rawValue }
+                    }
+                }
+            } label: {
+                Label("Choose Store", systemImage: "chevron.down")
+                    .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+}
+
+private struct AllItemsShoppingFooter: View {
+    let stores: [StoreDefinition]
+    let hasItems: Bool
+    let isTyping: Bool
+    let onChooseStore: (StoreID) -> Void
+    let onManageStores: () -> Void
+
+    var body: some View {
+        if !isTyping && !stores.isEmpty {
+            Menu {
+                ForEach(stores, id: \.id) { store in
+                    Button("Shop at \(store.displayName)") { onChooseStore(store.id) }
+                }
+            } label: {
+                Label("Show Store...", systemImage: "cart.fill")
+                    .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
+            }
+            .modifier(StoreLaunchButtonStyle(tint: .accentColor))
+            .accessibilityIdentifier("all-items-show-store")
+            .padding(.horizontal, 20).padding(.top, 8)
+        } else if !isTyping && hasItems {
+            Button("Manage Stores", action: onManageStores)
+                .frame(maxWidth: .infinity, minHeight: 44).buttonStyle(.bordered)
+                .padding(.horizontal, 20)
+        }
+    }
+}
+
 private enum AllItemsGrouping: String {
     case store
     case category
@@ -218,9 +534,16 @@ private struct AllItemsScreen: View {
     @State private var pendingReminderWrites: [UUID: ReminderWriteback] = [:]
     @State private var entryFocused = false
     @State private var entryFocus = ProductEntryFocus()
+    @State private var listViewportFrame: CGRect = .zero
+    @State private var entryFrame: CGRect = .zero
+    @State private var actionsFrame: CGRect = .zero
+    @State private var entryRevealTask: Task<Void, Never>?
+    @State private var isRevealingEntry = false
+    @State private var entryRevealSuppressed = false
     @State private var highlightedItemIDs = Set<UUID>()
     @State private var saveFailed = false
     @AppStorage(GroceryImportSource.removeRemindersKey) private var removeRemindersAfterImport = true
+    @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
 
     private var grouping: AllItemsGrouping {
         // Reorder handles must only change positions inside an existing store list.
@@ -315,114 +638,55 @@ private struct AllItemsScreen: View {
                                              items: orphaned.map(\.1).sorted { $0.position < $1.position })]
     }
 
-    private var composer: some View {
-        VStack(spacing: 12) {
-            if !entryFocused {
-                HStack {
-                    countLabel(pendingCount, title: "Pending", tint: .blue)
-                    Spacer()
-                    countLabel(addedCount, title: "Added", tint: .blue)
-                    Spacer()
-                    countLabel(skippedCount, title: "Skipped", tint: .secondary)
-                }
-                .padding(.vertical, 8)
+    var body: some View {
+        ScrollViewReader { proxy in
+        ShoppingListPage(keyboardDismissMode: isRevealingEntry ? .never : .interactively,
+            onViewportChange: { frame in
+                listViewportFrame = frame
+                revealFocusedEntry()
+            }, scope: {
+                ListScopePicker(stores: visibleStores, selectedStoreID: nil, tint: .accentColor,
+                    onChooseAllItems: {}, onChooseStore: onChooseStoreList,
+                    onManageStores: { showingStoreManagement = true })
+            }, footer: {
+                AllItemsShoppingFooter(stores: shoppingStores, hasItems: !allItems.isEmpty,
+                    isTyping: entryFocused, onChooseStore: { shoppingDestination = $0 },
+                    onManageStores: { showingStoreManagement = true })
+            }) {
+            Section {
+                ListPageSummary(pending: pendingCount, added: addedCount, skipped: skippedCount, tint: .accentColor)
+                    .padding(.bottom, 20)
+                    .contentShape(Rectangle())
+                    .onTapGesture { entryFocused = false }
             }
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Add products")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 16)
-                VStack(spacing: 0) {
-                    ProductEntryEditor(text: $draft, isFocused: $entryFocused, focusControl: entryFocus,
-                                       onSubmit: {
-                            if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { entryFocused = false }
-                            else { addItems() }
-                                       }, accessibilityIdentifier: "all-items-entry")
-                        .modifier(ProductEntryFieldStyle(tint: .accentColor, isFocused: entryFocused))
-                        .simultaneousGesture(TapGesture().onEnded { entryFocused = true })
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .onChange(of: draft) { _, value in
-                            guard value == draft, value.contains(where: { $0.isNewline }) else { return }
-                            addItems()
-                        }
-                    Divider().padding(.horizontal, 16)
-                    HStack(spacing: 8) {
-                        Button(action: importItems) {
-                            Label(paprikaReminders.importing ? "Importing…" : "Import",
-                                  systemImage: paprikaReminders.importing ? "hourglass" : "checklist")
-                                .font(.footnote.weight(.semibold))
-                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                .contentShape(Rectangle())
-                        }
-                        .disabled(paprikaReminders.importing || destinationID == nil)
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Import items into the selected destination store")
-                        Spacer(minLength: 4)
-                        if let destinationID {
-                            HStack(spacing: 0) {
-                                Button(action: addItems) {
-                                    Text("Add to \(destinationID.displayName)")
-                                        .font(.body)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.75)
-                                        .frame(minWidth: 44, minHeight: 44)
-                                        .padding(.leading, 14)
-                                        .padding(.trailing, 12)
-                                        .contentShape(Rectangle())
-                                }
-                                    .buttonStyle(.plain)
-                                    .disabled(IngredientParser.application.parseProductEntry(draft).isEmpty)
-                                    .accessibilityIdentifier("all-items-add")
-                                Rectangle().fill(.white.opacity(0.35)).frame(width: 1, height: 26)
-                                Menu {
-                                    ForEach(visibleStores, id: \.id) { store in
-                                        Button {
-                                            destinationRawValue = store.id.rawValue
-                                        } label: {
-                                            if store.id == destinationID {
-                                                Label(store.displayName, systemImage: "checkmark")
-                                            } else {
-                                                Text(store.displayName)
-                                            }
-                                        }
-                                    }
-                                } label: {
-                                    Image(systemName: "chevron.down")
-                                        .font(.caption.weight(.bold))
-                                        .frame(width: 44, height: 44)
-                                        .contentShape(Rectangle())
-                                }
-                                .accessibilityLabel("Choose add destination")
-                                .accessibilityValue(destinationID.displayName)
-                                .accessibilityIdentifier("all-items-add-destination")
-                            }
-                            .foregroundStyle(.white)
-                            .layoutPriority(1)
-                            .background(Color.accentColor, in: Capsule())
-                        } else {
-                            Menu {
-                                if visibleStores.isEmpty {
-                                    Button("Manage Stores") { showingStoreManagement = true }
-                                } else {
-                                    ForEach(visibleStores, id: \.id) { store in
-                                        Button(store.displayName) { destinationRawValue = store.id.rawValue }
-                                    }
-                                }
-                            } label: {
-                                Label("Choose Store", systemImage: "chevron.down")
-                                    .font(.subheadline.weight(.semibold))
-                                    .frame(minHeight: 44)
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 0, trailing: 20))
+            ProductEntrySection(text: $draft, isFocused: $entryFocused, focusControl: entryFocus,
+                tint: .accentColor, accessibilityIdentifier: "all-items-entry",
+                importing: paprikaReminders.importing,
+                importConfigured: GroceryImportSource(rawValue: importSourceID) == .paprika,
+                importDisabled: destinationID == nil, compactImport: true,
+                removeReminders: removeRemindersAfterImport, onSubmit: {
+                    if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { entryFocused = false }
+                    else { addItems() }
+                }, onImport: importItems, onTextChange: { value in
+                    guard value == draft else { return }
+                    if value.contains(where: { $0.isNewline }) { addItems() }
+                    else if !value.isEmpty {
+                        entryRevealSuppressed = false
+                        revealFocusedEntry()
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 4)
+                }, onEditorFrame: { frame in
+                    let heightChanged = abs(entryFrame.height - frame.height) > 0.5
+                    entryFrame = frame
+                    if heightChanged { revealFocusedEntry() }
+                }, onActionsFrame: { actionsFrame = $0 }) {
+                    AllItemsAddButton(destination: destinationID, stores: visibleStores,
+                        destinationRawValue: $destinationRawValue,
+                        canAdd: !IngredientParser.application.parseProductEntry(draft).isEmpty,
+                        onAdd: addItems, onManageStores: { showingStoreManagement = true })
                 }
-                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 26))
-            }
-
+            Section {
                 Picker("Group items", selection: Binding(
                     get: { grouping.rawValue }, set: { groupingRawValue = $0 })) {
                     Text("By store").tag(AllItemsGrouping.store.rawValue)
@@ -431,17 +695,9 @@ private struct AllItemsScreen: View {
                 .pickerStyle(.segmented)
                 .disabled(editMode.isEditing)
                 .accessibilityIdentifier("all-items-grouping")
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color(uiColor: .systemGroupedBackground))
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-        composer
-        ScrollViewReader { proxy in
-        List {
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
             if groups.isEmpty {
                 ContentUnavailableView("Your lists are empty", systemImage: "basket",
                                        description: Text("Add products above, or choose a store list."))
@@ -499,19 +755,19 @@ private struct AllItemsScreen: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .scrollDismissesKeyboard(.interactively)
-        .contentMargins(.top, 0, for: .scrollContent)
-        .id(grouping.rawValue)
         .onChange(of: recentItemOrderRawValue) { _, value in
-            if let group = groups.first {
-                // Only the item region scrolls; the composer and its responder
-                // stay in place above it, including with the keyboard visible.
-                proxy.scrollTo(group.id, anchor: .top)
+            if let itemID = groups.first?.items.first?.id {
+                // Promote/reveal the new group within the same scrolling page.
+                // Typing again reveals the shared editor, as on a store list.
+                entryRevealSuppressed = true
+                entryRevealTask?.cancel()
+                withAnimation { proxy.scrollTo(itemID, anchor: .bottom) }
             }
         }
-        .onChange(of: groupingRawValue) { _, _ in
-            if let group = groups.first { proxy.scrollTo(group.id, anchor: .top) }
+        .onChange(of: entryFocused) { _, focused in
+            entryRevealSuppressed = focused && !highlightedItemIDs.isEmpty
+            if focused { revealFocusedEntry() }
+            else { entryRevealTask?.cancel() }
         }
         .task(id: recentItemOrderRawValue) {
             guard !highlightedItemIDs.isEmpty else { return }
@@ -520,24 +776,12 @@ private struct AllItemsScreen: View {
             highlightedItemIDs.removeAll()
         }
         }
-        }
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                if !allItems.isEmpty { EditButton() }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    entryFocused = false
-                    entryFocus.resignFirstResponder()
-                    editMode = .inactive
-                    showingSettings = true
-                } label: {
-                    Image(systemName: "gearshape")
-                }
-                .accessibilityLabel("Settings")
+            ListPageToolbar(showEdit: !allItems.isEmpty) {
+                entryFocused = false
+                entryFocus.resignFirstResponder()
+                editMode = .inactive
+                showingSettings = true
             }
         }
         .environment(\.editMode, $editMode)
@@ -619,52 +863,6 @@ private struct AllItemsScreen: View {
                 })
                 .interactiveDismissDisabled(paprikaReminders.importing)
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            HStack {
-                Text("Your list").font(.largeTitle.weight(.bold))
-                Spacer(minLength: 8)
-                Menu {
-                    Label("All items", systemImage: "checkmark")
-                    Divider()
-                    ForEach(visibleStores, id: \.id) { store in
-                        Button(store.displayName) { onChooseStoreList(store.id) }
-                    }
-                    Divider()
-                    Button("Manage Stores") { showingStoreManagement = true }
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("All items").font(.title3.weight(.heavy)).lineLimit(1)
-                        Image(systemName: "chevron.up.chevron.down").font(.caption2.weight(.black))
-                    }
-                    .foregroundStyle(Color.accentColor)
-                    .padding(.horizontal, 13).padding(.vertical, 10)
-                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
-                }
-                .accessibilityIdentifier("all-items-scope-picker")
-            }
-            .padding(.horizontal, 20).padding(.vertical, 10)
-            .background(Color(uiColor: .systemGroupedBackground))
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !entryFocused && !shoppingStores.isEmpty {
-                Menu {
-                    ForEach(shoppingStores, id: \.id) { store in
-                        Button("Shop at \(store.displayName)") { shoppingDestination = store.id }
-                    }
-                } label: {
-                    Label("Show Store...", systemImage: "cart.fill")
-                        .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
-                }
-                .modifier(StoreLaunchButtonStyle(tint: .accentColor))
-                .accessibilityIdentifier("all-items-show-store")
-                 .padding(.horizontal, 20).padding(.top, 8)
-            } else if !entryFocused && !allItems.isEmpty {
-                Button("Manage Stores") { showingStoreManagement = true }
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .buttonStyle(.bordered)
-                    .padding(.horizontal, 20)
-            }
-        }
         .onAppear {
             if destinationRawValue.isEmpty, !visibleStores.isEmpty {
                 // The root supplies the previously viewed store on first entry.
@@ -673,21 +871,23 @@ private struct AllItemsScreen: View {
                 destinationRawValue = visibleStores[0].id.rawValue
             }
         }
+        .onDisappear { entryRevealTask?.cancel() }
     }
 
-    private func countLabel(_ count: Int, title: String, tint: Color) -> some View {
-        VStack(spacing: 3) {
-            Text("\(count)").font(.title3.weight(.semibold)).foregroundStyle(tint)
-            Text(title).font(.caption).foregroundStyle(.secondary)
-        }
-        .frame(minWidth: 68)
-        .accessibilityElement(children: .combine)
+    private func revealFocusedEntry() {
+        entryRevealTask?.cancel()
+        guard entryFocused, !entryRevealSuppressed else { return }
+        entryRevealTask = entryFocus.revealCard(geometry: {
+            guard entryFocused, !entryRevealSuppressed else { return nil }
+            return ProductEntryRevealGeometry(editor: entryFrame, actions: actionsFrame,
+                                             viewport: listViewportFrame)
+        }, onRevealing: { isRevealingEntry = $0 })
     }
 
     private func allItemRow(_ item: GroceryItem) -> some View {
         let owner = StoreID.allCases.first { $0.listID == item.listID }
         let available = owner.map { shoppingVisibleIDs.contains($0) } ?? false
-        return HStack(spacing: 10) {
+        return HStack(spacing: 12) {
             Button {
                 guard !editMode.isEditing else { editingItem = item; return }
                 guard let owner else {
@@ -702,23 +902,13 @@ private struct AllItemsScreen: View {
                 list?.selectedItemID = item.id
                 if saveChanges() { shoppingDestination = owner }
             } label: {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(item.name).font(.body.weight(.medium)).foregroundStyle(.primary)
-                    Text("\(owner?.displayName ?? "Uncategorised") · \(item.displayQuantity)\(available ? "" : " · Unavailable")")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .contentShape(Rectangle())
+                ListItemContent(name: item.name, quantity: item.displayQuantity,
+                    ownerName: owner?.displayName ?? "Uncategorised", unavailable: !available,
+                    status: item.status, tint: item.status == .skipped ? .secondary : owner.map(storeTint) ?? .accentColor)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(owner.map { ", \($0.displayName)" } ?? ", Uncategorised")\(available ? "" : ", Unavailable")")
-            Spacer(minLength: 4)
-            Text(item.status.rawValue)
-                .font(.caption2.weight(.semibold))
-                .padding(.horizontal, 9).padding(.vertical, 6)
-                .background(statusTint(item.status).opacity(0.14), in: Capsule())
-                .foregroundStyle(statusTint(item.status))
-            Menu {
+            ListItemActions(name: item.name) {
                 Button("Edit Item", systemImage: "pencil") { editingItem = item }
                 if item.status == .pending {
                     Button("Mark Added", systemImage: "checkmark.circle") { setStatus(.added, for: item) }
@@ -736,13 +926,12 @@ private struct AllItemsScreen: View {
                         }
                     }
                 Button("Delete Item", systemImage: "trash", role: .destructive) { itemToDelete = item }
-            } label: {
-                Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel("Actions for \(item.name)")
         }
         .frame(minHeight: 48)
+        .padding(.vertical, 15)
+        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
         .accessibilityIdentifier("all-item-\(item.id.uuidString)")
     }
 
@@ -893,13 +1082,6 @@ private struct AllItemsScreen: View {
         return Color(red: Double(color.red) / 255, green: Double(color.green) / 255, blue: Double(color.blue) / 255)
     }
 
-    private func statusTint(_ status: GroceryStatus) -> Color {
-        switch status {
-        case .pending: .accentColor
-        case .added: .green
-        case .skipped: .secondary
-        }
-    }
 
 }
 
@@ -1024,7 +1206,35 @@ struct GroceryListScreen: View {
     var body: some View {
         ScrollViewReader { scrollProxy in
         NavigationStack {
-            List {
+            ShoppingListPage(isWelcome: showingStoreWelcome,
+                keyboardDismissMode: isRevealingProductEntry ? .never : .interactively,
+                onViewportChange: { frame in
+                    listViewportFrame = frame
+                    revealFocusedProductEntry()
+                    if let itemID = scrollTargetItemID { scrollToAddedItem(itemID, using: scrollProxy) }
+                }, scope: {
+                    if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty {
+                        ListScopePicker(stores: StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
+                            enabledIDs: shoppingVisibleIDs), selectedStoreID: storeID, tint: storePrimaryColor,
+                            onChooseAllItems: onSelectAllItems, onChooseStore: onSelectStore,
+                            onManageStores: { showingStoreManagement = true })
+                    }
+                }, footer: {
+                    if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty && !items.isEmpty {
+                        Button(action: presentStore) {
+                            Label("Show Store", systemImage: "cart.fill")
+                                .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
+                        }
+                        .modifier(StoreLaunchButtonStyle(tint: storePrimaryColor))
+                        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+                            showStoreFrame = frame
+                            revealFocusedProductEntry()
+                        }
+                        .disabled(!browser.canPresentStore || !shoppingVisibleIDs.contains(storeID))
+                        .padding(.horizontal, 20).padding(.top, 8)
+                        .padding(.bottom, groceryInputFocused ? 16 : 0)
+                    }
+                }) {
                 if showingStoreWelcome {
                     StoreWelcomeContent {
                         managingWelcomeStores = true
@@ -1053,7 +1263,7 @@ struct GroceryListScreen: View {
                     .listRowBackground(Color.clear)
                 } else {
                     Section {
-                        summary
+                        ListPageSummary(pending: pendingCount, added: addedCount, skipped: skippedCount, tint: storePrimaryColor)
                             // Keep the native separator farther below the totals;
                             // this leaves the summary itself in place.
                             .padding(.bottom, 20)
@@ -1074,12 +1284,15 @@ struct GroceryListScreen: View {
                     // or the rest of the grocery list's frequent updates.
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: notice != nil)
 
-                    Section("Add products") {
-                        ProductEntryEditor(text: $rawInput,
-                                           isFocused: $groceryInputFocused,
-                                           focusControl: productEntryFocus,
-                                           onSubmit: addItems)
-                            .onChange(of: rawInput) { _, value in
+                    ProductEntrySection(text: $rawInput, isFocused: $groceryInputFocused,
+                        focusControl: productEntryFocus, tint: storePrimaryColor,
+                        importing: paprikaReminders.importing,
+                        importConfigured: GroceryImportSource(rawValue: importSourceID) == .paprika,
+                        removeReminders: removeRemindersAfterImport, onSubmit: addItems, onImport: {
+                            groceryInputFocused = false
+                            if GroceryImportSource(rawValue: importSourceID) == .paprika { importPaprika() }
+                            else { showingImportSetup = true }
+                        }, onTextChange: { value in
                                 // Return can submit and clear the binding before
                                 // SwiftUI delivers the preceding typing change.
                                 // That obsolete edit must not cancel its reveal.
@@ -1093,45 +1306,11 @@ struct GroceryListScreen: View {
                                      scrollTargetItemID = nil
                                      revealFocusedProductEntry()
                                 }
-                            }
-                            .modifier(ProductEntryFieldStyle(tint: storePrimaryColor, isFocused: groceryInputFocused))
-                            .simultaneousGesture(TapGesture().onEnded { groceryInputFocused = true })
-                            .onGeometryChange(for: CGRect?.self) { geometry in
-                                groceryInputFocused ? geometry.frame(in: .global) : nil
-                             } action: { frame in
-                                 guard let frame else { return }
+                        }, onEditorFrame: { frame in
                                  let heightChanged = abs(groceryInputFrame.height - frame.height) > 0.5
                                  groceryInputFrame = frame
                                  if heightChanged { revealFocusedProductEntry() }
-                            }
-                            .padding(.vertical, 4)
-
-                        HStack {
-                            Button {
-                                groceryInputFocused = false
-                                if GroceryImportSource(rawValue: importSourceID) == .paprika {
-                                    importPaprika()
-                                } else {
-                                    showingImportSetup = true
-                                }
-                            } label: {
-                                Label(paprikaReminders.importing ? "Importing…" :
-                                        GroceryImportSource(rawValue: importSourceID) == .paprika ? "Import from Paprika" : "Import items...",
-                                      systemImage: paprikaReminders.importing ? "hourglass" : "checklist")
-                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                    .contentShape(Rectangle())
-                            }
-                            .font(.footnote.weight(.semibold))
-                            .buttonStyle(.plain)
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            .contentShape(Rectangle())
-                            .disabled(paprikaReminders.importing)
-                            .accessibilityIdentifier(GroceryImportSource(rawValue: importSourceID) == .paprika ? "import-from-paprika" : "set-import-source")
-                            .accessibilityHint(GroceryImportSource(rawValue: importSourceID) == .paprika ?
-                                (removeRemindersAfterImport ? "Imports unchecked Paprika reminders and removes them after saving groceries" : "Imports unchecked Paprika reminders and keeps them linked") : "Choose your grocery import source")
-
-                            Spacer(minLength: 8)
-
+                        }, onActionsFrame: { productActionsFrame = $0 }) {
                             Button("Add Items") {
                                 addItems(keepingInputFocused: true)
                             }
@@ -1143,18 +1322,6 @@ struct GroceryListScreen: View {
                                     guard let frame else { return }
                                     addItemsButtonFrame = frame
                                 }
-                        }
-                        .padding(.vertical, 4)
-                        .id("product-entry-actions")
-                        .onGeometryChange(for: CGRect?.self) { geometry in
-                            groceryInputFocused ? geometry.frame(in: .global) : nil
-                        } action: { frame in
-                            guard let frame else { return }
-                            productActionsFrame = frame
-                        }
-                        // Trim List's default 15 pt vertical insets without
-                        // shrinking the import action's 44 pt hit area.
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                     }
 
                     Section {
@@ -1204,10 +1371,6 @@ struct GroceryListScreen: View {
                 groceryInputFocused = false
                 isListScreenVisible = false
             }
-            .listStyle(.insetGrouped)
-            .contentMargins(.top, 0, for: .scrollContent)
-            .listSectionSpacing(.compact)
-            .scrollDismissesKeyboard(isRevealingProductEntry ? .never : .interactively)
             .simultaneousGesture(DragGesture(minimumDistance: 10).updating($isDraggingList) { _, dragging, _ in
                 if !dragging { dragging = true }
             })
@@ -1221,91 +1384,6 @@ struct GroceryListScreen: View {
                 scrollTargetItemID = nil
                 itemFrames.removeAll(keepingCapacity: true)
             }
-            .onGeometryChange(for: CGRect.self) { geometry in
-                // The surrounding safeAreaInsets already reduce this layout
-                // frame for the header, Show Store and keyboard. Subtracting
-                // geometry.safeAreaInsets again can produce a zero-height area.
-                geometry.frame(in: .global)
-            } action: { frame in
-                listViewportFrame = frame
-                revealFocusedProductEntry()
-                // The first item also introduces the bottom action inset. Scroll
-                // against the resulting viewport, not the old empty-list size.
-                guard let itemID = scrollTargetItemID else { return }
-                scrollToAddedItem(itemID, using: scrollProxy)
-            }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                HStack(alignment: .center) {
-                    Text(showingStoreWelcome ? "ListRunner" : "Your list")
-                        .font(showingStoreWelcome ? .title3.weight(.bold) : .largeTitle.weight(.bold))
-                        .foregroundStyle(.primary)
-                    Spacer(minLength: 8)
-                    if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty {
-                        Menu {
-                            Button {
-                                onSelectAllItems()
-                            } label: {
-                                Label("All items", systemImage: "square.grid.2x2")
-                            }
-                            Divider()
-                            ForEach(StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
-                                                            enabledIDs: shoppingVisibleIDs), id: \.id) { store in
-                                Button(store.displayName) { onSelectStore(store.id) }
-                            }
-                            Divider()
-                            Button("Manage Stores") { showingStoreManagement = true }
-                                .accessibilityIdentifier("store-picker-manage-stores")
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text(storeID.displayName)
-                                    .font(.system(.title3, design: .default, weight: .heavy))
-                                    .lineLimit(1)
-                                Image(systemName: "chevron.up.chevron.down")
-                                    .font(.caption2.weight(.black))
-                            }
-                            .foregroundStyle(storePrimaryColor)
-                            .contentShape(Rectangle())
-                            .padding(.horizontal, 13)
-                            .padding(.vertical, 9)
-                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
-                        }
-                        .accessibilityIdentifier("store-picker")
-                        .accessibilityHint("Each store has its own grocery list and basket")
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(Color(uiColor: .systemGroupedBackground))
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty && !items.isEmpty {
-                    Button {
-                        presentStore()
-                    } label: {
-                        Label("Show Store", systemImage: "cart.fill")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, minHeight: 52)
-                    }
-                    .modifier(StoreLaunchButtonStyle(tint: storePrimaryColor))
-                    .onGeometryChange(for: CGRect.self) { geometry in
-                        geometry.frame(in: .global)
-                    } action: { frame in
-                        showStoreFrame = frame
-                        revealFocusedProductEntry()
-                    }
-                     .disabled(!browser.canPresentStore || !shoppingVisibleIDs.contains(storeID))
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
-                    // Keep the action inside the adjusted safe area so it stays
-                    // above the keyboard while the grocery field is focused.
-                    .padding(.bottom, groceryInputFocused ? 16 : 0)
-                }
-            }
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            // Keep the root's layout stable during interactive Back. The pushed
-            // screen owns its visible navigation bar, not this presentation flag.
-            .toolbar(showingStoreWelcome ? .hidden : .visible, for: .navigationBar)
             .navigationDestination(isPresented: $showingStoreManagement) {
                 StoreVisibilityScreen(sessions: sessions, visibility: visibility,
                     onWelcomeStoreEnabled: managingWelcomeStores ? { id in
@@ -1346,19 +1424,10 @@ struct GroceryListScreen: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty && !items.isEmpty { EditButton() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    if !showingStoreWelcome {
-                        Button {
-                            groceryInputFocused = false
-                            showingSettings = true
-                        } label: {
-                            Image(systemName: "gearshape")
-                        }
-                        .accessibilityLabel("Settings")
-                    }
+                ListPageToolbar(showEdit: !showingStoreWelcome && !shoppingVisibleIDs.isEmpty && !items.isEmpty,
+                                showSettings: !showingStoreWelcome) {
+                    groceryInputFocused = false
+                    showingSettings = true
                 }
             }
             .sheet(isPresented: $showingRemindersListPicker) {
@@ -1507,36 +1576,6 @@ struct GroceryListScreen: View {
         }
     }
 
-    private var summary: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(items.isEmpty ? "Ready when you are" : pendingCount == 0 ? "Complete" : "Ready when you are")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            HStack(spacing: 0) {
-                summaryMetric(count: pendingCount, label: "Pending", color: storePrimaryColor)
-                Divider().frame(height: 32)
-                summaryMetric(count: addedCount, label: "Added", color: storePrimaryColor)
-                Divider().frame(height: 32)
-                summaryMetric(count: skippedCount, label: "Skipped", color: .secondary)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(pendingCount) pending, \(addedCount) added, \(skippedCount) skipped")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func summaryMetric(count: Int, label: String, color: Color) -> some View {
-        VStack(spacing: 1) {
-            Text(count, format: .number)
-                .font(.headline.monospacedDigit())
-                .foregroundStyle(color)
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
     private func groceryList(using scrollProxy: ScrollViewProxy) -> some View {
         ForEach(items) { item in
             HStack(spacing: 12) {
@@ -1546,24 +1585,13 @@ struct GroceryListScreen: View {
                     saveChanges()
                     presentStore()
                 } label: {
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(sentenceCase(item.name)).font(.body.weight(.medium)).foregroundStyle(.primary)
-                            Text("Quantity \(item.displayQuantity)").font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 6)
-                        Text(item.status.rawValue)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(statusColor(item.status))
-                            .padding(.horizontal, 9).padding(.vertical, 6)
-                            .background(statusColor(item.status).opacity(0.11), in: Capsule())
-                    }
-                    .contentShape(Rectangle())
+                    ListItemContent(name: item.name, quantity: item.displayQuantity,
+                                    status: item.status, tint: statusColor(item.status))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue). Find in \(storeID.displayName)")
 
-                Menu {
+                ListItemActions(name: item.name) {
                     if item.status == .pending {
                         Button("Mark Added", systemImage: "checkmark.circle") { setStatus(.added, for: item) }
                     } else if item.status == .added {
@@ -1575,10 +1603,7 @@ struct GroceryListScreen: View {
                     Button("Edit Item", systemImage: "pencil") { editingItem = item }
                     Button("Move to Another Store", systemImage: "arrow.right.arrow.left") { itemToMove = item }
                     Button("Delete Item", systemImage: "trash", role: .destructive) { delete(item) }
-                } label: {
-                    Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle())
                 }
-                .accessibilityLabel("Actions for \(item.name)")
             }
             .frame(minHeight: 48)
             // Include the entire cell in the scroll identity/geometry. Native
@@ -1726,41 +1751,11 @@ struct GroceryListScreen: View {
     private func revealFocusedProductEntry() {
         productEntryRevealTask?.cancel()
         guard groceryInputFocused, scrollTargetItemID == nil else { return }
-        productEntryRevealTask = Task { @MainActor in
-            isRevealingProductEntry = true
-            defer { isRevealingProductEntry = false }
-            // Keyboard layout can arrive in stages. Re-measure each time rather
-            // than forcing alignment when the complete card already fits.
-            for delay in [0.1, 0.3, 0.3] {
-                do { try await Task.sleep(for: .seconds(delay)) }
-                catch { return }
-                guard groceryInputFocused, scrollTargetItemID == nil,
-                      listViewportFrame.height > 0,
-                      groceryInputFrame.height > 0, productActionsFrame.height > 0 else { return }
-                // The editor geometry excludes its List row's 15 pt native
-                // insets and 4 pt explicit padding. The actions target includes
-                // its explicit padding so scrollTo reveals the full native cell.
-                let cardTop = groceryInputFrame.minY - 19
-                let cardBottom = productActionsFrame.maxY
-                // The inset's top spacing is unobscured. A card touching the
-                // actual Show Store button already fits and must not move.
-                let visibleBottom = items.isEmpty || showStoreFrame.height == 0
-                    ? listViewportFrame.maxY : showStoreFrame.minY
-                productEntryRevealStatus = "checked bottom=\(cardBottom) visibleBottom=\(visibleBottom)"
-                guard cardBottom - cardTop <= visibleBottom - listViewportFrame.minY else { continue }
-                let adjustment: CGFloat
-                if cardBottom > visibleBottom + 0.5 {
-                    adjustment = cardBottom - visibleBottom
-                } else if cardTop < listViewportFrame.minY - 0.5 {
-                    adjustment = cardTop - listViewportFrame.minY
-                } else { continue }
-                // Static List cells do not reliably register with scrollTo.
-                // Move only the measured clipping distance in the editor's own
-                // enclosing list, retaining its responder and compact geometry.
-                productEntryRevealStatus = "scroll adjustment=\(adjustment)"
-                productEntryFocus.adjustListOffset(by: adjustment)
-            }
-        }
+        productEntryRevealTask = productEntryFocus.revealCard(geometry: {
+            guard groceryInputFocused, scrollTargetItemID == nil else { return nil }
+            return ProductEntryRevealGeometry(editor: groceryInputFrame, actions: productActionsFrame,
+                viewport: listViewportFrame, footerTop: items.isEmpty || showStoreFrame.height == 0 ? nil : showStoreFrame.minY)
+        }, onRevealing: { isRevealingProductEntry = $0 }, onStatus: { productEntryRevealStatus = $0 })
     }
 
     private func scrollToAddedItem(_ itemID: UUID, using proxy: ScrollViewProxy, animated: Bool = true) {
@@ -2256,6 +2251,13 @@ private struct StoreWelcomeStep: View {
     }
 }
 
+private struct ProductEntryRevealGeometry {
+    let editor: CGRect
+    let actions: CGRect
+    let viewport: CGRect
+    var footerTop: CGFloat?
+}
+
 // Weak, editor-scoped access for explicit presentation actions. Never resign
 // another scene's first responder through a global UIApplication action.
 @MainActor
@@ -2264,6 +2266,34 @@ private final class ProductEntryFocus {
 
     func resignFirstResponder() {
         if let view, view.isFirstResponder { view.resignFirstResponder() }
+    }
+
+    func revealCard(geometry: @escaping @MainActor () -> ProductEntryRevealGeometry?,
+                    onRevealing: @escaping @MainActor (Bool) -> Void,
+                    onStatus: @escaping @MainActor (String) -> Void = { _ in }) -> Task<Void, Never> {
+        Task { @MainActor in
+            onRevealing(true)
+            defer { onRevealing(false) }
+            // Keyboard layout arrives in stages. Both page scopes use the same
+            // measured, minimal correction and retain this editor's responder.
+            for delay in [0.1, 0.3, 0.3] {
+                do { try await Task.sleep(for: .seconds(delay)) }
+                catch { return }
+                guard let frame = geometry(), frame.viewport.height > 0,
+                      frame.editor.height > 0, frame.actions.height > 0 else { return }
+                let cardTop = frame.editor.minY - 19
+                let cardBottom = frame.actions.maxY
+                let bottom = frame.footerTop ?? frame.viewport.maxY
+                onStatus("checked bottom=\(cardBottom) visibleBottom=\(bottom)")
+                guard cardBottom - cardTop <= bottom - frame.viewport.minY else { continue }
+                let adjustment: CGFloat
+                if cardBottom > bottom + 0.5 { adjustment = cardBottom - bottom }
+                else if cardTop < frame.viewport.minY - 0.5 { adjustment = cardTop - frame.viewport.minY }
+                else { continue }
+                onStatus("scroll adjustment=\(adjustment)")
+                adjustListOffset(by: adjustment)
+            }
+        }
     }
 
     func adjustListOffset(by adjustment: CGFloat) {
