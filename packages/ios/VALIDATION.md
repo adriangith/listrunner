@@ -1,5 +1,46 @@
 # Reusable store framework validation
 
+## Equal native row height and authorized phone deployment (6 November 2026)
+
+Installed revision `3904e3bc169b1b3cc546050f1092466e503f13cf` on
+`feature/all-items-screen` (application source `ef65de1`). A baseline native-cell
+test at `31a0787` reproduced **108 pt in All items versus 78 pt in the store list**
+for the same short Coles fixture. The All items inset trait was inside subsequent
+row wrappers, allowing List's extra 15 pt top/bottom insets.
+
+Both screens now use `ShoppingListItemRow` for the complete row content, buttons,
+minimum content height, padding and tint. Native List insets come from one shared
+`ListItemRowLayout.insets` value applied after geometry/identity/background wrappers
+at each row's List boundary. Padding stays inside measured scroll identity. This
+does not force a fixed height: wrapped content and larger text can still grow.
+
+- New parity test passed through Xcode: **78 pt store / 78 pt All items by store /
+  78 pt All items by category**. Baseline result: `Test-ListRunner-2026.11.06_17-20-21-+1100.xcresult`;
+  first passing result: `Test-ListRunner-2026.11.06_17-23-56-+1100.xcresult`, both under
+  the canonical Mac DerivedData `Logs/Test` directory.
+- Combined CLI run `/tmp/listrunner-row-height-final-ef65de1.xcresult`: **5 passed,
+  1 failed**, not 6/6. Parity, reorder/persistence, clear-list isolation, shopping
+  return and standard repeated-entry/full-row reveal passed. The aggregate keyboard
+  test failed its actual-software-keyboard precondition, not its row-height check.
+- A simulator boot without erasure and focused CLI retry did not restore software
+  keyboard visibility. A stronger pre-add assertion at `3904e3b` then failed through
+  Xcode **before typing or adding**, confirming that the current keyboard test could
+  not exercise its required visible-keyboard scenario. Do not count it as passing;
+  rerun when software keyboard presentation is available. Temporary keyboard defaults
+  were removed and the original unset preference was verified. The interrupted
+  17:26 Xcode run was cancelled before assertions and is not passing evidence.
+- Simulator and phone builds passed. Screenshot reviewed:
+  `/tmp/opencode/all-items-row-height-fixed.png`.
+- At the user's explicit request, Xcode RunProject signed/installed in place and
+  launched on **Adrian’s iPhone / iOS 27.2**, PID **21627**, zero build errors.
+  No enabled launch arguments/environment overrides. Actual Debug-iphoneos bundle
+  matched all **35 JSON + 1 JavaScript** resources; deep/strict signature verify passed.
+  Log: `/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261106-194233.txt`.
+
+No reset, fixture run on the phone, import/reminder mutation, list clearing or
+retailer/cart interaction occurred during deployment. Existing phone data/sessions
+were left intact. No merge, TestFlight delivery or release.
+
 ## Authorized shared-layout iPhone deployment (6 November 2026)
 
 At the user's request, revision `4a49a97049b09d4efc7a92e1afa6172c7363a7a8`
