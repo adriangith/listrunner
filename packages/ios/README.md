@@ -35,6 +35,15 @@ The verifier requires every canonical JSON file (including Bunnings) to be byte-
 
 ## Current implementation
 
+### Appearance
+
+Settings → Appearance offers System (the default), Light and Dark. The choice
+applies immediately to the native app, including presented screens and local-data
+recovery, and is remembered across launches. System follows the device appearance,
+including scheduled changes. Clearing diagnostics preserves the preference;
+confirmed Reset Local Data restores System. Retailer websites retain control of
+their own page styling.
+
 ### IKEA Australia
 
 IKEA (`ikeaAU`) joins the shared store catalogue with Australian discovery,

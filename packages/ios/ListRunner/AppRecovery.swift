@@ -211,6 +211,14 @@ struct SettingsOverviewScreen: View {
     let importDestinationName: String
     let onImportSourceSelected: () -> Void
 
+    private var appearanceLabel: LocalizedStringKey {
+        switch appearance {
+        case "light": "Light"
+        case "dark": "Dark"
+        default: "System"
+        }
+    }
+
     var body: some View {
         Form {
             Section {
@@ -220,6 +228,7 @@ struct SettingsOverviewScreen: View {
                     Text("Dark").tag("dark")
                 }
                 .pickerStyle(.menu)
+                .accessibilityValue(Text(appearanceLabel))
                 .accessibilityIdentifier("appearance-setting")
             } footer: {
                 Text("System follows your device’s appearance setting.")
