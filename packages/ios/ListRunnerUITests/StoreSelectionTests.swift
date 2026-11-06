@@ -1618,9 +1618,20 @@ final class StoreSelectionTests: XCTestCase {
             let bottom = showStore.exists ? min(list.frame.maxY, showStore.frame.minY) : list.frame.maxY
             return clear.frame.minY >= list.frame.minY && clear.frame.maxY <= bottom
         }
-        for _ in 0..<8 where !fullyVisible() {
-            if clear.exists && clear.frame.minY < list.frame.minY { list.swipeDown() }
-            else { list.swipeUp() }
+        // Full-length swipes can skip an entire small group; virtualized rows
+        // then disappear from AX, making their direction impossible to infer.
+        // Search from the top when necessary and use short, bounded drags.
+        if !clear.exists {
+            for _ in 0..<4 where !clear.exists { list.swipeDown(velocity: .fast) }
+        }
+        for _ in 0..<20 where !fullyVisible() {
+            let bottom = showStore.exists ? min(list.frame.maxY, showStore.frame.minY) : list.frame.maxY
+            let top = list.frame.minY
+            let start = app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: list.frame.midX, dy: (top + bottom) / 2))
+            let direction: CGFloat = clear.exists && clear.frame.minY < top ? 1 : -1
+            let end = start.withOffset(CGVector(dx: 0, dy: direction * min(90, (bottom - top) / 3)))
+            start.press(forDuration: 0.05, thenDragTo: end)
         }
         XCTAssertTrue(clear.isHittable, app.debugDescription)
         XCTAssertTrue(fullyVisible(), "The entire clear action must be above Show Store, not merely tappable through glass")
