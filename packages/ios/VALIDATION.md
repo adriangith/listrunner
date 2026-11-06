@@ -1,5 +1,31 @@
 # Reusable store framework validation
 
+## All items standard composer styling (6 November 2026)
+
+Application revision `1a5b8d27173907dd4e73e45f3ff146520633f8a9` on
+`feature/all-items-screen` reuses the standard `ProductEntryEditor` and shared
+`ProductEntryFieldStyle` for All items. The subdued external Add products heading,
+rounded card, outlined input and checklist Import action match the standard entry
+area, retaining the destination-specific split Add button. Layout priority and a
+single-line label prevent the destination button wrapping at standard text size.
+
+- Xcode build-for-testing passed with zero errors.
+- Focused iPhone 17 / iOS 27.2 simulator run: **4/4 passed**, zero failures/skips:
+  aggregate add/grouping, repeated entry/preferences, Paprika scope/draft/destination
+  handoff, and standard empty-Return keyboard dismissal.
+- Tests verify the split Add remains 44–48 points high at standard text size, its
+  arrow retains a 44-point hit target, and the shopping footer is absent while typing.
+- Result bundle on the Mac:
+  `/Users/adrianzafir/Library/Developer/Xcode/DerivedData/ListRunner-epzzinbppcxqwyevzuqhzfuvrvzc/Logs/Test/Test-ListRunner-2026.11.06_11-41-16-+1100.xcresult`.
+- Exported screenshot inspected on Linux:
+  `/tmp/opencode/all-items-standard-composer-final.png`. It confirms the outlined
+  standard input, one-line destination button, visible keyboard and unobstructed
+  newest row; UIKit's AutoFill popover partly covers Import in that captured frame.
+
+This styling revision has **not** been installed on the physical iPhone; the phone
+still has reviewed revision `cd2c319`. No reset, live import or retailer action was
+performed. Broader accessibility/appearance certification remains as noted below.
+
 ## All items scope and category schema 7 (5–6 November 2026)
 
 Application revision `429a58f93edd75c67ab5dd7760cafe833bae249e` is pushed on
