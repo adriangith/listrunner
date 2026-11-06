@@ -1,5 +1,19 @@
 # Reusable store framework validation
 
+## Authorized latest All items iPhone deployment (6 November 2026)
+
+At the user's request, `3a666120bee3ca82de2f166e097fbb2323335893` on
+`feature/all-items-screen` was built, installed in place and launched on **Adrian’s
+iPhone / iOS 27.2**. This includes the standard composer, populated-only Show
+Store... chooser, Settings/Edit controls and per-group Clear List actions.
+Xcode RunProject reported zero build errors and successful launch (PID **19515**).
+The shared scheme had no enabled launch arguments or environment overrides. Actual
+Debug-iphoneos bundle verification passed: **35 JSON + 1 JavaScript** match source.
+No data reset, test fixture, import/reminder operation or retailer/cart action was
+performed. This was a development install, not a merge, TestFlight delivery or release.
+Mac build/launch log:
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261106-133453.txt`.
+
 ## All items per-group Clear List (6 November 2026)
 
 Revision `2b09bf24acdca5575293db6ac809a99a80c661c8` adds a shared `ClearListButton`
