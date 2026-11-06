@@ -1,5 +1,11 @@
 # All items implementation review
 
+Subsequent change (6 November): the user approved replacing the pinned All items
+composer and separate layout with shared store/aggregate presentation. The historical
+review below describes the earlier implementation. Current component boundaries,
+scrolling behaviour and regression evidence are in `packages/ios/VALIDATION.md` under
+“Shared list-page presentation and scrolling”; `plan.md` reflects the revised scope.
+
 Reviewed against the approved All items plan and the pre-feature baseline
 `18347796fef55944e6e7708f89217c5fba3240be`. Application revision:
 `429a58f93edd75c67ab5dd7760cafe833bae249e` on `feature/all-items-screen`.

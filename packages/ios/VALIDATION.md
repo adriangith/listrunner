@@ -1,5 +1,78 @@
 # Reusable store framework validation
 
+## Shared list-page presentation and scrolling (6 November 2026)
+
+At the user's explicit choice, store lists and All items now render through the
+same presentation layer rather than separate page layouts. Application revision:
+`579e77e2ee80b14e031f81b0e4eb45222194656e`, `feature/all-items-screen`.
+
+Shared components in `GroceryListScreen.swift`:
+
+- `ShoppingListPage`: native List, section spacing, pinned header, bottom action,
+  navigation-bar presentation, viewport measurement and manual-scroll cancellation.
+- `ListScopePicker`, `ListPageToolbar`, `ListPageSummary`: one implementation of
+  header/chooser, Edit/Settings and counts, with scope-specific data and tint.
+- `ProductEntrySection`: native editor, outlined field, section/action-row insets,
+  Import styling and geometry. Only its Add control is supplied by the screen;
+  All items retains the split destination button and compact Import wording.
+- `ListItemContent` and `ListItemActions`: shared typography, quantity/status badge,
+  spacing and menu target. All items supplies owner/unavailability metadata and
+  owner-specific tint; it does not duplicate the row design.
+- `ProductEntryFocus.revealCard` and `ListItemReveal`: measured editor/item reveal
+  shared by both scopes, including delayed keyboard/insertion correction, stable
+  responder handling and re-revealing the full card when refocusing after an add.
+  The existing shared Clear List component and store-launch styling remain reused.
+
+Only Your list and the scope chooser stay pinned at the top. Counts, entry,
+grouping and groups scroll together, superseding the earlier pinned All items
+composer. Show Store remains the bottom action and stays hidden while typing in
+All items. Separate screen adapters retain ownership/grouping/destination/import/
+shopping state and transaction safeguards; no database schema, retailer identity,
+cart automation or import transaction was rewritten.
+
+Validation:
+
+- Final Debug simulator build-for-testing passed on the revision above.
+- **Final combined run: 6/6 passed, zero failures/skips**, iPhone 17 / iOS 27.2:
+  shared header/entry geometry and header-only pinning; repeated aggregate entry,
+  actual software-keyboard visibility, fully revealed new row and complete card on
+  refocus; store-owned reorder/persistence; Paprika draft/destination/scope handoff;
+  standard growing-draft and stable/refocused whole-card keyboard positioning.
+  Mac result bundle: `/tmp/listrunner-shared-page-final-579e77e.xcresult`.
+- A broader run at `2828509`, `/tmp/listrunner-shared-page-final-2828509.xcresult`,
+  passed **13/15**. Its nine other scenarios passed: all three group-clear cases,
+  populated-only store chooser, aggregate Settings return, first-store welcome,
+  all-hidden-store management, repeated standard additions and standard Clear Added.
+  Import and reorder interaction checks failed there, then passed in the targeted
+  `58dbaee` run and again in the final six-test run. This is coverage of all 15
+  selected scenarios across runs, **not** one final-revision 15/15 claim.
+- Earlier keyboard runs exposed an offscreen keyboard AX element, an overly strict
+  screen-percentage test assumption and a real partially hidden aggregate-added row.
+  Tests now require visible software-keyboard intersection and await settled row
+  geometry. Shared measured row reveal fixed the actual clipping. Refocus screenshot
+  review also caught the entry outline clipped under the header; the shared tap
+  callback now restores the complete card. Import now resigns its editor before
+  presenting the captured-destination flow; tests use precise native-menu taps and
+  row-scoped slow reorder-handle drags.
+- Actual simulator app bundle: **35 JSON + 1 JavaScript** match canonical files.
+  Linux **431 JavaScript tests passed**; automation sources were unchanged.
+- Final screenshots exported and visually reviewed:
+  `/tmp/opencode/all-items-shared-page-final-scrolled.png` and
+  `/tmp/opencode/all-items-shared-page-final-keyboard.png`.
+
+The Xcode MCP became unavailable during this work; builds/tests used the canonical
+project through `xcodebuild`, with no competing test process. The test simulator was
+restarted without erasing data. A temporary `ConnectHardwareKeyboard=false` override
+was removed and the original unset preference verified after testing. Existing
+simulator state, device data and evidence were preserved. OpenPencil remained an
+unavailable external reference; the existing standard store-page implementation was
+the visual baseline. Broad accessibility/iOS 17 certification remains deferred as
+previously recorded.
+
+**This shared-layout revision is not installed on the physical iPhone.** Its last
+authorized development install remains `3a66612`, recorded below. No live retailer,
+reminder or cart operation, merge, TestFlight delivery or release occurred here.
+
 ## Authorized latest All items iPhone deployment (6 November 2026)
 
 At the user's request, `3a666120bee3ca82de2f166e097fbb2323335893` on
