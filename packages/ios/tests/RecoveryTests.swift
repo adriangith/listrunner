@@ -1447,7 +1447,8 @@ struct RecoveryTests {
         let disk = DiagnosticStore(fileURL: diagnosticsURL, clock: { now })
         disk.record(.store, .load, outcome: .succeeded)
         check(DiagnosticStore(fileURL: diagnosticsURL, clock: { now }).entries.count == 1, "diagnostics survive relaunch")
-        try disk.clear()
+            defaults.set("dark", forKey: "appearance.v1")
+            try disk.clear()
         try disk.clear()
         check(disk.entries.isEmpty && !FileManager.default.fileExists(atPath: diagnosticsURL.path), "clear is immediate and idempotent")
         disk.record(.store, .load, outcome: .succeeded, host: .www)
@@ -1555,7 +1556,8 @@ struct RecoveryTests {
          check(defaults.string(forKey: "shoppingCountry.v1") == "NZ"
                && defaults.array(forKey: "visibleStoreIDs.v1") as? [String] == ["coles"],
                "clearing diagnostics preserves country and visibility preferences")
-        defaults.set("keep", forKey: "unrelated")
+         check(defaults.string(forKey: "appearance.v1") == "dark", "clearing diagnostics preserves appearance")
+         defaults.set("keep", forKey: "unrelated")
         let url = root.appendingPathComponent("test.store")
         let unrelatedFile = root.appendingPathComponent("unrelated.txt")
         try Data("keep".utf8).write(to: unrelatedFile)
@@ -1588,6 +1590,8 @@ struct RecoveryTests {
               "local reset removes naming preference")
         check(defaults.object(forKey: "autoScrollToResults.v1") == nil,
               "local reset removes auto-scroll preference")
+        check(defaults.object(forKey: "appearance.v1") == nil,
+              "local reset restores system appearance")
          check(defaults.string(forKey: "lastOverlaySelectedItemID") == nil, "local reset clears app metadata")
          check(defaults.object(forKey: "visibleStoreIDs.v1") == nil
                && defaults.object(forKey: "knownStoreIDs.v1") == nil

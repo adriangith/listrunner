@@ -206,12 +206,24 @@ struct SettingsOverviewScreen: View {
     @ObservedObject var visibility: StoreVisibilityPreferences
     @State private var notice: String?
     @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
+    @AppStorage("appearance.v1") private var appearance = "system"
     let importInProgress: Bool
     let importDestinationName: String
     let onImportSourceSelected: () -> Void
 
     var body: some View {
         Form {
+            Section {
+                Picker("Appearance", selection: $appearance) {
+                    Text("System").tag("system")
+                    Text("Light").tag("light")
+                    Text("Dark").tag("dark")
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("appearance-setting")
+            } footer: {
+                Text("System follows your device’s appearance setting.")
+            }
             Section {
                 NavigationLink("Manage Stores") {
                     StoreVisibilityScreen(sessions: sessions, visibility: visibility)
