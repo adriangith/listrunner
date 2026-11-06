@@ -1,5 +1,12 @@
 # Reusable store framework validation
 
+## App appearance (6 November 2026)
+
+- Mac Xcode 27.2 simulator build and focused `StoreSelectionTests/testAppearanceSelectionPersistsAcrossRelaunch` passed on iPhone 17 / iOS 27.2 at `750b057cab04b4c1a55633e2634abf95c1bc285c`. The test confirms the initial System choice, selection of Dark/Light/System, and persistence after each relaunch using an isolated preferences suite. The first run exposed a missing picker accessibility value; an explicit localized selected-value label fixed it.
+- Native recovery suite passed **1,864 checks** at `4a5ceb33eae09b136443a210d7562759bba80476`, including diagnostics preserving the choice and confirmed local reset clearing it. Later changes only added the accessibility label and documentation.
+- Linux bundled-resource tests passed **9 tests**; `git diff --check` passed. No retailer website/cart interactions were involved.
+- Mac evidence remains outside the checkout: `/Users/adrianzafir/Library/Developer/Xcode/DerivedData/ListRunnerAppearance/Logs/Test/Test-ListRunner-2026.11.06_11-26-33-+1100.xcresult`. The simulator test verifies controls and preference persistence, not exhaustive visual/accessibility coverage or scheduled device appearance changes. OpenPencil was unavailable; the user approved the existing native Settings style.
+
 ## Native retailer categories — schema 6 (5 November 2026)
 
 Review reconciled this change with main at `a39376ff184769349c711824d9399067754f97f4`.

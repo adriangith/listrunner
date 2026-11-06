@@ -1587,6 +1587,25 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("Bunnings saved item", status: "Added").exists)
     }
 
+    func testAppearanceSelectionPersistsAcrossRelaunch() {
+        app.buttons["Settings"].tap()
+        let picker = app.buttons["appearance-setting"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        XCTAssertEqual(picker.value as? String, "System")
+
+        for appearance in ["Dark", "Light", "System"] {
+            picker.tap()
+            app.buttons[appearance].tap()
+            XCTAssertEqual(picker.value as? String, appearance)
+
+            app.terminate()
+            app.launch()
+            app.buttons["Settings"].tap()
+            XCTAssertTrue(picker.waitForExistence(timeout: 5))
+            XCTAssertEqual(picker.value as? String, appearance)
+        }
+    }
+
     func testSettingsHasCountryAndNoStoreRows() {
         app.buttons["Settings"].tap()
         let manage = app.buttons["Manage Stores"]

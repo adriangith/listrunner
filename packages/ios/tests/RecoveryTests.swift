@@ -1546,7 +1546,8 @@ struct RecoveryTests {
          defaults.set(true, forKey: "shoppingCountryInitialized.v1")
          defaults.set(false, forKey: "useLocalIngredientNames.v1")
          defaults.set(["costco": "costcoUS"], forKey: "storeRegionalChoices.v1")
-         defaults.set(true, forKey: "selectEnabledStoreAfterEmpty.v1")
+          defaults.set(true, forKey: "selectEnabledStoreAfterEmpty.v1")
+          defaults.set("dark", forKey: "appearance.v1")
            try disk.clear()
           check(defaults.string(forKey: GroceryImportSource.preferenceKey) == "paprika",
                 "diagnostics clearing preserves import source")
@@ -1555,6 +1556,7 @@ struct RecoveryTests {
          check(defaults.string(forKey: "shoppingCountry.v1") == "NZ"
                && defaults.array(forKey: "visibleStoreIDs.v1") as? [String] == ["coles"],
                "clearing diagnostics preserves country and visibility preferences")
+         check(defaults.string(forKey: "appearance.v1") == "dark", "clearing diagnostics preserves appearance")
         defaults.set("keep", forKey: "unrelated")
         let url = root.appendingPathComponent("test.store")
         let unrelatedFile = root.appendingPathComponent("unrelated.txt")
@@ -1588,6 +1590,8 @@ struct RecoveryTests {
               "local reset removes naming preference")
         check(defaults.object(forKey: "autoScrollToResults.v1") == nil,
               "local reset removes auto-scroll preference")
+        check(defaults.object(forKey: "appearance.v1") == nil,
+              "local reset restores system appearance")
          check(defaults.string(forKey: "lastOverlaySelectedItemID") == nil, "local reset clears app metadata")
          check(defaults.object(forKey: "visibleStoreIDs.v1") == nil
                && defaults.object(forKey: "knownStoreIDs.v1") == nil

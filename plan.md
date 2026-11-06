@@ -1,5 +1,10 @@
 ## ListRunner Build Specification
 
+### App appearance (6 November 2026)
+
+* Settings offers System, Light and Dark appearance choices using the existing native Settings style. System is the default and follows device appearance changes; explicit Light/Dark choices override the native app appearance immediately, including sheets and local-data recovery.
+* Persist the app-wide choice in the same preferences suite as other app settings. Clearing diagnostics preserves it; confirmed Reset Local Data restores System. Do not alter retailer website content or force website themes.
+
 ### Auto-scroll to search results (4 November 2026)
 
 * Native store search definitions may optionally supply a results-container or first-result CSS selector (`resultsSelector`) and a 0–500 CSS-pixel sticky-header allowance (`resultsTopOffset`, default 12). These additive fields do not change the existing search/cart capability ceilings or require existing definitions to migrate.
