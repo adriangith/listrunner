@@ -1619,7 +1619,11 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testAllItemsStoreClearSupportsCancelAddedAndAll() {
+        choose("Coles")
         app.buttons["Actions for Coles fixture item"].tap()
+        app.buttons["Mark Added"].tap()
+        choose("Woolworths")
+        app.buttons["Actions for Woolworths fixture item"].tap()
         app.buttons["Mark Added"].tap()
         choose("All items")
         app.buttons["all-items-add-destination"].tap()
@@ -1660,6 +1664,7 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testAllItemsCategoryClearAffectsOnlyThatCategoryAcrossStores() {
+        choose("Coles")
         app.buttons["Actions for Coles fixture item"].tap()
         app.buttons["Mark Added"].tap()
         choose("Woolworths")
@@ -2603,6 +2608,7 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testClearAddedPreservesPendingSkippedAndOtherStores() {
+        choose("Coles")
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
         input.typeText("Coffee; Apples")
@@ -2652,6 +2658,7 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testClearAddedOnlyListStillOffersBothOptions() {
+        choose("Coles")
         app.buttons["Actions for Coles fixture item"].tap()
         app.buttons["Mark Added"].tap()
         openClearListOptions()
