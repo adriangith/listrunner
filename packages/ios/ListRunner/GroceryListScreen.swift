@@ -228,6 +228,10 @@ private struct AllItemsScreen: View {
         StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
                                enabledIDs: shoppingVisibleIDs)
     }
+    private var shoppingStores: [StoreDefinition] {
+        let populatedListIDs = Set(allItems.map(\.listID))
+        return visibleStores.filter { populatedListIDs.contains($0.id.listID) }
+    }
     private var pendingCount: Int { allItems.filter { $0.status == .pending }.count }
     private var addedCount: Int { allItems.filter { $0.status == .added }.count }
     private var skippedCount: Int { allItems.filter { $0.status == .skipped }.count }
@@ -566,18 +570,17 @@ private struct AllItemsScreen: View {
             .background(Color(uiColor: .systemGroupedBackground))
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !entryFocused && !allItems.isEmpty && !visibleStores.isEmpty {
+            if !entryFocused && !shoppingStores.isEmpty {
                 Menu {
-                    ForEach(visibleStores, id: \.id) { store in
+                    ForEach(shoppingStores, id: \.id) { store in
                         Button("Shop at \(store.displayName)") { shoppingDestination = store.id }
                     }
                 } label: {
-                    Label("Choose Store", systemImage: "cart.fill")
+                    Label("Show Store...", systemImage: "cart.fill")
                         .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color.accentColor.opacity(0.28))
-                .foregroundStyle(Color.accentColor)
+                .modifier(StoreLaunchButtonStyle(tint: .accentColor))
+                .accessibilityIdentifier("all-items-show-store")
                  .padding(.horizontal, 20).padding(.top, 8)
             } else if !entryFocused && !allItems.isEmpty {
                 Button("Manage Stores") { showingStoreManagement = true }

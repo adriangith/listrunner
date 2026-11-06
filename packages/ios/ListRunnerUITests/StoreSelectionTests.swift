@@ -1548,7 +1548,7 @@ final class StoreSelectionTests: XCTestCase {
         let before = entry.frame
         add.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
-        XCTAssertFalse(app.buttons["Choose Store"].exists, "Secondary shopping chrome must not obscure entry feedback")
+        XCTAssertFalse(app.buttons["all-items-show-store"].exists, "Secondary shopping chrome must not obscure entry feedback")
         XCTAssertLessThan(abs(entry.frame.minY - before.minY), 2)
         entry.typeText("Second aggregate item")
         add.tap()
@@ -1607,6 +1607,25 @@ final class StoreSelectionTests: XCTestCase {
         blocker.buttons["View List"].tap()
         XCTAssertTrue(row("Bunnings fixture item", status: "Pending").waitForExistence(timeout: 5))
         XCTAssertFalse(app.webViews.firstMatch.exists)
+    }
+
+    func testAllItemsShowStoreOnlyOffersPopulatedLists() {
+        app.buttons["store-picker"].tap()
+        app.buttons["store-picker-manage-stores"].tap()
+        setStoreVisibility("costco", shown: true)
+        tapNavigationBack()
+        choose("All items")
+        let showStore = app.buttons["all-items-show-store"]
+        XCTAssertTrue(showStore.waitForExistence(timeout: 5))
+        XCTAssertEqual(showStore.label, "Show Store...")
+        showStore.tap()
+        XCTAssertTrue(app.buttons["Shop at Coles"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Shop at Woolworths"].exists)
+        XCTAssertFalse(app.buttons["Shop at Costco"].exists, "Enabled but empty lists must not be offered")
+        app.buttons["Shop at Coles"].tap()
+        XCTAssertTrue(app.buttons["Dismiss store"].waitForExistence(timeout: 10))
+        app.buttons["Dismiss store"].tap()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
     }
 
     func testAllItemsResultsScrollShoppingReturnsToAggregate() {
