@@ -1447,8 +1447,7 @@ struct RecoveryTests {
         let disk = DiagnosticStore(fileURL: diagnosticsURL, clock: { now })
         disk.record(.store, .load, outcome: .succeeded)
         check(DiagnosticStore(fileURL: diagnosticsURL, clock: { now }).entries.count == 1, "diagnostics survive relaunch")
-            defaults.set("dark", forKey: "appearance.v1")
-            try disk.clear()
+        try disk.clear()
         try disk.clear()
         check(disk.entries.isEmpty && !FileManager.default.fileExists(atPath: diagnosticsURL.path), "clear is immediate and idempotent")
         disk.record(.store, .load, outcome: .succeeded, host: .www)
@@ -1547,7 +1546,8 @@ struct RecoveryTests {
          defaults.set(true, forKey: "shoppingCountryInitialized.v1")
          defaults.set(false, forKey: "useLocalIngredientNames.v1")
          defaults.set(["costco": "costcoUS"], forKey: "storeRegionalChoices.v1")
-         defaults.set(true, forKey: "selectEnabledStoreAfterEmpty.v1")
+          defaults.set(true, forKey: "selectEnabledStoreAfterEmpty.v1")
+          defaults.set("dark", forKey: "appearance.v1")
            try disk.clear()
           check(defaults.string(forKey: GroceryImportSource.preferenceKey) == "paprika",
                 "diagnostics clearing preserves import source")
@@ -1557,7 +1557,7 @@ struct RecoveryTests {
                && defaults.array(forKey: "visibleStoreIDs.v1") as? [String] == ["coles"],
                "clearing diagnostics preserves country and visibility preferences")
          check(defaults.string(forKey: "appearance.v1") == "dark", "clearing diagnostics preserves appearance")
-         defaults.set("keep", forKey: "unrelated")
+        defaults.set("keep", forKey: "unrelated")
         let url = root.appendingPathComponent("test.store")
         let unrelatedFile = root.appendingPathComponent("unrelated.txt")
         try Data("keep".utf8).write(to: unrelatedFile)
