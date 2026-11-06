@@ -1557,8 +1557,12 @@ final class StoreSelectionTests: XCTestCase {
         add.tap()
         let newest = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "Second aggregate item")).firstMatch
         XCTAssertTrue(newest.waitForExistence(timeout: 5))
-        XCTAssertGreaterThanOrEqual(newest.frame.minY, app.buttons["all-items-scope-picker"].frame.maxY)
-        XCTAssertLessThanOrEqual(newest.frame.maxY, app.keyboards.firstMatch.frame.minY)
+        let newestVisible = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            newest.frame.minY >= self.app.buttons["all-items-scope-picker"].frame.maxY
+                && newest.frame.maxY <= self.app.keyboards.firstMatch.frame.minY
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [newestVisible], timeout: 5), .completed,
+                       "The new item must settle fully above the real keyboard")
         app.segmentedControls.buttons["By category"].tap()
         let destination = add.label
         entry.tap()

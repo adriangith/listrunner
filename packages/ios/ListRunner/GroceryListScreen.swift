@@ -548,6 +548,10 @@ private struct AllItemsScreen: View {
     @State private var entryRevealTask: Task<Void, Never>?
     @State private var isRevealingEntry = false
     @State private var entryRevealSuppressed = false
+    @State private var scrollTargetItemID: UUID?
+    @State private var itemFrames: [UUID: CGRect] = [:]
+    @State private var addedItemScrollTask: Task<Void, Never>?
+    @State private var addedItemScrollRequestID = UUID()
     @State private var highlightedItemIDs = Set<UUID>()
     @State private var saveFailed = false
     @AppStorage(GroceryImportSource.removeRemindersKey) private var removeRemindersAfterImport = true
@@ -652,9 +656,14 @@ private struct AllItemsScreen: View {
             onViewportChange: { frame in
                 listViewportFrame = frame
                 revealFocusedEntry()
+                if let id = scrollTargetItemID { scrollToAddedItem(id, using: proxy) }
             }, onManualScroll: {
                 entryRevealTask?.cancel()
                 entryRevealSuppressed = true
+                addedItemScrollTask?.cancel()
+                addedItemScrollTask = nil
+                scrollTargetItemID = nil
+                itemFrames.removeAll(keepingCapacity: true)
             }, scope: {
                 ListScopePicker(stores: visibleStores, selectedStoreID: nil, tint: .accentColor,
                     onChooseAllItems: {}, onChooseStore: onChooseStoreList,
@@ -684,6 +693,9 @@ private struct AllItemsScreen: View {
                     guard value == draft else { return }
                     if value.contains(where: { $0.isNewline }) { addItems() }
                     else if !value.isEmpty {
+                        addedItemScrollTask?.cancel()
+                        addedItemScrollTask = nil
+                        scrollTargetItemID = nil
                         entryRevealSuppressed = false
                         revealFocusedEntry()
                     }
@@ -727,6 +739,16 @@ private struct AllItemsScreen: View {
                         ForEach(group.items, id: \.id) { item in
                             allItemRow(item)
                                 .id(item.id)
+                                .onGeometryChange(for: CGRect?.self) { geometry in
+                                    scrollTargetItemID == item.id ? geometry.frame(in: .global) : nil
+                                } action: { frame in
+                                    guard let frame, scrollTargetItemID == item.id else { return }
+                                    itemFrames[item.id] = frame
+                                    scrollToAddedItem(item.id, using: proxy)
+                                }
+                                .onAppear {
+                                    if scrollTargetItemID == item.id { scrollToAddedItem(item.id, using: proxy) }
+                                }
                                 .listRowBackground(highlightedItemIDs.contains(item.id)
                                     ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
                         }
@@ -772,8 +794,14 @@ private struct AllItemsScreen: View {
                 // Typing again reveals the shared editor, as on a store list.
                 entryRevealSuppressed = true
                 entryRevealTask?.cancel()
+                scrollTargetItemID = itemID
                 withAnimation { proxy.scrollTo(itemID, anchor: .bottom) }
             }
+        }
+        .onChange(of: scrollTargetItemID) { _, id in
+            addedItemScrollTask?.cancel()
+            addedItemScrollTask = nil
+            if let id { scrollToAddedItem(id, using: proxy) }
         }
         .onChange(of: entryFocused) { _, focused in
             entryRevealSuppressed = focused && !highlightedItemIDs.isEmpty
@@ -882,7 +910,12 @@ private struct AllItemsScreen: View {
                 destinationRawValue = visibleStores[0].id.rawValue
             }
         }
-        .onDisappear { entryRevealTask?.cancel() }
+        .onDisappear {
+            entryRevealTask?.cancel()
+            addedItemScrollTask?.cancel()
+            addedItemScrollTask = nil
+            scrollTargetItemID = nil
+        }
     }
 
     private func revealFocusedEntry() {
@@ -893,6 +926,22 @@ private struct AllItemsScreen: View {
             return ProductEntryRevealGeometry(editor: entryFrame, actions: actionsFrame,
                                              viewport: listViewportFrame)
         }, onRevealing: { isRevealingEntry = $0 })
+    }
+
+    private func scrollToAddedItem(_ id: UUID, using proxy: ScrollViewProxy) {
+        guard addedItemScrollTask == nil else { return }
+        let requestID = UUID()
+        addedItemScrollRequestID = requestID
+        addedItemScrollTask = ListItemReveal.start(isCurrent: {
+            scrollTargetItemID == id && allItems.contains { $0.id == id }
+        }, geometry: {
+            guard let target = itemFrames[id] else { return nil }
+            return ListItemRevealGeometry(target: target, viewport: listViewportFrame)
+        }, scroll: { anchor, animated in
+            withAnimation(animated ? .easeInOut(duration: 0.35) : nil) { proxy.scrollTo(id, anchor: anchor) }
+        }, finished: {
+            if addedItemScrollRequestID == requestID { addedItemScrollTask = nil }
+        })
     }
 
     private func allItemRow(_ item: GroceryItem) -> some View {
@@ -1769,41 +1818,24 @@ struct GroceryListScreen: View {
         guard addedItemScrollTask == nil else { return }
         let requestID = UUID()
         addedItemScrollRequestID = requestID
-        addedItemScrollTask = Task { @MainActor in
-            defer {
-                if addedItemScrollRequestID == requestID {
-                    addedItemScrollTask = nil
-                }
+        addedItemScrollTask = ListItemReveal.start(isCurrent: {
+            scrollTargetItemID == itemID && items.contains { $0.id == itemID }
+        }, geometry: {
+            guard let target = itemFrames[itemID] else { return nil }
+            return ListItemRevealGeometry(target: target, viewport: listViewportFrame)
+        }, scroll: { anchor, firstAdjustment in
+            withAnimation(animated && firstAdjustment ? .easeInOut(duration: 0.35) : nil) {
+                proxy.scrollTo(itemID, anchor: anchor)
             }
-            // The insertion spring and UITextView's Return handling can both
-            // restore the content offset after the initial geometry callback.
-            // Wait past the insertion, then recheck after the reveal animation.
-            // Keep the request alive even when an intermediate frame fits.
-            for (index, delay) in [0.5, 0.4, 0.2].enumerated() {
-                do { try await Task.sleep(for: .seconds(delay)) }
-                catch { return }
-                guard scrollTargetItemID == itemID,
-                      items.contains(where: { $0.id == itemID }) else { return }
-                guard let target = itemFrames[itemID],
-                      listViewportFrame.height > 0,
-                      !isAddedItemFullyVisible(itemID) else { continue }
-                // Explicit edge alignment respects List's safe-area insets.
-                // Only request it for a measured, clipped row; a visible row
-                // never gets repositioned just because it was inserted.
-                let anchor: UnitPoint = target.maxY > listViewportFrame.maxY ? .bottom : .top
-                withAnimation(animated && index == 0 ? .easeInOut(duration: 0.35) : nil) {
-                    proxy.scrollTo(itemID, anchor: anchor)
-                }
-            }
-        }
+        }, finished: {
+            if addedItemScrollRequestID == requestID { addedItemScrollTask = nil }
+        })
     }
 
     private func isAddedItemFullyVisible(_ itemID: UUID) -> Bool {
         guard let target = itemFrames[itemID],
               listViewportFrame.height > 0 else { return false }
-        // Subpixel rounding must not keep requesting the same scroll forever.
-        return target.minY >= listViewportFrame.minY - 0.5
-            && target.maxY <= listViewportFrame.maxY + 0.5
+        return ListItemRevealGeometry(target: target, viewport: listViewportFrame).isFullyVisible
     }
 
     private func cancelAddedItemScroll() {
@@ -2252,6 +2284,36 @@ private struct StoreWelcomeStep: View {
         .padding(8)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
         .accessibilityElement(children: .combine)
+    }
+}
+
+private struct ListItemRevealGeometry {
+    let target: CGRect
+    let viewport: CGRect
+
+    var isFullyVisible: Bool {
+        target.minY >= viewport.minY - 0.5 && target.maxY <= viewport.maxY + 0.5
+    }
+}
+
+@MainActor
+private enum ListItemReveal {
+    static func start(isCurrent: @escaping @MainActor () -> Bool,
+                      geometry: @escaping @MainActor () -> ListItemRevealGeometry?,
+                      scroll: @escaping @MainActor (UnitPoint, Bool) -> Void,
+                      finished: @escaping @MainActor () -> Void) -> Task<Void, Never> {
+        Task { @MainActor in
+            defer { finished() }
+            // Query insertion, keyboard layout and Return can restore offsets
+            // in stages. Both scopes recheck the padded row, not just its text.
+            for (index, delay) in [0.5, 0.4, 0.2].enumerated() {
+                do { try await Task.sleep(for: .seconds(delay)) }
+                catch { return }
+                guard isCurrent() else { return }
+                guard let frame = geometry(), frame.viewport.height > 0, !frame.isFullyVisible else { continue }
+                scroll(frame.target.maxY > frame.viewport.maxY ? .bottom : .top, index == 0)
+            }
+        }
     }
 }
 
