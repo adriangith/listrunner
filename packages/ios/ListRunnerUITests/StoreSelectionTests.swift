@@ -1609,6 +1609,57 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.webViews.firstMatch.exists)
     }
 
+    func testAllItemsSettingsReturnsToScopeAndDraft() {
+        choose("All items")
+        app.segmentedControls.buttons["By category"].tap()
+        let entry = app.textViews["all-items-entry"]
+        entry.tap()
+        entry.typeText("Keep aggregate draft")
+        let destination = app.buttons["all-items-add"].label
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["import-source-setting"].exists)
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
+        XCTAssertEqual(entry.value as? String, "Keep aggregate draft")
+        XCTAssertEqual(app.buttons["all-items-add"].label, destination)
+        XCTAssertTrue(app.segmentedControls.buttons["By category"].isSelected)
+    }
+
+    func testAllItemsEditReordersWithinStoreAndRestoresGrouping() {
+        choose("All items")
+        let entry = app.textViews["all-items-entry"]
+        entry.tap()
+        entry.typeText("First reorder item, Second reorder item")
+        app.buttons["all-items-add"].tap()
+        app.segmentedControls.buttons["By category"].tap()
+        app.buttons["Edit"].tap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.segmentedControls.buttons["By store"].isSelected)
+        XCTAssertFalse(app.segmentedControls.buttons["By category"].isEnabled)
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        let first = app.staticTexts["First reorder item"]
+        let second = app.staticTexts["Second reorder item"]
+        XCTAssertTrue(first.waitForExistence(timeout: 3))
+        XCTAssertTrue(second.exists)
+        XCTAssertLessThan(first.frame.minY, second.frame.minY)
+        let handles = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Reorder"))
+        XCTAssertGreaterThanOrEqual(handles.count, 2, app.debugDescription)
+        handles.element(boundBy: 0).press(forDuration: 1, thenDragTo: handles.element(boundBy: 1))
+        XCTAssertLessThan(second.frame.minY, first.frame.minY)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.segmentedControls.buttons["By category"].isSelected)
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(row("Second reorder item", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertLessThan(row("Second reorder item", status: "Pending").frame.minY,
+                          row("First reorder item", status: "Pending").frame.minY)
+        choose("Woolworths")
+        XCTAssertFalse(row("First reorder item", status: "Pending").exists)
+        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").waitForExistence(timeout: 3))
+    }
+
     func testAllItemsShowStoreOnlyOffersPopulatedLists() {
         app.buttons["store-picker"].tap()
         app.buttons["store-picker-manage-stores"].tap()

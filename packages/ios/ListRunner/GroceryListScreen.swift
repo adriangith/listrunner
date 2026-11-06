@@ -202,6 +202,8 @@ private struct AllItemsScreen: View {
     @AppStorage("allItemsRecentItemOrder.v1") private var recentItemOrderRawValue = ""
     @State private var notice: String?
     @State private var showingStoreManagement = false
+    @State private var showingSettings = false
+    @State private var editMode = EditMode.inactive
     @State private var itemToDelete: GroceryItem?
     @State private var editingItem: GroceryItem?
     @State private var shoppingDestination: StoreID?
@@ -215,7 +217,7 @@ private struct AllItemsScreen: View {
     @AppStorage(GroceryImportSource.removeRemindersKey) private var removeRemindersAfterImport = true
 
     private var grouping: AllItemsGrouping {
-        AllItemsGrouping(rawValue: groupingRawValue) ?? .store
+        editMode.isEditing ? .store : (AllItemsGrouping(rawValue: groupingRawValue) ?? .store)
     }
     private var shoppingVisibleIDs: Set<StoreID> {
         sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs)
@@ -413,11 +415,13 @@ private struct AllItemsScreen: View {
                 .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 26))
             }
 
-                Picker("Group items", selection: $groupingRawValue) {
+                Picker("Group items", selection: Binding(
+                    get: { grouping.rawValue }, set: { groupingRawValue = $0 })) {
                     Text("By store").tag(AllItemsGrouping.store.rawValue)
                     Text("By category").tag(AllItemsGrouping.category.rawValue)
                 }
                 .pickerStyle(.segmented)
+                .disabled(editMode.isEditing)
                 .accessibilityIdentifier("all-items-grouping")
         }
         .padding(.horizontal, 16)
@@ -451,6 +455,9 @@ private struct AllItemsScreen: View {
                                 .listRowBackground(highlightedItemIDs.contains(item.id)
                                     ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
                         }
+                        .onMove(perform: group.storeIDs.count == 1 ? { source, destination in
+                            moveItems(in: group, from: source, to: destination)
+                        } : nil)
                     }
                 }
             }
@@ -464,7 +471,7 @@ private struct AllItemsScreen: View {
         .listStyle(.insetGrouped)
         .scrollDismissesKeyboard(.interactively)
         .contentMargins(.top, 0, for: .scrollContent)
-        .id(groupingRawValue)
+        .id(grouping.rawValue)
         .onChange(of: recentItemOrderRawValue) { _, value in
             if let group = groups.first {
                 // Only the item region scrolls; the composer and its responder
@@ -486,6 +493,41 @@ private struct AllItemsScreen: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                if !allItems.isEmpty { EditButton() }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    entryFocused = false
+                    entryFocus.resignFirstResponder()
+                    editMode = .inactive
+                    showingSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .accessibilityLabel("Settings")
+            }
+        }
+        .environment(\.editMode, $editMode)
+        .onChange(of: editMode) { _, value in
+            if value.isEditing {
+                entryFocused = false
+                entryFocus.resignFirstResponder()
+            }
+        }
+        .navigationDestination(isPresented: $showingSettings) {
+            SettingsOverviewScreen(sessions: sessions, visibility: visibility,
+                importInProgress: paprikaReminders.importing,
+                importDestinationName: destinationID?.displayName ?? "selected store",
+                onOpenStoreList: { id in
+                    showingSettings = false
+                    onChooseStoreList(id)
+                }) {
+                    showingSettings = false
+                    importItems()
+                }
+        }
         .navigationDestination(isPresented: $showingStoreManagement) {
             StoreVisibilityScreen(sessions: sessions, visibility: visibility,
                 onOpenStoreList: { id in
@@ -613,6 +655,7 @@ private struct AllItemsScreen: View {
         let available = owner.map { shoppingVisibleIDs.contains($0) } ?? false
         return HStack(spacing: 10) {
             Button {
+                guard !editMode.isEditing else { editingItem = item; return }
                 guard let owner else {
                     notice = "This saved item has no recognized store list. It remains visible and has not been moved or deleted."
                     return
@@ -672,6 +715,16 @@ private struct AllItemsScreen: View {
     private func setStatus(_ status: GroceryStatus, for item: GroceryItem) {
         item.status = status
         stageReminderWriteback(for: item)
+        saveChanges()
+    }
+
+    private func moveItems(in group: AllItemsGroup, from source: IndexSet, to destination: Int) {
+        guard grouping == .store, group.storeIDs.count == 1 else { return }
+        var orderedItems = group.items
+        orderedItems.move(fromOffsets: source, toOffset: destination)
+        for (position, item) in orderedItems.enumerated() {
+            item.position = position
+        }
         saveChanges()
     }
 
