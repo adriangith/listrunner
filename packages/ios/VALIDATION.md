@@ -1,5 +1,23 @@
 # Reusable store framework validation
 
+## All items Show Store chooser (6 November 2026)
+
+Application revision `c1982a5eb982de580267aaddf30416d001b74810` reuses the standard
+`StoreLaunchButtonStyle` for the All items footer, labelled **Show Store...**. The
+shopping chooser intersects available stores with current nonempty list IDs,
+including all item statuses. Scope and add-destination choices are unchanged. The
+footer remains hidden while typing; unavailable/unknown-owner recovery is preserved.
+
+- Xcode build-for-testing passed, zero errors.
+- iPhone 17 / iOS 27.2 focused UI run: **4/4 passed**, zero failures/skips: new
+  populated-list chooser regression (enabled empty Costco excluded, Coles and
+  Woolworths offered, chosen store opens and dismisses back to All items), existing
+  item-row shopping return, repeated keyboard entry, unavailable/unknown recovery.
+- Mac result bundle:
+  `/Users/adrianzafir/Library/Developer/Xcode/DerivedData/ListRunner-epzzinbppcxqwyevzuqhzfuvrvzc/Logs/Test/Test-ListRunner-2026.11.06_11-50-24-+1100.xcresult`.
+
+Not installed on the physical iPhone; no live retailer actions, data reset or release.
+
 ## All items standard composer styling (6 November 2026)
 
 Application revision `1a5b8d27173907dd4e73e45f3ff146520633f8a9` on
