@@ -328,6 +328,7 @@ private struct ProductEntrySection<AddButton: View>: View {
     let onSubmit: () -> Void
     let onImport: () -> Void
     let onTextChange: (String) -> Void
+    var onFocus: () -> Void = {}
     var onEditorFrame: (CGRect) -> Void = { _ in }
     var onActionsFrame: (CGRect) -> Void = { _ in }
     @ViewBuilder let addButton: () -> AddButton
@@ -338,7 +339,10 @@ private struct ProductEntrySection<AddButton: View>: View {
                                onSubmit: onSubmit, accessibilityIdentifier: accessibilityIdentifier)
                 .onChange(of: text) { _, value in onTextChange(value) }
                 .modifier(ProductEntryFieldStyle(tint: tint, isFocused: isFocused))
-                .simultaneousGesture(TapGesture().onEnded { isFocused = true })
+                .simultaneousGesture(TapGesture().onEnded {
+                    isFocused = true
+                    onFocus()
+                })
                 .onGeometryChange(for: CGRect?.self) { isFocused ? $0.frame(in: .global) : nil } action: { frame in
                     if let frame { onEditorFrame(frame) }
                 }
@@ -699,6 +703,12 @@ private struct AllItemsScreen: View {
                         entryRevealSuppressed = false
                         revealFocusedEntry()
                     }
+                }, onFocus: {
+                    addedItemScrollTask?.cancel()
+                    addedItemScrollTask = nil
+                    scrollTargetItemID = nil
+                    entryRevealSuppressed = false
+                    revealFocusedEntry()
                 }, onEditorFrame: { frame in
                     let heightChanged = abs(entryFrame.height - frame.height) > 0.5
                     entryFrame = frame
@@ -1375,6 +1385,10 @@ struct GroceryListScreen: View {
                                      scrollTargetItemID = nil
                                      revealFocusedProductEntry()
                                 }
+                        }, onFocus: {
+                            cancelAddedItemScroll()
+                            scrollTargetItemID = nil
+                            revealFocusedProductEntry()
                         }, onEditorFrame: { frame in
                                  let heightChanged = abs(groceryInputFrame.height - frame.height) > 0.5
                                  groceryInputFrame = frame

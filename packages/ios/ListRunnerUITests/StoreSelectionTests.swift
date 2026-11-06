@@ -1567,6 +1567,14 @@ final class StoreSelectionTests: XCTestCase {
         let destination = add.label
         entry.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        let editorCell = app.collectionViews.cells.containing(.textView, identifier: "all-items-entry").firstMatch
+        let actionsCell = app.collectionViews.cells.containing(.button, identifier: "all-items-add").firstMatch
+        let entryVisible = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            editorCell.frame.minY >= self.app.buttons["all-items-scope-picker"].frame.maxY
+                && actionsCell.frame.maxY <= self.app.keyboards.firstMatch.frame.minY
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [entryVisible], timeout: 5), .completed,
+                       "Refocusing after item reveal must restore the entire shared entry card")
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "All items — shared scrolling entry with keyboard"
         screenshot.lifetime = .keepAlways
