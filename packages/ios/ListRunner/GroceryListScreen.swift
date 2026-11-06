@@ -186,6 +186,11 @@ private struct AllItemsGroup: Identifiable {
     let items: [GroceryItem]
 }
 
+private struct AllItemsClearRequest {
+    let groupID: String
+    let itemIDs: Set<UUID>
+}
+
 private struct AllItemsScreen: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \GroceryItem.position) private var allItems: [GroceryItem]
@@ -205,6 +210,7 @@ private struct AllItemsScreen: View {
     @State private var showingSettings = false
     @State private var editMode = EditMode.inactive
     @State private var itemToDelete: GroceryItem?
+    @State private var clearRequest: AllItemsClearRequest?
     @State private var editingItem: GroceryItem?
     @State private var shoppingDestination: StoreID?
     @State private var importDestination: StoreID?
@@ -460,6 +466,29 @@ private struct AllItemsScreen: View {
                         .onMove(perform: group.storeIDs.count == 1 ? { source, destination in
                             moveItems(in: group, from: source, to: destination)
                         } : nil)
+                        ClearListButton {
+                            entryFocused = false
+                            entryFocus.resignFirstResponder()
+                            clearRequest = AllItemsClearRequest(groupID: group.id,
+                                itemIDs: Set(group.items.map(\.id)))
+                        }
+                        .accessibilityLabel("Clear \(group.title) list")
+                        .accessibilityIdentifier("all-items-clear-\(group.id)")
+                        .confirmationDialog("Clear your list?", isPresented: Binding(
+                            get: { clearRequest?.groupID == group.id },
+                            set: { if !$0 { clearRequest = nil } }), titleVisibility: .visible) {
+                            if clearCandidates.contains(where: { $0.status == .added }) {
+                                Button("Clear Added", role: .destructive) { clearItems(addedOnly: true) }
+                            }
+                            Button("Clear All", role: .destructive) { clearItems(addedOnly: false) }
+                            Button("Cancel", role: .cancel) { clearRequest = nil }
+                        } message: {
+                            if grouping == .store {
+                                Text("This clears only your \(group.title) list in ListRunner. It does not change any store cart or Apple Reminders.")
+                            } else {
+                                Text("This clears only items shown in the \(group.title) category in ListRunner, across its store lists. It does not change any store cart or Apple Reminders.")
+                            }
+                        }
                     }
                 }
             }
@@ -759,6 +788,42 @@ private struct AllItemsScreen: View {
         modelContext.delete(item)
         pendingReminderWrites.removeValue(forKey: item.id)
         paprikaReminders.cancelQueuedWriteback(for: item)
+        saveChanges()
+    }
+
+    private var clearCandidates: [GroceryItem] {
+        guard let clearRequest, let group = groups.first(where: { $0.id == clearRequest.groupID }) else { return [] }
+        // Clear only rows covered by this confirmation that still belong to this
+        // group. A concurrent import or move must not expand the destructive scope.
+        return group.items.filter { clearRequest.itemIDs.contains($0.id) }
+    }
+
+    private func clearItems(addedOnly: Bool) {
+        let removed = clearCandidates.filter { !addedOnly || $0.status == .added }
+        let removedIDs = Set(removed.map(\.id))
+        clearRequest = nil
+        guard !removed.isEmpty else { return }
+        for listID in Set(removed.map(\.listID)) {
+            let remaining = allItems.filter { $0.listID == listID && !removedIDs.contains($0.id) }
+            if let owner = StoreID.allCases.first(where: { $0.listID == listID }) {
+                sessions.browser(for: owner).endInteraction()
+            }
+            if let list = lists.first(where: { $0.id == listID }) {
+                if remaining.isEmpty {
+                    list.selectedItemID = nil
+                } else if let selectedID = list.selectedItemID, removedIDs.contains(selectedID) {
+                    list.selectedItemID = remaining.first { $0.status == .pending }?.id ?? remaining.first?.id
+                }
+            }
+            for (position, item) in remaining.enumerated() { item.position = position }
+        }
+        for item in removed {
+            pendingReminderWrites.removeValue(forKey: item.id)
+            paprikaReminders.cancelQueuedWriteback(for: item)
+            modelContext.delete(item)
+        }
+        highlightedItemIDs.subtract(removedIDs)
+        notice = nil
         saveChanges()
     }
 
@@ -1099,19 +1164,7 @@ struct GroceryListScreen: View {
                                 .padding(.vertical, 12)
                         } else {
                             groceryList(using: scrollProxy)
-                            Button(action: clearList) {
-                                HStack(spacing: 8) {
-                                    Spacer(minLength: 0)
-                                    Label("Clear List", systemImage: "trash")
-                                    Spacer(minLength: 0)
-                                }
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(.red)
-                                .frame(maxWidth: .infinity, minHeight: 56)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .contentShape(Rectangle())
+                            ClearListButton(action: clearList)
                              .confirmationDialog("Clear your list?", isPresented: $showingClearConfirmation,
                                                  titleVisibility: .visible) {
                                 if addedCount > 0 {
@@ -2451,6 +2504,26 @@ private struct ItemEditorSheet: View {
 
 private extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
+}
+
+private struct ClearListButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                Label("Clear List", systemImage: "trash")
+                Spacer(minLength: 0)
+            }
+            .font(.body.weight(.semibold))
+            .foregroundStyle(.red)
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+    }
 }
 
 private struct StoreLaunchButtonStyle: ViewModifier {

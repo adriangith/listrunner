@@ -1609,6 +1609,111 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.webViews.firstMatch.exists)
     }
 
+    private func openAllItemsClearOptions(_ groupID: String) {
+        let clear = app.buttons["all-items-clear-\(groupID)"]
+        for _ in 0..<8 where !clear.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(clear.isHittable, app.debugDescription)
+        XCTAssertGreaterThanOrEqual(clear.frame.height, 56)
+        clear.tap()
+        XCTAssertTrue(app.buttons["Clear All"].waitForExistence(timeout: 3))
+    }
+
+    func testAllItemsStoreClearSupportsCancelAddedAndAll() {
+        app.buttons["Actions for Coles fixture item"].tap()
+        app.buttons["Mark Added"].tap()
+        choose("All items")
+        app.buttons["all-items-add-destination"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        let entry = app.textViews["all-items-entry"]
+        entry.tap()
+        entry.typeText("Keep pending; Keep skipped")
+        app.buttons["all-items-add"].tap()
+        entry.typeText("\n")
+        app.buttons["Actions for Keep skipped"].tap()
+        app.buttons["Mark Skipped"].tap()
+        openAllItemsClearOptions("store-coles")
+        XCTAssertTrue(app.buttons["Clear Added"].exists)
+        cancelClearListOptions()
+        XCTAssertTrue(app.buttons["Actions for Coles fixture item"].exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "All items — per-group Clear List button"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        openAllItemsClearOptions("store-coles")
+        app.buttons["Clear Added"].tap()
+        XCTAssertTrue(app.buttons["Actions for Coles fixture item"].waitForNonExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Actions for Keep pending"].exists)
+        XCTAssertTrue(app.buttons["Actions for Keep skipped"].exists)
+        openAllItemsClearOptions("store-coles")
+        XCTAssertFalse(app.buttons["Clear Added"].exists)
+        app.buttons["Clear All"].tap()
+        XCTAssertTrue(app.buttons["all-items-clear-store-coles"].waitForNonExistence(timeout: 3))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["Actions for Keep pending"].exists)
+        XCTAssertFalse(app.buttons["Actions for Keep skipped"].exists)
+        app.buttons["all-items-show-store"].tap()
+        XCTAssertTrue(app.buttons["Shop at Woolworths"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Shop at Bunnings"].exists)
+        XCTAssertFalse(app.buttons["Shop at Coles"].exists)
+    }
+
+    func testAllItemsCategoryClearAffectsOnlyThatCategoryAcrossStores() {
+        app.buttons["Actions for Coles fixture item"].tap()
+        app.buttons["Mark Added"].tap()
+        choose("Woolworths")
+        app.buttons["Actions for Woolworths fixture item"].tap()
+        app.buttons["Mark Added"].tap()
+        choose("All items")
+        let entry = app.textViews["all-items-entry"]
+        entry.tap()
+        entry.typeText("Category keep pending; Category keep skipped")
+        app.buttons["all-items-add"].tap()
+        entry.typeText("\n")
+        app.buttons["Actions for Category keep skipped"].tap()
+        app.buttons["Mark Skipped"].tap()
+        app.segmentedControls.buttons["By category"].tap()
+        openAllItemsClearOptions("category-grocery")
+        XCTAssertTrue(app.buttons["Clear Added"].exists)
+        app.buttons["Clear Added"].tap()
+        XCTAssertTrue(app.buttons["Actions for Coles fixture item"].waitForNonExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["Actions for Woolworths fixture item"].exists)
+        XCTAssertTrue(app.buttons["Actions for Category keep pending"].exists)
+        XCTAssertTrue(app.buttons["Actions for Category keep skipped"].exists)
+        openAllItemsClearOptions("category-grocery")
+        XCTAssertFalse(app.buttons["Clear Added"].exists)
+        app.buttons["Clear All"].tap()
+        XCTAssertTrue(app.buttons["all-items-clear-category-grocery"].waitForNonExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Actions for Bunnings fixture item"].waitForExistence(timeout: 3))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["all-items-clear-category-grocery"].exists)
+        XCTAssertTrue(app.buttons["Actions for Bunnings fixture item"].waitForExistence(timeout: 3))
+    }
+
+    func testAllItemsUnavailableGroupsCanBeClearedIndependently() {
+        choose("All items")
+        openAllItemsClearOptions("uncategorised")
+        XCTAssertFalse(app.buttons["Clear Added"].exists)
+        cancelClearListOptions()
+        XCTAssertTrue(app.buttons["Actions for Uncategorised saved item"].exists)
+        openAllItemsClearOptions("uncategorised")
+        app.buttons["Clear All"].tap()
+        XCTAssertTrue(app.buttons["all-items-clear-uncategorised"].waitForNonExistence(timeout: 3))
+        // The unavailable but known owner is a different sublist, not collateral.
+        openAllItemsClearOptions("store-tesco")
+        app.buttons["Clear All"].tap()
+        XCTAssertTrue(app.buttons["all-items-clear-store-tesco"].waitForNonExistence(timeout: 3))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["all-items-clear-uncategorised"].exists)
+        XCTAssertFalse(app.buttons["all-items-clear-store-tesco"].exists)
+        XCTAssertTrue(app.buttons["Actions for Coles fixture item"].waitForExistence(timeout: 3))
+    }
+
     func testAllItemsSettingsReturnsToScopeAndDraft() {
         choose("All items")
         app.segmentedControls.buttons["By category"].tap()
