@@ -208,7 +208,8 @@ private struct AllItemsScreen: View {
     @State private var importDestination: StoreID?
     @State private var importRequested = false
     @State private var pendingReminderWrites: [UUID: ReminderWriteback] = [:]
-    @FocusState private var entryFocused: Bool
+    @State private var entryFocused = false
+    @State private var entryFocus = ProductEntryFocus()
     @State private var highlightedItemIDs = Set<UUID>()
     @State private var saveFailed = false
     @AppStorage(GroceryImportSource.removeRemindersKey) private var removeRemindersAfterImport = true
@@ -312,22 +313,32 @@ private struct AllItemsScreen: View {
                 }
                 .padding(.vertical, 8)
             }
-            GroupBox("Add products") {
-                VStack(spacing: 12) {
-                    TextField("Milk, bread, eggs", text: $draft, axis: .vertical)
-                        .lineLimit(1...3)
-                        .submitLabel(.done)
-                        .onSubmit {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Add products")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 16)
+                VStack(spacing: 0) {
+                    ProductEntryEditor(text: $draft, isFocused: $entryFocused, focusControl: entryFocus,
+                                       onSubmit: {
                             if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { entryFocused = false }
                             else { addItems() }
+                                       }, accessibilityIdentifier: "all-items-entry")
+                        .modifier(ProductEntryFieldStyle(tint: .accentColor, isFocused: entryFocused))
+                        .simultaneousGesture(TapGesture().onEnded { entryFocused = true })
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .onChange(of: draft) { _, value in
+                            guard value == draft, value.contains(where: { $0.isNewline }) else { return }
+                            addItems()
                         }
-                        .focused($entryFocused)
-                        .accessibilityIdentifier("all-items-entry")
-                    Divider()
+                    Divider().padding(.horizontal, 16)
                     HStack(spacing: 8) {
                         Button(action: importItems) {
-                            Text(paprikaReminders.importing ? "Importing…" : "Import")
-                                .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                            Label(paprikaReminders.importing ? "Importing…" : "Import",
+                                  systemImage: paprikaReminders.importing ? "hourglass" : "checklist")
+                                .font(.footnote.weight(.semibold))
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                                 .contentShape(Rectangle())
                         }
                         .disabled(paprikaReminders.importing || destinationID == nil)
@@ -338,7 +349,7 @@ private struct AllItemsScreen: View {
                             HStack(spacing: 0) {
                                 Button(action: addItems) {
                                     Text("Add to \(destinationID.displayName)")
-                                        .font(.subheadline.weight(.semibold))
+                                        .font(.body)
                                         .frame(minWidth: 44, minHeight: 44)
                                         .padding(.leading, 14)
                                         .padding(.trailing, 12)
@@ -389,8 +400,10 @@ private struct AllItemsScreen: View {
                             .buttonStyle(.borderedProminent)
                         }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
                 }
-                .padding(.vertical, 6)
+                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 26))
             }
 
                 Picker("Group items", selection: $groupingRawValue) {
@@ -952,15 +965,7 @@ struct GroceryListScreen: View {
                                      revealFocusedProductEntry()
                                 }
                             }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 14)
-                            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-                            .background(storePrimaryColor.opacity(groceryInputFocused ? 0.06 : 0.02), in: RoundedRectangle(cornerRadius: 12))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 12)
-                                    .strokeBorder(storePrimaryColor.opacity(groceryInputFocused ? 1 : 0.7), lineWidth: groceryInputFocused ? 2.5 : 1.5)
-                            }
-                            .contentShape(Rectangle())
+                            .modifier(ProductEntryFieldStyle(tint: storePrimaryColor, isFocused: groceryInputFocused))
                             .simultaneousGesture(TapGesture().onEnded { groceryInputFocused = true })
                             .onGeometryChange(for: CGRect?.self) { geometry in
                                 groceryInputFocused ? geometry.frame(in: .global) : nil
@@ -2163,11 +2168,30 @@ private final class ProductEntryFocus {
 
 // A vertical SwiftUI TextField inserts Return before onSubmit/onChange. Use the
 // native editing delegate to reject that edit before UIKit lays out a new line.
+private struct ProductEntryFieldStyle: ViewModifier {
+    let tint: Color
+    let isFocused: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            .background(tint.opacity(isFocused ? 0.06 : 0.02), in: RoundedRectangle(cornerRadius: 12))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(tint.opacity(isFocused ? 1 : 0.7), lineWidth: isFocused ? 2.5 : 1.5)
+            }
+            .contentShape(Rectangle())
+    }
+}
+
 private struct ProductEntryEditor: UIViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
     let focusControl: ProductEntryFocus
     let onSubmit: () -> Void
+    var accessibilityIdentifier = "grocery-input"
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -2183,7 +2207,7 @@ private struct ProductEntryEditor: UIViewRepresentable {
         view.textContainer.lineFragmentPadding = 0
         view.isScrollEnabled = false
         view.returnKeyType = .continue
-        view.accessibilityIdentifier = "grocery-input"
+        view.accessibilityIdentifier = accessibilityIdentifier
         view.accessibilityLabel = String(localized: "Type or paste groceries")
         view.placeholder.text = String(localized: "Tap to add products…")
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)

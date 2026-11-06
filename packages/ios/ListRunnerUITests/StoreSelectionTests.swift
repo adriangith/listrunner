@@ -1513,7 +1513,7 @@ final class StoreSelectionTests: XCTestCase {
         }
         for _ in 0..<4 { app.swipeDown() }
 
-        let entry = app.textFields["all-items-entry"]
+        let entry = app.textViews["all-items-entry"]
         XCTAssertTrue(entry.waitForExistence(timeout: 3))
         entry.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3), app.debugDescription)
@@ -1537,7 +1537,7 @@ final class StoreSelectionTests: XCTestCase {
 
     func testAllItemsRepeatedEntryKeepsComposerAndPreferences() {
         choose("All items")
-        let entry = app.textFields["all-items-entry"]
+        let entry = app.textViews["all-items-entry"]
         let add = app.buttons["all-items-add"]
         XCTAssertGreaterThanOrEqual(add.frame.height, 44)
         XCTAssertGreaterThanOrEqual(app.buttons["all-items-add-destination"].frame.width, 44)
@@ -1566,12 +1566,12 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.buttons["all-items-add"].label, destination)
         XCTAssertTrue(app.segmentedControls.buttons["By category"].isSelected)
-        XCTAssertEqual(app.textFields["all-items-entry"].value as? String, "Persisted unsubmitted draft")
+        XCTAssertEqual(app.textViews["all-items-entry"].value as? String, "Persisted unsubmitted draft")
     }
 
     func testAllItemsPaprikaImportRetainsScopeDraftAndDestination() {
         choose("All items")
-        let entry = app.textFields["all-items-entry"]
+        let entry = app.textViews["all-items-entry"]
         entry.tap(); entry.typeText("Unsubmitted draft")
         app.buttons["all-items-add-destination"].tap()
         app.buttons["Woolworths"].firstMatch.tap()
@@ -1651,7 +1651,7 @@ final class StoreSelectionTests: XCTestCase {
                                            ("Costco", "Costco newest", "Groceries & Home")] {
             app.buttons["all-items-add-destination"].tap()
             app.buttons[store].firstMatch.tap()
-            let entry = app.textFields["all-items-entry"]
+            let entry = app.textViews["all-items-entry"]
             entry.tap(); entry.typeText(product)
             app.buttons["all-items-add"].tap()
             let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", product + ", quantity")).firstMatch
