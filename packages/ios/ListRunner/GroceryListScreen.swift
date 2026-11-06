@@ -217,6 +217,8 @@ private struct AllItemsScreen: View {
     @AppStorage(GroceryImportSource.removeRemindersKey) private var removeRemindersAfterImport = true
 
     private var grouping: AllItemsGrouping {
+        // Reorder handles must only change positions inside an existing store list.
+        // Keep the saved grouping untouched so Done restores the user's view.
         editMode.isEditing ? .store : (AllItemsGrouping(rawValue: groupingRawValue) ?? .store)
     }
     private var shoppingVisibleIDs: Set<StoreID> {
@@ -515,6 +517,9 @@ private struct AllItemsScreen: View {
                 entryFocused = false
                 entryFocus.resignFirstResponder()
             }
+        }
+        .onChange(of: allItems.isEmpty) { _, isEmpty in
+            if isEmpty { editMode = .inactive }
         }
         .navigationDestination(isPresented: $showingSettings) {
             SettingsOverviewScreen(sessions: sessions, visibility: visibility,

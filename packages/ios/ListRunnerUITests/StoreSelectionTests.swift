@@ -1655,7 +1655,15 @@ final class StoreSelectionTests: XCTestCase {
             second.frame.minY < first.frame.minY
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [reordered], timeout: 5), .completed)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "All items — standard Settings and Edit controls"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
         app.buttons["Done"].tap()
+        XCTAssertTrue(app.segmentedControls.buttons["By category"].isSelected)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.segmentedControls.buttons["By category"].isSelected)
         app.buttons["all-items-scope-picker"].tap()
         app.buttons["Coles"].firstMatch.tap()
