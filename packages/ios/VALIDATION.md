@@ -1,5 +1,45 @@
 # Reusable store framework validation
 
+## All items per-group Clear List (6 November 2026)
+
+Revision `2b09bf24acdca5575293db6ac809a99a80c661c8` adds a shared `ClearListButton`
+to each displayed All items group and reuses that exact component on store-list
+pages. The existing red label, trash icon and 56-point minimum content target are
+preserved. Confirmation offers Clear Added (only for Added rows in that group),
+Clear All and Cancel. The user explicitly chose to include category groups:
+category confirmation states that its scope spans the category's store lists.
+
+Clearing snapshots the confirmed IDs and intersects them with the current group,
+so new imports and moved rows cannot expand the deletion. It ends interactions only
+for affected known owners, repairs affected selections and positions, cancels queued
+writeback for removed rows, clears their transient highlights and saves once.
+Retailer carts and Apple Reminders are not changed. Unavailable and unknown-owner
+groups remain independently clearable, with no invented owner or reassignment.
+
+- Final Xcode build-for-testing passed, zero errors.
+- Final three group-clear regressions: **3/3 passed**, zero failures/skips, on
+  iPhone 17 / iOS 27.2: store Cancel/Clear Added/Clear All with other owners retained;
+  cross-store category Clear Added/Clear All preserving Pending/Skipped and another
+  category; independent unavailable/unknown-owner clears. Persistence is checked
+  after relaunch. Tests require the entire action to scroll above Show Store.
+- Final Mac result bundle:
+  `/Users/adrianzafir/Library/Developer/Xcode/DerivedData/ListRunner-epzzinbppcxqwyevzuqhzfuvrvzc/Logs/Test/Test-ListRunner-2026.11.06_13-21-34-+1100.xcresult`.
+  The Xcode MCP reader reported an incomplete bundle; direct `xcresulttool` reading
+  of the completed canonical bundle confirmed Passed, 3 passed, 0 failed/skipped.
+- Six other regressions passed in the preceding combined run at `218bfc6`: the
+  four standard-store clear tests (wide target, Added-only, mixed statuses, Cancel/
+  Clear All), aggregate reorder/persistence and repeated keyboard entry. Application
+  source is unchanged since `003421e`; later revisions refine test setup/scrolling.
+  That preceding run was **6 passed / 3 failed**, not a clean 9/9: full swipes skipped
+  virtualized groups. Slow bounded drags and scrolling lazy rows into view fixed the
+  group-test navigation. Earlier initial failures also assumed Coles rather than
+  explicitly selecting it after first-store setup; clear tests now choose it.
+- Final screenshot exported and visually reviewed:
+  `/tmp/opencode/all-items-clear-list-final.png`, confirming the shared button is
+  fully visible above the glass shopping footer, not merely hittable through it.
+
+No physical-iPhone installation, live shopping/reminder mutation or release occurred.
+
 ## All items Settings and Edit controls (6 November 2026)
 
 Revision `ec36945ee7a82d2c503821fc47169e18697eb1c5` adds the shared Settings
