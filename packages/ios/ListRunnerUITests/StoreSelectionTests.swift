@@ -1587,6 +1587,33 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(app.textViews["all-items-entry"].value as? String, "Persisted unsubmitted draft")
     }
 
+    func testAllItemsShortRowMatchesStoreRowHeight() {
+        choose("Coles")
+        let storeCell = app.collectionViews.cells.containing(.any, identifier: "Actions for Coles fixture item").firstMatch
+        XCTAssertTrue(storeCell.waitForExistence(timeout: 5))
+        let storeHeight = storeCell.frame.height
+        XCTAssertEqual(storeHeight, 78, accuracy: 1)
+        choose("All items")
+        let aggregateCell = app.collectionViews.cells.containing(.any, identifier: "Actions for Coles fixture item").firstMatch
+        for _ in 0..<5 where !aggregateCell.exists { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(aggregateCell.waitForExistence(timeout: 3))
+        print("ROW_HEIGHT store=\(storeHeight) allItemsByStore=\(aggregateCell.frame.height)")
+        XCTAssertEqual(aggregateCell.frame.height, storeHeight, accuracy: 1,
+                       "A short row must not receive extra native vertical insets in All items")
+        for _ in 0..<3 where !app.segmentedControls.buttons["By category"].isHittable {
+            app.collectionViews.firstMatch.swipeDown()
+        }
+        app.segmentedControls.buttons["By category"].tap()
+        for _ in 0..<5 where !aggregateCell.exists { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(aggregateCell.waitForExistence(timeout: 3))
+        print("ROW_HEIGHT allItemsByCategory=\(aggregateCell.frame.height)")
+        XCTAssertEqual(aggregateCell.frame.height, storeHeight, accuracy: 1)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "All items — shared native row height"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     func testAllItemsSharedPageKeepsOnlyHeaderPinned() {
         let storeEntry = app.textViews["grocery-input"]
         XCTAssertTrue(storeEntry.waitForExistence(timeout: 5))
