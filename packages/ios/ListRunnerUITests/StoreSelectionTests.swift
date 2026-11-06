@@ -1544,6 +1544,11 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(app.buttons["all-items-add-destination"].frame.width, 44)
         XCTAssertGreaterThanOrEqual(app.buttons["all-items-add-destination"].frame.height, 44)
         entry.tap()
+        let initialKeyboardVisible = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            self.app.keyboards.firstMatch.frame.intersection(self.app.frame).height >= 180
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [initialKeyboardVisible], timeout: 5), .completed,
+                       "The test requires a visible software keyboard before typing or adding")
         entry.typeText("First aggregate item")
         add.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
