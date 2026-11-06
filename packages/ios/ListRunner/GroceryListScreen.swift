@@ -419,6 +419,42 @@ private struct ListItemActions<Actions: View>: View {
     }
 }
 
+private enum ListItemRowLayout {
+    // Native List traits must be applied after row geometry/identity modifiers.
+    // Otherwise List can add its default 15 pt vertical insets as well.
+    static let insets = EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16)
+}
+
+private struct ShoppingListItemRow<Actions: View>: View {
+    let name: String
+    let quantity: String
+    var ownerName: String?
+    var unavailable = false
+    let status: GroceryStatus
+    let tint: Color
+    let accessibilityLabel: String
+    let onOpen: () -> Void
+    @ViewBuilder let actions: () -> Actions
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: onOpen) {
+                ListItemContent(name: name, quantity: quantity, ownerName: ownerName,
+                                unavailable: unavailable, status: status,
+                                tint: status == .skipped ? .secondary : tint)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(accessibilityLabel)
+            ListItemActions(name: name, actions: actions)
+                .buttonStyle(.borderless)
+        }
+        .frame(minHeight: 48)
+        // Include padding inside measured scroll identity, not outside it.
+        .padding(.vertical, 15)
+        .tint(tint)
+    }
+}
+
 private struct AllItemsAddButton: View {
     let destination: StoreID?
     let stores: [StoreDefinition]
@@ -761,6 +797,7 @@ private struct AllItemsScreen: View {
                                 }
                                 .listRowBackground(highlightedItemIDs.contains(item.id)
                                     ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
+                                .listRowInsets(ListItemRowLayout.insets)
                         }
                         .onMove(perform: group.storeIDs.count == 1 ? { source, destination in
                             moveItems(in: group, from: source, to: destination)
@@ -957,8 +994,11 @@ private struct AllItemsScreen: View {
     private func allItemRow(_ item: GroceryItem) -> some View {
         let owner = StoreID.allCases.first { $0.listID == item.listID }
         let available = owner.map { shoppingVisibleIDs.contains($0) } ?? false
-        return HStack(spacing: 12) {
-            Button {
+        return ShoppingListItemRow(name: item.name, quantity: item.displayQuantity,
+            ownerName: owner?.displayName ?? "Uncategorised", unavailable: !available,
+            status: item.status, tint: owner.map(storeTint) ?? .accentColor,
+            accessibilityLabel: "\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(owner.map { ", \($0.displayName)" } ?? ", Uncategorised")\(available ? "" : ", Unavailable")",
+            onOpen: {
                 guard !editMode.isEditing else { editingItem = item; return }
                 guard let owner else {
                     notice = "This saved item has no recognized store list. It remains visible and has not been moved or deleted."
@@ -971,14 +1011,7 @@ private struct AllItemsScreen: View {
                 let list = lists.first { $0.id == owner.listID }
                 list?.selectedItemID = item.id
                 if saveChanges() { shoppingDestination = owner }
-            } label: {
-                ListItemContent(name: item.name, quantity: item.displayQuantity,
-                    ownerName: owner?.displayName ?? "Uncategorised", unavailable: !available,
-                    status: item.status, tint: item.status == .skipped ? .secondary : owner.map(storeTint) ?? .accentColor)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(owner.map { ", \($0.displayName)" } ?? ", Uncategorised")\(available ? "" : ", Unavailable")")
-            ListItemActions(name: item.name) {
+            }) {
                 Button("Edit Item", systemImage: "pencil") { editingItem = item }
                 if item.status == .pending {
                     Button("Mark Added", systemImage: "checkmark.circle") { setStatus(.added, for: item) }
@@ -996,13 +1029,7 @@ private struct AllItemsScreen: View {
                         }
                     }
                 Button("Delete Item", systemImage: "trash", role: .destructive) { itemToDelete = item }
-            }
-            .buttonStyle(.borderless)
         }
-        .frame(minHeight: 48)
-        .padding(.vertical, 15)
-        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-        .tint(owner.map(storeTint) ?? .accentColor)
         .accessibilityIdentifier("all-item-\(item.id.uuidString)")
     }
 
@@ -1648,20 +1675,15 @@ struct GroceryListScreen: View {
 
     private func groceryList(using scrollProxy: ScrollViewProxy) -> some View {
         ForEach(items) { item in
-            HStack(spacing: 12) {
-                Button {
+            ShoppingListItemRow(name: item.name, quantity: item.displayQuantity,
+                status: item.status, tint: storePrimaryColor,
+                accessibilityLabel: "\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue). Find in \(storeID.displayName)",
+                onOpen: {
                     guard browser.canPresentStore, shoppingVisibleIDs.contains(storeID) else { return }
                     selectedList?.selectedItemID = item.id
                     saveChanges()
                     presentStore()
-                } label: {
-                    ListItemContent(name: item.name, quantity: item.displayQuantity,
-                                    status: item.status, tint: statusColor(item.status))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue). Find in \(storeID.displayName)")
-
-                ListItemActions(name: item.name) {
+                }) {
                     if item.status == .pending {
                         Button("Mark Added", systemImage: "checkmark.circle") { setStatus(.added, for: item) }
                     } else if item.status == .added {
@@ -1673,13 +1695,7 @@ struct GroceryListScreen: View {
                     Button("Edit Item", systemImage: "pencil") { editingItem = item }
                     Button("Move to Another Store", systemImage: "arrow.right.arrow.left") { itemToMove = item }
                     Button("Delete Item", systemImage: "trash", role: .destructive) { delete(item) }
-                }
             }
-            .frame(minHeight: 48)
-            // Include the entire cell in the scroll identity/geometry. Native
-            // List row insets otherwise sit outside the scrollTo target, leaving
-            // the cell's bottom padding clipped even after a successful scroll.
-            .padding(.vertical, 15)
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button("Delete", systemImage: "trash", role: .destructive) { delete(item) }
                     .accessibilityHint("Removes this item from ListRunner only, not the store cart")
@@ -1711,7 +1727,7 @@ struct GroceryListScreen: View {
                     ? storeHighlightColor.opacity(0.18)
                     : Color(uiColor: .secondarySystemGroupedBackground)
             )
-            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+            .listRowInsets(ListItemRowLayout.insets)
         }
         .onMove(perform: moveItems)
     }
@@ -1751,13 +1767,6 @@ struct GroceryListScreen: View {
                 .buttonStyle(.borderless)
                 .font(.footnote)
             }
-        }
-    }
-
-    private func statusColor(_ status: GroceryStatus) -> Color {
-        switch status {
-        case .pending, .added: storePrimaryColor
-        case .skipped: .secondary
         }
     }
 
