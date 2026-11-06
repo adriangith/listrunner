@@ -180,6 +180,8 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
     var isWelcome = false
     var keyboardDismissMode: ScrollDismissesKeyboardMode = .interactively
     var onViewportChange: (CGRect) -> Void = { _ in }
+    var onManualScroll: () -> Void = {}
+    @GestureState private var isDragging = false
     @ViewBuilder let scope: () -> Scope
     @ViewBuilder let footer: () -> Footer
     @ViewBuilder let rows: () -> Rows
@@ -190,6 +192,12 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
             .contentMargins(.top, 0, for: .scrollContent)
             .listSectionSpacing(.compact)
             .scrollDismissesKeyboard(keyboardDismissMode)
+            .simultaneousGesture(DragGesture(minimumDistance: 10).updating($isDragging) { _, dragging, _ in
+                if !dragging { dragging = true }
+            })
+            .onChange(of: isDragging) { _, dragging in
+                if dragging { onManualScroll() }
+            }
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { onViewportChange($0) }
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack(alignment: .center) {
@@ -644,6 +652,9 @@ private struct AllItemsScreen: View {
             onViewportChange: { frame in
                 listViewportFrame = frame
                 revealFocusedEntry()
+            }, onManualScroll: {
+                entryRevealTask?.cancel()
+                entryRevealSuppressed = true
             }, scope: {
                 ListScopePicker(stores: visibleStores, selectedStoreID: nil, tint: .accentColor,
                     onChooseAllItems: {}, onChooseStore: onChooseStoreList,
@@ -1142,7 +1153,6 @@ struct GroceryListScreen: View {
     @State private var groceryInputFrame: CGRect = .zero
     @State private var addItemsButtonFrame: CGRect = .zero
     @State private var isListScreenVisible = false
-    @GestureState private var isDraggingList = false
     #if DEBUG
     @State private var entryDismissalAnimationStatus = "not-dismissed"
     #endif
@@ -1212,6 +1222,12 @@ struct GroceryListScreen: View {
                     listViewportFrame = frame
                     revealFocusedProductEntry()
                     if let itemID = scrollTargetItemID { scrollToAddedItem(itemID, using: scrollProxy) }
+                }, onManualScroll: {
+                    // A deliberate scroll wins over automatic editor/item reveal.
+                    cancelAddedItemScroll()
+                    productEntryRevealTask?.cancel()
+                    scrollTargetItemID = nil
+                    itemFrames.removeAll(keepingCapacity: true)
                 }, scope: {
                     if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty {
                         ListScopePicker(stores: StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
@@ -1371,19 +1387,6 @@ struct GroceryListScreen: View {
                 groceryInputFocused = false
                 isListScreenVisible = false
             }
-            .simultaneousGesture(DragGesture(minimumDistance: 10).updating($isDraggingList) { _, dragging, _ in
-                if !dragging { dragging = true }
-            })
-            .onChange(of: isDraggingList) { _, dragging in
-                guard dragging else { return }
-                // A deliberate manual scroll takes precedence over positioning
-                // the most recently submitted item. Cancel once at drag start,
-                // not on every finger movement; GestureState also resets on cancel.
-                cancelAddedItemScroll()
-                productEntryRevealTask?.cancel()
-                scrollTargetItemID = nil
-                itemFrames.removeAll(keepingCapacity: true)
-            }
             .navigationDestination(isPresented: $showingStoreManagement) {
                 StoreVisibilityScreen(sessions: sessions, visibility: visibility,
                     onWelcomeStoreEnabled: managingWelcomeStores ? { id in
@@ -1484,7 +1487,7 @@ struct GroceryListScreen: View {
         #if DEBUG
         .overlay(alignment: .topLeading) {
             if ProcessInfo.processInfo.environment["LISTRUNNER_REVEAL_TEST_FIXTURE"] == "enabled" {
-                Text(verbatim: "target=\(scrollTargetItemID?.uuidString ?? "none"); trackedRows=\(itemFrames.count); frame=\(scrollTargetItemID.flatMap { itemFrames[$0] }.debugDescription); viewport=\(listViewportFrame); pending=\(addedItemScrollTask != nil); editor=\(groceryInputFrame); actions=\(productActionsFrame); focused=\(groceryInputFocused); entryReveal=\(productEntryRevealStatus)")
+                Text(verbatim: "target=\(scrollTargetItemID?.uuidString ?? "none"); trackedRows=\(itemFrames.count); frame=\(scrollTargetItemID.flatMap { itemFrames[$0] }.debugDescription); viewport=\(listViewportFrame); pending=\(addedItemScrollTask != nil); editor=\(groceryInputFrame); actions=\(productActionsFrame); focused=\(groceryInputFocused); responder=\(productEntryFocus.view?.isFirstResponder == true); entryReveal=\(productEntryRevealStatus)")
                     .accessibilityIdentifier("item-reveal-status")
                     .frame(width: 1, height: 1)
                     .opacity(0.01)

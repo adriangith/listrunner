@@ -89,8 +89,11 @@ separately so the metadata upgrade does not change detection behavior. The taxon
 `../../docs/store-categories.md`. This JSON format version is independent of the
 SwiftData shopping-list schema.
 
-The All items scope reads existing store lists without creating a shared basket. Its
-pinned composer supports remembered grouping/destination/draft, shared manual-add
+The All items scope reads existing store lists without creating a shared basket. It
+uses the same `ShoppingListPage`, header/scope picker, toolbar, summary, product-entry
+section and item-row components as store lists. Only the top header stays pinned;
+counts, entry, grouping and rows scroll together. Shared keyboard reveal keeps the
+entry card usable while typing. Its split Add supports remembered grouping/destination/draft, shared manual-add
 staging and the existing destination-captured import flow. Shopping sheets retain
 store-owned queues and return to All items. UUID-based promotion order is stored in
 app preferences, with no shopping database schema change. Disabling or replacing a
