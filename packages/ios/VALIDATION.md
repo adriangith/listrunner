@@ -1,5 +1,30 @@
 # Reusable store framework validation
 
+## Authorized shared-layout iPhone deployment (6 November 2026)
+
+At the user's request, revision `4a49a97049b09d4efc7a92e1afa6172c7363a7a8`
+on `feature/all-items-screen` was signed, installed in place and launched on
+**Adrian’s iPhone (iPhone 17e) / iOS 27.2**. This includes the shared list-page
+presentation and header-only top pinning (tested application source `579e77e`).
+
+Initial SSH `xcodebuild` attempts compiled but failed signing with
+`errSecInternalComponent`. The login keychain was visibly unlocked in Keychain
+Access while the remote session reported it locked/inaccessible. No certificate
+trust, keychain access policy, password, provisioning or signing settings were
+changed. A build through the desktop Xcode session succeeded (AppleScript scheme
+action `7576-0`, zero build errors). Once the user re-enabled Xcode MCP, its
+`RunProject(attachDebugger: false)` installed/launched successfully, PID **20611**.
+
+- Shared scheme: no enabled launch arguments or environment overrides.
+- Actual Debug-iphoneos bundle: all **35 JSON + 1 JavaScript** match source.
+- `codesign --verify --deep --strict` passed for the built app.
+- No reset, fixture run, import/reminder operation, list clearing or retailer/cart
+  interaction was performed. Existing user data and sessions were left intact.
+- Mac run log:
+  `/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261106-162950.txt`.
+
+This is an authorized development install, not a merge, TestFlight delivery or release.
+
 ## Shared list-page presentation and scrolling (6 November 2026)
 
 At the user's explicit choice, store lists and All items now render through the
