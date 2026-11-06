@@ -1,5 +1,35 @@
 # Reusable store framework validation
 
+## All items Settings and Edit controls (6 November 2026)
+
+Revision `ec36945ee7a82d2c503821fc47169e18697eb1c5` adds the shared Settings
+overview and native leading Edit/Done button to All items. Settings retains the
+aggregate draft, destination and grouping; its import/source and View List routes
+reuse existing flows. Edit dismisses the keyboard and temporarily displays store
+groups, without overwriting the remembered grouping. Native reorder handles update
+positions only within the same store-owned list. Unknown-owner rows retain local
+recovery actions but are not assigned a fabricated reorder owner. Emptying all lists
+exits edit mode. Settings remains available even when lists are empty.
+
+- Xcode build-for-testing: passed, zero errors.
+- Final iPhone 17 / iOS 27.2 combined UI run: **6/6 passed**, zero failures/skips:
+  Settings return preserving scope/draft/destination/grouping; real native reorder
+  followed by relaunch and verification in the owning store's list (other ownership
+  unchanged); populated-only shopping chooser; repeated entry/preferences; Paprika
+  handoff; unavailable/unknown-owner recovery.
+- The first reorder test used an inherited destination and a drag ending at the
+  adjacent handle's centre. It failed its order assertion. The corrected regression
+  chooses Coles explicitly, drags above the previous row, waits for settled geometry
+  and verifies saved order after relaunch; both its focused retry and final combined
+  run passed.
+- Mac result bundle:
+  `/Users/adrianzafir/Library/Developer/Xcode/DerivedData/ListRunner-epzzinbppcxqwyevzuqhzfuvrvzc/Logs/Test/Test-ListRunner-2026.11.06_12-09-52-+1100.xcresult`.
+- Exported screenshot visually reviewed:
+  `/tmp/opencode/all-items-settings-edit.png` (standard Settings gear, native Done,
+  per-store reorder handles, and reordered Coles rows).
+
+No physical-iPhone installation, live retailer mutation or release was performed.
+
 ## All items Show Store chooser (6 November 2026)
 
 Application revision `c1982a5eb982de580267aaddf30416d001b74810` reuses the standard
