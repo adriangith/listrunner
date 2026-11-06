@@ -89,11 +89,15 @@ separately so the metadata upgrade does not change detection behavior. The taxon
 `../../docs/store-categories.md`. This JSON format version is independent of the
 SwiftData shopping-list schema.
 
-The All items scope reads existing store lists without creating a shared basket. It
-supports remembered store/category grouping, destination-specific text entry and
-the existing import flow. Disabling a store/region with saved items is blocked until
-the user explicitly moves or clears them. Verify these behaviors on the Mac build;
-Linux cannot run the iOS target.
+The All items scope reads existing store lists without creating a shared basket. Its
+pinned composer supports remembered grouping/destination/draft, shared manual-add
+staging and the existing destination-captured import flow. Shopping sheets retain
+store-owned queues and return to All items. UUID-based promotion order is stored in
+app preferences, with no shopping database schema change. Disabling or replacing a
+store/region with saved items is blocked until they are explicitly moved or cleared;
+lookup/save failures and in-flight imports fail closed. Unavailable and unknown-owner
+rows remain recoverable. See `VALIDATION.md` for Mac build/native/UI evidence and
+remaining manual accessibility/design-reference checks; Linux cannot run the iOS target.
 
 Twenty additional AU/NZ/GB/US destinations are registered, disabled by default,
 with independent saved lists, website sessions and diagnostics/reset scopes.

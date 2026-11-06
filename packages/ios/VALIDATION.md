@@ -1,41 +1,78 @@
 # Reusable store framework validation
 
-## All items scope and category schema 7 — in progress
+## All items scope and category schema 7 (5–6 November 2026)
 
-Implementation is under way in the current Linux checkout and is not yet Mac- or
-simulator-validated. All Items reads existing `GroceryItem` rows, uses the
-destination's list ID for manual additions and redirects Import to the existing
-configured store importer, so its transaction and reminder-removal safeguards remain
-the same. Unknown/orphaned rows are surfaced as Uncategorised. Store/brand disable
-and active-region replacement are blocked when an affected list has any rows.
+Application revision `429a58f93edd75c67ab5dd7760cafe833bae249e` is pushed on
+`feature/all-items-screen` and checked out on the canonical Mac. Linux checkout:
+`/home/claude-svc/listrunner-main`; Mac: `/Users/adrianzafir/Projects/listrunner`.
+The Mac's unrelated untracked `xcshareddata/xcodecloud/` directory is preserved.
 
-Checks run in this checkout:
+All items aggregates existing store-owned rows with a pinned composer, independent
+scope/grouping/destination/draft preferences, UUID-based cross-store promotion order,
+and scoped shopping/import sheets. Existing SwiftData schemas/migrations, retailer
+identities, trust rules and capability ceilings are unchanged. Disabled/unavailable
+and unknown-owner records remain visible and locally recoverable. Visibility changes
+read current saved rows and fail closed on unreadable/unsaved changes or active
+imports. See `docs/all-items-review.md` for the final source review and fixed findings.
 
-- `python3 -B packages/ios/tests/test-store-categories.py` — 2 passed.
-- `python3 -B packages/ios/tests/test-store-onboarding.py` — 20 passed.
-- `python3 -B packages/ios/tests/test-store-expansion.py` — 3 passed.
-- Focused retailer automation tests (`coles-add-detection`, `ikea-cart-snapshot`,
-  `bigw-cart-detection`, `profiled-expansion-cart`) — 303 passed after schema-fixture
-  updates.
+Validation on the Mac:
 
-Still required: Xcode build, native RecoveryTests, focused All items UI coverage for
-scope/grouping/add/import/disable recovery, and app-bundle resource verification on
-the Mac checkout. No install, retailer cart mutation, release or distribution was
-performed.
+- Complete `run-cloud-checks.sh` passed at `a4301dd` (shared core, schema, generator
+  and recovery sources are unchanged in the final application revision): Python and
+  JavaScript offline gates, **449 parser checks**, **195 regional-search checks**,
+  synthetic registration proof and **1,881 native recovery/reset/diagnostic checks**.
+  SSH required `/opt/homebrew/bin` in PATH; no dependencies were installed.
+- Xcode 27.2 Debug simulator build-for-testing passed on the final UI revision,
+  with no build errors.
+- Actual Debug app bundle verified byte-for-byte: **35 JSON + 1 JavaScript** resources,
+  with no duplicate legacy `-v2` resources.
+- **Final combined simulator UI run: 11/11 passed, zero failures/skips**, on
+  `429a58f93edd75c67ab5dd7760cafe833bae249e`, iPhone 17 / iOS 27.2. Coverage includes
+  destination add/grouping, repeated real-keyboard entry and preference/draft
+  restoration, Paprika destination/scope/draft retention, Pending/Added-only disable
+  recovery, all-hidden stores, regional replacement protection, shopping-sheet return,
+  Grocery versus Groceries & Home promotion, and unavailable/unknown-owner recovery.
+  Result bundle on the Mac:
+  `/Users/adrianzafir/Library/Developer/Xcode/DerivedData/ListRunner-epzzinbppcxqwyevzuqhzfuvrvzc/Logs/Test/Test-ListRunner-2026.11.06_10-51-08-+1100.xcresult`.
+- Final screenshot reviewed: `/tmp/opencode/all-items-final-keyboard.png` on Linux,
+  exported from that result bundle. It confirms the pinned composer, visible category
+  heading and unobstructed newest row above the real keyboard. Visual review caught
+  the old shopping footer overlapping the row; `429a58f` compacts that footer while
+  typing and tests assert it is absent. Broader manual accessibility/appearance
+  certification remains separate.
+- Earlier direct command-line attempts at `/tmp/listrunner-all-items-final-a4301dd.xcresult`
+  and `/tmp/listrunner-all-items-retry-a4301dd.xcresult` were killed before assertions.
+  Xcode still held an interrupted test session; stopping it and returning to the Xcode
+  testing API restored execution. Do not count those runner failures as passes. The
+  simulator was restarted without erasing state. An intermediate 10/11 run exposed
+  a native menu hit-point flake; the test now taps the menu item's centre explicitly.
 
-Follow-up at feature revision `b849e50971684d817cfc289e33e57c26fc367306`:
+Fresh Linux checks: all **431 JavaScript tests** passed; category **2**, onboarding
+**20**, expansion **3**, bundled-resource **9** Python tests passed; `git diff --check`
+passed. Mac-only registration compilation is covered by the full Mac offline gate.
 
-- Found and fixed the schema-7 runtime decoder allowlist: it accepted the legacy
-  `categories` property but initially rejected the new `category` property, causing
-  the app to load no available store definitions. The Mac simulator confirmed the
-  All items screen and existing cross-store rows after that fix.
-- The focused UI suite is not yet passing. The All items destination-add assertion
-  and both populated-store disable UI cases still need correction/verification; the
-  latest test run preceded the newest guard refresh.
-- Latest Mac checkout verification was blocked: its data volume is 100% full (105 MiB
-  free), so Git could not fetch revision `b849e509`. No Xcode/DerivedData files were
-  deleted. Resume by freeing Mac space with the user's approval, fetch the exact
-  revision, then rerun these three focused cases and the native recovery suite.
+Earlier test failures exposed and fixed the omitted runtime `category` allowlist,
+stale fixture/navigation assumptions, insufficient actual Button hit areas and
+inaccessible first-section headings during scroll reveal. Final-review fixes also
+covered implicit hidden-sibling replacement, version-specific category vocabularies,
+draft-generator exhaustiveness, unspecified-quantity units, import promotion and
+local preference reset boundaries.
+
+Storage interruptions were infrastructure problems, not passing test evidence.
+With user approval, regenerable Xcode builds/index/compiler caches, the older
+`iPhone14,5 27.2 (24B115)` symbol cache, non-Chrome updater/package/Spotify caches
+were removed. Newer device symbols, simulator/preview state, signing data, archives,
+source and Chrome were preserved. Old task test bundles were transferred to Linux
+and SHA-256 verified before removing their Mac copies:
+`/tmp/opencode/all-items-mac-test-evidence-20261105.tar.gz` and
+`/tmp/opencode/all-items-mac-test-evidence-20261106-pre-review.tar.gz`.
+
+Remaining boundaries: iOS 17 runtime and manual large-text/small-device,
+VoiceOver/Switch Control, light/dark and Reduce Motion review are not certified.
+OpenPencil document access repeatedly timed out, so that external reference has not
+been updated; the approved plan and repository specifications remain authoritative.
+No physical-device install, live retailer/cart or live Reminders operation, merge,
+TestFlight delivery or release was performed.
 
 ## Native retailer categories — schema 6 (5 November 2026, historical validation)
 
