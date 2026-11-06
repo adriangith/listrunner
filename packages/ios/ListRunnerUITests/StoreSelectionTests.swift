@@ -1611,8 +1611,19 @@ final class StoreSelectionTests: XCTestCase {
 
     private func openAllItemsClearOptions(_ groupID: String) {
         let clear = app.buttons["all-items-clear-\(groupID)"]
-        for _ in 0..<8 where !clear.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        let list = app.collectionViews.firstMatch
+        let showStore = app.buttons["all-items-show-store"]
+        func fullyVisible() -> Bool {
+            guard clear.isHittable else { return false }
+            let bottom = showStore.exists ? min(list.frame.maxY, showStore.frame.minY) : list.frame.maxY
+            return clear.frame.minY >= list.frame.minY && clear.frame.maxY <= bottom
+        }
+        for _ in 0..<8 where !fullyVisible() {
+            if clear.exists && clear.frame.minY < list.frame.minY { list.swipeDown() }
+            else { list.swipeUp() }
+        }
         XCTAssertTrue(clear.isHittable, app.debugDescription)
+        XCTAssertTrue(fullyVisible(), "The entire clear action must be above Show Store, not merely tappable through glass")
         XCTAssertGreaterThanOrEqual(clear.frame.height, 56)
         clear.tap()
         XCTAssertTrue(app.buttons["Clear All"].waitForExistence(timeout: 3))
