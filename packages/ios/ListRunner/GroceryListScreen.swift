@@ -1103,6 +1103,9 @@ private struct AllItemsScreen: View {
             notice = "Choose an enabled store before importing."
             return
         }
+        entryFocused = false
+        entryFocus.resignFirstResponder()
+        entryRevealTask?.cancel()
         importRequested = true
         importDestination = destinationID
     }

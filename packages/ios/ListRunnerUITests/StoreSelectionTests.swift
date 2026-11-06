@@ -1613,9 +1613,15 @@ final class StoreSelectionTests: XCTestCase {
         choose("All items")
         let entry = app.textViews["all-items-entry"]
         entry.tap(); entry.typeText("Unsubmitted draft")
-        app.buttons["all-items-add-destination"].tap()
-        app.buttons["Woolworths"].firstMatch.tap()
-        app.buttons["Import"].tap()
+        app.buttons["all-items-add-destination"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let woolworths = app.buttons["Woolworths"].firstMatch
+        XCTAssertTrue(woolworths.waitForExistence(timeout: 3))
+        woolworths.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let destinationChanged = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            self.app.buttons["all-items-add"].label.contains("Woolworths")
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [destinationChanged], timeout: 3), .completed)
+        app.buttons["Import"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(app.buttons["import-source-paprika"].waitForExistence(timeout: 5))
         app.buttons["import-source-paprika"].tap()
         confirmPaprikaImport()
@@ -1818,11 +1824,16 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(first.waitForExistence(timeout: 3))
         XCTAssertTrue(second.exists)
         XCTAssertLessThan(first.frame.minY, second.frame.minY)
-        let handles = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Reorder"))
-        XCTAssertGreaterThanOrEqual(handles.count, 2, app.debugDescription)
-        let target = handles.element(boundBy: 0).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
-        handles.element(boundBy: 1).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            .press(forDuration: 1, thenDragTo: target)
+        let firstCell = app.collectionViews.cells.containing(.staticText, identifier: "First reorder item").firstMatch
+        let secondCell = app.collectionViews.cells.containing(.staticText, identifier: "Second reorder item").firstMatch
+        let handles = NSPredicate(format: "label BEGINSWITH %@", "Reorder")
+        let firstHandle = firstCell.buttons.matching(handles).firstMatch
+        let secondHandle = secondCell.buttons.matching(handles).firstMatch
+        XCTAssertTrue(firstHandle.isHittable)
+        XCTAssertTrue(secondHandle.isHittable)
+        let target = firstHandle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
+        secondHandle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 1, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 0.5)
         let reordered = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
             second.frame.minY < first.frame.minY
         }, object: nil)
