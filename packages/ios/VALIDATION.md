@@ -1,5 +1,31 @@
 # Reusable store framework validation
 
+## Authorized adaptive-entry iPhone deployment (8 November 2026)
+
+At the user's request, Xcode built, installed in place and launched the adaptive
+entry layout on **Adrian’s iPhone / iOS 27.2**, without a debugger. RunProject
+reported **zero build errors** and successful launch, PID **27666**.
+
+The canonical Mac project was open at
+`/Users/adrianzafir/Projects/listrunner/packages/ios/ListRunner.xcodeproj`.
+Before running, Xcode source readback confirmed the responsive action layout,
+shared Add chrome and explicit Import title fix. The last Git-verified Mac revision
+was `30dee8080a6723831f2739a6adcb6f84e32eb57f`, the revision with the final 7/7 UI
+test pass. Current Git status/SHA, scheme XML and independent device-bundle resource
+and signature verification could not be repeated: SSH still reset connections, and
+XcodeRead could not access the scheme XML outside the project source structure.
+Do not treat the deployment as a fresh byte-for-byte whole-checkout audit.
+
+No tests/fixtures, reset, list clearing, import/reminder operation or retailer/cart
+interaction was requested or performed on the phone. The normal app was updated
+in place; existing data and sessions were not intentionally changed. No merge,
+TestFlight or release occurred. This supersedes the prior note that the adaptive
+change was not installed. Documentation remains pushed on the feature branch for
+a later Mac fast-forward once SSH is restored.
+
+Mac evidence:
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261108-092404.txt`.
+
 ## Adaptive shared entry actions and matching Add height (8 November 2026)
 
 Implemented in `ProductEntrySection` using `ProductEntryActionsLayout`: measure
