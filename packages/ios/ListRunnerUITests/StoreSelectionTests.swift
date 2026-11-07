@@ -1635,6 +1635,36 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-add-")).firstMatch.exists)
     }
 
+    func testAllItemsDeleteItemIsImmediateInBothGroupingsAndPreservesOtherStores() {
+        choose("All items")
+        let list = app.collectionViews.firstMatch
+        for (grouping, product) in [("By store", "Coles fixture item"), ("By category", "Woolworths fixture item")] {
+            let groupingButton = app.segmentedControls.buttons[grouping]
+            for _ in 0..<6 where !groupingButton.isHittable { list.swipeDown() }
+            groupingButton.tap()
+            let actions = app.buttons["Actions for \(product)"]
+            for _ in 0..<6 where !actions.isHittable { list.swipeUp() }
+            XCTAssertTrue(actions.isHittable)
+            actions.tap()
+            app.buttons["Delete Item"].tap()
+            let removed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: actions)
+            XCTAssertEqual(XCTWaiter.wait(for: [removed], timeout: 5), .completed,
+                           "One Delete Item tap must remove the row without a second confirmation")
+            XCTAssertFalse(app.staticTexts["Delete this item?"].exists)
+        }
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        let remaining = app.buttons["Actions for Bunnings fixture item"]
+        for _ in 0..<6 where !remaining.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(remaining.isHittable, "Deleting other owners' rows must preserve Bunnings")
+        choose("Coles")
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 5))
+        choose("Woolworths")
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.webViews.firstMatch.exists)
+    }
+
     private func enableLongAddDestination() {
         app.buttons["store-picker"].tap()
         app.buttons["store-picker-manage-stores"].tap()

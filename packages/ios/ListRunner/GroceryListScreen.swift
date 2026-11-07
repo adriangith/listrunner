@@ -671,7 +671,6 @@ private struct AllItemsScreen: View {
     @State private var editMode = EditMode.inactive
     @State private var workingStoreID: StoreID?
     @State private var groupAddRequest: UUID?
-    @State private var itemToDelete: GroceryItem?
     @State private var clearRequest: AllItemsClearRequest?
     @State private var editingItem: GroceryItem?
     @State private var shoppingDestination: StoreID?
@@ -1027,17 +1026,6 @@ private struct AllItemsScreen: View {
                     onChooseStoreList(id)
                 })
         }
-        .confirmationDialog("Delete this item?", isPresented: Binding(
-            get: { itemToDelete != nil }, set: { if !$0 { itemToDelete = nil } }), titleVisibility: .visible) {
-            Button("Delete Item", role: .destructive) {
-                guard let itemToDelete else { return }
-                delete(itemToDelete)
-                self.itemToDelete = nil
-            }
-            Button("Cancel", role: .cancel) { itemToDelete = nil }
-        } message: {
-            Text("This removes the row from its ListRunner store list only. It does not change a retailer cart or Apple Reminders.")
-        }
         .sheet(item: $editingItem) { item in
             ItemEditorSheet(item: item) { name, amount, unit in
                 item.name = name
@@ -1172,7 +1160,7 @@ private struct AllItemsScreen: View {
                             Button(store.displayName) { move(item, to: store.id) }
                         }
                     }
-                Button("Delete Item", systemImage: "trash", role: .destructive) { itemToDelete = item }
+                Button("Delete Item", systemImage: "trash", role: .destructive) { delete(item) }
         }
         .accessibilityIdentifier("all-item-\(item.id.uuidString)")
     }

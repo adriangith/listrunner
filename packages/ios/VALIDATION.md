@@ -1,5 +1,23 @@
 # Reusable store framework validation
 
+## Immediate single-item deletion (8 November 2026 — native verification pending)
+
+At the user's request, All items now invokes its existing `delete(_:)` directly
+from three dots → Delete Item, matching individual store lists. Removed the extra
+`Delete this item?` dialog and its pending-item state. The deletion implementation
+is unchanged: repair the owner's selection/order, cancel queued reminder writes,
+delete the local row and save. No retailer cart or Apple Reminders deletion is
+introduced. Multi-item Clear List confirmations are unchanged.
+
+Added `testAllItemsDeleteItemIsImmediateInBothGroupingsAndPreservesOtherStores`:
+one menu tap must delete without confirmation in By store and By category; relaunch
+must preserve those deletions and retain Bunnings, and both affected owner lists
+must be empty. This test has **not run**, and this change has **not been Swift-
+compiled**: Mac SSH resets connections before authentication, blocking the Git
+handoff. Linux `git diff --check` passed. Prior adaptive-entry test/build successes
+do not validate this new change. No phone install or live data mutation was
+performed for immediate deletion.
+
 ## Authorized adaptive-entry iPhone deployment (8 November 2026)
 
 At the user's request, Xcode built, installed in place and launched the adaptive
