@@ -1592,6 +1592,49 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(app.textViews["all-items-entry"].value as? String, "Persisted unsubmitted draft")
     }
 
+    func testAllItemsGroupAddSelectsStorePreservesDraftAndFocusesEntry() {
+        choose("All items")
+        let entry = app.textViews["all-items-entry"]
+        entry.tap()
+        entry.typeText("Shortcut unsubmitted draft")
+        app.staticTexts["Ready when you are"].tap()
+        let shortcut = app.buttons["all-items-group-add-woolworths"]
+        for _ in 0..<6 where !shortcut.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(shortcut.isHittable)
+        XCTAssertGreaterThanOrEqual(shortcut.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(shortcut.frame.height, 44)
+        shortcut.tap()
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["all-items-add"].label.contains("Woolworths"))
+        XCTAssertEqual(entry.value as? String, "Shortcut unsubmitted draft")
+        entry.typeText(" suffix") // No second tap: the shortcut focuses the existing editor.
+        XCTAssertEqual(entry.value as? String, "Shortcut unsubmitted draft suffix")
+        XCTAssertFalse(app.buttons["Actions for Shortcut unsubmitted draft"].exists)
+        app.staticTexts["Ready when you are"].tap()
+        let titles = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-title-store-"))
+        XCTAssertEqual(titles.firstMatch.label, "Woolworths")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertEqual(entry.value as? String, "Shortcut unsubmitted draft suffix")
+        XCTAssertTrue(app.buttons["all-items-add"].label.contains("Woolworths"))
+        XCTAssertEqual(titles.firstMatch.label, "Bunnings", "A shortcut must not fabricate persisted addition recency")
+    }
+
+    func testAllItemsUnavailableGroupAddIsAbsentAndCategoriesHaveNoShortcut() {
+        choose("All items")
+        let list = app.collectionViews.firstMatch
+        let unavailableTitle = app.staticTexts["all-items-group-title-store-tesco"]
+        for _ in 0..<6 where !unavailableTitle.isHittable { list.swipeUp() }
+        XCTAssertTrue(unavailableTitle.isHittable)
+        XCTAssertFalse(app.buttons["all-items-group-add-tesco"].exists)
+        for _ in 0..<6 where !app.segmentedControls.buttons["By category"].isHittable { list.swipeDown() }
+        app.segmentedControls.buttons["By category"].tap()
+        XCTAssertTrue(app.staticTexts["Grocery"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-add-")).firstMatch.exists)
+    }
+
     func testAllItemsShortRowMatchesStoreRowHeight() {
         choose("Coles")
         let storeCell = app.collectionViews.cells.containing(.any, identifier: "Actions for Coles fixture item").firstMatch

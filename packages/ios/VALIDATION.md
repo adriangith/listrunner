@@ -1,5 +1,28 @@
 # Reusable store framework validation
 
+## All items group-header Add shortcut (8 November 2026 — Mac verification pending)
+
+Implemented a plus before each available store group's count, using the existing
+shared entry field. Activation preserves the draft, selects that store's destination,
+temporarily places its group first, cancels stale item-reveal work, scrolls to the
+editor and requests focus. A view-scoped priority does not fabricate saved add/import
+recency. Category and unavailable/unknown-owner groups do not offer the action, nor
+do headers in edit mode. Changing grouping or manually changing destination clears
+the temporary priority. The button has a 44-point target and explicit accessible
+name. Header row insets retain the existing 52-point standard header height.
+
+Two UI regressions were added: destination/draft/input routing and group priority
+without persisted add recency; and absence for unavailable/category groups. These
+tests have **not run**. Swift compilation and keyboard/scroll behaviour are also
+**not yet verified**: the Mac SSH connection was reset before authentication, and
+Xcode MCP is unavailable in this session. Linux has no Swift compiler. No simulator
+or phone build/install was performed for this shortcut; the prior phone build is
+unchanged. Run the new UI cases plus existing row-height/entry checks on the Mac
+before treating this as validated.
+
+Linux `git diff --check` and the existing **431 JavaScript tests** passed. Those
+checks do not compile Swift or validate this native UI interaction.
+
 ## Equal native row height and authorized phone deployment (6 November 2026)
 
 Installed revision `3904e3bc169b1b3cc546050f1092466e503f13cf` on

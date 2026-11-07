@@ -555,6 +555,37 @@ private struct AllItemsClearRequest {
     let itemIDs: Set<UUID>
 }
 
+private struct AllItemsGroupHeader: View {
+    let group: AllItemsGroup
+    let tint: Color
+    let addStore: StoreID?
+    let onAdd: (StoreID) -> Void
+
+    var body: some View {
+        HStack {
+            Text(group.title)
+                .font(.subheadline.weight(.semibold))
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("all-items-group-title-\(group.id)")
+            Spacer()
+            if let addStore {
+                Button { onAdd(addStore) } label: {
+                    Image(systemName: "plus")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Add items to \(group.title)")
+                .accessibilityIdentifier("all-items-group-add-\(addStore.rawValue)")
+            }
+            Text(group.items.count, format: .number).foregroundStyle(.secondary)
+        }
+        .foregroundStyle(tint)
+        .frame(minHeight: 44)
+    }
+}
+
 private struct AllItemsScreen: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \GroceryItem.position) private var allItems: [GroceryItem]
@@ -573,6 +604,8 @@ private struct AllItemsScreen: View {
     @State private var showingStoreManagement = false
     @State private var showingSettings = false
     @State private var editMode = EditMode.inactive
+    @State private var workingStoreID: StoreID?
+    @State private var groupAddRequest: UUID?
     @State private var itemToDelete: GroceryItem?
     @State private var clearRequest: AllItemsClearRequest?
     @State private var editingItem: GroceryItem?
@@ -656,6 +689,9 @@ private struct AllItemsScreen: View {
                 }
             }
             known.sort { lhs, rhs in
+                let leftWorking = lhs.storeIDs.first == workingStoreID
+                let rightWorking = rhs.storeIDs.first == workingStoreID
+                if leftWorking != rightWorking { return leftWorking }
                 let li = groupRank(lhs), ri = groupRank(rhs)
                 return li == ri ? lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending : li < ri
             }
@@ -774,14 +810,13 @@ private struct AllItemsScreen: View {
             } else {
                 ForEach(groups) { group in
                     Section {
-                        HStack {
-                            Text(group.title).font(.subheadline.weight(.semibold))
-                            Spacer()
-                            Text("\(group.items.count)").foregroundStyle(.secondary)
-                        }
-                        .foregroundStyle(grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary)
-                        .accessibilityAddTraits(.isHeader)
+                        AllItemsGroupHeader(group: group,
+                            tint: grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary,
+                            addStore: grouping == .store && !editMode.isEditing
+                                ? group.storeIDs.first.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil } : nil,
+                            onAdd: beginAdding)
                         .id(group.id)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
                         ForEach(group.items, id: \.id) { item in
                             allItemRow(item)
                                 .id(item.id)
@@ -843,6 +878,34 @@ private struct AllItemsScreen: View {
                 entryRevealTask?.cancel()
                 scrollTargetItemID = itemID
                 withAnimation { proxy.scrollTo(itemID, anchor: .bottom) }
+            }
+        }
+        .task(id: groupAddRequest) {
+            guard groupAddRequest != nil, let workingStoreID,
+                  shoppingVisibleIDs.contains(workingStoreID) else { return }
+            // The entry is part of this List, not a second pinned composer.
+            // Reveal it first; the shared card correction handles keyboard layout.
+            proxy.scrollTo("product-entry-editor", anchor: .top)
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            entryRevealSuppressed = false
+            entryFocused = true
+            revealFocusedEntry()
+        }
+        .onChange(of: groupingRawValue) { _, _ in
+            workingStoreID = nil
+            groupAddRequest = nil
+        }
+        .onChange(of: destinationRawValue) { _, value in
+            if let workingStoreID, workingStoreID.rawValue != value {
+                self.workingStoreID = nil
+                groupAddRequest = nil
+            }
+        }
+        .onChange(of: shoppingVisibleIDs) { _, ids in
+            if let workingStoreID, !ids.contains(workingStoreID) {
+                self.workingStoreID = nil
+                groupAddRequest = nil
             }
         }
         .onChange(of: scrollTargetItemID) { _, id in
@@ -973,6 +1036,22 @@ private struct AllItemsScreen: View {
             return ProductEntryRevealGeometry(editor: entryFrame, actions: actionsFrame,
                                              viewport: listViewportFrame)
         }, onRevealing: { isRevealingEntry = $0 })
+    }
+
+    private func beginAdding(to store: StoreID) {
+        guard grouping == .store, !editMode.isEditing, shoppingVisibleIDs.contains(store) else { return }
+        addedItemScrollTask?.cancel()
+        addedItemScrollTask = nil
+        scrollTargetItemID = nil
+        itemFrames.removeAll(keepingCapacity: true)
+        highlightedItemIDs.removeAll()
+        entryRevealTask?.cancel()
+        entryRevealSuppressed = false
+        destinationRawValue = store.rawValue
+        // This is a temporary working-group priority, not a fabricated add event.
+        // Saved recency is updated only by the existing successful add/import path.
+        workingStoreID = store
+        groupAddRequest = UUID()
     }
 
     private func scrollToAddedItem(_ id: UUID, using proxy: ScrollViewProxy) {
