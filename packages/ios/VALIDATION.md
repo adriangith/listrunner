@@ -1,5 +1,51 @@
 # Reusable store framework validation
 
+## All items main-branch merge review (8 November 2026)
+
+Merged `a201ba522dcf05b1578ceb51dade4978e7db50e6` into main with merge commit
+`f158763`, retaining main's appearance setting. Three conflicts were resolved:
+the reset-key list keeps both appearance and all aggregate preferences; plan and
+validation documentation keep both sections. Auto-merged appearance and All items
+UI tests remain present. This review builds on `docs/all-items-review.md` and the
+subsequent shared-layout evidence below; it is not release certification.
+
+Linux and the canonical Mac checkout were synced to merged revision
+`387df5da6566b59f607e7af1210fe67ff96f1951` for post-merge validation:
+
+- **431/431 JavaScript tests** passed; category **2**, onboarding **20** and
+  expansion **3** Python tests passed; `git diff --check` passed.
+- **1,883 native recovery/reset-boundary/diagnostics checks passed** on the Mac.
+  The merged reset path preserves both sets of preference keys.
+- Xcode build-for-testing passed with zero errors on iPhone 17 / iOS 27.2 simulator.
+  Actual simulator bundle **35 JSON + 1 JavaScript** resources match canonical source.
+- Focused merged UI run passed **4/5**, not 5/5: appearance persistence, immediate
+  deletion in both grouping modes, adaptive long destination and shared pinned
+  header passed. The growing standard-page draft test failed twice (including an
+  isolated rerun); its software keyboard was not onscreen.
+- Exported failure recording visibly has no software keyboard. Hierarchy shows
+  keyboard y=918 on an 874-point screen; the editor is y=322…469.3, actions end at
+  521.3, and Show Store is y=758…824. The card is unobscured; the predicate requiring
+  Show Store above 65% of screen height fails because the keyboard never appeared.
+  This is a missing visible-keyboard precondition, not a certified keyboard pass.
+  No assertions, simulator preferences or application code were changed to hide it.
+
+Evidence:
+- `BuildProject-Log-20261108-100123.txt` in Mac Xcode ActionArtifacts.
+- Mac DerivedData `Logs/Test/Test-ListRunner-2026.11.08_10-01-28-+1100.xcresult`
+  (4/5) and `Test-ListRunner-2026.11.08_10-09-18-+1100.xcresult` (failed rerun).
+- Mac `/tmp/listrunner-main-387df5d-recovery.log` and
+  `/tmp/listrunner-merge-keyboard-387df5d/` exported attachments.
+- Linux `/tmp/opencode/merge-keyboard-387df5d.mp4` and
+  `/tmp/opencode/merge-keyboard-387df5d.png` (visually inspected).
+
+The merged revision has not been newly installed on the phone; its last authorized
+install remains the verified immediate-delete feature revision recorded below.
+Manual accessibility/older-iOS/small-screen gates and a repeat with a visible
+software keyboard remain open. No live retailer/cart/reminder mutation or manual
+release was performed as part of this merge. Only task-specific branch/worktree
+cleanup is authorized; unrelated worktrees, marketing work and preservation backups
+must remain intact.
+
 ## Immediate single-item deletion and authorized phone install (8 November 2026)
 
 At the user's request, All items now invokes its existing `delete(_:)` directly
