@@ -1686,8 +1686,12 @@ final class StoreSelectionTests: XCTestCase {
         let arrow = app.buttons["all-items-add-destination"]
         let importing = app.buttons["set-import-source"]
         let footer = app.buttons["all-items-show-store"]
-        for _ in 0..<6 where !add.isHittable || max(add.frame.maxY, arrow.frame.maxY) > footer.frame.minY {
-            app.collectionViews.firstMatch.swipeUp()
+        let list = app.collectionViews.firstMatch
+        for _ in 0..<10 where !add.isHittable || max(add.frame.maxY, arrow.frame.maxY) > footer.frame.minY {
+            // Small drags reveal the complete actions without flinging Import
+            // past the pinned header at accessibility sizes.
+            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+                .press(forDuration: 0.05, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6)))
         }
         XCTAssertTrue(add.isHittable)
         XCTAssertTrue(add.label.contains("Chemist Warehouse"))
