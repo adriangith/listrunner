@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 6, "id": "chemistWarehouse", "displayName": "Chemist Warehouse",
-  "categories": ["pharmacyBeauty"],
+  "schemaVersion": 7, "id": "chemistWarehouse", "displayName": "Chemist Warehouse",
+  "category": "pharmacyBeauty",
   "automationSchemaVersion": 4,
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.chemistwarehouse.com.au",

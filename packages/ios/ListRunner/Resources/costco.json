@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "id": "costco",
-  "categories": ["grocery", "warehouseClub", "hardwareGarden", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies", "automotive", "outdoorCamping"],
+  "category": "groceryHome",
   "automationSchemaVersion": 2,
   "displayName": "Costco",
   "serviceArea": {"countryCodes": ["AU"]},

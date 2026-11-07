@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 6, "id": "waitrose", "displayName": "Waitrose",
-  "categories": ["grocery", "pharmacyBeauty", "petSupplies"],
+  "schemaVersion": 7, "id": "waitrose", "displayName": "Waitrose",
+  "category": "grocery",
   "automationSchemaVersion": 4,
   "serviceArea": {"countryCodes": ["GB"]},
   "homepage": "https://www.waitrose.com",

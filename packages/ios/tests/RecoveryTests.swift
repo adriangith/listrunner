@@ -15,6 +15,35 @@ struct RecoveryTests {
         }
 
         let resources = URL(fileURLWithPath: CommandLine.arguments[1])
+        let addData = try ShoppingLists.open(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
+        let addContext = addData.mainContext
+        addContext.autosaveEnabled = false
+        let otherStoreItem = GroceryItem(name: "milk", amount: 9, position: 0, listID: StoreID.woolworths.listID)
+        addContext.insert(otherStoreItem)
+        try addContext.save()
+        let addedRows = ShoppingLists.stageAdd([ParsedGrocery(name: "milk", amount: 2, unit: nil),
+                                               ParsedGrocery(name: "bread", amount: nil, unit: nil),
+                                               ParsedGrocery(name: "milk", amount: 3, unit: nil)],
+                                               to: .coles, allItems: [otherStoreItem], context: addContext)
+        check(addedRows.count == 2 && addedRows[0].name.lowercased() == "milk" && addedRows[0].quantityAmount == 5
+              && addedRows[1].position == 1 && otherStoreItem.quantityAmount == 9,
+              "shared manual add merges only within destination, preserves batch order and does not duplicate promoted rows")
+        let measuredRows = ShoppingLists.stageAdd([ParsedGrocery(name: "bread", amount: 2, unit: "kg")],
+                                                  to: .coles, allItems: addedRows + [otherStoreItem], context: addContext)
+        check(measuredRows.count == 1 && measuredRows[0].quantityAmount == 2 && measuredRows[0].quantityUnit == "kg",
+              "reactivating an unspecified quantity preserves the newly parsed unit")
+        addContext.rollback()
+        let remainingAddRows = try addContext.fetchCount(FetchDescriptor<GroceryItem>())
+        check(remainingAddRows == 1,
+              "failed manual-add transaction can roll back without changing another store")
+        let firstID = UUID(), secondID = UUID(), thirdID = UUID()
+        let initialOrder = ItemPromotionOrder.promoting([firstID, secondID], in: "", existing: [firstID, secondID, thirdID])
+        let updatedOrder = ItemPromotionOrder.promoting([thirdID, firstID], in: initialOrder,
+                                                       existing: [firstID, secondID, thirdID])
+        check(ItemPromotionOrder.ranks(updatedOrder) == [thirdID: 0, firstID: 1, secondID: 2],
+              "cross-store promotion retains actual recent batch order and deduplicates existing rows")
+        check(ItemPromotionOrder.ranks(ItemPromotionOrder.promoting([], in: updatedOrder, existing: [secondID])) == [secondID: 0],
+              "deleted rows are pruned from sidecar ranks without assigning historical dates")
         check(ShoppingCountry.validated("au") == "AU", "country preferences normalize ISO codes")
         for code in [nil, "", "ZZ", "Australia", "123"] as [String?] {
             check(ShoppingCountry.validated(code) == nil, "invalid/missing region suggestions do not guess a country")
@@ -57,12 +86,33 @@ struct RecoveryTests {
         }
         let woolworths = try JSONDecoder().decode(StoreDefinition.self, from: Data(contentsOf: resources.appendingPathComponent("woolworths.json")))
         let bunnings = try JSONDecoder().decode(StoreDefinition.self, from: Data(contentsOf: resources.appendingPathComponent("bunnings.json")))
-        check(StoreCategory.allCases.map(\.rawValue) == ["grocery", "departmentStore", "warehouseClub", "onlineMarketplace",
-              "hardwareGarden", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies", "automotive", "outdoorCamping"],
-              "store category wire values are stable and ordered")
-        check(coles.schemaVersion == 6 && coles.categories == [.grocery, .pharmacyBeauty, .petSupplies],
-              "Coles schema-6 categories decode as typed metadata")
-        var missingCategories = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
+        check(coles.schemaVersion == 7 && coles.category == .grocery && coles.categories.isEmpty,
+              "Coles schema-7 single category decodes as typed metadata")
+        var schema6Object = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
+        schema6Object["schemaVersion"] = 6
+        schema6Object.removeValue(forKey: "category")
+        schema6Object["categories"] = ["grocery", "pharmacyBeauty", "petSupplies"]
+        let schema6Data = try JSONSerialization.data(withJSONObject: schema6Object)
+        let schema6 = try StoreDefinition.decodeConfiguration(from: schema6Data)
+        for invalidCategory in ["departmentStore", "warehouseClub"] {
+            var invalid = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
+            invalid["category"] = invalidCategory
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: invalid))) == nil,
+                  "schema 7 rejects legacy-only categories just like the onboarding validator")
+        }
+        for futureCategory in ["groceryHome", "clothingHome", "homeFurniture"] {
+            var invalid = schema6Object
+            invalid["categories"] = [futureCategory]
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: invalid))) == nil,
+                  "schema 6 retains its original category vocabulary")
+        }
+        check(schema6.schemaVersion == 6 && schema6.category == nil && schema6.categories.count == 3,
+              "legacy schema-6 category arrays remain readable without choosing an implicit primary category")
+        var missingCategory = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
+        missingCategory.removeValue(forKey: "category")
+        check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: missingCategory))) == nil,
+              "schema 7 requires one category")
+        var missingCategories = schema6Object
         missingCategories.removeValue(forKey: "categories")
         check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: missingCategories))) == nil,
               "schema 6 requires categories")
@@ -79,10 +129,10 @@ struct RecoveryTests {
         let invalidCategories: [Any] = [NSNull(), [], ["grocery", "grocery"], ["unknown"], ["Grocery"], [" grocery"], [1], ["grocery", NSNull()]]
         for categories in invalidCategories {
             var object = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
-            object["categories"] = categories
+            object["category"] = categories
             let invalid = try JSONSerialization.data(withJSONObject: object)
             check((try? StoreDefinition.decodeConfiguration(from: invalid)) == nil,
-                  "schema-6 rejects malformed category values")
+                  "schema-7 rejects malformed category values")
             check((try? JSONDecoder().decode(StoreDefinition.self, from: invalid)) == nil,
                   "direct Codable decoding also rejects malformed category values")
         }
@@ -94,6 +144,7 @@ struct RecoveryTests {
             var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(current)) as! [String: Any]
             object["schemaVersion"] = legacyVersion
             object.removeValue(forKey: "categories")
+            object.removeValue(forKey: "category")
             object.removeValue(forKey: "automationSchemaVersion")
             let legacyData = try JSONSerialization.data(withJSONObject: object)
             let legacy = try StoreDefinition.decodeConfiguration(from: legacyData)
@@ -200,13 +251,14 @@ struct RecoveryTests {
                   "IKEA snapshot contract rejects incompatible engines, foreign locales and unknown keys")
         }
         check(allProductionDefinitions.count == 33
-              && allProductionDefinitions.allSatisfy { $0.schemaVersion == 6 && !$0.categories.isEmpty && $0.isConfigurationValid },
-              "all 33 production destinations use valid schema-6 categories")
+              && allProductionDefinitions.allSatisfy { $0.schemaVersion == 7 && $0.category != nil && $0.isConfigurationValid },
+              "all 33 production destinations use valid schema-7 categories")
         for definition in allProductionDefinitions {
             let roundTrip = try StoreDefinition.decodeConfiguration(from: JSONEncoder().encode(definition))
             check(roundTrip.id == definition.id && roundTrip.categories == definition.categories
-                  && roundTrip.automationSchemaVersion == definition.automationSchemaVersion,
-                  "every definition round-trips, including stores with a null cart")
+                  && roundTrip.category == definition.category
+                   && roundTrip.automationSchemaVersion == definition.automationSchemaVersion,
+                   "every definition round-trips, including stores with a null cart")
         }
         let persistentProbeID = UUID(uuidString: "0BDE339A-A800-4D62-B5BC-17838D7B3823")!
         let persistentProbeEnvironment = ["LISTRUNNER_UI_TEST_SESSION": persistentProbeID.uuidString,
@@ -340,7 +392,43 @@ struct RecoveryTests {
               && availabilityDefaults.string(forKey: "activeStoreID") == "costcoUS"
               && Set(availabilityDefaults.stringArray(forKey: "visibleStoreIDs.v1") ?? []) == Set(previouslyEnabled.map(\.rawValue)),
               "selection resolution preserves stored region, active preference and enabled flags until the UI explicitly changes selection")
+        let disableGuardSuite = "ListRunner.StoreDisableGuard.\(UUID().uuidString)"
+        let disableGuardDefaults = UserDefaults(suiteName: disableGuardSuite)!
+        defer { disableGuardDefaults.removePersistentDomain(forName: disableGuardSuite) }
+        disableGuardDefaults.set(StoreID.allCases.map(\.rawValue), forKey: "knownStoreIDs.v1")
+        disableGuardDefaults.set([StoreID.coles.rawValue, StoreID.costco.rawValue], forKey: "visibleStoreIDs.v1")
+        disableGuardDefaults.set(["costco": StoreID.costco.rawValue], forKey: "storeRegionalChoices.v1")
+        let disableGuard = StoreVisibilityPreferences(defaults: disableGuardDefaults)
+        disableGuard.updateNonEmptyListIDs(Set([StoreID.coles.listID, StoreID.costco.listID]))
+        check(!disableGuard.setVisible(false, for: .coles) && disableGuard.visibleIDs.contains(.coles),
+              "a nonempty store list blocks direct destination disabling without changing visibility")
+        let guardCostco = StoreBrand.catalogue(allProductionDefinitions).first { $0.id == "costco" }!
+        check(!disableGuard.setBrandVisible(false, brand: guardCostco)
+              && disableGuard.visibleIDs.contains(.costco)
+              && !disableGuard.chooseRegion(.costcoUS, for: guardCostco)
+              && disableGuard.visibleIDs.contains(.costco)
+              && disableGuard.regionalChoices["costco"] == StoreID.costco.rawValue,
+              "nonempty regional list blocks brand disable and region replacement without rewriting the saved choice")
+        check(disableGuard.chooseRegion(.costco, for: guardCostco),
+              "reselecting the enabled region does not disable its nonempty list")
+        disableGuard.listItemCountsProvider = { throw StoreDefinition.ConfigurationError.invalid }
+        check(!disableGuard.setVisible(false, for: .coles) && disableGuard.visibleIDs.contains(.coles)
+              && disableGuard.listLookupFailed,
+              "failed saved-row lookup fails closed instead of disabling a store")
+        disableGuard.listItemCountsProvider = { [StoreID.coles.listID: 1] }
+        check(!disableGuard.setVisible(false, for: .coles), "fresh saved-row lookup overrides an earlier empty snapshot")
+        disableGuard.listItemCountsProvider = { [:] }
+        check(disableGuard.setVisible(false, for: .coles) && !disableGuard.visibleIDs.contains(.coles),
+              "explicit disable succeeds after all affected rows are successfully removed")
         let availableCostco = StoreBrand.sections(allProductionDefinitions, countryCode: "US", search: "Costco").flatMap(\.brands).first!
+        disableGuardDefaults.set([StoreID.costcoUS.rawValue], forKey: "visibleStoreIDs.v1")
+        disableGuardDefaults.set(["costco": StoreID.costco.rawValue], forKey: "storeRegionalChoices.v1")
+        let hiddenRegionGuard = StoreVisibilityPreferences(defaults: disableGuardDefaults)
+        hiddenRegionGuard.updateNonEmptyListIDs([StoreID.costcoUS.listID])
+        check(!hiddenRegionGuard.setBrandVisible(true, brand: availableCostco)
+              && !hiddenRegionGuard.chooseRegion(.costco, for: availableCostco)
+              && hiddenRegionGuard.visibleIDs.contains(.costcoUS),
+              "enabling/replacing an available region cannot silently disable a populated hidden sibling")
         check(availableCostco.regions.map(\.id) == [.costco] && !availableCostco.isRegional
               && availability.selectedRegion(for: availableCostco).id == .costco
               && availability.regionalChoices["costco"] == "costcoUS",
@@ -415,7 +503,7 @@ struct RecoveryTests {
             check(!sainsburys.allowsNavigation(URL(string: value)!), "Sainsbury's authentication exceptions remain exact and HTTPS-only")
         }
         let waitrose = expansionDefinitions.first { $0.id == .waitrose }!
-        check(waitrose.schemaVersion == 6 && waitrose.acceptsProductIdentity("053457-26759-26760")
+        check(waitrose.schemaVersion == 7 && waitrose.acceptsProductIdentity("053457-26759-26760")
               && waitrose.cart?.profiles?.first?.quantityDraftSelector == "button[data-testid='trolleyUpdateButton']",
               "Waitrose uses observed composite identity and rejects unapplied quantity drafts")
         for value in ["", "053457", "053457-26759", "abc-def-ghi", "053457-26759-", "-1-2",
@@ -448,7 +536,7 @@ struct RecoveryTests {
             check(!waitrose.allowsNavigation(URL(string: value)!), "Waitrose authentication remains exact-host HTTPS without credentials or custom ports")
         }
         let prospectiveSupercheap = expansionDefinitions.first { $0.id == .supercheapAuto }!
-        check(prospectivePriceline.schemaVersion == 6 && prospectivePriceline.cart?.profiles?.first?.receipt?.imageIdentity?.allowedHosts == ["api.priceline.com.au"],
+        check(prospectivePriceline.schemaVersion == 7 && prospectivePriceline.cart?.profiles?.first?.receipt?.imageIdentity?.allowedHosts == ["api.priceline.com.au"],
               "Priceline's linkless receipt has an explicitly bounded image-identity source")
         for mutation in ["oldSchema", "foreignImage", "missingRow", "missingQuantity", "mixedQuantityModes", "unknownImageKey"] {
             var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(prospectivePriceline)) as! [String: Any]
@@ -471,6 +559,7 @@ struct RecoveryTests {
         }
         var componentObject = try JSONSerialization.jsonObject(with: JSONEncoder().encode(expansionDefinitions.first { $0.id == .officeworks }!)) as! [String: Any]
         componentObject["schemaVersion"] = 4
+        componentObject.removeValue(forKey: "category")
         componentObject.removeValue(forKey: "categories")
         componentObject.removeValue(forKey: "automationSchemaVersion")
         var componentCart = try JSONSerialization.jsonObject(with: JSONEncoder().encode(prospectiveSupercheap.cart!)) as! [String: Any]
@@ -708,12 +797,12 @@ struct RecoveryTests {
               "Kmart Australia enables search and product-scoped detection but keeps unverified cart Undo disabled")
         check(StoreID.kmart.permitsSearch && StoreID.kmart.permitsCartDetection && !StoreID.kmart.permitsCartUndo,
                "native Kmart policy keeps retailer-cart Undo disabled until its bag-page reversal is verified")
-        check(kmart.schemaVersion == 6 && kmart.cart?.strategy == .profiled
+        check(kmart.schemaVersion == 7 && kmart.cart?.strategy == .profiled
               && kmart.cart?.profiles?.map(\.scope) == [.productCard, .productPage]
               && kmart.cart?.profiles?.map(\.identity) == [.cardLink, .pageURL]
               && kmart.cart?.profiles?.allSatisfy({ $0.confirmation == .productReceipt }) == true,
               "Kmart declares independent grid/detail identities using a shared receipt engine")
-        check(coles.schemaVersion == 6 && coles.cart?.profiles == nil
+        check(coles.schemaVersion == 7 && coles.cart?.profiles == nil
               && woolworths.cart?.profiles == nil && bunnings.cart?.profiles == nil,
               "legacy version-2 stores keep their existing detector rules")
         func rejectsProfile(_ mutate: (inout [String: Any]) -> Void) -> Bool {
@@ -1168,6 +1257,7 @@ struct RecoveryTests {
                                search: original.search, addedColor: original.addedColor, brandColors: original.brandColors,
                                automationSchemaVersion: original.automationSchemaVersion,
                                categories: original.categories,
+                               category: original.category,
                                capabilities: original.capabilities, cart: original.cart)
           }
           let multiCountry = withCountries(woolworths, ["AU", "NZ"])
@@ -1579,11 +1669,16 @@ struct RecoveryTests {
         try Data("old-wal".utf8).write(to: URL(fileURLWithPath: url.path + "-wal"))
         try Data("old-shm".utf8).write(to: URL(fileURLWithPath: url.path + "-shm"))
         defaults.set(["bigW"], forKey: "pendingEnabledStoreSelection.v1")
+        let allItemsPreferenceKeys = ["allItemsScope.v1", "allItemsGrouping.v1", "allItemsDraft.v1",
+                                      "allItemsAddDestination.v1", "allItemsRecentStoreOrder.v1", "allItemsRecentItemOrder.v1"]
+        for key in allItemsPreferenceKeys { defaults.set("test", forKey: key) }
         allowOpen = true
         storage.resetAfterConfirmation()
         check(storage.container != nil, "confirmed local reset opens an empty store")
         let emptyCount = try storage.container!.mainContext.fetchCount(FetchDescriptor<GroceryItem>())
         check(emptyCount == 0, "reset store contains no items")
+        check(allItemsPreferenceKeys.allSatisfy { defaults.object(forKey: $0) == nil },
+              "confirmed local reset clears all aggregate preferences and sidecar ordering only with the database")
         check(defaults.object(forKey: GroceryImportSource.preferenceKey) == nil,
               "confirmed local reset clears import source and restores setup")
         check(defaults.object(forKey: "useLocalIngredientNames.v1") == nil,

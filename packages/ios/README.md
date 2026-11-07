@@ -89,13 +89,27 @@ as well as every canonical JSON file.
 
 ### Twenty-store expansion (1 November 2026 — partial delivery)
 
-Native store definitions use retailer JSON schema 6 for their required multi-category
-metadata (33 destinations, including IKEA AU). Schemas 2–5 remain readable with category unknown; category values do not
-grant automation or alter discovery. Schema-6 definitions preserve their previous
-automation-rule version separately so this metadata upgrade does not change detection
-behavior. The taxonomy and full assignment are in
+Native store definitions use retailer JSON schema 7 for one required category per
+destination (33 destinations, including IKEA AU). Schemas 2–5 remain readable with
+category unknown; schema 6's multi-category arrays remain readable without assigning
+a primary category by array order. Categories do not grant automation or alter
+discovery. Schema-6/7 definitions preserve their previous automation-rule version
+separately so the metadata upgrade does not change detection behavior. The taxonomy and full assignment are in
 `../../docs/store-categories.md`. This JSON format version is independent of the
 SwiftData shopping-list schema.
+
+The All items scope reads existing store lists without creating a shared basket. It
+uses the same `ShoppingListPage`, header/scope picker, toolbar, summary, product-entry
+section and item-row components as store lists. Only the top header stays pinned;
+counts, entry, grouping and rows scroll together. Shared keyboard reveal keeps the
+entry card usable while typing. Its split Add supports remembered grouping/destination/draft, shared manual-add
+staging and the existing destination-captured import flow. Shopping sheets retain
+store-owned queues and return to All items. UUID-based promotion order is stored in
+app preferences, with no shopping database schema change. Disabling or replacing a
+store/region with saved items is blocked until they are explicitly moved or cleared;
+lookup/save failures and in-flight imports fail closed. Unavailable and unknown-owner
+rows remain recoverable. See `VALIDATION.md` for Mac build/native/UI evidence and
+remaining manual accessibility/design-reference checks; Linux cannot run the iOS target.
 
 Twenty additional AU/NZ/GB/US destinations are registered, disabled by default,
 with independent saved lists, website sessions and diagnostics/reset scopes.

@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "id": "bunnings",
-  "categories": ["hardwareGarden", "electronics", "petSupplies", "automotive", "outdoorCamping"],
+  "category": "hardwareGarden",
   "automationSchemaVersion": 2,
   "displayName": "Bunnings",
   "serviceArea": {"countryCodes": ["AU"]},

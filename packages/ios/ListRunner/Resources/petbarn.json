@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 6, "id": "petbarn", "displayName": "Petbarn",
-  "categories": ["petSupplies"],
+  "schemaVersion": 7, "id": "petbarn", "displayName": "Petbarn",
+  "category": "petSupplies",
   "automationSchemaVersion": 4,
   "serviceArea": {"countryCodes": ["AU"]},
   "homepage": "https://www.petbarn.com.au",

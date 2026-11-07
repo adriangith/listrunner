@@ -55,6 +55,9 @@ def registration_files(root, config, serial, domain):
     # identities, capabilities and exceptional host/login policies remain byte intact.
     values = {
         'displayName': swift_string(config['displayName']),
+        # Disabled schema-2 drafts have no reviewed category yet. Generate an
+        # explicit unknown rather than guessing a primary category for them.
+        'defaultCategory': 'nil',
         'hosts': '[' + ', '.join(swift_string(host) for host in config['allowedHosts']) + ']',
         'dataDomain': swift_string(domain),
         'listID': 'value = ' + swift_string(ids[0]),

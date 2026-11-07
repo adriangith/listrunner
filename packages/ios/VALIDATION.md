@@ -1,5 +1,517 @@
 # Reusable store framework validation
 
+## Immediate single-item deletion (8 November 2026 — native verification pending)
+
+At the user's request, All items now invokes its existing `delete(_:)` directly
+from three dots → Delete Item, matching individual store lists. Removed the extra
+`Delete this item?` dialog and its pending-item state. The deletion implementation
+is unchanged: repair the owner's selection/order, cancel queued reminder writes,
+delete the local row and save. No retailer cart or Apple Reminders deletion is
+introduced. Multi-item Clear List confirmations are unchanged.
+
+Added `testAllItemsDeleteItemIsImmediateInBothGroupingsAndPreservesOtherStores`:
+one menu tap must delete without confirmation in By store and By category; relaunch
+must preserve those deletions and retain Bunnings, and both affected owner lists
+must be empty. This test has **not run**, and this change has **not been Swift-
+compiled**: Mac SSH resets connections before authentication, blocking the Git
+handoff. Linux `git diff --check` passed. Prior adaptive-entry test/build successes
+do not validate this new change. No phone install or live data mutation was
+performed for immediate deletion.
+
+## Authorized adaptive-entry iPhone deployment (8 November 2026)
+
+At the user's request, Xcode built, installed in place and launched the adaptive
+entry layout on **Adrian’s iPhone / iOS 27.2**, without a debugger. RunProject
+reported **zero build errors** and successful launch, PID **27666**.
+
+The canonical Mac project was open at
+`/Users/adrianzafir/Projects/listrunner/packages/ios/ListRunner.xcodeproj`.
+Before running, Xcode source readback confirmed the responsive action layout,
+shared Add chrome and explicit Import title fix. The last Git-verified Mac revision
+was `30dee8080a6723831f2739a6adcb6f84e32eb57f`, the revision with the final 7/7 UI
+test pass. Current Git status/SHA, scheme XML and independent device-bundle resource
+and signature verification could not be repeated: SSH still reset connections, and
+XcodeRead could not access the scheme XML outside the project source structure.
+Do not treat the deployment as a fresh byte-for-byte whole-checkout audit.
+
+No tests/fixtures, reset, list clearing, import/reminder operation or retailer/cart
+interaction was requested or performed on the phone. The normal app was updated
+in place; existing data and sessions were not intentionally changed. No merge,
+TestFlight or release occurred. This supersedes the prior note that the adaptive
+change was not installed. Documentation remains pushed on the feature branch for
+a later Mac fast-forward once SSH is restored.
+
+Mac evidence:
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261108-092404.txt`.
+
+## Adaptive shared entry actions and matching Add height (8 November 2026)
+
+Implemented in `ProductEntrySection` using `ProductEntryActionsLayout`: measure
+the two existing controls at intrinsic width; keep them side by side when they fit,
+otherwise place Import above a full-width Add. Accessibility text sizes always
+stack. Import explicitly uses `titleAndIcon` so automatic label styling cannot
+silently omit its title during measurement. Destination names wrap rather than
+truncate or shrink. No duplicated controls or composer state were introduced.
+
+Standard Add and All items split Add share `ProductAddButtonChrome` and scaled
+body/padding metrics. At standard text size the visible capsule is approximately
+34 points high within a minimum 44-point interaction footprint; the destination
+arrow also retains at least 44 × 44 points. Store pages retain their store tint.
+
+Final focused native run at `30dee8080a6723831f2739a6adcb6f84e32eb57f` on
+`feature/all-items-screen`, iPhone 17 / iOS 27.2 simulator:
+
+- **7/7 UI tests passed**, zero failures/skips: long-destination stacking and
+  matching Add control height; accessibility-size actions fully above Show Store;
+  shared short-row parity; group-header add/draft/focus behaviour; shared pinned
+  header layout; repeated All items entry; and growing standard-page draft.
+- The long-name test preserves its draft when selecting Coles and confirms that
+  the action area returns to a horizontal row. Both new tests retain screenshot
+  attachments; the normal-text test also captures standard Add for comparison.
+- The accessibility test configures the retailer at ordinary text size, relaunches
+  at Accessibility XL, and uses small scroll drags to reveal the entire action
+  area without flinging Import behind the pinned header. Both Import and Add must
+  remain hittable, with the full split control above Show Store and within the page.
+- Xcode build-for-testing passed with zero errors at application-source revision
+  `a0350054ac42e4ddf75f1f41ef7eb3ba0f5a0554`; subsequent changes only strengthen UI tests.
+- Linux **431/431 JavaScript tests** and `git diff --check` passed.
+
+Visual inspection of the earlier `a035005` normal-text attachment confirmed readable
+Import above a full-width, single-line Chemist Warehouse control. Its initial large-
+text attachment showed wrapping but was partly behind Show Store; the final test
+now explicitly checks complete clearance. Final screenshot export and repeated
+simulator-resource verification were blocked when SSH began resetting connections
+after the successful final Xcode test run. The final screenshot attachments remain
+in the result bundle, not yet visually re-reviewed. No new resource-match claim is
+made for this revision. Source and test commits were pushed and synced before the
+run; documentation written afterward requires a Mac fast-forward when SSH returns.
+
+Mac evidence: canonical DerivedData `Logs/Test/`
+`Test-ListRunner-2026.11.08_09-07-19-+1100.xcresult`; build log
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/BuildProject/BuildProject-Log-20261108-085124.txt`.
+
+Earlier attempts are not counted as passes: the first 0/4 run exposed icon-only
+Import measurement and a large-text retailer-setup issue, alongside keyboard/card
+failures; another run failed during app launch in setup. The first stronger
+large-text check exposed test scroll overshoot (Import moved behind the header),
+fixed with smaller drags, not weaker visibility assertions. The final combined run
+also passed the two keyboard/card checks without changing their assertions or
+simulator preferences; earlier intermittent failures remain relevant to broader
+device/accessibility validation.
+
+No new physical-phone installation, live retailer/cart or reminder mutation, merge,
+TestFlight or release was performed. The phone remains on the previous authorized
+shortcut build `e383df2`. Largest accessibility sizes, smaller phones, VoiceOver,
+Switch Control and older-iOS verification remain separate release gates.
+
+## Authorized group-header shortcut iPhone deployment (8 November 2026)
+
+At the user's request, `e383df262ab13e53baaa7ed883be8885a643ccd3` from
+`feature/all-items-screen` was built, installed in place and launched on **Adrian’s
+iPhone / iOS 27.2** through Xcode RunProject without a debugger. Zero build errors;
+launch succeeded, PID **27146**. This includes the verified group-header plus shortcut
+(application source `3de21bc`, 3/3 focused simulator tests passed).
+
+The scheme had no enabled launch arguments or environment overrides. Actual
+Debug-iphoneos bundle verification passed for all **35 JSON + 1 JavaScript** resources;
+deep/strict code-signature verification passed. No reset, fixture run, import/reminder
+operation, list clearing or retailer/cart interaction occurred. Existing phone data
+and sessions were left intact. This is a development install, not a merge or release.
+
+Mac evidence:
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261108-083538.txt`.
+
+## All items group-header Add shortcut (8 November 2026)
+
+Implemented a plus before each available store group's count, using the existing
+shared entry field. Activation preserves the draft, selects that store's destination,
+temporarily places its group first, cancels stale item-reveal work, scrolls to the
+editor and requests focus. A view-scoped priority does not fabricate saved add/import
+recency. Category and unavailable/unknown-owner groups do not offer the action, nor
+do headers in edit mode. Changing grouping or manually changing destination clears
+the temporary priority. The button has a 44-point target and explicit accessible
+name. Header row insets retain the existing 52-point standard header height.
+
+Mac verification at `3de21bc221e14e629b0ddd4c4f24d4ef7982ea04` on
+`feature/all-items-screen`, after connectivity returned and the user approved Xcode MCP:
+
+- Xcode build-for-testing passed, zero errors, iPhone 17 / iOS 27.2 simulator.
+- **3/3 focused UI tests passed**, zero failures/skips: both new shortcut tests
+  (destination/draft/input routing, temporary group priority without saved recency,
+  and absence for unavailable/category groups), plus native row-height parity.
+  The shortcut test types into the existing editor without a second tap, preserves
+  the draft/destination on relaunch and confirms that the working-group priority
+  does not persist as a fabricated addition event. The 44-point button is checked.
+- Simulator app bundle verified: **35 JSON + 1 JavaScript** match canonical source.
+- Build log on Mac:
+  `/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/BuildProject/BuildProject-Log-20261108-082839.txt`.
+- Result bundle in the canonical Mac DerivedData `Logs/Test` directory:
+  `Test-ListRunner-2026.11.08_08-28-45-+1100.xcresult` (Xcode also returned an
+  ActionArtifacts path to this bundle).
+
+The initial SSH/MCP block is resolved. No physical-phone install, live retailer/cart,
+import/reminder mutation or release was performed for this shortcut. The prior phone
+build is unchanged. These focused tests are not a full keyboard/accessibility audit.
+
+Linux `git diff --check` and the existing **431 JavaScript tests** passed. Those
+checks do not compile Swift or validate this native UI interaction.
+
+## Equal native row height and authorized phone deployment (6 November 2026)
+
+Installed revision `3904e3bc169b1b3cc546050f1092466e503f13cf` on
+`feature/all-items-screen` (application source `ef65de1`). A baseline native-cell
+test at `31a0787` reproduced **108 pt in All items versus 78 pt in the store list**
+for the same short Coles fixture. The All items inset trait was inside subsequent
+row wrappers, allowing List's extra 15 pt top/bottom insets.
+
+Both screens now use `ShoppingListItemRow` for the complete row content, buttons,
+minimum content height, padding and tint. Native List insets come from one shared
+`ListItemRowLayout.insets` value applied after geometry/identity/background wrappers
+at each row's List boundary. Padding stays inside measured scroll identity. This
+does not force a fixed height: wrapped content and larger text can still grow.
+
+- New parity test passed through Xcode: **78 pt store / 78 pt All items by store /
+  78 pt All items by category**. Baseline result: `Test-ListRunner-2026.11.06_17-20-21-+1100.xcresult`;
+  first passing result: `Test-ListRunner-2026.11.06_17-23-56-+1100.xcresult`, both under
+  the canonical Mac DerivedData `Logs/Test` directory.
+- Combined CLI run `/tmp/listrunner-row-height-final-ef65de1.xcresult`: **5 passed,
+  1 failed**, not 6/6. Parity, reorder/persistence, clear-list isolation, shopping
+  return and standard repeated-entry/full-row reveal passed. The aggregate keyboard
+  test failed its actual-software-keyboard precondition, not its row-height check.
+- A simulator boot without erasure and focused CLI retry did not restore software
+  keyboard visibility. A stronger pre-add assertion at `3904e3b` then failed through
+  Xcode **before typing or adding**, confirming that the current keyboard test could
+  not exercise its required visible-keyboard scenario. Do not count it as passing;
+  rerun when software keyboard presentation is available. Temporary keyboard defaults
+  were removed and the original unset preference was verified. The interrupted
+  17:26 Xcode run was cancelled before assertions and is not passing evidence.
+- Simulator and phone builds passed. Screenshot reviewed:
+  `/tmp/opencode/all-items-row-height-fixed.png`.
+- At the user's explicit request, Xcode RunProject signed/installed in place and
+  launched on **Adrian’s iPhone / iOS 27.2**, PID **21627**, zero build errors.
+  No enabled launch arguments/environment overrides. Actual Debug-iphoneos bundle
+  matched all **35 JSON + 1 JavaScript** resources; deep/strict signature verify passed.
+  Log: `/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261106-194233.txt`.
+
+No reset, fixture run on the phone, import/reminder mutation, list clearing or
+retailer/cart interaction occurred during deployment. Existing phone data/sessions
+were left intact. No merge, TestFlight delivery or release.
+
+## Authorized shared-layout iPhone deployment (6 November 2026)
+
+At the user's request, revision `4a49a97049b09d4efc7a92e1afa6172c7363a7a8`
+on `feature/all-items-screen` was signed, installed in place and launched on
+**Adrian’s iPhone (iPhone 17e) / iOS 27.2**. This includes the shared list-page
+presentation and header-only top pinning (tested application source `579e77e`).
+
+Initial SSH `xcodebuild` attempts compiled but failed signing with
+`errSecInternalComponent`. The login keychain was visibly unlocked in Keychain
+Access while the remote session reported it locked/inaccessible. No certificate
+trust, keychain access policy, password, provisioning or signing settings were
+changed. A build through the desktop Xcode session succeeded (AppleScript scheme
+action `7576-0`, zero build errors). Once the user re-enabled Xcode MCP, its
+`RunProject(attachDebugger: false)` installed/launched successfully, PID **20611**.
+
+- Shared scheme: no enabled launch arguments or environment overrides.
+- Actual Debug-iphoneos bundle: all **35 JSON + 1 JavaScript** match source.
+- `codesign --verify --deep --strict` passed for the built app.
+- No reset, fixture run, import/reminder operation, list clearing or retailer/cart
+  interaction was performed. Existing user data and sessions were left intact.
+- Mac run log:
+  `/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261106-162950.txt`.
+
+This is an authorized development install, not a merge, TestFlight delivery or release.
+
+## Shared list-page presentation and scrolling (6 November 2026)
+
+At the user's explicit choice, store lists and All items now render through the
+same presentation layer rather than separate page layouts. Application revision:
+`579e77e2ee80b14e031f81b0e4eb45222194656e`, `feature/all-items-screen`.
+
+Shared components in `GroceryListScreen.swift`:
+
+- `ShoppingListPage`: native List, section spacing, pinned header, bottom action,
+  navigation-bar presentation, viewport measurement and manual-scroll cancellation.
+- `ListScopePicker`, `ListPageToolbar`, `ListPageSummary`: one implementation of
+  header/chooser, Edit/Settings and counts, with scope-specific data and tint.
+- `ProductEntrySection`: native editor, outlined field, section/action-row insets,
+  Import styling and geometry. Only its Add control is supplied by the screen;
+  All items retains the split destination button and compact Import wording.
+- `ListItemContent` and `ListItemActions`: shared typography, quantity/status badge,
+  spacing and menu target. All items supplies owner/unavailability metadata and
+  owner-specific tint; it does not duplicate the row design.
+- `ProductEntryFocus.revealCard` and `ListItemReveal`: measured editor/item reveal
+  shared by both scopes, including delayed keyboard/insertion correction, stable
+  responder handling and re-revealing the full card when refocusing after an add.
+  The existing shared Clear List component and store-launch styling remain reused.
+
+Only Your list and the scope chooser stay pinned at the top. Counts, entry,
+grouping and groups scroll together, superseding the earlier pinned All items
+composer. Show Store remains the bottom action and stays hidden while typing in
+All items. Separate screen adapters retain ownership/grouping/destination/import/
+shopping state and transaction safeguards; no database schema, retailer identity,
+cart automation or import transaction was rewritten.
+
+Validation:
+
+- Final Debug simulator build-for-testing passed on the revision above.
+- **Final combined run: 6/6 passed, zero failures/skips**, iPhone 17 / iOS 27.2:
+  shared header/entry geometry and header-only pinning; repeated aggregate entry,
+  actual software-keyboard visibility, fully revealed new row and complete card on
+  refocus; store-owned reorder/persistence; Paprika draft/destination/scope handoff;
+  standard growing-draft and stable/refocused whole-card keyboard positioning.
+  Mac result bundle: `/tmp/listrunner-shared-page-final-579e77e.xcresult`.
+- A broader run at `2828509`, `/tmp/listrunner-shared-page-final-2828509.xcresult`,
+  passed **13/15**. Its nine other scenarios passed: all three group-clear cases,
+  populated-only store chooser, aggregate Settings return, first-store welcome,
+  all-hidden-store management, repeated standard additions and standard Clear Added.
+  Import and reorder interaction checks failed there, then passed in the targeted
+  `58dbaee` run and again in the final six-test run. This is coverage of all 15
+  selected scenarios across runs, **not** one final-revision 15/15 claim.
+- Earlier keyboard runs exposed an offscreen keyboard AX element, an overly strict
+  screen-percentage test assumption and a real partially hidden aggregate-added row.
+  Tests now require visible software-keyboard intersection and await settled row
+  geometry. Shared measured row reveal fixed the actual clipping. Refocus screenshot
+  review also caught the entry outline clipped under the header; the shared tap
+  callback now restores the complete card. Import now resigns its editor before
+  presenting the captured-destination flow; tests use precise native-menu taps and
+  row-scoped slow reorder-handle drags.
+- Actual simulator app bundle: **35 JSON + 1 JavaScript** match canonical files.
+  Linux **431 JavaScript tests passed**; automation sources were unchanged.
+- Final screenshots exported and visually reviewed:
+  `/tmp/opencode/all-items-shared-page-final-scrolled.png` and
+  `/tmp/opencode/all-items-shared-page-final-keyboard.png`.
+
+The Xcode MCP became unavailable during this work; builds/tests used the canonical
+project through `xcodebuild`, with no competing test process. The test simulator was
+restarted without erasing data. A temporary `ConnectHardwareKeyboard=false` override
+was removed and the original unset preference verified after testing. Existing
+simulator state, device data and evidence were preserved. OpenPencil remained an
+unavailable external reference; the existing standard store-page implementation was
+the visual baseline. Broad accessibility/iOS 17 certification remains deferred as
+previously recorded.
+
+**This shared-layout revision is not installed on the physical iPhone.** Its last
+authorized development install remains `3a66612`, recorded below. No live retailer,
+reminder or cart operation, merge, TestFlight delivery or release occurred here.
+
+## Authorized latest All items iPhone deployment (6 November 2026)
+
+At the user's request, `3a666120bee3ca82de2f166e097fbb2323335893` on
+`feature/all-items-screen` was built, installed in place and launched on **Adrian’s
+iPhone / iOS 27.2**. This includes the standard composer, populated-only Show
+Store... chooser, Settings/Edit controls and per-group Clear List actions.
+Xcode RunProject reported zero build errors and successful launch (PID **19515**).
+The shared scheme had no enabled launch arguments or environment overrides. Actual
+Debug-iphoneos bundle verification passed: **35 JSON + 1 JavaScript** match source.
+No data reset, test fixture, import/reminder operation or retailer/cart action was
+performed. This was a development install, not a merge, TestFlight delivery or release.
+Mac build/launch log:
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261106-133453.txt`.
+
+## All items per-group Clear List (6 November 2026)
+
+Revision `2b09bf24acdca5575293db6ac809a99a80c661c8` adds a shared `ClearListButton`
+to each displayed All items group and reuses that exact component on store-list
+pages. The existing red label, trash icon and 56-point minimum content target are
+preserved. Confirmation offers Clear Added (only for Added rows in that group),
+Clear All and Cancel. The user explicitly chose to include category groups:
+category confirmation states that its scope spans the category's store lists.
+
+Clearing snapshots the confirmed IDs and intersects them with the current group,
+so new imports and moved rows cannot expand the deletion. It ends interactions only
+for affected known owners, repairs affected selections and positions, cancels queued
+writeback for removed rows, clears their transient highlights and saves once.
+Retailer carts and Apple Reminders are not changed. Unavailable and unknown-owner
+groups remain independently clearable, with no invented owner or reassignment.
+
+- Final Xcode build-for-testing passed, zero errors.
+- Final three group-clear regressions: **3/3 passed**, zero failures/skips, on
+  iPhone 17 / iOS 27.2: store Cancel/Clear Added/Clear All with other owners retained;
+  cross-store category Clear Added/Clear All preserving Pending/Skipped and another
+  category; independent unavailable/unknown-owner clears. Persistence is checked
+  after relaunch. Tests require the entire action to scroll above Show Store.
+- Final Mac result bundle:
+  `/Users/adrianzafir/Library/Developer/Xcode/DerivedData/ListRunner-epzzinbppcxqwyevzuqhzfuvrvzc/Logs/Test/Test-ListRunner-2026.11.06_13-21-34-+1100.xcresult`.
+  The Xcode MCP reader reported an incomplete bundle; direct `xcresulttool` reading
+  of the completed canonical bundle confirmed Passed, 3 passed, 0 failed/skipped.
+- Six other regressions passed in the preceding combined run at `218bfc6`: the
+  four standard-store clear tests (wide target, Added-only, mixed statuses, Cancel/
+  Clear All), aggregate reorder/persistence and repeated keyboard entry. Application
+  source is unchanged since `003421e`; later revisions refine test setup/scrolling.
+  That preceding run was **6 passed / 3 failed**, not a clean 9/9: full swipes skipped
+  virtualized groups. Slow bounded drags and scrolling lazy rows into view fixed the
+  group-test navigation. Earlier initial failures also assumed Coles rather than
+  explicitly selecting it after first-store setup; clear tests now choose it.
+- Final screenshot exported and visually reviewed:
+  `/tmp/opencode/all-items-clear-list-final.png`, confirming the shared button is
+  fully visible above the glass shopping footer, not merely hittable through it.
+
+No physical-iPhone installation, live shopping/reminder mutation or release occurred.
+
+## All items Settings and Edit controls (6 November 2026)
+
+Revision `ec36945ee7a82d2c503821fc47169e18697eb1c5` adds the shared Settings
+overview and native leading Edit/Done button to All items. Settings retains the
+aggregate draft, destination and grouping; its import/source and View List routes
+reuse existing flows. Edit dismisses the keyboard and temporarily displays store
+groups, without overwriting the remembered grouping. Native reorder handles update
+positions only within the same store-owned list. Unknown-owner rows retain local
+recovery actions but are not assigned a fabricated reorder owner. Emptying all lists
+exits edit mode. Settings remains available even when lists are empty.
+
+- Xcode build-for-testing: passed, zero errors.
+- Final iPhone 17 / iOS 27.2 combined UI run: **6/6 passed**, zero failures/skips:
+  Settings return preserving scope/draft/destination/grouping; real native reorder
+  followed by relaunch and verification in the owning store's list (other ownership
+  unchanged); populated-only shopping chooser; repeated entry/preferences; Paprika
+  handoff; unavailable/unknown-owner recovery.
+- The first reorder test used an inherited destination and a drag ending at the
+  adjacent handle's centre. It failed its order assertion. The corrected regression
+  chooses Coles explicitly, drags above the previous row, waits for settled geometry
+  and verifies saved order after relaunch; both its focused retry and final combined
+  run passed.
+- Mac result bundle:
+  `/Users/adrianzafir/Library/Developer/Xcode/DerivedData/ListRunner-epzzinbppcxqwyevzuqhzfuvrvzc/Logs/Test/Test-ListRunner-2026.11.06_12-09-52-+1100.xcresult`.
+- Exported screenshot visually reviewed:
+  `/tmp/opencode/all-items-settings-edit.png` (standard Settings gear, native Done,
+  per-store reorder handles, and reordered Coles rows).
+
+No physical-iPhone installation, live retailer mutation or release was performed.
+
+## All items Show Store chooser (6 November 2026)
+
+Application revision `c1982a5eb982de580267aaddf30416d001b74810` reuses the standard
+`StoreLaunchButtonStyle` for the All items footer, labelled **Show Store...**. The
+shopping chooser intersects available stores with current nonempty list IDs,
+including all item statuses. Scope and add-destination choices are unchanged. The
+footer remains hidden while typing; unavailable/unknown-owner recovery is preserved.
+
+- Xcode build-for-testing passed, zero errors.
+- iPhone 17 / iOS 27.2 focused UI run: **4/4 passed**, zero failures/skips: new
+  populated-list chooser regression (enabled empty Costco excluded, Coles and
+  Woolworths offered, chosen store opens and dismisses back to All items), existing
+  item-row shopping return, repeated keyboard entry, unavailable/unknown recovery.
+- Mac result bundle:
+  `/Users/adrianzafir/Library/Developer/Xcode/DerivedData/ListRunner-epzzinbppcxqwyevzuqhzfuvrvzc/Logs/Test/Test-ListRunner-2026.11.06_11-50-24-+1100.xcresult`.
+
+Not installed on the physical iPhone; no live retailer actions, data reset or release.
+
+## All items standard composer styling (6 November 2026)
+
+Application revision `1a5b8d27173907dd4e73e45f3ff146520633f8a9` on
+`feature/all-items-screen` reuses the standard `ProductEntryEditor` and shared
+`ProductEntryFieldStyle` for All items. The subdued external Add products heading,
+rounded card, outlined input and checklist Import action match the standard entry
+area, retaining the destination-specific split Add button. Layout priority and a
+single-line label prevent the destination button wrapping at standard text size.
+
+- Xcode build-for-testing passed with zero errors.
+- Focused iPhone 17 / iOS 27.2 simulator run: **4/4 passed**, zero failures/skips:
+  aggregate add/grouping, repeated entry/preferences, Paprika scope/draft/destination
+  handoff, and standard empty-Return keyboard dismissal.
+- Tests verify the split Add remains 44–48 points high at standard text size, its
+  arrow retains a 44-point hit target, and the shopping footer is absent while typing.
+- Result bundle on the Mac:
+  `/Users/adrianzafir/Library/Developer/Xcode/DerivedData/ListRunner-epzzinbppcxqwyevzuqhzfuvrvzc/Logs/Test/Test-ListRunner-2026.11.06_11-41-16-+1100.xcresult`.
+- Exported screenshot inspected on Linux:
+  `/tmp/opencode/all-items-standard-composer-final.png`. It confirms the outlined
+  standard input, one-line destination button, visible keyboard and unobstructed
+  newest row; UIKit's AutoFill popover partly covers Import in that captured frame.
+
+This styling revision has **not** been installed on the physical iPhone; the phone
+still has reviewed revision `cd2c319`. No reset, live import or retailer action was
+performed. Broader accessibility/appearance certification remains as noted below.
+
+## All items scope and category schema 7 (5–6 November 2026)
+
+Application revision `429a58f93edd75c67ab5dd7760cafe833bae249e` is pushed on
+`feature/all-items-screen` and checked out on the canonical Mac. Linux checkout:
+`/home/claude-svc/listrunner-main`; Mac: `/Users/adrianzafir/Projects/listrunner`.
+The Mac's unrelated untracked `xcshareddata/xcodecloud/` directory is preserved.
+
+All items aggregates existing store-owned rows with a pinned composer, independent
+scope/grouping/destination/draft preferences, UUID-based cross-store promotion order,
+and scoped shopping/import sheets. Existing SwiftData schemas/migrations, retailer
+identities, trust rules and capability ceilings are unchanged. Disabled/unavailable
+and unknown-owner records remain visible and locally recoverable. Visibility changes
+read current saved rows and fail closed on unreadable/unsaved changes or active
+imports. See `docs/all-items-review.md` for the final source review and fixed findings.
+
+Validation on the Mac:
+
+- Complete `run-cloud-checks.sh` passed at `a4301dd` (shared core, schema, generator
+  and recovery sources are unchanged in the final application revision): Python and
+  JavaScript offline gates, **449 parser checks**, **195 regional-search checks**,
+  synthetic registration proof and **1,881 native recovery/reset/diagnostic checks**.
+  SSH required `/opt/homebrew/bin` in PATH; no dependencies were installed.
+- Xcode 27.2 Debug simulator build-for-testing passed on the final UI revision,
+  with no build errors.
+- Actual Debug app bundle verified byte-for-byte: **35 JSON + 1 JavaScript** resources,
+  with no duplicate legacy `-v2` resources.
+- **Final combined simulator UI run: 11/11 passed, zero failures/skips**, on
+  `429a58f93edd75c67ab5dd7760cafe833bae249e`, iPhone 17 / iOS 27.2. Coverage includes
+  destination add/grouping, repeated real-keyboard entry and preference/draft
+  restoration, Paprika destination/scope/draft retention, Pending/Added-only disable
+  recovery, all-hidden stores, regional replacement protection, shopping-sheet return,
+  Grocery versus Groceries & Home promotion, and unavailable/unknown-owner recovery.
+  Result bundle on the Mac:
+  `/Users/adrianzafir/Library/Developer/Xcode/DerivedData/ListRunner-epzzinbppcxqwyevzuqhzfuvrvzc/Logs/Test/Test-ListRunner-2026.11.06_10-51-08-+1100.xcresult`.
+- Final screenshot reviewed: `/tmp/opencode/all-items-final-keyboard.png` on Linux,
+  exported from that result bundle. It confirms the pinned composer, visible category
+  heading and unobstructed newest row above the real keyboard. Visual review caught
+  the old shopping footer overlapping the row; `429a58f` compacts that footer while
+  typing and tests assert it is absent. Broader manual accessibility/appearance
+  certification remains separate.
+- Earlier direct command-line attempts at `/tmp/listrunner-all-items-final-a4301dd.xcresult`
+  and `/tmp/listrunner-all-items-retry-a4301dd.xcresult` were killed before assertions.
+  Xcode still held an interrupted test session; stopping it and returning to the Xcode
+  testing API restored execution. Do not count those runner failures as passes. The
+  simulator was restarted without erasing state. An intermediate 10/11 run exposed
+  a native menu hit-point flake; the test now taps the menu item's centre explicitly.
+
+Fresh Linux checks: all **431 JavaScript tests** passed; category **2**, onboarding
+**20**, expansion **3**, bundled-resource **9** Python tests passed; `git diff --check`
+passed. Mac-only registration compilation is covered by the full Mac offline gate.
+
+Earlier test failures exposed and fixed the omitted runtime `category` allowlist,
+stale fixture/navigation assumptions, insufficient actual Button hit areas and
+inaccessible first-section headings during scroll reveal. Final-review fixes also
+covered implicit hidden-sibling replacement, version-specific category vocabularies,
+draft-generator exhaustiveness, unspecified-quantity units, import promotion and
+local preference reset boundaries.
+
+Storage interruptions were infrastructure problems, not passing test evidence.
+With user approval, regenerable Xcode builds/index/compiler caches, the older
+`iPhone14,5 27.2 (24B115)` symbol cache, non-Chrome updater/package/Spotify caches
+were removed. Newer device symbols, simulator/preview state, signing data, archives,
+source and Chrome were preserved. Old task test bundles were transferred to Linux
+and SHA-256 verified before removing their Mac copies:
+`/tmp/opencode/all-items-mac-test-evidence-20261105.tar.gz` and
+`/tmp/opencode/all-items-mac-test-evidence-20261106-pre-review.tar.gz`.
+
+Remaining boundaries: iOS 17 runtime and manual large-text/small-device,
+VoiceOver/Switch Control, light/dark and Reduce Motion review are not certified.
+OpenPencil document access repeatedly timed out, so that external reference has not
+been updated; the approved plan and repository specifications remain authoritative.
+No physical-device install, live retailer/cart or live Reminders operation, merge,
+TestFlight delivery or release was performed.
+
+### Authorized iPhone deployment (6 November 2026)
+
+At the user's explicit request, revision
+`cd2c3198a6cd07c44e5f313abbeb412aad1bab14` from `feature/all-items-screen` was
+built, installed in place and launched on **Adrian’s iPhone / iOS 27.2** through
+Xcode's `RunProject` action. No build errors; launch succeeded (PID **18513**).
+The scheme had no enabled launch arguments or environment overrides. Actual
+Debug-iphoneos bundle verification passed for all **35 JSON + 1 JavaScript** resources.
+No reset, test fixture, import/reminder operation or retailer/cart interaction was
+performed; existing app data and sessions were left intact. This is a development
+installation, not a merge, TestFlight delivery or release.
+
+Mac evidence:
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261106-112309.txt`.
+
 ## App appearance (6 November 2026)
 
 - Mac Xcode 27.2 simulator build and focused `StoreSelectionTests/testAppearanceSelectionPersistsAcrossRelaunch` passed on iPhone 17 / iOS 27.2 at `750b057cab04b4c1a55633e2634abf95c1bc285c`. The test confirms the initial System choice, selection of Dark/Light/System, and persistence after each relaunch using an isolated preferences suite. The first run exposed a missing picker accessibility value; an explicit localized selected-value label fixed it.
@@ -7,7 +519,7 @@
 - Linux bundled-resource tests passed **9 tests**; `git diff --check` passed. No retailer website/cart interactions were involved.
 - Mac evidence remains outside the checkout: `/Users/adrianzafir/Library/Developer/Xcode/DerivedData/ListRunnerAppearance/Logs/Test/Test-ListRunner-2026.11.06_11-26-33-+1100.xcresult`. The simulator test verifies controls and preference persistence, not exhaustive visual/accessibility coverage or scheduled device appearance changes. OpenPencil was unavailable; the user approved the existing native Settings style.
 
-## Native retailer categories — schema 6 (5 November 2026)
+## Native retailer categories — schema 6 (5 November 2026, historical validation)
 
 Review reconciled this change with main at `a39376ff184769349c711824d9399067754f97f4`.
 Schema 5 was already used by IKEA's snapshot engine, so category metadata now uses

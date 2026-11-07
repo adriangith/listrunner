@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "id": "walmart",
-  "categories": ["grocery", "departmentStore", "hardwareGarden", "pharmacyBeauty", "electronics", "officeSupplies", "petSupplies", "automotive", "outdoorCamping"],
+  "category": "groceryHome",
   "automationSchemaVersion": 2,
   "displayName": "Walmart",
   "serviceArea": {"countryCodes": ["US"]},

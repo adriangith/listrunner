@@ -43,7 +43,7 @@ def validate(config):
     required = {'schemaVersion', 'id', 'displayName', 'serviceArea', 'homepage', 'allowedHosts',
                 'search', 'addedColor', 'capabilities', 'cart'}
     version = config.get('schemaVersion')
-    if type(version) is not int or version not in (2, 3, 4, 5, 6):
+    if type(version) is not int or version not in (2, 3, 4, 5, 6, 7):
         errors.append('Unsupported store schema version')
     if version == 6:
         required |= {'categories', 'automationSchemaVersion'}
@@ -55,6 +55,16 @@ def validate(config):
                 any(not isinstance(c, str) or c not in vocabulary for c in categories) or
                 len(set(categories)) != len(categories)):
             errors.append('Categories must be nonempty, distinct known retailer types')
+        automation = config.get('automationSchemaVersion')
+        if type(automation) is not int or automation not in (2, 3, 4, 5):
+            errors.append('Unsupported automation schema version')
+    if version == 7:
+        required |= {'category', 'automationSchemaVersion'}
+        vocabulary = {'grocery', 'groceryHome', 'clothingHome', 'homeFurniture',
+                      'onlineMarketplace', 'hardwareGarden', 'pharmacyBeauty', 'electronics',
+                      'officeSupplies', 'petSupplies', 'automotive', 'outdoorCamping'}
+        if not isinstance(config.get('category'), str) or config['category'] not in vocabulary:
+            errors.append('Category must be one known retailer type')
         automation = config.get('automationSchemaVersion')
         if type(automation) is not int or automation not in (2, 3, 4, 5):
             errors.append('Unsupported automation schema version')

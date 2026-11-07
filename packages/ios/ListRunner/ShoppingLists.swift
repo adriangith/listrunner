@@ -1,6 +1,27 @@
 import Foundation
 import SwiftData
 
+// Sidecar preference metadata uses immutable item UUIDs; existing SwiftData
+// records and their migration contract remain untouched. Unknown historical
+// rows have no fabricated addition time and use their deterministic list order.
+enum ItemPromotionOrder {
+    static func ranks(_ rawValue: String) -> [UUID: Int] {
+        var result: [UUID: Int] = [:]
+        for part in rawValue.split(separator: ",") {
+            guard let id = UUID(uuidString: String(part)), result[id] == nil else { continue }
+            result[id] = result.count
+        }
+        return result
+    }
+
+    static func promoting(_ ids: [UUID], in rawValue: String, existing: Set<UUID>) -> String {
+        var seen = Set<UUID>()
+        let previous = ranks(rawValue).sorted { $0.value < $1.value }.map(\.key)
+        return (ids + previous).filter { existing.contains($0) && seen.insert($0).inserted }
+            .map(\.uuidString).joined(separator: ",")
+    }
+}
+
 @Model
 final class GroceryList {
     @Attribute(.unique) var id: UUID
@@ -86,6 +107,40 @@ enum ShoppingMigration: SchemaMigrationPlan {
 
 enum ShoppingLists {
     static var schema: Schema { Schema(versionedSchema: ShoppingSchemaV3.self) }
+
+    @MainActor
+    static func stageAdd(_ entries: [ParsedGrocery], to store: StoreID,
+                         allItems: [GroceryItem], context: ModelContext) -> [GroceryItem] {
+        var staged = allItems.filter { $0.listID == store.listID }.sorted {
+            $0.position == $1.position ? $0.id.uuidString < $1.id.uuidString : $0.position < $1.position
+        }
+        var promoted: [GroceryItem] = []
+        func unit(_ value: String?) -> String {
+            value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        }
+        for entry in entries {
+            if let existing = staged.first(where: {
+                GroceryParser.normalizedName($0.name) == GroceryParser.normalizedName(entry.name)
+                    && (unit($0.quantityUnit) == unit(entry.unit) || $0.quantityAmount == nil || entry.amount == nil)
+            }) {
+                if let amount = entry.amount {
+                    if existing.quantityAmount == nil { existing.quantityUnit = entry.unit }
+                    existing.quantityAmount = (existing.quantityAmount ?? 0) + amount
+                }
+                existing.status = .pending
+                if !promoted.contains(where: { $0.id == existing.id }) { promoted.append(existing) }
+            } else {
+                let item = GroceryItem(name: entry.name, amount: entry.amount, unit: entry.unit,
+                                       position: staged.count, listID: store.listID)
+                context.insert(item)
+                staged.append(item)
+                promoted.append(item)
+            }
+        }
+        let ids = Set(promoted.map(\.id))
+        for (index, item) in (promoted + staged.filter { !ids.contains($0.id) }).enumerated() { item.position = index }
+        return promoted
+    }
 
     static func open(configuration: ModelConfiguration) throws -> ModelContainer {
         try ModelContainer(for: schema, migrationPlan: ShoppingMigration.self, configurations: configuration)

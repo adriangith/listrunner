@@ -87,6 +87,38 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         #endif
         }
     }
+    var defaultCategory: StoreCategory? {
+        switch self {
+        case .coles, .woolworths, .kroger, .morrisons, .newWorld, .ocado, .paknsave, .sainsburys, .tesco, .waitrose:
+            .grocery
+        case .costco, .costcoUS, .walmart, .asda, .target:
+            .groceryHome
+        case .kmart, .targetAU, .bigW, .theWarehouse:
+            .clothingHome
+        case .ikeaAU:
+            .homeFurniture
+        case .amazon:
+            .onlineMarketplace
+        case .bunnings, .bunningsNZ:
+            .hardwareGarden
+        case .chemistWarehouse, .priceline, .boots, .cvs, .walgreens:
+            .pharmacyBeauty
+        case .jbHiFi:
+            .electronics
+        case .officeworks:
+            .officeSupplies
+        case .petbarn:
+            .petSupplies
+        case .supercheapAuto:
+            .automotive
+        case .bcf:
+            .outdoorCamping
+        #if STORE_REGISTRY_PROOF
+        case .synthetic:
+            .grocery
+        #endif
+        }
+    }
     var hosts: Set<String> {
         switch self {
         case .coles: ["www.coles.com.au", "coles.com.au"]
@@ -292,6 +324,10 @@ enum StoreProbeIsolation {
 
 enum StoreCategory: String, Codable, CaseIterable, Hashable {
     case grocery
+    case groceryHome
+    case clothingHome
+    case homeFurniture
+    // Retained only to decode schema-6 historical category arrays.
     case departmentStore
     case warehouseClub
     case onlineMarketplace
@@ -302,6 +338,28 @@ enum StoreCategory: String, Codable, CaseIterable, Hashable {
     case petSupplies
     case automotive
     case outdoorCamping
+
+    static let legacyCases = Set(allCases).subtracting([.groceryHome, .clothingHome, .homeFurniture])
+    static let currentCases = Set(allCases).subtracting([.departmentStore, .warehouseClub])
+
+    var displayName: String {
+        switch self {
+        case .grocery: "Grocery"
+        case .groceryHome: "Groceries & Home"
+        case .clothingHome: "Clothing & Home"
+        case .homeFurniture: "Home & Furniture"
+        case .departmentStore: "Department Store"
+        case .warehouseClub: "Warehouse Club"
+        case .onlineMarketplace: "Online Marketplace"
+        case .hardwareGarden: "Hardware & Garden"
+        case .pharmacyBeauty: "Pharmacy & Beauty"
+        case .electronics: "Electronics"
+        case .officeSupplies: "Office Supplies"
+        case .petSupplies: "Pet Supplies"
+        case .automotive: "Automotive"
+        case .outdoorCamping: "Outdoor & Camping"
+        }
+    }
 }
 
 // In-memory provenance for one trusted Add interrupted by the reviewed Tesco
@@ -371,7 +429,7 @@ struct StoreLoginReplay {
 struct StoreDefinition: Codable {
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case schemaVersion, automationSchemaVersion, id, displayName, serviceArea, homepage, allowedHosts
-        case search, addedColor, brandColors, categories, capabilities, cart
+        case search, addedColor, brandColors, categories, category, capabilities, cart
     }
 
     struct ServiceArea: Codable {
@@ -490,13 +548,15 @@ struct StoreDefinition: Codable {
     let addedColor: AddedColor
     var brandColors: BrandColors? = nil
     var categories: [StoreCategory] = []
+    var category: StoreCategory? = nil
     var capabilities: Capabilities
     let cart: Cart?
 
     init(schemaVersion: Int, id: StoreID, displayName: String, serviceArea: ServiceArea,
          homepage: URL, allowedHosts: [String], search: Search, addedColor: AddedColor,
          brandColors: BrandColors? = nil, automationSchemaVersion: Int? = nil,
-         categories: [StoreCategory] = [], capabilities: Capabilities, cart: Cart?) {
+          categories: [StoreCategory] = [], category: StoreCategory? = nil,
+          capabilities: Capabilities, cart: Cart?) {
         self.schemaVersion = schemaVersion
         self.automationSchemaVersion = automationSchemaVersion ?? schemaVersion
         self.id = id
@@ -508,6 +568,7 @@ struct StoreDefinition: Codable {
         self.addedColor = addedColor
         self.brandColors = brandColors
         self.categories = categories
+        self.category = category
         self.capabilities = capabilities
         self.cart = cart
     }
@@ -516,10 +577,12 @@ struct StoreDefinition: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
         let hasCategories = schemaVersion == 6
-        let hasAutomationSchemaVersion = schemaVersion == 6
-        guard [2, 3, 4, 5, 6].contains(schemaVersion) else { throw ConfigurationError.invalid }
+        let hasCategory = schemaVersion == 7
+        let hasAutomationSchemaVersion = schemaVersion >= 6
+        guard [2, 3, 4, 5, 6, 7].contains(schemaVersion) else { throw ConfigurationError.invalid }
         var expectedKeys = Set(CodingKeys.allCases.map(\.stringValue))
         if !hasCategories { expectedKeys.remove(CodingKeys.categories.rawValue) }
+        if !hasCategory { expectedKeys.remove(CodingKeys.category.rawValue) }
         if !hasAutomationSchemaVersion { expectedKeys.remove(CodingKeys.automationSchemaVersion.rawValue) }
         if !container.contains(.brandColors) { expectedKeys.remove(CodingKeys.brandColors.rawValue) }
         guard Set(container.allKeys.map(\.stringValue)) == expectedKeys else {
@@ -546,8 +609,10 @@ struct StoreDefinition: Codable {
         } else {
             categories = []
         }
-        guard !hasCategories || (!categories.isEmpty && categories.count <= StoreCategory.allCases.count
+        if hasCategory { category = try container.decode(StoreCategory.self, forKey: .category) }
+        guard !hasCategories || (!categories.isEmpty && Set(categories).isSubset(of: StoreCategory.legacyCases)
               && Set(categories).count == categories.count) else { throw ConfigurationError.invalid }
+        guard !hasCategory || (category.map(StoreCategory.currentCases.contains) == true && categories.isEmpty) else { throw ConfigurationError.invalid }
         capabilities = try container.decode(Capabilities.self, forKey: .capabilities)
         cart = try container.decodeIfPresent(Cart.self, forKey: .cart)
     }
@@ -555,7 +620,7 @@ struct StoreDefinition: Codable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(schemaVersion, forKey: .schemaVersion)
-        if schemaVersion == 6 {
+        if schemaVersion >= 6 {
             try container.encode(automationSchemaVersion, forKey: .automationSchemaVersion)
         }
         try container.encode(id, forKey: .id)
@@ -567,6 +632,7 @@ struct StoreDefinition: Codable {
         try container.encode(addedColor, forKey: .addedColor)
         try container.encodeIfPresent(brandColors, forKey: .brandColors)
         if schemaVersion == 6 { try container.encode(categories, forKey: .categories) }
+        if schemaVersion == 7 { try container.encode(category, forKey: .category) }
         try container.encode(capabilities, forKey: .capabilities)
         // The wire contract requires the cart key even for browsing-only stores.
         try container.encode(cart, forKey: .cart)
@@ -585,11 +651,13 @@ struct StoreDefinition: Codable {
     func validate() throws {
         let countries = serviceArea.countryCodes
         let supportedCountryCodes = Set(Locale.Region.isoRegions.map(\.identifier))
-        guard [2, 3, 4, 5, 6].contains(schemaVersion),
+        guard [2, 3, 4, 5, 6, 7].contains(schemaVersion),
               (schemaVersion == 6
-                ? (!categories.isEmpty && categories.count <= StoreCategory.allCases.count
+                ? (!categories.isEmpty && Set(categories).isSubset(of: StoreCategory.legacyCases)
                     && Set(categories).count == categories.count && [2, 3, 4, 5].contains(automationSchemaVersion))
-                : (categories.isEmpty && automationSchemaVersion == schemaVersion)),
+                : schemaVersion == 7
+                    ? (category.map(StoreCategory.currentCases.contains) == true && categories.isEmpty && [2, 3, 4, 5].contains(automationSchemaVersion))
+                    : (category == nil && categories.isEmpty && automationSchemaVersion == schemaVersion)),
               displayName == id.displayName,
               !countries.isEmpty, Set(countries).count == countries.count,
               countries.allSatisfy({ $0.range(of: "^[A-Z]{2}$", options: .regularExpression) != nil
@@ -846,8 +914,8 @@ struct StoreDefinition: Codable {
         guard data.count <= 65_536 else { throw ConfigurationError.invalid }
         try rejectDuplicateKeys(in: data)
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              hasOnlyKeys(root, ["schemaVersion", "automationSchemaVersion", "id", "displayName", "serviceArea", "homepage", "allowedHosts",
-                                 "search", "addedColor", "brandColors", "categories", "capabilities", "cart"]),
+               hasOnlyKeys(root, ["schemaVersion", "automationSchemaVersion", "id", "displayName", "serviceArea", "homepage", "allowedHosts",
+                                  "search", "addedColor", "brandColors", "categories", "category", "capabilities", "cart"]),
               hasOnlyKeys(root["serviceArea"] as? [String: Any], ["countryCodes"]),
               hasOnlyKeys(root["search"] as? [String: Any], ["strategy", "template", "resultsSelector", "resultsTopOffset"]),
               hasOnlyKeys(root["addedColor"] as? [String: Any], ["red", "green", "blue"]),
@@ -1102,6 +1170,26 @@ struct StoreShoppingAvailability {
 @MainActor
 final class StoreVisibilityPreferences: ObservableObject {
     @Published private(set) var visibleIDs: Set<StoreID>
+    @Published private(set) var nonEmptyListIDs: Set<UUID> = []
+    @Published private(set) var listItemCounts: [UUID: Int] = [:]
+    @Published private(set) var listLookupFailed = false
+    var listItemCountsProvider: (() throws -> [UUID: Int])?
+
+    private func canDisable(_ ids: Set<StoreID>) -> Bool {
+        listLookupFailed = false
+        guard !ids.isEmpty else { return true }
+        if let listItemCountsProvider {
+            do {
+                let counts = try listItemCountsProvider()
+                listItemCounts = counts
+                nonEmptyListIDs = Set(counts.filter { $0.value > 0 }.map(\.key))
+            } catch {
+                listLookupFailed = true
+                return false
+            }
+        }
+        return ids.allSatisfy { !nonEmptyListIDs.contains($0.listID) }
+    }
     // Do not rewrite saved visibility: hidden stores can recover their previous
     // preferences when support improves. UI eligibility is a separate projection.
     func shoppingVisibleIDs(in definitions: [StoreDefinition]) -> Set<StoreID> {
@@ -1185,10 +1273,17 @@ final class StoreVisibilityPreferences: ObservableObject {
         ingredientSearchContext = IngredientSearchContext(countryCode: shoppingCountryCode, enabled: localNames)
     }
 
-    func setVisible(_ visible: Bool, for id: StoreID) {
+    func updateNonEmptyListIDs(_ ids: Set<UUID>) {
+        nonEmptyListIDs = ids
+    }
+
+    @discardableResult
+    func setVisible(_ visible: Bool, for id: StoreID) -> Bool {
+        guard visible || canDisable([id]) else { return false }
         var updated = visibleIDs
         if visible { updated.insert(id) } else { updated.remove(id) }
         saveVisibility(updated)
+        return true
     }
 
     private func saveVisibility(_ updated: Set<StoreID>) {
@@ -1250,21 +1345,28 @@ final class StoreVisibilityPreferences: ObservableObject {
             ?? brand.regions[0]
     }
 
-    func setBrandVisible(_ visible: Bool, brand: StoreBrand) {
+    @discardableResult
+    func setBrandVisible(_ visible: Bool, brand: StoreBrand) -> Bool {
         let selected = selectedRegion(for: brand)
+        let siblings = StoreID.allCases.filter { $0.brandID == brand.id }
+        var updated = visibleIDs.subtracting(siblings)
+        if visible { updated.insert(selected.id) }
+        guard canDisable(visibleIDs.subtracting(updated)) else { return false }
         var choices = regionalChoices
         choices[brand.id] = selected.id.rawValue
         regionalChoices = choices
         defaults.set(choices, forKey: regionalKey)
-        let siblings = StoreID.allCases.filter { $0.brandID == brand.id }
-        var updated = visibleIDs.subtracting(siblings)
-        if visible { updated.insert(selected.id) }
         saveVisibility(updated)
+        return true
     }
 
-    func chooseRegion(_ id: StoreID, for brand: StoreBrand) {
-        guard brand.regions.contains(where: { $0.id == id }) else { return }
-        let enabled = brand.regions.contains { visibleIDs.contains($0.id) }
+    @discardableResult
+    func chooseRegion(_ id: StoreID, for brand: StoreBrand) -> Bool {
+        guard brand.regions.contains(where: { $0.id == id }) else { return false }
+        let siblings = StoreID.allCases.filter { $0.brandID == brand.id }
+        let enabled = siblings.contains { visibleIDs.contains($0) }
+        let replaced = Set(siblings).intersection(visibleIDs).subtracting([id])
+        guard !enabled || canDisable(replaced) else { return false }
         var choices = regionalChoices
         choices[brand.id] = id.rawValue
         regionalChoices = choices
@@ -1272,10 +1374,10 @@ final class StoreVisibilityPreferences: ObservableObject {
         // Called only after explicit confirmation. Hide siblings, never delete their
         // data or change activeStoreID here. The list screen resolves a disabled
         // active destination to an enabled store when management is dismissed.
-        let siblings = StoreID.allCases.filter { $0.brandID == brand.id }
         var updated = visibleIDs.subtracting(siblings)
         if enabled { updated.insert(id) }
         saveVisibility(updated)
+        return true
     }
 }
 

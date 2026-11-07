@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "automationSchemaVersion": 5,
-  "categories": ["departmentStore", "hardwareGarden", "electronics", "officeSupplies"],
+  "category": "homeFurniture",
   "id": "ikeaAU",
   "displayName": "IKEA",
   "serviceArea": {"countryCodes": ["AU"]},
