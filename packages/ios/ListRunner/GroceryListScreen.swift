@@ -415,6 +415,7 @@ private struct ProductEntrySection<AddButton: View>: View {
                     Label(importing ? "Importing…" : compactImport ? "Import" :
                             importConfigured ? "Import from Paprika" : "Import items...",
                           systemImage: importing ? "hourglass" : "checklist")
+                        .labelStyle(.titleAndIcon)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())

@@ -1673,10 +1673,11 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testAllItemsAccessibilityActionsStayWithinPage() {
+        enableLongAddDestination()
         app.terminate()
         app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]
         app.launch()
-        enableLongAddDestination()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
         let add = app.buttons["all-items-add"]
         let arrow = app.buttons["all-items-add-destination"]
         let importing = app.buttons["set-import-source"]
