@@ -1,5 +1,65 @@
 # Reusable store framework validation
 
+## Adaptive shared entry actions and matching Add height (8 November 2026)
+
+Implemented in `ProductEntrySection` using `ProductEntryActionsLayout`: measure
+the two existing controls at intrinsic width; keep them side by side when they fit,
+otherwise place Import above a full-width Add. Accessibility text sizes always
+stack. Import explicitly uses `titleAndIcon` so automatic label styling cannot
+silently omit its title during measurement. Destination names wrap rather than
+truncate or shrink. No duplicated controls or composer state were introduced.
+
+Standard Add and All items split Add share `ProductAddButtonChrome` and scaled
+body/padding metrics. At standard text size the visible capsule is approximately
+34 points high within a minimum 44-point interaction footprint; the destination
+arrow also retains at least 44 × 44 points. Store pages retain their store tint.
+
+Final focused native run at `30dee8080a6723831f2739a6adcb6f84e32eb57f` on
+`feature/all-items-screen`, iPhone 17 / iOS 27.2 simulator:
+
+- **7/7 UI tests passed**, zero failures/skips: long-destination stacking and
+  matching Add control height; accessibility-size actions fully above Show Store;
+  shared short-row parity; group-header add/draft/focus behaviour; shared pinned
+  header layout; repeated All items entry; and growing standard-page draft.
+- The long-name test preserves its draft when selecting Coles and confirms that
+  the action area returns to a horizontal row. Both new tests retain screenshot
+  attachments; the normal-text test also captures standard Add for comparison.
+- The accessibility test configures the retailer at ordinary text size, relaunches
+  at Accessibility XL, and uses small scroll drags to reveal the entire action
+  area without flinging Import behind the pinned header. Both Import and Add must
+  remain hittable, with the full split control above Show Store and within the page.
+- Xcode build-for-testing passed with zero errors at application-source revision
+  `a0350054ac42e4ddf75f1f41ef7eb3ba0f5a0554`; subsequent changes only strengthen UI tests.
+- Linux **431/431 JavaScript tests** and `git diff --check` passed.
+
+Visual inspection of the earlier `a035005` normal-text attachment confirmed readable
+Import above a full-width, single-line Chemist Warehouse control. Its initial large-
+text attachment showed wrapping but was partly behind Show Store; the final test
+now explicitly checks complete clearance. Final screenshot export and repeated
+simulator-resource verification were blocked when SSH began resetting connections
+after the successful final Xcode test run. The final screenshot attachments remain
+in the result bundle, not yet visually re-reviewed. No new resource-match claim is
+made for this revision. Source and test commits were pushed and synced before the
+run; documentation written afterward requires a Mac fast-forward when SSH returns.
+
+Mac evidence: canonical DerivedData `Logs/Test/`
+`Test-ListRunner-2026.11.08_09-07-19-+1100.xcresult`; build log
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/BuildProject/BuildProject-Log-20261108-085124.txt`.
+
+Earlier attempts are not counted as passes: the first 0/4 run exposed icon-only
+Import measurement and a large-text retailer-setup issue, alongside keyboard/card
+failures; another run failed during app launch in setup. The first stronger
+large-text check exposed test scroll overshoot (Import moved behind the header),
+fixed with smaller drags, not weaker visibility assertions. The final combined run
+also passed the two keyboard/card checks without changing their assertions or
+simulator preferences; earlier intermittent failures remain relevant to broader
+device/accessibility validation.
+
+No new physical-phone installation, live retailer/cart or reminder mutation, merge,
+TestFlight or release was performed. The phone remains on the previous authorized
+shortcut build `e383df2`. Largest accessibility sizes, smaller phones, VoiceOver,
+Switch Control and older-iOS verification remain separate release gates.
+
 ## Authorized group-header shortcut iPhone deployment (8 November 2026)
 
 At the user's request, `e383df262ab13e53baaa7ed883be8885a643ccd3` from
