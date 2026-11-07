@@ -1,5 +1,22 @@
 # Reusable store framework validation
 
+## Authorized group-header shortcut iPhone deployment (8 November 2026)
+
+At the user's request, `e383df262ab13e53baaa7ed883be8885a643ccd3` from
+`feature/all-items-screen` was built, installed in place and launched on **Adrian’s
+iPhone / iOS 27.2** through Xcode RunProject without a debugger. Zero build errors;
+launch succeeded, PID **27146**. This includes the verified group-header plus shortcut
+(application source `3de21bc`, 3/3 focused simulator tests passed).
+
+The scheme had no enabled launch arguments or environment overrides. Actual
+Debug-iphoneos bundle verification passed for all **35 JSON + 1 JavaScript** resources;
+deep/strict code-signature verification passed. No reset, fixture run, import/reminder
+operation, list clearing or retailer/cart interaction occurred. Existing phone data
+and sessions were left intact. This is a development install, not a merge or release.
+
+Mac evidence:
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261108-083538.txt`.
+
 ## All items group-header Add shortcut (8 November 2026)
 
 Implemented a plus before each available store group's count, using the existing
