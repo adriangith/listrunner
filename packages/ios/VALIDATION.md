@@ -1,6 +1,6 @@
 # Reusable store framework validation
 
-## Immediate single-item deletion (8 November 2026 — native verification pending)
+## Immediate single-item deletion and authorized phone install (8 November 2026)
 
 At the user's request, All items now invokes its existing `delete(_:)` directly
 from three dots → Delete Item, matching individual store lists. Removed the extra
@@ -9,14 +9,34 @@ is unchanged: repair the owner's selection/order, cancel queued reminder writes,
 delete the local row and save. No retailer cart or Apple Reminders deletion is
 introduced. Multi-item Clear List confirmations are unchanged.
 
-Added `testAllItemsDeleteItemIsImmediateInBothGroupingsAndPreservesOtherStores`:
-one menu tap must delete without confirmation in By store and By category; relaunch
-must preserve those deletions and retain Bunnings, and both affected owner lists
-must be empty. This test has **not run**, and this change has **not been Swift-
-compiled**: Mac SSH resets connections before authentication, blocking the Git
-handoff. Linux `git diff --check` passed. Prior adaptive-entry test/build successes
-do not validate this new change. No phone install or live data mutation was
-performed for immediate deletion.
+Native verification completed after the user fast-forwarded the Mac to
+`19a49b7b8991190f7053009fa0c04ac73dcaedbe`; SSH then briefly recovered, so the
+test-only scope-picker navigation fix was pushed/synced at
+`a201ba522dcf05b1578ceb51dade4978e7db50e6`. Untracked Mac
+`xcshareddata/xcodecloud/` was preserved.
+
+- Xcode build-for-testing passed, zero errors, iPhone 17 / iOS 27.2 simulator.
+- Final **3/3 focused UI tests passed**, zero failures/skips: immediate deletion
+  in both All items grouping modes with persistent deletion, empty affected owner
+  lists and surviving Bunnings; existing group Clear List cancel/Added/All
+  confirmation; and existing standard-page delete/store-disable behaviour. The
+  initial 2/3 run failed only in the new test's final scope-navigation helper;
+  the correction taps `all-items-scope-picker` and did not weaken any assertion.
+- Simulator bundle verification passed for **35 JSON + 1 JavaScript** resources.
+  The Run scheme had no enabled launch arguments or environment overrides.
+- At the user's request, Xcode RunProject then built, installed in place and
+  launched the verified source on **Adrian’s iPhone / iOS 27.2**, without a
+  debugger: zero build errors, successful launch, PID **27904**. No test fixture,
+  data reset, list clearing, import/reminder operation or retailer/cart
+  interaction was performed on the phone. SSH began resetting again after
+  deployment, so independent verification of the fresh iphoneos bundle
+  resources/signature could not be repeated; no new independent device-bundle
+  verification is claimed.
+
+Mac evidence:
+- `BuildProject-Log-20261108-093444.txt` in the Xcode ActionArtifacts build directory.
+- Canonical DerivedData `Logs/Test/Test-ListRunner-2026.11.08_09-43-00-+1100.xcresult`.
+- `/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261108-095005.txt`.
 
 ## Authorized adaptive-entry iPhone deployment (8 November 2026)
 
