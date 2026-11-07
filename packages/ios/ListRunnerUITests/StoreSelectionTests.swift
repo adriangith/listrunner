@@ -1647,6 +1647,10 @@ final class StoreSelectionTests: XCTestCase {
 
     func testAllItemsLongDestinationStacksActionsAndMatchesStandardAddHeight() {
         let standardHeight = app.buttons["Add Items"].frame.height
+        let standardScreenshot = XCTAttachment(screenshot: app.screenshot())
+        standardScreenshot.name = "Standard Add — shared visible capsule height"
+        standardScreenshot.lifetime = .keepAlways
+        self.add(standardScreenshot)
         enableLongAddDestination()
         let add = app.buttons["all-items-add"]
         let arrow = app.buttons["all-items-add-destination"]
@@ -1681,9 +1685,16 @@ final class StoreSelectionTests: XCTestCase {
         let add = app.buttons["all-items-add"]
         let arrow = app.buttons["all-items-add-destination"]
         let importing = app.buttons["set-import-source"]
-        for _ in 0..<6 where !add.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        let footer = app.buttons["all-items-show-store"]
+        for _ in 0..<6 where !add.isHittable || max(add.frame.maxY, arrow.frame.maxY) > footer.frame.minY {
+            app.collectionViews.firstMatch.swipeUp()
+        }
         XCTAssertTrue(add.isHittable)
+        XCTAssertTrue(add.label.contains("Chemist Warehouse"))
+        XCTAssertTrue(importing.isHittable)
         XCTAssertLessThanOrEqual(importing.frame.maxY, add.frame.minY)
+        XCTAssertLessThanOrEqual(max(add.frame.maxY, arrow.frame.maxY), footer.frame.minY,
+                                 "The full split control must scroll clear of Show Store")
         XCTAssertGreaterThanOrEqual(arrow.frame.width, 44)
         XCTAssertGreaterThanOrEqual(arrow.frame.height, 44)
         XCTAssertGreaterThanOrEqual(importing.frame.minX, app.frame.minX)
