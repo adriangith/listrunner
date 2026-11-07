@@ -1658,7 +1658,8 @@ final class StoreSelectionTests: XCTestCase {
         let remaining = app.buttons["Actions for Bunnings fixture item"]
         for _ in 0..<6 where !remaining.isHittable { app.collectionViews.firstMatch.swipeUp() }
         XCTAssertTrue(remaining.isHittable, "Deleting other owners' rows must preserve Bunnings")
-        choose("Coles")
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Coles"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 5))
         choose("Woolworths")
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 5))
