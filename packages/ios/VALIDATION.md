@@ -1,6 +1,6 @@
 # Reusable store framework validation
 
-## All items group-header Add shortcut (8 November 2026 — Mac verification pending)
+## All items group-header Add shortcut (8 November 2026)
 
 Implemented a plus before each available store group's count, using the existing
 shared entry field. Activation preserves the draft, selects that store's destination,
@@ -11,14 +11,26 @@ do headers in edit mode. Changing grouping or manually changing destination clea
 the temporary priority. The button has a 44-point target and explicit accessible
 name. Header row insets retain the existing 52-point standard header height.
 
-Two UI regressions were added: destination/draft/input routing and group priority
-without persisted add recency; and absence for unavailable/category groups. These
-tests have **not run**. Swift compilation and keyboard/scroll behaviour are also
-**not yet verified**: the Mac SSH connection was reset before authentication, and
-Xcode MCP is unavailable in this session. Linux has no Swift compiler. No simulator
-or phone build/install was performed for this shortcut; the prior phone build is
-unchanged. Run the new UI cases plus existing row-height/entry checks on the Mac
-before treating this as validated.
+Mac verification at `3de21bc221e14e629b0ddd4c4f24d4ef7982ea04` on
+`feature/all-items-screen`, after connectivity returned and the user approved Xcode MCP:
+
+- Xcode build-for-testing passed, zero errors, iPhone 17 / iOS 27.2 simulator.
+- **3/3 focused UI tests passed**, zero failures/skips: both new shortcut tests
+  (destination/draft/input routing, temporary group priority without saved recency,
+  and absence for unavailable/category groups), plus native row-height parity.
+  The shortcut test types into the existing editor without a second tap, preserves
+  the draft/destination on relaunch and confirms that the working-group priority
+  does not persist as a fabricated addition event. The 44-point button is checked.
+- Simulator app bundle verified: **35 JSON + 1 JavaScript** match canonical source.
+- Build log on Mac:
+  `/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/BuildProject/BuildProject-Log-20261108-082839.txt`.
+- Result bundle in the canonical Mac DerivedData `Logs/Test` directory:
+  `Test-ListRunner-2026.11.08_08-28-45-+1100.xcresult` (Xcode also returned an
+  ActionArtifacts path to this bundle).
+
+The initial SSH/MCP block is resolved. No physical-phone install, live retailer/cart,
+import/reminder mutation or release was performed for this shortcut. The prior phone
+build is unchanged. These focused tests are not a full keyboard/accessibility audit.
 
 Linux `git diff --check` and the existing **431 JavaScript tests** passed. Those
 checks do not compile Swift or validate this native UI interaction.
