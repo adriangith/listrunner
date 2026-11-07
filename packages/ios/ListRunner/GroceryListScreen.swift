@@ -314,7 +314,69 @@ private struct ListSummaryMetric: View {
     }
 }
 
+private struct ProductEntryActionsLayout: Layout {
+    var preferStacked: Bool
+    private let spacing: CGFloat = 8
+
+    private func fits(_ subviews: Subviews, width: CGFloat) -> Bool {
+        !preferStacked && subviews.reduce(CGFloat.zero) { $0 + $1.sizeThatFits(.unspecified).width }
+            + spacing * CGFloat(max(0, subviews.count - 1)) <= width
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? subviews.reduce(CGFloat.zero) { $0 + $1.sizeThatFits(.unspecified).width } + spacing
+        let horizontal = fits(subviews, width: width)
+        let sizes = subviews.map { $0.sizeThatFits(horizontal ? .unspecified : ProposedViewSize(width: width, height: nil)) }
+        let height = horizontal ? (sizes.map(\.height).max() ?? 0)
+            : sizes.reduce(CGFloat.zero) { $0 + $1.height } + spacing * CGFloat(max(0, sizes.count - 1))
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let horizontal = fits(subviews, width: bounds.width)
+        var y = bounds.minY
+        for (index, subview) in subviews.enumerated() {
+            let size = subview.sizeThatFits(horizontal ? .unspecified : ProposedViewSize(width: bounds.width, height: nil))
+            let x = horizontal && index == subviews.count - 1 ? bounds.maxX - size.width : bounds.minX
+            subview.place(at: CGPoint(x: x, y: horizontal ? bounds.midY - size.height / 2 : y),
+                          anchor: .topLeading, proposal: ProposedViewSize(size))
+            y += size.height + spacing
+        }
+    }
+}
+
+private struct ProductAddButtonChrome: ViewModifier {
+    var tint: Color = .accentColor
+    @ScaledMetric(relativeTo: .body) private var lineHeight = 20.333333
+    @ScaledMetric(relativeTo: .body) private var verticalPadding = 7.0
+
+    func body(content: Content) -> some View {
+        content
+            .foregroundStyle(.white)
+            .background {
+                Capsule().fill(tint)
+                    .padding(.vertical, max(0, (44 - lineHeight - 2 * verticalPadding) / 2))
+            }
+            .contentShape(Rectangle())
+    }
+}
+
+private struct ProductAddButtonStyle: ButtonStyle {
+    let tint: Color
+    @Environment(\.isEnabled) private var isEnabled
+    @ScaledMetric(relativeTo: .body) private var verticalPadding = 7.0
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.font(.body)
+            .padding(.horizontal, 14).padding(.vertical, verticalPadding)
+            .frame(minHeight: 44)
+            .modifier(ProductAddButtonChrome(tint: tint))
+            .opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1) : 0.4)
+    }
+}
+
 private struct ProductEntrySection<AddButton: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var text: String
     @Binding var isFocused: Bool
     let focusControl: ProductEntryFocus
@@ -348,23 +410,23 @@ private struct ProductEntrySection<AddButton: View>: View {
                 }
                 .padding(.vertical, 4)
                 .id("product-entry-editor")
-            HStack {
+            ProductEntryActionsLayout(preferStacked: dynamicTypeSize.isAccessibilitySize) {
                 Button(action: onImport) {
                     Label(importing ? "Importing…" : compactImport ? "Import" :
                             importConfigured ? "Import from Paprika" : "Import items...",
                           systemImage: importing ? "hourglass" : "checklist")
-                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                 }
                 .font(.footnote.weight(.semibold))
                 .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .frame(minHeight: 44, alignment: .leading)
                 .contentShape(Rectangle())
                 .disabled(importing || importDisabled)
                 .accessibilityIdentifier(importConfigured ? "import-from-paprika" : "set-import-source")
                 .accessibilityHint(importConfigured ?
                     (removeReminders ? "Imports unchecked Paprika reminders and removes them after saving groceries" : "Imports unchecked Paprika reminders and keeps them linked") : "Choose your grocery import source")
-                Spacer(minLength: 8)
                 addButton()
             }
             .padding(.vertical, 4)
@@ -456,6 +518,7 @@ private struct ShoppingListItemRow<Actions: View>: View {
 }
 
 private struct AllItemsAddButton: View {
+    @ScaledMetric(relativeTo: .body) private var verticalPadding = 7.0
     let destination: StoreID?
     let stores: [StoreDefinition]
     @Binding var destinationRawValue: String
@@ -468,9 +531,11 @@ private struct AllItemsAddButton: View {
             HStack(spacing: 0) {
                 Button(action: onAdd) {
                     Text("Add to \(destination.displayName)")
-                        .font(.body).lineLimit(1).minimumScaleFactor(0.75)
-                        .frame(minWidth: 44, minHeight: 44)
+                        .font(.body)
+                        .fixedSize(horizontal: false, vertical: true)
                         .padding(.leading, 14).padding(.trailing, 12)
+                        .padding(.vertical, verticalPadding)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).disabled(!canAdd)
@@ -485,14 +550,13 @@ private struct AllItemsAddButton: View {
                     }
                 } label: {
                     Image(systemName: "chevron.down").font(.caption.weight(.bold))
-                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                        .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
                 }
                 .accessibilityLabel("Choose add destination")
                 .accessibilityValue(destination.displayName)
                 .accessibilityIdentifier("all-items-add-destination")
             }
-            .foregroundStyle(.white).layoutPriority(1)
-            .background(Color.accentColor, in: Capsule())
+            .modifier(ProductAddButtonChrome())
         } else {
             Menu {
                 if stores.isEmpty { Button("Manage Stores", action: onManageStores) }
@@ -1503,7 +1567,7 @@ struct GroceryListScreen: View {
                             Button("Add Items") {
                                 addItems(keepingInputFocused: true)
                             }
-                                .buttonStyle(.borderedProminent)
+                                .buttonStyle(ProductAddButtonStyle(tint: storePrimaryColor))
                                 .disabled(IngredientParser.application.parseProductEntry(rawInput).isEmpty)
                                 .onGeometryChange(for: CGRect?.self) { geometry in
                                     groceryInputFocused ? geometry.frame(in: .global) : nil

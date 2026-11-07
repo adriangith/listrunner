@@ -1635,6 +1635,65 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-add-")).firstMatch.exists)
     }
 
+    private func enableLongAddDestination() {
+        app.buttons["store-picker"].tap()
+        app.buttons["store-picker-manage-stores"].tap()
+        setStoreVisibility("chemistWarehouse", shown: true)
+        tapNavigationBack()
+        choose("All items")
+        app.buttons["all-items-add-destination"].tap()
+        app.buttons["Chemist Warehouse"].firstMatch.tap()
+    }
+
+    func testAllItemsLongDestinationStacksActionsAndMatchesStandardAddHeight() {
+        let standardHeight = app.buttons["Add Items"].frame.height
+        enableLongAddDestination()
+        let add = app.buttons["all-items-add"]
+        let arrow = app.buttons["all-items-add-destination"]
+        let importing = app.buttons["set-import-source"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        XCTAssertTrue(add.label.contains("Chemist Warehouse"))
+        XCTAssertEqual(add.frame.height, standardHeight, accuracy: 1)
+        XCTAssertGreaterThanOrEqual(arrow.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(arrow.frame.height, 44)
+        XCTAssertGreaterThan(importing.frame.width, 65, "Import must retain its label, not collapse into a column")
+        XCTAssertLessThanOrEqual(importing.frame.maxY, add.frame.minY, "Long destinations use separate action rows")
+        XCTAssertGreaterThan(add.frame.width + arrow.frame.width, app.frame.width * 0.75)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Long destination — full-width split Add and readable Import"
+        screenshot.lifetime = .keepAlways
+        self.add(screenshot)
+        let entry = app.textViews["all-items-entry"]
+        entry.tap(); entry.typeText("Keep action layout draft")
+        arrow.tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertEqual(entry.value as? String, "Keep action layout draft")
+        XCTAssertTrue(add.label.contains("Coles"))
+        XCTAssertEqual(importing.frame.midY, add.frame.midY, accuracy: 1, "Short labels return to the horizontal layout")
+    }
+
+    func testAllItemsAccessibilityActionsStayWithinPage() {
+        app.terminate()
+        app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]
+        app.launch()
+        enableLongAddDestination()
+        let add = app.buttons["all-items-add"]
+        let arrow = app.buttons["all-items-add-destination"]
+        let importing = app.buttons["set-import-source"]
+        for _ in 0..<6 where !add.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(add.isHittable)
+        XCTAssertLessThanOrEqual(importing.frame.maxY, add.frame.minY)
+        XCTAssertGreaterThanOrEqual(arrow.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(arrow.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(importing.frame.minX, app.frame.minX)
+        XCTAssertLessThanOrEqual(importing.frame.maxX, app.frame.maxX)
+        XCTAssertLessThanOrEqual(arrow.frame.maxX, app.frame.maxX)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Accessible text — stacked entry actions"
+        screenshot.lifetime = .keepAlways
+        self.add(screenshot)
+    }
+
     func testAllItemsShortRowMatchesStoreRowHeight() {
         choose("Coles")
         let storeCell = app.collectionViews.cells.containing(.any, identifier: "Actions for Coles fixture item").firstMatch
