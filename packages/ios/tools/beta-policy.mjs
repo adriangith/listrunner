@@ -112,6 +112,32 @@ export function activeRequests(requests) {
   return requests.filter(request => !replaced.has(request.tag));
 }
 
+export function ensureReleaseTag(tag, sourceSha) {
+  if (!/^beta\/ios-[\d.]+-[\d.]+$/.test(tag) || !shaPattern.test(sourceSha)) throw new Error('Invalid beta release tag or source');
+  const ref = `refs/tags/${tag}`;
+  const remoteTarget = () => {
+    const rows = git(['ls-remote', '--tags', 'origin', ref, `${ref}^{}`]).trim().split('\n').filter(Boolean)
+      .map(line => line.split(/\s+/));
+    return rows.find(([, name]) => name === `${ref}^{}`)?.[0]
+      ?? rows.find(([, name]) => name === ref)?.[0];
+  };
+  const existing = remoteTarget();
+  if (existing) {
+    if (existing !== sourceSha) throw new Error('Remote beta tag conflicts with the verified source; refusing to overwrite');
+    return;
+  }
+  if (git(['tag', '--list', tag]).trim()) {
+    if (git(['rev-parse', `${ref}^{commit}`]).trim() !== sourceSha) throw new Error('Local beta tag conflicts with the verified source');
+  } else {
+    git(['tag', tag, sourceSha]);
+  }
+  // Use Git transport with the existing contents-write credential. Letting the
+  // releases API create a historical tag via --target can require workflows
+  // permission, which the built-in GITHUB_TOKEN cannot be granted.
+  git(['push', 'origin', ref]);
+  if (remoteTarget() !== sourceSha) throw new Error('Published beta tag source could not be verified');
+}
+
 export function readRequest(tag) {
   if (!/^nightly\/request-\d{4}-\d{2}-\d{2}$/.test(tag)) throw new Error('Invalid nightly request tag');
   const ref = `refs/tags/${tag}`;

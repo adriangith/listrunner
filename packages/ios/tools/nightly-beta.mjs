@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { AppleAPI, gh, ghJSON } from './beta-api.mjs';
 import {
-  activeRequests, appRelated, changedPaths, git, isAncestor, melbourneClock, notesForRange, readRequest,
+  activeRequests, appRelated, changedPaths, ensureReleaseTag, git, isAncestor, melbourneClock, notesForRange, readRequest,
   readyBuild, releaseMetadata, selectRun, verifyRun, MARKER, REQUEST_PREFIX,
 } from './beta-policy.mjs';
 
@@ -167,7 +167,10 @@ export class NightlyBeta {
       + `Uploaded and processed successfully. External access may still require Apple beta review.\n\n`
       + `Changes: https://github.com/${this.config.repository}/compare/${request.baseSha}...${request.sourceSha}\n\n`
       + `<!-- ${MARKER} ${JSON.stringify(meta)} -->\n`;
-    this.github.gh(['release', 'create', tag, '--repo', this.config.repository, '--target', request.sourceSha,
+    this.progress(request, 'github-release-tag', details);
+    this.ensureReleaseTag(tag, request.sourceSha);
+    this.progress(request, 'github-release', details);
+    this.github.gh(['release', 'create', tag, '--repo', this.config.repository, '--verify-tag',
       '--prerelease', '--latest=false', '--title', `ListRunner ${build.version} (${build.build}) beta`, '--notes-file', '-'], { input: body });
     console.log(`Published beta prerelease ${tag} for ${request.sourceSha.slice(0, 12)}.`);
     this.progress(request, 'released', details);
@@ -226,6 +229,10 @@ export class NightlyBeta {
 
   requests() {
     return git(['tag', '--list', `${REQUEST_PREFIX}*`]).trim().split('\n').filter(Boolean).sort().map(readRequest);
+  }
+
+  ensureReleaseTag(tag, sourceSha) {
+    ensureReleaseTag(tag, sourceSha);
   }
 
   async recoverUnindexed(request, date) {
