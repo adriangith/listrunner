@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { AppleAPI, gh, ghJSON } from './beta-api.mjs';
 import {
-  appRelated, changedPaths, git, isAncestor, melbourneClock, notesForRange, readRequest,
+  activeRequests, appRelated, changedPaths, git, isAncestor, melbourneClock, notesForRange, readRequest,
   readyBuild, releaseMetadata, selectRun, verifyRun, MARKER, REQUEST_PREFIX,
 } from './beta-policy.mjs';
 
@@ -228,6 +228,26 @@ export class NightlyBeta {
     return git(['tag', '--list', `${REQUEST_PREFIX}*`]).trim().split('\n').filter(Boolean).sort().map(readRequest);
   }
 
+  async recoverUnindexed(request, date) {
+    const tag = `${REQUEST_PREFIX}${date}`;
+    if (tag <= request.tag) throw new Error('Wait until a later Melbourne date before recovering an unindexed request');
+    if (this.requests().some(value => value.tag === tag)) throw new Error('Today’s request already exists; refusing a second request or retag');
+    this.progress(request, 'recovery-safety-lookup');
+    const runs = await this.runs();
+    // A missing ref must never cause a second start for an orphaned run, or
+    // bypass a run whose unresolved source metadata could still be this SHA.
+    if (runs.some(run => run.attributes.sourceCommit?.commitSha === request.sourceSha
+        || (!run.attributes.sourceCommit?.commitSha && run.attributes.executionProgress !== 'COMPLETE'))) {
+      throw new Error('Cloud run may already exist for the unindexed request; inspect manually instead of creating a recovery');
+    }
+    const { tag: original, ...metadata } = request;
+    const recovery = { ...metadata, recoveryOf: original };
+    git(['tag', '-a', tag, request.sourceSha, '-F', '-'], { input: JSON.stringify(recovery) + '\n' });
+    git(['push', 'origin', `refs/tags/${tag}`]);
+    this.progress(request, 'recovery-request-created', { recoveryTag: tag });
+    return readRequest(tag);
+  }
+
   async wait(request, { timeoutMs = 140 * 60_000 } = {}) {
     const deadline = this.runtime.now() + timeoutMs;
     let submitted = false;
@@ -246,7 +266,7 @@ export class NightlyBeta {
   async inspect() {
     // GETs only: unlike run, this never starts/reconciles mutations or waits.
     const released = new Set(this.releases().map(releaseMetadata).filter(Boolean).map(meta => meta.requestTag));
-    const pending = this.requests().filter(request => !released.has(request.tag));
+    const pending = activeRequests(this.requests()).filter(request => !released.has(request.tag));
     if (!pending.length) this.runtime.log('No unpublished nightly requests.');
     for (const request of pending) await this.reconcile(request, { allowStart: false, readOnly: true });
   }
@@ -271,11 +291,16 @@ export class NightlyBeta {
     await this.preflight();
     const releasedTags = new Set(releases.map(releaseMetadata).filter(Boolean).map(meta => meta.requestTag));
     // Recover an earlier pending upload before considering any newer source.
-    for (const request of this.requests()) {
+    for (const request of activeRequests(this.requests())) {
       if (releasedTags.has(request.tag)) continue;
       if (isAncestor(request.sourceSha, baseline)) continue; // Already included in a newer release.
       if (!isAncestor(request.sourceSha, target)) throw new Error('Unreleased request is no longer on main; review it manually');
       const state = await this.reconcile(request);
+      if (state === 'indexing' && request.tag < `${REQUEST_PREFIX}${clock.date}`) {
+        const recovery = await this.recoverUnindexed(request, clock.date);
+        await this.wait(recovery);
+        return;
+      }
       if (state === 'indexing' || state === 'pending') { await this.wait(request); return; }
       if (state === 'released') return;
     }

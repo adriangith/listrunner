@@ -7,7 +7,7 @@ import { generateKeyPairSync, verify } from 'node:crypto';
 import { AppleAPI, normalizePrivateKey } from '../tools/beta-api.mjs';
 import { NightlyBeta, cloudNotes } from '../tools/nightly-beta.mjs';
 import {
-  appRelated, changedPaths, git, isAncestor, melbourneClock, notesForRange, readyBuild,
+  activeRequests, appRelated, changedPaths, git, isAncestor, melbourneClock, notesForRange, readyBuild,
   releaseMetadata, renderNotes, selectRun, validateRequest, verifyRun,
 } from '../tools/beta-policy.mjs';
 
@@ -390,6 +390,94 @@ test('inspect skips published requests without applying the nightly time guard',
     body: `<!-- listrunner-beta-v1 ${JSON.stringify({ sourceSha: sha, requestTag: request.tag, buildId: 'build', runId: 'run' })} -->` }];
   beta.requests = () => [request];
   beta.reconcile = async () => assert.fail('Already published');
+  await beta.inspect();
+});
+
+test('recovery chains preserve provenance and select only the newest linked request', () => {
+  const second = { ...request, tag: 'nightly/request-2026-11-06', recoveryOf: request.tag };
+  const third = { ...request, tag: 'nightly/request-2026-11-07', recoveryOf: second.tag };
+  assert.deepEqual(activeRequests([request, second, third]), [third]);
+  for (const changes of [{ sourceSha: other }, { baseSha: sha }, { workflowId: 'other' }, { notes: 'changed' }]) {
+    assert.throws(() => activeRequests([request, { ...second, ...changes }]), /preserve/);
+  }
+  assert.throws(() => activeRequests([second]), /preserve/);
+  assert.throws(() => activeRequests([request, second, { ...third, recoveryOf: request.tag }]), /Ambiguous/);
+  assert.throws(() => validateRequest({ ...request, recoveryOf: request.tag }, request.tag, sha), /earlier/);
+  assert.throws(() => validateRequest({ ...request, recoveryOf: 'refs/heads/main' }, second.tag, sha), /earlier/);
+});
+
+test('recovery creates a new immutable request without moving the original or using newer main', async t => {
+  const repo = temporaryRepo(t);
+  const original = { ...request, sourceSha: repo.base, baseSha: repo.base };
+  git(['tag', '-a', request.tag, repo.base, '-F', '-'], { input: JSON.stringify(original) });
+  const originalObject = git(['rev-parse', request.tag]).trim();
+  repo.commit('packages/ios/app.swift', 'newer', 'feat: newer work');
+  const { beta } = diagnosticBeta();
+  const recovered = await beta.recoverUnindexed(original, '2026-11-06');
+  assert.equal(recovered.recoveryOf, request.tag);
+  assert.equal(recovered.sourceSha, repo.base);
+  assert.equal(recovered.notes, original.notes);
+  assert.equal(git(['rev-parse', request.tag]).trim(), originalObject);
+  assert.equal(git(['rev-parse', `${recovered.tag}^{commit}`]).trim(), repo.base);
+  assert.deepEqual(activeRequests(beta.requests()).map(value => value.tag), [recovered.tag]);
+  await assert.rejects(beta.recoverUnindexed(original, '2026-11-06'), /already exists/);
+});
+
+test('recovery refuses same-day requests, orphaned runs and unresolved active runs', async t => {
+  const repo = temporaryRepo(t);
+  const original = { ...request, sourceSha: repo.base, baseSha: repo.base };
+  git(['tag', '-a', request.tag, repo.base, '-F', '-'], { input: JSON.stringify(original) });
+  const { beta } = diagnosticBeta();
+  await assert.rejects(beta.recoverUnindexed(original, '2026-11-05'), /later Melbourne date/);
+  beta.runs = async () => [{ ...run('SUCCEEDED'), attributes: { ...run('SUCCEEDED').attributes, sourceCommit: { commitSha: repo.base } } }];
+  await assert.rejects(beta.recoverUnindexed(original, '2026-11-06'), /may already exist/);
+  beta.runs = async () => [{ id: 'unresolved', attributes: { executionProgress: 'PENDING' } }];
+  await assert.rejects(beta.recoverUnindexed(original, '2026-11-06'), /may already exist/);
+  assert.equal(beta.requests().length, 1);
+});
+
+test('nightly run recovers an older unindexed request before considering newer main', async t => {
+  const repo = temporaryRepo(t);
+  const source = repo.commit('packages/ios/app.swift', 'pending', 'feat: pending work');
+  const original = { ...request, sourceSha: source, baseSha: repo.base };
+  git(['tag', '-a', request.tag, source, '-F', '-'], { input: JSON.stringify(original) });
+  repo.commit('packages/ios/app.swift', 'newer', 'feat: newer work');
+  const { beta } = diagnosticBeta();
+  beta.config = { ...config, bootstrapSha: repo.base };
+  beta.releases = () => []; beta.preflight = async () => {};
+  beta.reference = async () => undefined;
+  let waited;
+  beta.wait = async value => { waited = value; };
+  await beta.run({ now: new Date('2026-11-05T15:07:00Z') });
+  assert.equal(waited.recoveryOf, request.tag);
+  assert.equal(waited.sourceSha, source);
+  assert.equal(waited.tag, 'nightly/request-2026-11-06');
+});
+
+test('nightly follows an existing recovery and never starts the replaced original', async t => {
+  const repo = temporaryRepo(t);
+  const source = repo.commit('packages/ios/app.swift', 'pending', 'feat: pending work');
+  const original = { ...request, sourceSha: source, baseSha: repo.base };
+  const recovery = { ...original, tag: 'nightly/request-2026-11-06', recoveryOf: request.tag };
+  for (const value of [original, recovery]) git(['tag', '-a', value.tag, source, '-F', '-'], { input: JSON.stringify(value) });
+  const { beta } = diagnosticBeta();
+  beta.config = { ...config, bootstrapSha: repo.base };
+  beta.releases = () => []; beta.preflight = async () => {};
+  beta.reconcile = async value => { assert.equal(value.tag, recovery.tag); return 'pending'; };
+  beta.wait = async value => { assert.equal(value.tag, recovery.tag); };
+  await beta.run({ now: new Date('2026-11-06T15:07:00Z') });
+});
+
+test('inspection follows recovery metadata without attempting recovery mutations', async () => {
+  const { beta } = diagnosticBeta();
+  const recovery = { ...request, tag: 'nightly/request-2026-11-06', recoveryOf: request.tag };
+  beta.requests = () => [request, recovery]; beta.releases = () => [];
+  beta.recoverUnindexed = async () => assert.fail('Inspection cannot create a recovery');
+  beta.reconcile = async (value, options) => {
+    assert.equal(value.tag, recovery.tag);
+    assert.deepEqual(options, { allowStart: false, readOnly: true });
+    return 'indexing';
+  };
   await beta.inspect();
 });
 

@@ -13,6 +13,14 @@ The current release policy is **beta prereleases, app-related changes only**. Gi
 - A GitHub **prerelease**, named `beta/ios-VERSION-BUILD`, is published only for the matching source reference/commit after the complete Cloud run succeeds and its single iOS upload has `processingState=VALID`. An archive alone, failed post-action, invalid/expired upload or mismatched app does not qualify. Apple external beta review can still be required; a GitHub prerelease is not an App Store public release.
 - Release notes contain the TestFlight version/build, full source/baseline comparison and machine-readable provenance. Existing releases/tags are never overwritten. The successful release tag is the baseline—there is no commit pushed back to `main`, so no release-note commit loop.
 - Failed changes remain eligible next night. A pending request survives runner cancellation/timeouts and is reconciled before considering newer changes. The CI job waits at most 140 minutes; if Apple takes longer, the next scheduled/manual run resumes it. Ambiguous start responses are not blindly POSTed again. Concurrent GitHub runs are serialized without cancellation.
+- If an earlier day's tag is still missing from Apple's source index, a later
+  night's run may create one new dated **recovery request**. It preserves the
+  exact source SHA, baseline, workflow and notes, and records `recoveryOf`.
+  Existing tags are never deleted, moved or reannotated. Recovery is refused
+  if today's request already exists, any workflow run has that source SHA,
+  or an active run has unresolved source metadata. Validated recovery chains
+  replace their originals in the queue, so a late-arriving original cannot
+  start a duplicate. A recovery is still only a request, never a success marker.
 
 ### Credentials and operation
 
@@ -22,7 +30,7 @@ Use **Actions → Nightly TestFlight beta → Run workflow → plan** for a read
 
 ### Read-only inspection and stage diagnostics
 
-Use workflow mode **inspect** to query Apple once for each unpublished request,
+Use workflow mode **inspect** to query Apple once for each active unpublished request,
 regardless of the nightly time window. It performs only GET requests: no build
 start, tag change, tester-note update or release publication. Local equivalent,
 with the existing `ASC_*` credentials supplied securely:
@@ -51,6 +59,9 @@ responses, authentication headers and tokens are not diagnostic output.
 - `ready-to-publish`: read-only inspection verified a publishable upload;
   it has **not** published it. Normal runs continue through `tester-notes`,
   `github-release`, and `released`.
+- `recovery-request-created`: a later dated request preserves an unindexed
+  request's exact source/notes after the no-existing-run safety check. Inspection
+  never creates a recovery; only normal `run` mode can do this.
 
 Read-only investigation on 9 November 2026: GitHub contains the annotated tag
 `nightly/request-2026-11-06` (tag object
@@ -62,6 +73,22 @@ build **6**, for `nightly/request-2026-11-05`; there is no run for the pending
 not an observed compiler failure. The underlying reason Apple has not indexed
 the tag is not established. No tags, Cloud settings, builds or releases were
 modified during inspection. Do not delete/recreate the request to mask it.
+
+Recovery on 9 November: a GitHub API update retaining the original tag's exact
+object ID did not make Apple discover it. A new immutable
+`nightly/request-2026-11-09` tag was therefore created with the original source,
+baseline and notes, and `recoveryOf: nightly/request-2026-11-06`. Apple immediately
+listed the new reference (`2bbede02-15c9-4735-8940-73d764a85a07`), and accepted
+Cloud build **7** (`f6863242-c934-488a-86fb-fc9c4086565c`), verified running against
+`18347796fef55944e6e7708f89217c5fba3240be`. This unblocks source discovery; a
+running build is not proof of archive/upload/processing success. The original
+tag remains unchanged. The first successful nightly request was also created
+by GitHub Actions, so a new GitHub credential is not established as necessary.
+
+Recovery/diagnostics validation: **39 Node automation tests** and **10 Python
+cloud-hook tests** pass on Linux. Tests cover immutable provenance, recovery
+chains, orphan/unknown-source run protection, one request per date, read-only
+inspection and avoiding duplicate starts. No Swift/app source changed.
 
 Do not re-enable the Apple schedule alongside GitHub’s schedule. Keep manual tag starts enabled for `nightly/request-` tags. To pause nightly automation, disable the GitHub Actions workflow; already-running Apple builds must be handled separately. Do not delete pending request tags to force a retry, advance the baseline after a failure, or use the next build counter as evidence of upload success.
 
