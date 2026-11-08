@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Plan is read-only. Run starts/reconciles the daily beta.'
+        description: 'Plan previews changes; inspect reads Apple status; run starts/reconciles the beta.'
         type: choice
-        options: [plan, run]
+        options: [plan, inspect, run]
         default: plan
 
 permissions:

@@ -7,7 +7,7 @@ import { generateKeyPairSync, verify } from 'node:crypto';
 import { AppleAPI, normalizePrivateKey } from '../tools/beta-api.mjs';
 import { NightlyBeta, cloudNotes } from '../tools/nightly-beta.mjs';
 import {
-  appRelated, changedPaths, git, isAncestor, melbourneClock, notesForRange, readyBuild,
+  activeRequests, appRelated, changedPaths, git, isAncestor, melbourneClock, notesForRange, readyBuild,
   releaseMetadata, renderNotes, selectRun, validateRequest, verifyRun,
 } from '../tools/beta-policy.mjs';
 
@@ -294,6 +294,229 @@ test('cloud notes are recovered from the immutable request, never a moving branc
 const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
 const pem = privateKey.export({ type: 'pkcs8', format: 'pem' });
 const credentials = { ASC_PRIVATE_KEY: pem, ASC_KEY_ID: 'test-key', ASC_ISSUER_ID: 'test-issuer' };
+
+function diagnosticBeta(api = {}) {
+  const lines = [];
+  let now = 0;
+  const beta = new NightlyBeta(config, api, { gh: () => assert.fail('Unexpected GitHub write') }, {
+    now: () => now, sleep: async ms => { now += ms; }, log: line => lines.push(line),
+  });
+  beta.reference = async () => ({ id: 'ref' });
+  beta.runs = async () => [];
+  return { beta, lines, advance: ms => { now += ms; } };
+}
+
+test('inspect reports missing source references and never starts a build', async () => {
+  const { beta } = diagnosticBeta({ request: async () => assert.fail('No Apple writes') });
+  beta.reference = async () => undefined;
+  beta.releases = () => []; beta.requests = () => [request];
+  await beta.inspect();
+  assert.equal(beta.diagnostic.stage, 'source-reference-not-indexed');
+  assert.equal(beta.diagnostic.request, request.tag);
+});
+
+test('read-only inspection distinguishes an indexed reference with no run', async () => {
+  const { beta } = diagnosticBeta({ request: async () => assert.fail('No starts') });
+  assert.equal(await beta.reconcile(request, { readOnly: true }), 'unstarted');
+  assert.equal(beta.diagnostic.stage, 'cloud-run-not-visible');
+  assert.equal(beta.diagnostic.referenceId, 'ref');
+});
+
+test('diagnostics distinguish source metadata, execution and Cloud failure', async () => {
+  const { beta } = diagnosticBeta();
+  const queued = run(null); delete queued.attributes.sourceCommit;
+  beta.runs = async () => [queued];
+  await beta.reconcile(request, { readOnly: true });
+  assert.equal(beta.diagnostic.stage, 'cloud-source-metadata');
+  beta.runs = async () => [run(null)];
+  await beta.reconcile(request, { readOnly: true });
+  assert.equal(beta.diagnostic.stage, 'cloud-execution');
+  assert.equal(beta.diagnostic.executionProgress, 'RUNNING');
+  beta.runs = async () => [run('FAILED')];
+  assert.equal(await beta.reconcile(request, { readOnly: true }), 'failed');
+  assert.equal(beta.diagnostic.stage, 'cloud-failed');
+  assert.equal(beta.diagnostic.runId, 'run-1');
+});
+
+test('read-only inspection distinguishes missing upload, processing and publication readiness', async () => {
+  const { beta } = diagnosticBeta({ all: async () => [], request: async () => upload('PROCESSING') });
+  beta.runs = async () => [run('SUCCEEDED')];
+  beta.localize = async () => assert.fail('Do not change tester notes');
+  await beta.reconcile(request, { readOnly: true });
+  assert.equal(beta.diagnostic.stage, 'upload-not-visible');
+  beta.api.all = async () => [{ id: 'build' }];
+  await beta.reconcile(request, { readOnly: true });
+  assert.equal(beta.diagnostic.stage, 'testflight-processing');
+  assert.equal(beta.diagnostic.processingState, 'PROCESSING');
+  beta.api.request = async () => upload();
+  assert.equal(await beta.reconcile(request, { readOnly: true }), 'ready');
+  assert.equal(beta.diagnostic.stage, 'ready-to-publish');
+});
+
+test('lookup errors preserve the exact failing operation without remote payloads', async () => {
+  const { beta, lines } = diagnosticBeta();
+  beta.reference = async () => { throw new Error('Apple API GET returned HTTP 500'); };
+  await assert.rejects(beta.reconcile(request), /HTTP 500/);
+  assert.equal(beta.diagnostic.stage, 'source-reference-lookup');
+  assert.equal(lines.length, 0);
+});
+
+test('stable waiting status logs transitions and five-minute heartbeats, not every poll', async () => {
+  const { beta, lines, advance } = diagnosticBeta();
+  beta.reference = async () => undefined;
+  await beta.reconcile(request);
+  advance(30_000); await beta.reconcile(request);
+  assert.equal(lines.length, 1);
+  advance(270_000); await beta.reconcile(request);
+  assert.equal(lines.length, 2);
+  assert.match(lines[1], /"elapsedSeconds":300/);
+  assert.doesNotMatch(lines.join('\n'), /PRIVATE KEY|Authorization/);
+});
+
+test('timeout identifies the retained request and last waiting stage without a real wait', async () => {
+  const { beta } = diagnosticBeta();
+  beta.reference = async () => undefined;
+  await assert.rejects(beta.wait(request, { timeoutMs: 60_000 }), error => {
+    assert.match(error.message, /Timed out waiting for Apple/);
+    assert.match(error.message, /source-reference-not-indexed/);
+    assert.match(error.message, /nightly\/request-2026-11-05/);
+    return true;
+  });
+});
+
+test('inspect skips published requests without applying the nightly time guard', async () => {
+  const { beta } = diagnosticBeta();
+  beta.releases = () => [{ tag_name: 'beta/ios-1.0-6', prerelease: true, draft: false,
+    body: `<!-- listrunner-beta-v1 ${JSON.stringify({ sourceSha: sha, requestTag: request.tag, buildId: 'build', runId: 'run' })} -->` }];
+  beta.requests = () => [request];
+  beta.reconcile = async () => assert.fail('Already published');
+  await beta.inspect();
+});
+
+test('recovery chains preserve provenance and select only the newest linked request', () => {
+  const second = { ...request, tag: 'nightly/request-2026-11-06', recoveryOf: request.tag };
+  const third = { ...request, tag: 'nightly/request-2026-11-07', recoveryOf: second.tag };
+  assert.deepEqual(activeRequests([request, second, third]), [third]);
+  for (const changes of [{ sourceSha: other }, { baseSha: sha }, { workflowId: 'other' }, { notes: 'changed' }]) {
+    assert.throws(() => activeRequests([request, { ...second, ...changes }]), /preserve/);
+  }
+  assert.throws(() => activeRequests([second]), /preserve/);
+  assert.throws(() => activeRequests([request, second, { ...third, recoveryOf: request.tag }]), /Ambiguous/);
+  assert.throws(() => validateRequest({ ...request, recoveryOf: request.tag }, request.tag, sha), /earlier/);
+  assert.throws(() => validateRequest({ ...request, recoveryOf: 'refs/heads/main' }, second.tag, sha), /earlier/);
+});
+
+test('recovery creates a new immutable request without moving the original or using newer main', async t => {
+  const repo = temporaryRepo(t);
+  const original = { ...request, sourceSha: repo.base, baseSha: repo.base };
+  git(['tag', '-a', request.tag, repo.base, '-F', '-'], { input: JSON.stringify(original) });
+  const originalObject = git(['rev-parse', request.tag]).trim();
+  repo.commit('packages/ios/app.swift', 'newer', 'feat: newer work');
+  const { beta } = diagnosticBeta();
+  const recovered = await beta.recoverUnindexed(original, '2026-11-06');
+  assert.equal(recovered.recoveryOf, request.tag);
+  assert.equal(recovered.sourceSha, repo.base);
+  assert.equal(recovered.notes, original.notes);
+  assert.equal(git(['rev-parse', request.tag]).trim(), originalObject);
+  assert.equal(git(['rev-parse', `${recovered.tag}^{commit}`]).trim(), repo.base);
+  assert.deepEqual(activeRequests(beta.requests()).map(value => value.tag), [recovered.tag]);
+  await assert.rejects(beta.recoverUnindexed(original, '2026-11-06'), /already exists/);
+});
+
+test('recovery refuses same-day requests, orphaned runs and unresolved active runs', async t => {
+  const repo = temporaryRepo(t);
+  const original = { ...request, sourceSha: repo.base, baseSha: repo.base };
+  git(['tag', '-a', request.tag, repo.base, '-F', '-'], { input: JSON.stringify(original) });
+  const { beta } = diagnosticBeta();
+  await assert.rejects(beta.recoverUnindexed(original, '2026-11-05'), /later Melbourne date/);
+  beta.runs = async () => [{ ...run('SUCCEEDED'), attributes: { ...run('SUCCEEDED').attributes, sourceCommit: { commitSha: repo.base } } }];
+  await assert.rejects(beta.recoverUnindexed(original, '2026-11-06'), /may already exist/);
+  beta.runs = async () => [{ id: 'unresolved', attributes: { executionProgress: 'PENDING' } }];
+  await assert.rejects(beta.recoverUnindexed(original, '2026-11-06'), /may already exist/);
+  assert.equal(beta.requests().length, 1);
+});
+
+test('nightly run recovers an older unindexed request before considering newer main', async t => {
+  const repo = temporaryRepo(t);
+  const source = repo.commit('packages/ios/app.swift', 'pending', 'feat: pending work');
+  const original = { ...request, sourceSha: source, baseSha: repo.base };
+  git(['tag', '-a', request.tag, source, '-F', '-'], { input: JSON.stringify(original) });
+  repo.commit('packages/ios/app.swift', 'newer', 'feat: newer work');
+  const { beta } = diagnosticBeta();
+  beta.config = { ...config, bootstrapSha: repo.base };
+  beta.releases = () => []; beta.preflight = async () => {};
+  beta.reference = async () => undefined;
+  let waited;
+  beta.wait = async value => { waited = value; };
+  await beta.run({ now: new Date('2026-11-05T15:07:00Z') });
+  assert.equal(waited.recoveryOf, request.tag);
+  assert.equal(waited.sourceSha, source);
+  assert.equal(waited.tag, 'nightly/request-2026-11-06');
+});
+
+test('nightly follows an existing recovery and never starts the replaced original', async t => {
+  const repo = temporaryRepo(t);
+  const source = repo.commit('packages/ios/app.swift', 'pending', 'feat: pending work');
+  const original = { ...request, sourceSha: source, baseSha: repo.base };
+  const recovery = { ...original, tag: 'nightly/request-2026-11-06', recoveryOf: request.tag };
+  for (const value of [original, recovery]) git(['tag', '-a', value.tag, source, '-F', '-'], { input: JSON.stringify(value) });
+  const { beta } = diagnosticBeta();
+  beta.config = { ...config, bootstrapSha: repo.base };
+  beta.releases = () => []; beta.preflight = async () => {};
+  beta.reconcile = async value => { assert.equal(value.tag, recovery.tag); return 'pending'; };
+  beta.wait = async value => { assert.equal(value.tag, recovery.tag); };
+  await beta.run({ now: new Date('2026-11-06T15:07:00Z') });
+});
+
+test('inspection follows recovery metadata without attempting recovery mutations', async () => {
+  const { beta } = diagnosticBeta();
+  const recovery = { ...request, tag: 'nightly/request-2026-11-06', recoveryOf: request.tag };
+  beta.requests = () => [request, recovery]; beta.releases = () => [];
+  beta.recoverUnindexed = async () => assert.fail('Inspection cannot create a recovery');
+  beta.reconcile = async (value, options) => {
+    assert.equal(value.tag, recovery.tag);
+    assert.deepEqual(options, { allowStart: false, readOnly: true });
+    return 'indexing';
+  };
+  await beta.inspect();
+});
+
+test('inspect uses only GETs through the real API client even for a ready upload', async () => {
+  const paths = [];
+  const api = new AppleAPI(credentials, async (url, options) => {
+    assert.equal(options.method, 'GET');
+    paths.push(url.pathname);
+    let body;
+    if (url.pathname.endsWith('/gitReferences')) body = { data: [{ id: 'ref', attributes: { canonicalName: `refs/tags/${request.tag}` } }] };
+    else if (url.pathname.endsWith('/buildRuns')) body = { data: [run('SUCCEEDED')] };
+    else if (url.pathname.endsWith('/builds')) body = { data: [{ id: 'build' }] };
+    else if (url.pathname === '/v1/builds/build') body = upload();
+    else assert.fail(`Unexpected endpoint: ${url.pathname}`);
+    return new Response(JSON.stringify(body));
+  });
+  const { beta } = diagnosticBeta(api);
+  delete beta.reference; delete beta.runs;
+  beta.releases = () => []; beta.requests = () => [request];
+  await beta.inspect();
+  assert.equal(beta.diagnostic.stage, 'ready-to-publish');
+  assert.equal(paths.length, 4);
+});
+
+test('GitHub step summary records structured waiting status', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'listrunner-beta-summary-'));
+  const previous = process.env.GITHUB_STEP_SUMMARY;
+  const path = join(directory, 'summary.md');
+  process.env.GITHUB_STEP_SUMMARY = path;
+  t.after(() => {
+    if (previous === undefined) delete process.env.GITHUB_STEP_SUMMARY;
+    else process.env.GITHUB_STEP_SUMMARY = previous;
+    rmSync(directory, { recursive: true, force: true });
+  });
+  const { beta } = diagnosticBeta();
+  beta.progress(request, 'source-reference-not-indexed');
+  assert.match(readFileSync(path, 'utf8'), /source-reference-not-indexed/);
+  assert.match(readFileSync(path, 'utf8'), /nightly\/request-2026-11-05/);
+});
 
 test('Apple token is an expiring ES256 JWT and accepts a single-line private key', () => {
   const api = new AppleAPI({ ...credentials, ASC_PRIVATE_KEY: pem.replaceAll('\n', ' ') });

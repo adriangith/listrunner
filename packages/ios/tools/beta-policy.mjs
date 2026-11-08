@@ -89,7 +89,27 @@ export function validateRequest(value, tag, peeledSha) {
       || value.notes.includes('<!-- listrunner-beta-v1')) {
     throw new Error(`Invalid immutable nightly request: ${tag}`);
   }
+  if (value.recoveryOf !== undefined && (!/^nightly\/request-\d{4}-\d{2}-\d{2}$/.test(value.recoveryOf)
+      || value.recoveryOf >= tag)) throw new Error('Recovery must reference an earlier nightly request');
   return { ...value, tag };
+}
+
+export function activeRequests(requests) {
+  const byTag = new Map(requests.map(request => [request.tag, request]));
+  const replaced = new Set();
+  const replacements = new Set();
+  for (const request of requests) {
+    if (!request.recoveryOf) continue;
+    const original = byTag.get(request.recoveryOf);
+    if (!original || request.recoveryOf >= request.tag
+        || ['schema', 'sourceSha', 'baseSha', 'workflowId', 'notes'].some(key => request[key] !== original[key])) {
+      throw new Error('Recovery request does not preserve the original source, baseline, workflow and notes');
+    }
+    if (replacements.has(request.recoveryOf)) throw new Error('Ambiguous recovery requests; review manually');
+    replacements.add(request.recoveryOf);
+    replaced.add(request.recoveryOf);
+  }
+  return requests.filter(request => !replaced.has(request.tag));
 }
 
 export function readRequest(tag) {
