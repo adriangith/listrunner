@@ -434,6 +434,20 @@ test('release tag verification accepts matching annotated tags but refuses local
   assert.equal(git(['ls-remote', '--tags', 'origin', 'refs/tags/beta/ios-1.0-8']).trim(), '');
 });
 
+test('historical workflow permission rejection gives safe manual recovery without claiming release success', t => {
+  const repo = temporaryRepo(t);
+  writeFileSync(join(repo.root, 'remote.git/hooks/pre-receive'), '#!/bin/sh\necho "refusing to allow a GitHub App to create or update workflow without workflows permission" >&2\nexit 1\n', { mode: 0o755 });
+  assert.throws(() => ensureReleaseTag('beta/ios-1.0-7', repo.base), error => {
+    assert.match(error.message, /requires Workflows permission/);
+    assert.match(error.message, /verified TestFlight upload is retained/);
+    assert.ok(error.message.includes(repo.base));
+    assert.match(error.message, /without overwriting/);
+    assert.match(error.message, /no rebuild or broader CI token/);
+    return true;
+  });
+  assert.equal(git(['ls-remote', '--tags', 'origin', 'refs/tags/beta/ios-1.0-7']).trim(), '');
+});
+
 test('recovery creates a new immutable request without moving the original or using newer main', async t => {
   const repo = temporaryRepo(t);
   const original = { ...request, sourceSha: repo.base, baseSha: repo.base };

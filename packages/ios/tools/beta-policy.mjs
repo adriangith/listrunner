@@ -131,10 +131,18 @@ export function ensureReleaseTag(tag, sourceSha) {
   } else {
     git(['tag', tag, sourceSha]);
   }
-  // Use Git transport with the existing contents-write credential. Letting the
-  // releases API create a historical tag via --target can require workflows
-  // permission, which the built-in GITHUB_TOKEN cannot be granted.
-  git(['push', 'origin', ref]);
+  // Git-first avoids implicit tag creation by the releases API, but GitHub may
+  // still require Workflows permission for a historical workflow version.
+  try {
+    git(['push', 'origin', ref]);
+  } catch (error) {
+    if (/without [`'"]?workflows[`'"]? permission/i.test(String(error.stderr ?? error.message))) {
+      throw new Error(`GitHub requires Workflows permission to tag this historical source. The verified TestFlight upload is retained. `
+        + `Using a trusted user login with that permission, create/push ${tag} at ${sourceSha}, without overwriting any existing tag. `
+        + 'Then rerun Nightly TestFlight beta in run mode to reuse the upload; no rebuild or broader CI token is needed.');
+    }
+    throw error;
+  }
   if (remoteTarget() !== sourceSha) throw new Error('Published beta tag source could not be verified');
 }
 

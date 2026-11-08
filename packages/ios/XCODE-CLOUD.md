@@ -14,10 +14,12 @@ The current release policy is **beta prereleases, app-related changes only**. Gi
 - Release notes contain the TestFlight version/build, full source/baseline comparison and machine-readable provenance. Existing releases/tags are never overwritten. The successful release tag is the baseline—there is no commit pushed back to `main`, so no release-note commit loop.
 - After Cloud success and a verified `VALID` upload, the script pushes the exact
   `beta/ios-*` tag through Git, checks the remote peeled commit, then creates the
-  prerelease with `gh release create --verify-tag` and **no `--target`**. GitHub's
-  releases API can reject implicit historical tag creation with the built-in
-  token when workflows have changed since that source. No additional credential
-  or broader workflow permission is needed for this Git-first path. If release
+  prerelease with `gh release create --verify-tag` and **no `--target`**. GitHub
+  can reject historical tag creation through **both** the releases API and Git
+  when workflows have changed since that source. Git-first is not a bypass for
+  that permission. The user chose to retain the built-in least-privilege token
+  and manually recover these exceptional historical tags (instructions below).
+  If release
   creation fails after the tag push, that tag alone is **not** a released baseline;
   the next run verifies/reuses it. Conflicting local or remote tags stop recovery.
 - Failed changes remain eligible next night. A pending request survives runner cancellation/timeouts and is reconciled before considering newer changes. The CI job waits at most 140 minutes; if Apple takes longer, the next scheduled/manual run resumes it. Ambiguous start responses are not blindly POSTed again. Concurrent GitHub runs are serialized without cancellation.
@@ -95,7 +97,7 @@ running build is not proof of archive/upload/processing success. The original
 tag remains unchanged. The first successful nightly request was also created
 by GitHub Actions, so a new GitHub credential is not established as necessary.
 
-Recovery/diagnostics validation: **41 Node automation tests** and **10 Python
+Recovery/diagnostics validation: **42 Node automation tests** and **10 Python
 cloud-hook tests** pass on Linux. Tests cover immutable provenance, recovery
 chains, orphan/unknown-source run protection, one request per date, read-only
 inspection, historical release-tag verification and avoiding duplicate starts.
@@ -105,8 +107,38 @@ Build 7 subsequently completed successfully and Apple reported upload
 `d3ab049c-0232-40b1-8044-1167a1d2ed80` as `VALID`. Reconciliation workflow
 `42534827511` reached `github-release` before GitHub rejected the original
 implicit historical-tag creation (`gh release create --target ...`) with HTTP
-403. The Git-first tag path above addresses this separate publication failure;
-it does not rerun Xcode or weaken the upload/source verification gates.
+403. Workflow `42535384977` then confirmed Git transport is also rejected when
+the built-in token lacks Workflows permission. Using the existing trusted user
+login, the exact beta tag was pushed without changing the source. Workflow
+`42535491339` then succeeded and published **ListRunner 1.0 (7)** as a prerelease:
+
+https://github.com/adriangith/listrunner/releases/tag/beta/ios-1.0-7
+
+No extra GitHub secret or broader CI permission was added. No rebuild was
+performed for either publication retry. The uploaded app still represents the
+original pinned source, not newer `main` changes. External tester access may
+still depend on Apple's beta review/distribution rules.
+
+### Exceptional historical-tag permission recovery
+
+If the stage is `github-release-tag` and the error explicitly requires
+Workflows permission, the Cloud build/upload has already passed verification.
+From a clean trusted checkout containing the automation and the source commit,
+with Git push authenticated as a user allowed to create the historical tag,
+run the following, replacing the two values with the **exact** tag and full
+source SHA in the failure message:
+
+```sh
+git fetch origin --tags
+node --input-type=module -e 'import {ensureReleaseTag} from "./packages/ios/tools/beta-policy.mjs"; ensureReleaseTag("beta/ios-VERSION-BUILD", "FULL_VERIFIED_SOURCE_SHA");'
+```
+
+The helper validates both values, verifies remote/local conflicts, never force
+pushes, and checks the remote peeled commit. Then rerun the GitHub workflow in
+**run** mode. It reuses the successful Cloud upload and publishes the prerelease;
+do not start another Cloud build, repoint the tag at `main`, or store the user's
+existing GitHub login token as an Actions secret. A beta tag alone never advances
+the successful-release baseline.
 
 GitHub CLI reference for the historical-target permission restriction:
 https://github.com/cli/cli/issues/9514
