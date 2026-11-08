@@ -7,7 +7,7 @@ import { generateKeyPairSync, verify } from 'node:crypto';
 import { AppleAPI, normalizePrivateKey } from '../tools/beta-api.mjs';
 import { NightlyBeta, cloudNotes } from '../tools/nightly-beta.mjs';
 import {
-  activeRequests, appRelated, changedPaths, git, isAncestor, melbourneClock, notesForRange, readyBuild,
+  activeRequests, appRelated, changedPaths, ensureReleaseTag, git, isAncestor, melbourneClock, notesForRange, readyBuild,
   releaseMetadata, renderNotes, selectRun, validateRequest, verifyRun,
 } from '../tools/beta-policy.mjs';
 
@@ -173,6 +173,8 @@ test('publish waits for processing then emits only a prerelease for the pinned S
     },
   };
   const beta = new NightlyBeta(config, api, { gh: (args, options) => published.push({ args, options }) });
+  const tags = [];
+  beta.ensureReleaseTag = (tag, source) => tags.push({ tag, source });
   beta.releases = () => [];
   assert.equal(await beta.publish(request, run('SUCCEEDED')), 'pending');
   assert.equal(published.length, 0); assert.equal(localizations, 0);
@@ -180,7 +182,9 @@ test('publish waits for processing then emits only a prerelease for the pinned S
   assert.equal(await beta.publish(request, run('SUCCEEDED')), 'released');
   assert.equal(localizations, 1); assert.equal(published.length, 1);
   assert.ok(published[0].args.includes('--prerelease'));
-  assert.equal(published[0].args[published[0].args.indexOf('--target') + 1], sha);
+  assert.deepEqual(tags, [{ tag: 'beta/ios-1.0-6', source: sha }]);
+  assert.ok(published[0].args.includes('--verify-tag'));
+  assert.ok(!published[0].args.includes('--target'));
   assert.match(published[0].options.input, /listrunner-beta-v1/);
 });
 
@@ -404,6 +408,30 @@ test('recovery chains preserve provenance and select only the newest linked requ
   assert.throws(() => activeRequests([request, second, { ...third, recoveryOf: request.tag }]), /Ambiguous/);
   assert.throws(() => validateRequest({ ...request, recoveryOf: request.tag }, request.tag, sha), /earlier/);
   assert.throws(() => validateRequest({ ...request, recoveryOf: 'refs/heads/main' }, second.tag, sha), /earlier/);
+});
+
+test('release tags pin historical source through Git, are idempotent and never advance the baseline alone', t => {
+  const repo = temporaryRepo(t);
+  repo.commit('packages/ios/app.swift', 'newer', 'feat: newer main');
+  ensureReleaseTag('beta/ios-1.0-7', repo.base);
+  assert.equal(git(['rev-parse', 'beta/ios-1.0-7^{commit}']).trim(), repo.base);
+  ensureReleaseTag('beta/ios-1.0-7', repo.base);
+  const { beta } = diagnosticBeta();
+  beta.config = { ...config, bootstrapSha: repo.base };
+  assert.equal(beta.baseline([]), repo.base);
+  assert.throws(() => ensureReleaseTag('beta/ios-1.0-7', git(['rev-parse', 'HEAD']).trim()), /Remote beta tag conflicts/);
+  assert.equal(git(['rev-parse', 'beta/ios-1.0-7^{commit}']).trim(), repo.base);
+});
+
+test('release tag verification accepts matching annotated tags but refuses local conflicts', t => {
+  const repo = temporaryRepo(t);
+  git(['tag', '-a', 'beta/ios-1.0-7', repo.base, '-m', 'verified upload']);
+  git(['push', 'origin', 'refs/tags/beta/ios-1.0-7']);
+  ensureReleaseTag('beta/ios-1.0-7', repo.base);
+  const newer = repo.commit('packages/ios/app.swift', 'newer', 'feat: newer work');
+  git(['tag', 'beta/ios-1.0-8', newer]);
+  assert.throws(() => ensureReleaseTag('beta/ios-1.0-8', repo.base), /Local beta tag conflicts/);
+  assert.equal(git(['ls-remote', '--tags', 'origin', 'refs/tags/beta/ios-1.0-8']).trim(), '');
 });
 
 test('recovery creates a new immutable request without moving the original or using newer main', async t => {

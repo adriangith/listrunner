@@ -12,6 +12,14 @@ The current release policy is **beta prereleases, app-related changes only**. Gi
 - `ci_post_clone.sh` reads the request annotation, verifies the pinned source, and generates `TestFlight/WhatToTest.en-US.txt` in the temporary cloud checkout. Manual branch builds retain the curated file. The reconciler also verifies/updates the uploaded build’s English notes before publication.
 - A GitHub **prerelease**, named `beta/ios-VERSION-BUILD`, is published only for the matching source reference/commit after the complete Cloud run succeeds and its single iOS upload has `processingState=VALID`. An archive alone, failed post-action, invalid/expired upload or mismatched app does not qualify. Apple external beta review can still be required; a GitHub prerelease is not an App Store public release.
 - Release notes contain the TestFlight version/build, full source/baseline comparison and machine-readable provenance. Existing releases/tags are never overwritten. The successful release tag is the baseline—there is no commit pushed back to `main`, so no release-note commit loop.
+- After Cloud success and a verified `VALID` upload, the script pushes the exact
+  `beta/ios-*` tag through Git, checks the remote peeled commit, then creates the
+  prerelease with `gh release create --verify-tag` and **no `--target`**. GitHub's
+  releases API can reject implicit historical tag creation with the built-in
+  token when workflows have changed since that source. No additional credential
+  or broader workflow permission is needed for this Git-first path. If release
+  creation fails after the tag push, that tag alone is **not** a released baseline;
+  the next run verifies/reuses it. Conflicting local or remote tags stop recovery.
 - Failed changes remain eligible next night. A pending request survives runner cancellation/timeouts and is reconciled before considering newer changes. The CI job waits at most 140 minutes; if Apple takes longer, the next scheduled/manual run resumes it. Ambiguous start responses are not blindly POSTed again. Concurrent GitHub runs are serialized without cancellation.
 - If an earlier day's tag is still missing from Apple's source index, a later
   night's run may create one new dated **recovery request**. It preserves the
@@ -62,6 +70,8 @@ responses, authentication headers and tokens are not diagnostic output.
 - `recovery-request-created`: a later dated request preserves an unindexed
   request's exact source/notes after the no-existing-run safety check. Inspection
   never creates a recovery; only normal `run` mode can do this.
+- `github-release-tag`: creating/verifying the exact remote beta tag after the
+  upload gate, before publication of the GitHub prerelease.
 
 Read-only investigation on 9 November 2026: GitHub contains the annotated tag
 `nightly/request-2026-11-06` (tag object
@@ -85,10 +95,21 @@ running build is not proof of archive/upload/processing success. The original
 tag remains unchanged. The first successful nightly request was also created
 by GitHub Actions, so a new GitHub credential is not established as necessary.
 
-Recovery/diagnostics validation: **39 Node automation tests** and **10 Python
+Recovery/diagnostics validation: **41 Node automation tests** and **10 Python
 cloud-hook tests** pass on Linux. Tests cover immutable provenance, recovery
 chains, orphan/unknown-source run protection, one request per date, read-only
-inspection and avoiding duplicate starts. No Swift/app source changed.
+inspection, historical release-tag verification and avoiding duplicate starts.
+No Swift/app source changed.
+
+Build 7 subsequently completed successfully and Apple reported upload
+`d3ab049c-0232-40b1-8044-1167a1d2ed80` as `VALID`. Reconciliation workflow
+`42534827511` reached `github-release` before GitHub rejected the original
+implicit historical-tag creation (`gh release create --target ...`) with HTTP
+403. The Git-first tag path above addresses this separate publication failure;
+it does not rerun Xcode or weaken the upload/source verification gates.
+
+GitHub CLI reference for the historical-target permission restriction:
+https://github.com/cli/cli/issues/9514
 
 Do not re-enable the Apple schedule alongside GitHub’s schedule. Keep manual tag starts enabled for `nightly/request-` tags. To pause nightly automation, disable the GitHub Actions workflow; already-running Apple builds must be handled separately. Do not delete pending request tags to force a retry, advance the baseline after a failure, or use the next build counter as evidence of upload success.
 
