@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -40,12 +40,32 @@ export function cloudNotes(env = process.env, outputPath = fileURLToPath(new URL
 }
 
 export class NightlyBeta {
-  constructor(config, api = new AppleAPI(), github = { gh, ghJSON }) {
+  constructor(config, api = new AppleAPI(), github = { gh, ghJSON }, runtime = {}) {
     this.config = config;
     this.api = api;
     this.repoPath = `repos/${config.repository}`;
     this.submittedRequests = new Set();
     this.github = github;
+    this.runtime = { now: Date.now, sleep: delay, log: console.log, ...runtime };
+    this.startedAt = this.runtime.now();
+    this.lastLoggedAt = -Infinity;
+  }
+
+  progress(request, stage, details = {}) {
+    const snapshot = { request: request.tag, sourceSha: request.sourceSha, stage, ...details };
+    this.diagnostic = snapshot;
+    // Keep the in-flight operation for error reporting without logging every
+    // lookup on each poll. Stable waiting states get a five-minute heartbeat.
+    if (stage.endsWith('-lookup')) return;
+    const key = JSON.stringify(snapshot);
+    const now = this.runtime.now();
+    if (key !== this.lastDiagnostic || now - this.lastLoggedAt >= 5 * 60_000) {
+      const line = JSON.stringify({ ...snapshot, elapsedSeconds: Math.floor((now - this.startedAt) / 1000) });
+      this.runtime.log(`Nightly status: ${line}`);
+      if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\n\`\`\`json\n${line}\n\`\`\`\n`);
+      this.lastDiagnostic = key;
+      this.lastLoggedAt = now;
+    }
   }
 
   releases() {
@@ -109,14 +129,29 @@ export class NightlyBeta {
     }
   }
 
-  async publish(request, run) {
+  async publish(request, run, { readOnly = false } = {}) {
     verifyRun(run, request);
+    const details = { runId: run.id, buildNumber: run.attributes.number };
+    this.progress(request, 'upload-lookup', details);
     const builds = await this.api.all(`/v1/ciBuildRuns/${run.id}/builds?limit=200`);
-    if (builds.length === 0) return 'pending'; // Upload may become visible later.
+    if (builds.length === 0) {
+      this.progress(request, 'upload-not-visible', details);
+      return 'pending';
+    }
     if (builds.length !== 1) throw new Error('Expected exactly one iOS upload for this workflow');
-    const build = readyBuild(await this.api.request(`/v1/builds/${builds[0].id}?include=app,preReleaseVersion`), this.config.appId);
+    details.uploadId = builds[0].id;
+    this.progress(request, 'processing-lookup', details);
+    const response = await this.api.request(`/v1/builds/${builds[0].id}?include=app,preReleaseVersion`);
+    this.progress(request, 'testflight-processing', { ...details, processingState: response.data.attributes.processingState });
+    const build = readyBuild(response, this.config.appId);
     if (!build) return 'pending';
+    if (readOnly) {
+      this.progress(request, 'ready-to-publish', details);
+      return 'ready';
+    }
+    this.progress(request, 'tester-notes', details);
     await this.localize(build.id, request.notes);
+    this.progress(request, 'github-release', details);
     const tag = `beta/ios-${build.version}-${build.build}`;
     const previous = this.releases().find(value => value.tag_name === tag);
     if (previous) {
@@ -124,6 +159,7 @@ export class NightlyBeta {
       if (meta?.sourceSha !== request.sourceSha || meta.buildId !== build.id || meta.requestTag !== request.tag) {
         throw new Error('Existing release conflicts with this build; refusing to overwrite');
       }
+      this.progress(request, 'released', details);
       return 'released';
     }
     const meta = { sourceSha: request.sourceSha, requestTag: request.tag, buildId: build.id, runId: run.id };
@@ -134,19 +170,27 @@ export class NightlyBeta {
     this.github.gh(['release', 'create', tag, '--repo', this.config.repository, '--target', request.sourceSha,
       '--prerelease', '--latest=false', '--title', `ListRunner ${build.version} (${build.build}) beta`, '--notes-file', '-'], { input: body });
     console.log(`Published beta prerelease ${tag} for ${request.sourceSha.slice(0, 12)}.`);
+    this.progress(request, 'released', details);
     return 'released';
   }
 
-  async reconcile(request, { allowStart = true } = {}) {
+  async reconcile(request, { allowStart = true, readOnly = false } = {}) {
     if (request.workflowId !== this.config.workflowId) throw new Error('Request belongs to another workflow');
+    this.progress(request, 'source-reference-lookup');
     const reference = await this.reference(request.tag);
-    if (!reference) return 'indexing';
+    if (!reference) {
+      this.progress(request, 'source-reference-not-indexed');
+      return 'indexing';
+    }
+    this.progress(request, 'cloud-run-lookup', { referenceId: reference.id });
     const run = selectRun(await this.runs(), reference.id);
     if (!run) {
+      this.progress(request, 'cloud-run-not-visible', { referenceId: reference.id, submittedThisProcess: this.submittedRequests.has(request.tag) });
       if (this.submittedRequests.has(request.tag)) return 'pending';
-      if (!allowStart) return 'unstarted';
+      if (!allowStart || readOnly) return 'unstarted';
       // Never retry this POST blindly: a lost response is recovered by matching
       // the immutable source reference on the next invocation.
+      this.progress(request, 'cloud-start', { referenceId: reference.id });
       await this.api.request('/v1/ciBuildRuns', { method: 'POST', data: {
         type: 'ciBuildRuns', attributes: { clean: true }, relationships: {
           workflow: { data: { type: 'ciWorkflows', id: this.config.workflowId } },
@@ -154,38 +198,57 @@ export class NightlyBeta {
         },
       } });
       this.submittedRequests.add(request.tag);
+      this.progress(request, 'cloud-start-accepted', { referenceId: reference.id });
       console.log(`Started Xcode Cloud for ${request.tag}.`);
       return 'pending';
     }
     // Apple can expose the queued run before resolving its source commit.
     // Wait for that metadata; never publish without subsequently verifying it.
-    if (!run.attributes.sourceCommit?.commitSha && run.attributes.executionProgress !== 'COMPLETE') return 'pending';
+    const details = { runId: run.id, buildNumber: run.attributes.number,
+      executionProgress: run.attributes.executionProgress, completionStatus: run.attributes.completionStatus };
+    this.progress(request, 'cloud-source-verification-lookup', details);
+    if (!run.attributes.sourceCommit?.commitSha && run.attributes.executionProgress !== 'COMPLETE') {
+      this.progress(request, 'cloud-source-metadata', details);
+      return 'pending';
+    }
     verifyRun(run, request);
-    if (run.attributes.executionProgress !== 'COMPLETE') return 'pending';
+    if (run.attributes.executionProgress !== 'COMPLETE') {
+      this.progress(request, 'cloud-execution', details);
+      return 'pending';
+    }
     if (run.attributes.completionStatus !== 'SUCCEEDED') {
+      this.progress(request, 'cloud-failed', details);
       console.log(`Cloud build ${run.attributes.number} did not succeed; no GitHub release or baseline change.`);
       return 'failed';
     }
-    return this.publish(request, run);
+    return this.publish(request, run, { readOnly });
   }
 
   requests() {
     return git(['tag', '--list', `${REQUEST_PREFIX}*`]).trim().split('\n').filter(Boolean).sort().map(readRequest);
   }
 
-  async wait(request) {
-    const deadline = Date.now() + 140 * 60_000;
+  async wait(request, { timeoutMs = 140 * 60_000 } = {}) {
+    const deadline = this.runtime.now() + timeoutMs;
     let submitted = false;
-    while (Date.now() < deadline) {
+    while (this.runtime.now() < deadline) {
       const state = await this.reconcile(request, { allowStart: !submitted });
       if (state === 'released') return;
       if (state === 'failed') throw new Error('Cloud run failed; will retry the unreleased changes next night');
       if (state === 'pending') submitted = true;
       // Polling exists only inside the bounded CI job; the next job can recover
       // the durable request if this runner is cancelled or times out.
-      await delay(30_000);
+      await this.runtime.sleep(30_000);
     }
-    throw new Error('Timed out waiting for Apple; request retained for reconciliation next run');
+    throw new Error(`Timed out waiting for Apple; request retained for reconciliation next run. Last status: ${JSON.stringify(this.diagnostic)}`);
+  }
+
+  async inspect() {
+    // GETs only: unlike run, this never starts/reconciles mutations or waits.
+    const released = new Set(this.releases().map(releaseMetadata).filter(Boolean).map(meta => meta.requestTag));
+    const pending = this.requests().filter(request => !released.has(request.tag));
+    if (!pending.length) this.runtime.log('No unpublished nightly requests.');
+    for (const request of pending) await this.reconcile(request, { allowStart: false, readOnly: true });
   }
 
   async run({ plan = false, now = new Date() } = {}) {
@@ -232,13 +295,21 @@ export class NightlyBeta {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  let beta;
   try {
     const command = process.argv[2];
     if (command === 'cloud-notes') cloudNotes();
-    else if (command === 'plan' || command === 'run') await new NightlyBeta(loadConfig()).run({ plan: command === 'plan' });
-    else throw new Error('Usage: nightly-beta.mjs plan|run|cloud-notes');
+    else if (['plan', 'run', 'inspect'].includes(command)) {
+      beta = new NightlyBeta(loadConfig());
+      if (command === 'inspect') await beta.inspect();
+      else await beta.run({ plan: command === 'plan' });
+    } else throw new Error('Usage: nightly-beta.mjs plan|run|inspect|cloud-notes');
   } catch (error) {
     console.error(`Nightly beta stopped: ${error.message}`);
+    if (beta?.diagnostic) console.error(`Last nightly status: ${JSON.stringify(beta.diagnostic)}`);
+    if (beta?.diagnostic && process.env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\nStopped during:\n\n\`\`\`json\n${JSON.stringify(beta.diagnostic)}\n\`\`\`\n`);
+    }
     process.exitCode = 1;
   }
 }

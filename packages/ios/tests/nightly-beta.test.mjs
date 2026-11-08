@@ -295,6 +295,141 @@ const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime
 const pem = privateKey.export({ type: 'pkcs8', format: 'pem' });
 const credentials = { ASC_PRIVATE_KEY: pem, ASC_KEY_ID: 'test-key', ASC_ISSUER_ID: 'test-issuer' };
 
+function diagnosticBeta(api = {}) {
+  const lines = [];
+  let now = 0;
+  const beta = new NightlyBeta(config, api, { gh: () => assert.fail('Unexpected GitHub write') }, {
+    now: () => now, sleep: async ms => { now += ms; }, log: line => lines.push(line),
+  });
+  beta.reference = async () => ({ id: 'ref' });
+  beta.runs = async () => [];
+  return { beta, lines, advance: ms => { now += ms; } };
+}
+
+test('inspect reports missing source references and never starts a build', async () => {
+  const { beta } = diagnosticBeta({ request: async () => assert.fail('No Apple writes') });
+  beta.reference = async () => undefined;
+  beta.releases = () => []; beta.requests = () => [request];
+  await beta.inspect();
+  assert.equal(beta.diagnostic.stage, 'source-reference-not-indexed');
+  assert.equal(beta.diagnostic.request, request.tag);
+});
+
+test('read-only inspection distinguishes an indexed reference with no run', async () => {
+  const { beta } = diagnosticBeta({ request: async () => assert.fail('No starts') });
+  assert.equal(await beta.reconcile(request, { readOnly: true }), 'unstarted');
+  assert.equal(beta.diagnostic.stage, 'cloud-run-not-visible');
+  assert.equal(beta.diagnostic.referenceId, 'ref');
+});
+
+test('diagnostics distinguish source metadata, execution and Cloud failure', async () => {
+  const { beta } = diagnosticBeta();
+  const queued = run(null); delete queued.attributes.sourceCommit;
+  beta.runs = async () => [queued];
+  await beta.reconcile(request, { readOnly: true });
+  assert.equal(beta.diagnostic.stage, 'cloud-source-metadata');
+  beta.runs = async () => [run(null)];
+  await beta.reconcile(request, { readOnly: true });
+  assert.equal(beta.diagnostic.stage, 'cloud-execution');
+  assert.equal(beta.diagnostic.executionProgress, 'RUNNING');
+  beta.runs = async () => [run('FAILED')];
+  assert.equal(await beta.reconcile(request, { readOnly: true }), 'failed');
+  assert.equal(beta.diagnostic.stage, 'cloud-failed');
+  assert.equal(beta.diagnostic.runId, 'run-1');
+});
+
+test('read-only inspection distinguishes missing upload, processing and publication readiness', async () => {
+  const { beta } = diagnosticBeta({ all: async () => [], request: async () => upload('PROCESSING') });
+  beta.runs = async () => [run('SUCCEEDED')];
+  beta.localize = async () => assert.fail('Do not change tester notes');
+  await beta.reconcile(request, { readOnly: true });
+  assert.equal(beta.diagnostic.stage, 'upload-not-visible');
+  beta.api.all = async () => [{ id: 'build' }];
+  await beta.reconcile(request, { readOnly: true });
+  assert.equal(beta.diagnostic.stage, 'testflight-processing');
+  assert.equal(beta.diagnostic.processingState, 'PROCESSING');
+  beta.api.request = async () => upload();
+  assert.equal(await beta.reconcile(request, { readOnly: true }), 'ready');
+  assert.equal(beta.diagnostic.stage, 'ready-to-publish');
+});
+
+test('lookup errors preserve the exact failing operation without remote payloads', async () => {
+  const { beta, lines } = diagnosticBeta();
+  beta.reference = async () => { throw new Error('Apple API GET returned HTTP 500'); };
+  await assert.rejects(beta.reconcile(request), /HTTP 500/);
+  assert.equal(beta.diagnostic.stage, 'source-reference-lookup');
+  assert.equal(lines.length, 0);
+});
+
+test('stable waiting status logs transitions and five-minute heartbeats, not every poll', async () => {
+  const { beta, lines, advance } = diagnosticBeta();
+  beta.reference = async () => undefined;
+  await beta.reconcile(request);
+  advance(30_000); await beta.reconcile(request);
+  assert.equal(lines.length, 1);
+  advance(270_000); await beta.reconcile(request);
+  assert.equal(lines.length, 2);
+  assert.match(lines[1], /"elapsedSeconds":300/);
+  assert.doesNotMatch(lines.join('\n'), /PRIVATE KEY|Authorization/);
+});
+
+test('timeout identifies the retained request and last waiting stage without a real wait', async () => {
+  const { beta } = diagnosticBeta();
+  beta.reference = async () => undefined;
+  await assert.rejects(beta.wait(request, { timeoutMs: 60_000 }), error => {
+    assert.match(error.message, /Timed out waiting for Apple/);
+    assert.match(error.message, /source-reference-not-indexed/);
+    assert.match(error.message, /nightly\/request-2026-11-05/);
+    return true;
+  });
+});
+
+test('inspect skips published requests without applying the nightly time guard', async () => {
+  const { beta } = diagnosticBeta();
+  beta.releases = () => [{ tag_name: 'beta/ios-1.0-6', prerelease: true, draft: false,
+    body: `<!-- listrunner-beta-v1 ${JSON.stringify({ sourceSha: sha, requestTag: request.tag, buildId: 'build', runId: 'run' })} -->` }];
+  beta.requests = () => [request];
+  beta.reconcile = async () => assert.fail('Already published');
+  await beta.inspect();
+});
+
+test('inspect uses only GETs through the real API client even for a ready upload', async () => {
+  const paths = [];
+  const api = new AppleAPI(credentials, async (url, options) => {
+    assert.equal(options.method, 'GET');
+    paths.push(url.pathname);
+    let body;
+    if (url.pathname.endsWith('/gitReferences')) body = { data: [{ id: 'ref', attributes: { canonicalName: `refs/tags/${request.tag}` } }] };
+    else if (url.pathname.endsWith('/buildRuns')) body = { data: [run('SUCCEEDED')] };
+    else if (url.pathname.endsWith('/builds')) body = { data: [{ id: 'build' }] };
+    else if (url.pathname === '/v1/builds/build') body = upload();
+    else assert.fail(`Unexpected endpoint: ${url.pathname}`);
+    return new Response(JSON.stringify(body));
+  });
+  const { beta } = diagnosticBeta(api);
+  delete beta.reference; delete beta.runs;
+  beta.releases = () => []; beta.requests = () => [request];
+  await beta.inspect();
+  assert.equal(beta.diagnostic.stage, 'ready-to-publish');
+  assert.equal(paths.length, 4);
+});
+
+test('GitHub step summary records structured waiting status', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'listrunner-beta-summary-'));
+  const previous = process.env.GITHUB_STEP_SUMMARY;
+  const path = join(directory, 'summary.md');
+  process.env.GITHUB_STEP_SUMMARY = path;
+  t.after(() => {
+    if (previous === undefined) delete process.env.GITHUB_STEP_SUMMARY;
+    else process.env.GITHUB_STEP_SUMMARY = previous;
+    rmSync(directory, { recursive: true, force: true });
+  });
+  const { beta } = diagnosticBeta();
+  beta.progress(request, 'source-reference-not-indexed');
+  assert.match(readFileSync(path, 'utf8'), /source-reference-not-indexed/);
+  assert.match(readFileSync(path, 'utf8'), /nightly\/request-2026-11-05/);
+});
+
 test('Apple token is an expiring ES256 JWT and accepts a single-line private key', () => {
   const api = new AppleAPI({ ...credentials, ASC_PRIVATE_KEY: pem.replaceAll('\n', ' ') });
   const token = api.token(); const [header, payload, signature] = token.split('.');

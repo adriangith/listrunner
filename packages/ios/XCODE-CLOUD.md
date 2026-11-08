@@ -20,6 +20,49 @@ Repository Actions secret: **ASC_PRIVATE_KEY** (dedicated App Store Connect team
 
 Use **Actions → Nightly TestFlight beta → Run workflow → plan** for a read-only change/notes preview. **run** is an explicit manual start/reconciliation for diagnosis; ordinary automation happens only at night. Neither pushing a commit nor creating a release starts this GitHub workflow. The workflow only accepts `main`, and Actions dependencies are pinned to reviewed commit SHAs.
 
+### Read-only inspection and stage diagnostics
+
+Use workflow mode **inspect** to query Apple once for each unpublished request,
+regardless of the nightly time window. It performs only GET requests: no build
+start, tag change, tester-note update or release publication. Local equivalent,
+with the existing `ASC_*` credentials supplied securely:
+
+```sh
+git fetch origin --tags
+node packages/ios/tools/nightly-beta.mjs inspect
+```
+
+`Nightly status:` JSON records identify the request tag, pinned source SHA,
+stage, elapsed seconds and, when available, reference/run/upload IDs, Cloud
+build number, execution/completion status and TestFlight processing state.
+Transitions and five-minute waiting heartbeats appear in logs and the GitHub
+step summary. A failure reports the last operation (including an API lookup);
+a timeout includes the exact retained request and last waiting stage. Raw Apple
+responses, authentication headers and tokens are not diagnostic output.
+
+- `source-reference-not-indexed`: Apple does not list the immutable Git tag yet;
+  this is before a Cloud build can be started.
+- `cloud-run-not-visible` / `cloud-start-accepted`: the tag is indexed but no
+  matching run is visible, or the start has been accepted in this process.
+- `cloud-source-metadata` / `cloud-execution`: waiting for source metadata or
+  Cloud execution. `cloud-failed` includes its completion status.
+- `upload-not-visible` / `testflight-processing`: Cloud succeeded, but its
+  upload is not visible yet or has not finished processing.
+- `ready-to-publish`: read-only inspection verified a publishable upload;
+  it has **not** published it. Normal runs continue through `tester-notes`,
+  `github-release`, and `released`.
+
+Read-only investigation on 9 November 2026: GitHub contains the annotated tag
+`nightly/request-2026-11-06` (tag object
+`10cee4aa6be32978f04a5de8deb633b587241cac`, source
+`18347796fef55944e6e7708f89217c5fba3240be`), but Apple's paginated repository
+reference list does not contain it. Apple's workflow run list ends at successful
+build **6**, for `nightly/request-2026-11-05`; there is no run for the pending
+6 November request. This confirms a source-reference indexing/discovery block,
+not an observed compiler failure. The underlying reason Apple has not indexed
+the tag is not established. No tags, Cloud settings, builds or releases were
+modified during inspection. Do not delete/recreate the request to mask it.
+
 Do not re-enable the Apple schedule alongside GitHub’s schedule. Keep manual tag starts enabled for `nightly/request-` tags. To pause nightly automation, disable the GitHub Actions workflow; already-running Apple builds must be handled separately. Do not delete pending request tags to force a retry, advance the baseline after a failure, or use the next build counter as evidence of upload success.
 
 The user approved the declaration that the app uses no non-exempt encryption after a source check found no custom cryptography/library. `ITSAppUsesNonExemptEncryption=false` is now canonical app metadata. This means exempt system HTTPS/WebKit encryption, not disabled encryption. Reassess this declaration when adding cryptography or dependencies.
