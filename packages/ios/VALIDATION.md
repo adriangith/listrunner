@@ -1,5 +1,29 @@
 # Reusable store framework validation
 
+## Grocery list panel glass trial — physical iPhone (9 November 2026)
+
+App revision `e26b3259c2c2903a6ad20ce5f25c563e1f90115b` extends the approved
+Add products treatment to store-list and All items group backgrounds. It is a
+separate reversible commit on `feat/liquid-glass-elements`; reversing it retains
+the independently approved switcher and Add products glass.
+
+- A zero-spacing glass container and per-section union identifiers join row
+  background effects without replacing native list rows. Group headers and Clear
+  List footers participate, corners are rounded at section ends, and recent-add
+  highlights remain overlays. Earlier iOS retains the existing adaptive colours.
+- Linux resource checks passed (9 tests); `git diff --check` passed.
+- Exact app SHA was checked out clean in the separate Mac worktree
+  `~/Projects/listrunner-worktrees/liquid-glass-list-panels`, leaving the earlier
+  Add products test worktree untouched. After user approval, Xcode `RunProject`
+  built, signed, installed in place and launched on **Adrian’s iPhone / iOS 27.2**,
+  PID **36888**, zero build errors. Log:
+  Mac ActionArtifacts `RunProject/RunProject-Log-20261109-170145.txt`.
+- Actual device-build resource comparison passed (**35 JSON + 1 JS**, no legacy
+  `-v2` files), as did strict code-signature verification.
+- Simulator row-action/reorder/layout tests and light/dark visual checks are
+  pending; cross-row glass union appearance is not yet visually certified.
+  No app data/session reset, phone fixtures, retailer action, merge or release.
+
 ## Add products glass trial — physical iPhone (9 November 2026)
 
 Trial app revision `5fa738c94abe8c769c9e135a79002a11b584a7ab` is isolated on
