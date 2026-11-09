@@ -111,6 +111,48 @@ DerivedData; `~/Library/Logs/ListRunner/card-collapse-hint-ui-de52441.log` and i
 `card-collapse-hint-ui-de52441-attachments` directory. Representative screenshot:
 `initial-coles-hint-overlap.png`.
 
+### Corrected placement verified and reinstalled
+
+Fixed app revision **`c299d1471ef5bb84ead372c175ab2dd4327d6d33`** passed all
+**5/5 focused UI tests**, zero failures/skips/runtime warnings, independently
+confirmed using `xcresulttool get test-results summary`. Both new hint cases and
+all three collapse/expand regressions passed. The retained screenshot shows the
+complete hint above the card with roughly 23 pt of visible clearance and an
+unobscured status/progress row. The actual-card height and minimum 12 pt gap
+assertions passed. Native recovery checks were rerun and passed **1,896/1,896**;
+Linux reruns passed **450 JavaScript tests** and **9 source resource checks**.
+
+Fixed UI evidence: Mac DerivedData
+`ListRunner-card-collapse-hint-c299d14.xcresult`,
+`~/Library/Logs/ListRunner/card-collapse-hint-ui-c299d14.log` and
+`card-collapse-hint-ui-c299d14-attachments/`. Reviewed screenshot on Linux:
+`/tmp/opencode/card-collapse-hint-c299d14-evidence/initial-coles-hint-clear-gap.png`.
+The dedicated simulator was shut down afterward, not deleted; other simulators
+and all test evidence were preserved. This is not a complete release/accessibility
+suite or exhaustive large-text/dark-mode/Reduce Motion physical sign-off.
+
+The fixed revision was then built/signed and installed in place on the same
+physical iPhone 17e / iOS 27.2. Xcode BuildProject and RunProject reported success
+with zero errors; initial installed launch PID **38077**, reference `7962b8c00`.
+Signed device-bundle resource verification (**35 JSON + 1 JavaScript**) and strict
+deep code-signature verification passed again.
+
+As explicitly requested, a single `devicectl` launch used only
+`--reset-card-collapse-hint` (PID **38083**) to clear the dismissed flag, followed
+by a normal no-arguments launch (final PID **38088**). Launch JSON confirms the
+first launch's sole reset argument and the final launch's empty argument list;
+only the tool's ordinary `TERM` environment entry was present, no fixture
+variables. The shared scheme still contains zero launch arguments/environment
+overrides. No other preferences, lists, reminders or retailer sessions were reset;
+no retailer/cart actions were performed. The next successful collapse is remembered
+normally. Final physical placement confirmation remains with the user.
+
+Xcode logs: `BuildProject-Log-20261109-194609.txt` and
+`RunProject-Log-20261109-195344.txt` under ActionArtifacts. Scoped reset and final
+launch evidence: `~/Library/Logs/ListRunner/card-collapse-hint-reset-c299d14.json`
+and `card-collapse-hint-normal-launch-c299d14.json`. Device app path is the same
+desktop-Xcode DerivedData path recorded above. No merge or release was performed.
+
 ## Retained store page — physical iPhone install (9 November 2026)
 
 App revision `127ba14c442941591cf641b0fd74bf461ecd2102` on
