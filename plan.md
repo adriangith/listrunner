@@ -1,5 +1,10 @@
 ## ListRunner Build Specification
 
+### Manual product entry bypasses ingredient parsing (9 November 2026)
+
+* “Tap to add products” in individual store lists and All items keeps each product's wording as entered, trimming surrounding whitespace and splitting only on the existing comma, newline, semicolon and tab separators. Return, Add and multiline paste share this behavior. Do not canonicalise ingredient names, remove qualifiers/preparation wording or extract quantities/units; `500 g penne pasta` stays the complete product name and search term, with the ordinary default quantity of 1.
+* Ingredient/quantity parsing is reserved for imports. Preserve Paprika parsing, source identity, deduplication, transactions and reminder safeguards. Manual additions retain destination-local duplicate reactivation, input order, save-failure draft recovery and focus behavior. Existing saved rows and the independent local-ingredient search-name setting are unchanged. This supersedes earlier typed-input ingredient parsing requirements.
+
 ### App appearance (6 November 2026)
 
 * Settings offers System, Light and Dark appearance choices using the existing native Settings style. System is the default and follows device appearance changes; explicit Light/Dark choices override the native app appearance immediately, including sheets and local-data recovery.

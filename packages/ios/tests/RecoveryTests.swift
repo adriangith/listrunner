@@ -36,6 +36,24 @@ struct RecoveryTests {
         let remainingAddRows = try addContext.fetchCount(FetchDescriptor<GroceryItem>())
         check(remainingAddRows == 1,
               "failed manual-add transaction can roll back without changing another store")
+        let manualNames = ["500 g penne pasta", "Firm tofu thinly sliced", "2 eggs"]
+        let manualRows = ShoppingLists.stageAdd(ParsedGrocery.productEntries(in: manualNames.joined(separator: "; ")),
+                                                to: .coles, allItems: [otherStoreItem], context: addContext)
+        check(manualRows.map(\.name) == manualNames && manualRows.map(\.searchTerm) == manualNames,
+              "manual additions retain complete literal names and search terms in input order")
+        check(manualRows.allSatisfy { $0.quantityAmount == nil && $0.quantityUnit == nil && $0.displayQuantity == "1" },
+              "manual additions do not infer amounts or units from product wording")
+        manualRows[0].status = .added
+        let repeatedRows = ShoppingLists.stageAdd(ParsedGrocery.productEntries(in: "500 g penne pasta"),
+                                                  to: .coles, allItems: manualRows + [otherStoreItem], context: addContext)
+        check(repeatedRows.count == 1 && repeatedRows[0].id == manualRows[0].id && repeatedRows[0].status == .pending,
+              "literal manual duplicates still reactivate the destination's existing row")
+        try addContext.save()
+        let savedManualRows = try addContext.fetch(FetchDescriptor<GroceryItem>()).filter { $0.listID == StoreID.coles.listID }
+        check(savedManualRows.count == 3 && savedManualRows.allSatisfy { manualNames.contains($0.name) && $0.searchTerm == $0.name },
+              "saved manual names and search terms are not rewritten by persistence")
+        check(otherStoreItem.quantityAmount == 9 && otherStoreItem.name == "milk",
+              "literal manual additions leave other stores unchanged")
         let firstID = UUID(), secondID = UUID(), thirdID = UUID()
         let initialOrder = ItemPromotionOrder.promoting([firstID, secondID], in: "", existing: [firstID, secondID, thirdID])
         let updatedOrder = ItemPromotionOrder.promoting([thirdID, firstID], in: initialOrder,

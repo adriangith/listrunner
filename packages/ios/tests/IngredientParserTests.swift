@@ -90,27 +90,29 @@ struct IngredientParserTests {
         } else { print("PASS comma-separated recognized paste list") }
 
         for source in ["toaster, chair", "toaster,chair", "toaster,, chair,", "toaster; chair", "toaster\tchair", "toaster\nchair"] {
-            let products = parser.parseProductEntry(source)
+            let products = ParsedGrocery.productEntries(in: source)
             if products.map(\.name) != ["toaster", "chair"] {
                 print("FAIL explicit product-entry separators: \(source) → \(products.map(\.name))")
                 failures += 1
             } else { print("PASS explicit product-entry separators: \(source)") }
         }
-        let noDictionary = IngredientParser(dictionary: nil).parseProductEntry("toaster, chair")
-        if noDictionary.map(\.name) != ["toaster", "chair"] {
-            print("FAIL comma separators must not depend on a loaded dictionary")
-            failures += 1
-        } else { print("PASS dictionary-free product-entry separators") }
-        let mixedProducts = parser.parseProductEntry("milk, toaster, 2 eggs")
-        if mixedProducts.map(\.name) != ["Milk", "toaster", "Eggs"] || mixedProducts.last?.amount != 2 {
-            print("FAIL mixed known/unknown product entry retains quantities")
-            failures += 1
-        } else { print("PASS mixed known/unknown product entry retains quantities") }
-        let lemonProducts = parser.parseProductEntry("lemon, Lemon tree, 2 lemon trees")
-        check(lemonProducts.map(\.name) == ["Lemon", "Lemon Tree", "Lemon Tree"]
-              && lemonProducts.last?.amount == 2,
-              "product entry keeps Lemon Tree distinct from Lemon and retains tree quantities")
-        if !parser.parseProductEntry(" , ;\t\n, ").isEmpty {
+        let mixedProducts = ParsedGrocery.productEntries(in: "milk, toaster, 2 eggs")
+        check(mixedProducts.map(\.name) == ["milk", "toaster", "2 eggs"]
+              && mixedProducts.allSatisfy { $0.amount == nil && $0.unit == nil },
+              "manual entry preserves known/unknown wording without extracting quantities")
+        let lemonProducts = ParsedGrocery.productEntries(in: "lemon, Lemon tree, 2 lemon trees")
+        check(lemonProducts.map(\.name) == ["lemon", "Lemon tree", "2 lemon trees"],
+              "manual entry keeps distinct product names without dictionary canonicalisation")
+        let literalNames = ["500 g penne pasta", "new apples", "Firm tofu thinly sliced", "1/3 cup freshly grated romano", "milk and bread", "orzo", "• Milk", "Brand  BBQ sauce"]
+        let literalProducts = ParsedGrocery.productEntries(in: "  " + literalNames.joined(separator: " ; ") + "  ")
+        check(literalProducts.map(\.name) == literalNames
+              && literalProducts.allSatisfy { $0.amount == nil && $0.unit == nil },
+              "manual entry trims edges only, preserving quantities, qualifiers, preparation, aliases and spacing")
+        let importedProduct = parser.parseGroceries("500 g penne pasta")
+        check(importedProduct.count == 1 && importedProduct.first?.name == "Penne"
+              && importedProduct.first?.amount == 500 && importedProduct.first?.unit == "g",
+              "imports still canonicalise ingredient names and extract quantities")
+        if !ParsedGrocery.productEntries(in: " , ;\t\n, ").isEmpty {
             print("FAIL empty product segments must be ignored")
             failures += 1
         } else { print("PASS empty product segments are ignored") }

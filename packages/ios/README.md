@@ -222,7 +222,9 @@ On Your list, tap Edit to use native iOS row reordering. The row's three-dot men
 
 ## Ingredient dictionary
 
-`Lemon Tree` is a distinct dictionary entry (including `lemon trees`), so the longer product name wins over the nested `Lemon` match. New typed/imported entries retain `Lemon Tree` in both the saved name and search term, with quantities preserved, and do not merge into ordinary Lemon rows. Already-saved names are not rewritten: the app cannot infer which old Lemon rows originally meant trees.
+Manual product entry in store lists and All items bypasses the ingredient parser. It splits comma/newline/semicolon/tab-separated products, trims surrounding whitespace and otherwise keeps each name and search term unchanged. For example, `500 g penne pasta` stays the full product name with the default quantity of 1, rather than becoming Penne / 500 g. Return, Add Items, the All items split Add and multiline paste use the same dictionary-independent path. Destination-local duplicate reactivation, batch order, draft recovery and focus behavior are unchanged. Ingredient/quantity parsing is used only for imports; existing saved rows are not rewritten.
+
+`Lemon Tree` is a distinct dictionary entry (including `lemon trees`), so imported ingredients resolve to the longer product name rather than the nested `Lemon` match, with quantities preserved. Manually entered names such as `lemon` and `Lemon tree` retain their own wording and remain distinct. Already-saved names are not rewritten: the app cannot infer which old Lemon rows originally meant trees.
 
 ### Country-based retailer search names
 
@@ -230,7 +232,7 @@ Settings → **Use local ingredient names** defaults on and uses the existing **
 
 `RegionalIngredientSearchResolver.swift` changes only an ingredient span in an app-initiated search. Approved surrounding descriptors (fresh/frozen/organic, colours, sizes, baby, whole and gluten-free) retain their exact spelling and spacing. Unknown brands, composite foods, conjunctions and uncertain ingredient combinations are left alone. Coriander/seed distinctions, yam/sweet-potato and pumpkin/squash substitutions are deliberately not included. There is no AI/network lookup or unit conversion.
 
-Saved names/search terms, quantities, item identity, status, duplicate merging and Reminders are never rewritten. Existing items work immediately without a database migration. Existing parser canonicalisation still applies on input: disabling this feature uses the saved query, not the pre-parser recipe text. Country/toggle changes cancel obsolete queued/preloaded searches but do not navigate the visible page or reset the interaction/cart state. The next explicit search uses the new preferences; stale recovery falls back to the trusted store homepage. Browsing-only stores remain browsing-only.
+Saved names/search terms, quantities, item identity, status, duplicate merging and Reminders are never rewritten. Existing items work immediately without a database migration. Ingredient canonicalisation still applies to imports, not manual entry: disabling this feature uses the saved query, not the pre-parser recipe text. Country/toggle changes cancel obsolete queued/preloaded searches but do not navigate the visible page or reset the interaction/cart state. The next explicit search uses the new preferences; stale recovery falls back to the trusted store homepage. Browsing-only stores remain browsing-only.
 
 To extend coverage, add an explicit reviewed source/target family tied to an existing ingredient ID; do not blindly copy every parser alias. Each source must have one owner in the dictionary, and every country target must be one of that family's reviewed sources. Add fixtures for every target, qualifiers, compound protection and ambiguity. Unsupported schema/invalid resources disable only rewriting. The Xcode project must bundle the JSON; the built-app resource verifier checks it automatically.
 
@@ -247,7 +249,7 @@ The UI tests `testRegionalSearchBrowserChecks`, `testRegionalSearchTogglePersist
 
 The bundled `ListRunner/Resources/ingredients.json` recognises 69 named pasta shapes/varieties as well as generic pasta. Coverage includes long and ribbon pasta, tubes, spirals, bows, shells, small soup pasta, lasagne sheets, filled pasta and gnocchi. Alternate names/spellings resolve consistently, such as orzo → Risoni, bow-tie pasta → Farfalle, and fettuccini → Fettuccine. Specific fillings, egg tagliatelle, and common gluten-free/wholemeal qualifiers stay distinguishable rather than all becoming generic pasta.
 
-The parser checks ingredient identity as well as quantities, so `500 g penne pasta` resolves to Penne rather than an ambiguous Penne + Pasta match. Alternatives such as `penne or rigatoni` remain ambiguous. `tests/pasta-parser-fixtures.json` covers the pasta cases, and the parser runner also checks every name/alias for those fixture ingredients. Dictionary updates affect newly parsed text/imports; they do not rewrite existing saved items or select retailer products.
+The import parser checks ingredient identity as well as quantities, so imported `500 g penne pasta` resolves to Penne rather than an ambiguous Penne + Pasta match. Alternatives such as `penne or rigatoni` remain ambiguous. `tests/pasta-parser-fixtures.json` covers the pasta cases, and the parser runner also checks every name/alias for those fixture ingredients. Dictionary updates affect newly imported ingredients, not manual entry; they do not rewrite existing saved items or select retailer products.
 
 ## Store configuration and list ownership
 
