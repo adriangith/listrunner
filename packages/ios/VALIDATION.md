@@ -32,6 +32,55 @@ No Xcode build, Swift recovery run, simulator UI run or device installation was
 performed. Native layout/animation, dark mode, large text, VoiceOver, Reduce Motion
 and lifecycle checks remain pending; no retailer data/cart action was performed.
 
+### Mac follow-up
+
+After the Mac returned, the exact pushed app revision
+`de524416f20cd4bc8464041c5c5d2b838cab09c8` was fetched into the clean, detached
+worktree `/Users/adrianzafir/Projects/listrunner-worktrees/card-collapse-hint`.
+The main Mac checkout's untracked Xcode Cloud settings and all unrelated worktrees
+were preserved. Native recovery tests passed **1,896 checks**. The Xcode 27.2
+Debug simulator build-for-testing passed; the actual built app passed byte-for-byte
+verification of **35 JSON + 1 JavaScript** resources. Build warnings were an
+existing unused `resignFirstResponder()` result in `GroceryListScreen.swift` and
+App Intents metadata extraction being skipped because that framework is unused.
+
+A dedicated iPhone 17 / iOS 27.2 simulator,
+`315D0F92-40B8-4470-917D-F3516B5D27F6`, was created for the focused UI run; other
+simulators were left untouched. The five selected tests cover both new hint cases
+and the existing collapse-button, downward-drag and upward-expand regressions.
+That run was still in progress when the user separately authorized a physical
+iPhone build/install. No physical UI tests, test fixtures or retailer mutations
+are part of that installation.
+
+Mac logs: `~/Library/Logs/ListRunner/card-collapse-hint-recovery-de52441.log` and
+`card-collapse-hint-build-de52441.log`. Simulator DerivedData is
+`~/Library/Developer/Xcode/DerivedData/ListRunner-card-collapse-hint`.
+
+### Physical iPhone installation
+
+At the user's explicit request, app revision `de524416f20cd4bc8464041c5c5d2b838cab09c8`
+was built, signed, installed in place and launched on **Adrian's iPhone 17e /
+iOS 27.2**, device `00008150-001402660A9BC01C`. Xcode `RunProject` reported success,
+zero build errors, PID **38013**, launch reference `7962ab300`; `devicectl`
+independently confirmed that PID running the installed ListRunner executable.
+There were no launch arguments/environment overrides, test fixtures, uninstall,
+data reset, import or retailer/cart actions on the phone. Existing app data and
+store sessions were not cleared. Physical visual/gesture confirmation remains
+with the user; installation is not a claim of completed UI test coverage.
+
+The initial SSH `xcodebuild` compiled but failed code signing with
+`errSecInternalComponent`. Normal desktop Xcode build/RunProject succeeded without
+any keychain, signing-policy or project changes. The failed CLI output remains in
+`~/Library/Developer/Xcode/DerivedData/ListRunner-card-collapse-hint-phone` and
+`~/Library/Logs/ListRunner/card-collapse-hint-phone-build-de52441.log`.
+
+Actual signed device app:
+`~/Library/Developer/Xcode/DerivedData/ListRunner-cyvcqmymytewyighngsmgmbarehx/Build/Products/Debug-iphoneos/ListRunner.app`.
+Its **35 JSON + 1 JavaScript** resources match canonical source byte-for-byte,
+and `codesign --verify --deep --strict` passed. Xcode log:
+`RunProject/RunProject-Log-20261109-194043.txt` under its ActionArtifacts directory.
+No merge, archive or TestFlight release was performed.
+
 ## Retained store page — physical iPhone install (9 November 2026)
 
 App revision `127ba14c442941591cf641b0fd74bf461ecd2102` on
