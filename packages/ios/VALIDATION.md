@@ -1,5 +1,28 @@
 # Reusable store framework validation
 
+## Paprika-style grouping capsule — physical iPhone (9 November 2026)
+
+At the user's request, app revision `587948feb281b2ba91d32ea38ba1504e22121b91`
+on `feature/paprika-grouping-switcher` was pushed and checked out at the exact
+same SHA in the canonical Mac checkout. Linux edits remain in the separate
+`paprika-grouping-switcher` worktree, not main. The Mac's unrelated untracked
+`xcshareddata/xcodecloud/` directory was preserved.
+
+- Xcode `RunProject` built, signed, installed in place and launched successfully
+  on **Adrian’s iPhone / iOS 27.2**, zero build errors, process **36218**.
+- Shared scheme launch arguments and environment overrides were both empty;
+  no UI-test fixture, reset, import or retailer-cart action was invoked.
+- Actual `Debug-iphoneos/ListRunner.app` verification passed: **35 JSON + 1
+  JavaScript** resources match canonical source; no legacy `-v2` resources.
+  `codesign --verify --deep --strict` also passed.
+- Category (2) and expansion (3) offline checks passed on the Mac. The new
+  standard/largest-accessibility-size UI tests were **not run** for this install;
+  visual/VoiceOver/light-dark inspection remains pending.
+
+Build evidence: Mac Xcode ActionArtifacts
+`RunProject/RunProject-Log-20261109-153513.txt`.
+No uninstall, app-data clear, store-session reset, merge or TestFlight release.
+
 ## All items main-branch merge review (8 November 2026)
 
 Merged `a201ba522dcf05b1578ceb51dade4978e7db50e6` into main with merge commit
