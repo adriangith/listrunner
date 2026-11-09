@@ -1386,7 +1386,9 @@ final class StoreSelectionTests: XCTestCase {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 3))
         input.tap()
-        input.typeText("preload apple; preload pear")
+        // Use actual ingredient names. Unknown prefixes are intentionally kept
+        // by the parser rather than silently discarded to make these labels.
+        input.typeText("apple; pear")
         app.buttons["Add Items"].tap()
         XCTAssertTrue(row("Apples", status: "Pending").waitForExistence(timeout: 3))
         XCTAssertTrue(row("Pears", status: "Pending").exists)
@@ -1432,10 +1434,19 @@ final class StoreSelectionTests: XCTestCase {
         openProduct.tap()
         let note = web.textFields["Store page note"]
         for _ in 0..<5 {
-            if note.isHittable { break }
-            web.swipeUp()
+            // Asking WebKit for hittability of an offscreen text field can
+            // throw instead of returning false on iOS 27. Scroll the uncovered
+            // upper page until its frame is visible above the shopping cards.
+            let frame = note.frame
+            let viewport = web.frame
+            if frame.height > 0 && frame.minY > viewport.minY + 40
+                && frame.maxY < viewport.midY { break }
+            web.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.45))
+                .press(forDuration: 0.05, thenDragTo: web.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.15)))
         }
-        XCTAssertTrue(note.isHittable)
+        XCTAssertGreaterThan(note.frame.height, 0)
+        XCTAssertGreaterThan(note.frame.minY, web.frame.minY + 40)
+        XCTAssertLessThan(note.frame.maxY, web.frame.midY)
         note.tap()
         note.typeText("Keep my place")
         web.buttons["Save fixture note"].tap()
