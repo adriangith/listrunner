@@ -43,6 +43,17 @@ bundle also reports two publishing-during-view-update runtime warnings, not yet
 attributed; do not describe this run as warning-free. The phone remains on
 `127ba14`, and no production code changed in this test correction.
 
+The `fd8606c` focused run finished **2/4 passed** with no runtime warnings:
+All items retained product document/form/scroll state through three dismiss/reopen
+cycles, and preload results positioning/promotion passed. The individual-store
+retention predicate timed out, and the ordinary preload was cancelled as unready
+before promotion. These remain failures, not waived setup issues. Revision
+`09fec2f813a340f6ea710f591729e39a3464456e` adds stable post-keyboard geometry
+sampling with diagnostic assertion values and extends the existing debug-only
+ready-preload wait to non-results fixtures. Production cooldown and retention code
+are unchanged; the two focused reruns are pending. Evidence:
+`ListRunner-store-resume-fd8606c.xcresult` in the same Mac DerivedData directory.
+
 ## Paprika-style grouping capsule — physical iPhone (9 November 2026)
 
 At the user's request, app revision `587948feb281b2ba91d32ea38ba1504e22121b91`
