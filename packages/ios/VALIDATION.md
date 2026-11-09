@@ -21,6 +21,12 @@ revision `5fa738c94abe8c769c9e135a79002a11b584a7ab`. Switcher and Add products
 glass remain intact. List glass is not complete or approved; the historical
 initial installation details below do not certify its appearance.
 
+Restored revision `3eceda14f05da1852e815e261a883fad48a01d57` was built, signed,
+installed in place and launched on the physical iPhone using Xcode `RunProject`,
+zero build errors, PID **37072**. Resource verification (**35 JSON + 1 JS**) and
+strict signature verification passed. Log:
+`RunProject/RunProject-Log-20261109-172125.txt`. Existing data/sessions preserved.
+
 App revision `e26b3259c2c2903a6ad20ce5f25c563e1f90115b` extends the approved
 Add products treatment to store-list and All items group backgrounds. It is a
 separate reversible commit on `feat/liquid-glass-elements`; reversing it retains
