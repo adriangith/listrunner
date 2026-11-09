@@ -43,6 +43,11 @@ final class LocalDataController: ObservableObject {
         if ProcessInfo.processInfo.arguments.contains("--reset-import-setup") {
             GroceryImportSource.resetSetup(in: controller.defaults)
         }
+        // Explicit developer preview reset: only this single onboarding flag.
+        // Never persist this argument in the shared scheme.
+        if ProcessInfo.processInfo.arguments.contains("--reset-card-collapse-hint") {
+            controller.defaults.removeObject(forKey: "hasCollapsedShoppingCards.v1")
+        }
         #endif
         return controller
     }

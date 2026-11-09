@@ -364,7 +364,12 @@ struct StoreShoppingView: View {
                 if !hasCollapsedShoppingCards && !isCollapsed && !items.isEmpty {
                     CardCollapseHint()
                         .padding(.horizontal, 20)
-                        .alignmentGuide(.top) { $0[.bottom] + 8 }
+                        // Lay out the entire label above the carousel rather
+                        // than relying on TimelineView's alignment guides.
+                        // Even at the float's lowest point a clear gap remains.
+                        .padding(.bottom, 20)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(height: 0, alignment: .bottom)
                 }
             }
             .contentShape(Rectangle())
@@ -681,6 +686,8 @@ struct StoreShoppingView: View {
             .animation(.spring(response: 0.24, dampingFraction: 0.62), value: pressedCardID == item.id)
             .animation(overlayAnimation, value: current)
             .animation(overlayAnimation, value: item.status)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(current ? "selected-shopping-card" : "shopping-card-\(item.id.uuidString)")
     }
 
     private func cardBackground(_ status: GroceryStatus, active: Bool) -> LinearGradient {

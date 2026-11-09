@@ -81,6 +81,36 @@ and `codesign --verify --deep --strict` passed. Xcode log:
 `RunProject/RunProject-Log-20261109-194043.txt` under its ActionArtifacts directory.
 No merge, archive or TestFlight release was performed.
 
+### Initial UI results and reported placement correction
+
+The original `de52441` five-test run finished **1 passed / 4 failed**, with no
+runtime warnings or skips. The incomplete-gesture/successful-swipe hint test passed.
+The persistence test failed its initial placement assertion (hint bottom 585.33 pt,
+collapse hit target top 562.67 pt), so its later persistence checks were not reached.
+The exported screenshot independently confirms that the hint obscured the card's
+status/progress row, matching the user's physical-phone report. Two existing drag
+tests failed before interaction because their Coles expectation started on
+Woolworths; the button regression failed an immediate disappearance assertion.
+These are not five passing UI scenarios.
+
+Correction replaces the TimelineView-dependent alignment guide with an explicitly
+bottom-aligned, intrinsic-height label above a zero-height carousel-top frame and
+20 pt lower spacing. The placement regression now measures the full hint against
+the actual 224 pt selected-card container, requires at least 12 pt clearance, and
+retains a screenshot. Existing drag tests explicitly select Coles; the button test
+waits for the collapsed card's accessibility removal rather than sampling during
+the transition. Follow-up verification is pending.
+
+The user explicitly requested redisplaying the hint after its first collapse on
+their phone. Debug-only `--reset-card-collapse-hint` clears only that single
+preference for an explicit launch; it must never be saved to the shared scheme.
+The corrected phone install/reset has not yet occurred at this point.
+
+Original evidence: `ListRunner-card-collapse-hint-de52441.xcresult` in Mac
+DerivedData; `~/Library/Logs/ListRunner/card-collapse-hint-ui-de52441.log` and its
+`card-collapse-hint-ui-de52441-attachments` directory. Representative screenshot:
+`initial-coles-hint-overlap.png`.
+
 ## Retained store page — physical iPhone install (9 November 2026)
 
 App revision `127ba14c442941591cf641b0fd74bf461ecd2102` on

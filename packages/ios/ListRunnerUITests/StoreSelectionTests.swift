@@ -3636,7 +3636,15 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(hint.label, "Swipe cards down to collapse")
         let collapse = app.buttons["Collapse overlay"]
         XCTAssertTrue(collapse.waitForExistence(timeout: 3))
-        XCTAssertLessThan(hint.frame.maxY, collapse.frame.minY, "The hint must float above the cards")
+        let card = app.otherElements["selected-shopping-card"]
+        XCTAssertTrue(card.waitForExistence(timeout: 3))
+        XCTAssertEqual(card.frame.height, 224, accuracy: 1)
+        XCTAssertLessThanOrEqual(hint.frame.maxY, card.frame.minY - 12,
+                                 "The complete hint must sit above the actual card, not its inset collapse button")
+        let initialAppearance = XCTAttachment(screenshot: app.screenshot())
+        initialAppearance.name = "Card collapse hint — clear gap above card"
+        initialAppearance.lifetime = .keepAlways
+        add(initialAppearance)
 
         app.buttons["Dismiss store"].tap()
         XCTAssertTrue(app.buttons["Show Store"].waitForExistence(timeout: 3))
@@ -3704,6 +3712,7 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testProgressChevronCollapsesOverlayAndPreservesStatus() {
+        choose("Coles")
         app.buttons["Show Store"].tap()
         let collapse = app.buttons["Collapse overlay"]
         XCTAssertTrue(collapse.waitForExistence(timeout: 5))
@@ -3715,7 +3724,7 @@ final class StoreSelectionTests: XCTestCase {
         collapse.tap()
         let expand = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Expand overlay")).firstMatch
         XCTAssertTrue(expand.waitForExistence(timeout: 3))
-        XCTAssertFalse(collapse.exists)
+        XCTAssertTrue(collapse.waitForNonExistence(timeout: 3))
         expand.tap()
         XCTAssertTrue(collapse.waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Mark Added"].exists, "Collapse must not mark the item added")
@@ -3728,6 +3737,7 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testSlowOverlayDragCollapsesAndCanExpandAgain() {
+        choose("Coles")
         app.buttons["Show Store"].tap()
         let card = app.buttons.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@",
                                                    "Coles fixture item", "selected")).firstMatch
@@ -3747,6 +3757,7 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testCollapsedBarExpandsWithUpwardSwipe() {
+        choose("Coles")
         app.buttons["Show Store"].tap()
         let card = app.buttons.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@",
                                                    "Coles fixture item", "selected")).firstMatch

@@ -46,6 +46,12 @@ does not dismiss it. Confirmed Reset Local Data restores it; diagnostics and ret
 session clears do not. The preference uses the existing app-wide defaults suite,
 including isolated UI-test suites.
 
+For an explicitly requested developer preview on an existing installation, Debug
+builds accept `--reset-card-collapse-hint` for one launch. It clears only the hint's
+dismissed flag; no lists, other preferences, retailer sessions or reminders change.
+Do not save this argument in the shared Xcode scheme. Relaunch without it afterward
+so the next completed collapse is remembered normally.
+
 ### Reopening the store sheet
 
 Show Store resumes the retained retailer page after handle/native-sheet dismissal,
