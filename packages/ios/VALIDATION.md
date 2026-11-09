@@ -1827,3 +1827,14 @@ read-only live probe; no product/query/account content is reported.
   supplied to the phone launch, and no physical-phone retailer/cart interaction
   was performed. Live auto-scroll proof above is simulator evidence, not a
   claim of observed scrolling on the physical phone.
+## Auto-parser preservation fixes — 9 November 2026
+
+Branch `fix/auto-parser`; validated implementation revision **`dd06b058c1733dd9e5f9a521de678feabf1d88e1`**. The historical audit and implementation rationale are in `../../docs/audits/auto-parser/README.md` and `../../docs/audits/auto-parser/IMPLEMENTATION.md`.
+
+Parser/dictionary v2 keeps uncertain product wording (including `taco shells`), all approved dietary modifiers, unknown ingredient names and successfully parsed quantities. It separates reviewed non-equivalent dictionary aliases, handles recipe preparation before ambiguity/comma splitting, enumerates valid match occurrences, retains transient parse provenance, rejects blank insertions and avoids numeric-formatting traps. No saved-list migration or reprocessing of existing names is performed.
+
+**Passed on Linux and Mac:** 162 existing parser fixtures (two intentional whole/ground expectation changes), 884 dictionary identity/quantity checks, 884 unknown-brand preservation cases, focused audit regressions and 195 regional-name checks. Linux additionally passed all 9 resource-verifier tests; the isolated extreme-package probe changed from a reproduced crash to exit 0.
+
+**Passed on Mac:** 1,887 native recovery/configuration/diagnostics checks, including new in-memory SwiftData identity/merge/save/fetch/blank-row tests and Paprika-staging preparation-clause coverage; unsigned Debug generic iOS simulator build; byte-for-byte verification of all 35 JSON and 1 JavaScript app resources with no legacy `-v2` resources. Logs: `/tmp/listrunner-auto-parser-dd06b05-{parser,regional,native,build,resources}.log`. A separate clean detached worktree at `/Users/adrianzafir/Projects/listrunner-auto-parser-e9b1004` tested the exact SHA above; the normal Mac checkout was not switched or edited. Derived Data stayed outside both checkouts.
+
+No new simulator UI-suite run, physical-device installation, user-list edit, real Reminders write, retailer/cart operation or release was performed. Documentation-only commits after the validated SHA do not change the tested implementation.

@@ -35,7 +35,22 @@ struct RecoveryTests {
         addContext.rollback()
         let remainingAddRows = try addContext.fetchCount(FetchDescriptor<GroceryItem>())
         check(remainingAddRows == 1,
-              "failed manual-add transaction can roll back without changing another store")
+               "failed manual-add transaction can roll back without changing another store")
+        let parserDictionary = try IngredientDictionary(data: Data(contentsOf: resources.appendingPathComponent("ingredients.json")))
+        let safeParser = IngredientParser(dictionary: parserDictionary)
+        let parserData = try ShoppingLists.open(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
+        let parserContext = parserData.mainContext
+        let safeRows = ShoppingLists.stageAdd(safeParser.parseProductEntry("12 taco shells, 2 pasta shells, gluten-free bread, bread")
+            + [ParsedGrocery(name: "  ", amount: nil, unit: nil)], to: .coles, allItems: [], context: parserContext)
+        check(safeRows.map(\.name) == ["taco shells", "Pasta shells", "gluten-free bread", "Bread"]
+              && safeRows.map(\.quantityAmount) == [12, 2, nil, nil],
+              "parser preserves distinct identities and quantities through merge and rejects blank rows")
+        check(safeRows[0].searchTerm == "taco shells" && safeRows[2].searchTerm == "gluten-free bread",
+              "saved searches preserve compound products and dietary qualifiers")
+        try parserContext.save()
+        let persistedSafeRows = try parserContext.fetch(FetchDescriptor<GroceryItem>())
+        check(persistedSafeRows.count == 4 && persistedSafeRows.contains(where: { $0.name == "taco shells" && $0.quantityAmount == 12 }),
+              "parser-safe names survive an isolated SwiftData save/fetch")
         let firstID = UUID(), secondID = UUID(), thirdID = UUID()
         let initialOrder = ItemPromotionOrder.promoting([firstID, secondID], in: "", existing: [firstID, secondID, thirdID])
         let updatedOrder = ItemPromotionOrder.promoting([thirdID, firstID], in: initialOrder,
@@ -1394,6 +1409,10 @@ struct RecoveryTests {
             PaprikaReminderSnapshot(id: "undated", title: "apples", creationDate: nil)
         ]
         let paprikaStaged = PaprikaImportPlanner.stage(reminders: paprikaSnapshot, existingIDs: ["existing"], parser: ingredientParser)
+        let recipeClause = PaprikaImportPlanner.stage(reminders: [PaprikaReminderSnapshot(id: "recipe-clause", title: "2 eggs, beaten with milk", creationDate: nil)], existingIDs: [], parser: ingredientParser)
+        check(recipeClause.count == 1 && recipeClause[0].reminderID == "recipe-clause"
+              && recipeClause[0].grocery.name == "Eggs" && recipeClause[0].grocery.amount == 2,
+              "Paprika staging keeps preparation references attached to their single source item")
         check(PaprikaImportPlanner.canRemove(calendarID: "named-list", selectedCalendarID: "named-list", title: "milk", originalTitle: "milk", isCompleted: false),
               "named Reminders list can be cleaned up by stable identity")
         check(!PaprikaImportPlanner.canRemove(calendarID: "other-list", selectedCalendarID: "named-list", title: "milk", originalTitle: "milk", isCompleted: false),

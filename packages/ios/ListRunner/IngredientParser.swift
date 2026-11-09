@@ -2,7 +2,7 @@ import Foundation
 
 struct IngredientParser {
     let dictionary: IngredientDictionary?
-    static let version = 1
+    static let version = 2
 
     static let application = IngredientParser(dictionary: {
         guard let url = Bundle.main.url(forResource: "ingredients", withExtension: "json"),
@@ -11,14 +11,12 @@ struct IngredientParser {
     }())
 
     private struct Match { let entry: IngredientDictionary.Entry; let range: Range<String.Index>; let term: String }
-    private struct UnknownParse { let name: String; let quantity: GroceryQuantity }
+    private struct QuantityExtraction { let name: String; let quantity: GroceryQuantity }
     private let units: [String: String] = [
         "g":"g", "gram":"g", "grams":"g", "kg":"kg", "ml":"ml", "l":"l", "litre":"l", "litres":"l",
         "oz":"oz", "ounce":"oz", "ounces":"oz", "lb":"lb", "lbs":"lb", "cup":"cup", "cups":"cup",
         "tbsp":"tbsp", "tbs":"tbsp", "tablespoon":"tbsp", "tablespoons":"tbsp", "tsp":"tsp", "teaspoon":"tsp", "teaspoons":"tsp"
     ]
-    private let containers: Set<String> = ["can", "cans", "tin", "tins", "bottle", "bottles", "jar", "jars", "pack", "packs", "packet", "packets", "carton", "cartons", "bag", "bags", "bunch", "bunches", "box", "boxes"]
-    private let countedUnits: Set<String> = ["clove", "cloves", "spear", "spears", "stalk", "stalks", "piece", "pieces", "sprig", "sprigs"]
     private let preparations = [
         "woody ends trimmed", "halved lengthways", "ends trimmed", "stems removed and cut into thirds",
         "peeled and diced", "peeled and sliced", "thinly sliced", "finely chopped", "roughly chopped",
@@ -32,6 +30,7 @@ struct IngredientParser {
         guard !original.isEmpty else { return nil }
         var clean = original.replacingOccurrences(of: #"^[\s•·\-–—]+"#, with: "", options: .regularExpression)
         guard !clean.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        clean = normalized(clean)
         var removed: [String] = []
         let betweenQuantityAndNamePreparation = try! NSRegularExpression(pattern: #"(?i)\bcooked\s+and\s+chilled\b"#)
         let preparationRange = NSRange(clean.startIndex..., in: clean)
@@ -41,51 +40,132 @@ struct IngredientParser {
             clean.replaceSubrange(range, with: " ")
             clean = clean.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
         }
-        let (matchResult, isAmbiguous) = resolve(in: clean)
-        let unknownParse = matchResult == nil ? parseUnknown(clean) : nil
+        // Strip proven recipe tails before resolving ingredients mentioned in them.
+        // Leading descriptors of an unknown product are never preparation tails.
         var remaining = clean
         for note in preparations {
             let regex = try! NSRegularExpression(pattern: #"(?i)(?:,?\s+)"# + NSRegularExpression.escapedPattern(for: note) + #"\b.*$"#)
             if let m = regex.firstMatch(in: remaining, range: NSRange(remaining.startIndex..., in: remaining)),
                let r = Range(m.range, in: remaining),
-               matchResult.map({ r.lowerBound >= $0.range.upperBound }) ?? true {
+               !String(remaining[..<r.lowerBound]).isEmpty {
+                let head = String(remaining[..<r.lowerBound])
+                let tail = String(remaining[r]).trimmingCharacters(in: CharacterSet(charactersIn: ", "))
+                let headProduct = extractLeadingQuantity(head).name
+                let fullMatch = resolve(in: remaining).0
+                let overlapsIdentity = fullMatch.map { $0.range.overlaps(r) } ?? false
+                let explicitClause = String(remaining[r]).trimmingCharacters(in: .whitespaces).hasPrefix(",")
+                let withClause = tail.lowercased().hasPrefix(note + " with ") && resolve(in: head).0 != nil
+                let preparationSequence = tail.components(separatedBy: ",").allSatisfy(isPreparationClause)
+                guard !headProduct.isEmpty, quantityPattern(head) == nil, !overlapsIdentity,
+                      preparationSequence || explicitClause || withClause else { continue }
                 removed.append(String(remaining[r]).trimmingCharacters(in: CharacterSet(charactersIn: ", ")))
                 remaining.removeSubrange(r)
             }
         }
 
-        let target = matchResult.map { $0.entry.name } ?? unknownParse?.name ?? remaining
-        let quantity = matchResult.map { parseQuantity(in: remaining, match: $0) } ?? unknownParse?.quantity ?? .unspecified
-        let name = matchResult.map { displayName(for: $0, in: remaining) } ?? target.trimmingCharacters(in: .whitespacesAndNewlines)
-        let unmatched: [String]
+        let extracted = extractLeadingQuantity(remaining)
+        var product = extracted.name
+        var quantity = extracted.quantity
+        if product.lowercased().hasPrefix("freshly grated ") {
+            product = String(product.dropFirst("freshly grated ".count))
+        }
+        var (matchResult, isAmbiguous) = resolve(in: product)
+        // A suffix quantity is accepted only when the whole suffix is consumed.
+        if case .unspecified = quantity, let match = matchResult {
+            let suffix = String(product[match.range.upperBound...]).trimmingCharacters(in: .whitespaces)
+            if let parsed = quantityPattern(suffix) {
+                quantity = parsed
+                product = String(product[..<match.range.upperBound])
+                (matchResult, isAmbiguous) = resolve(in: product)
+            }
+        }
+        var unmatched: [String] = []
+        var name = product
         if let match = matchResult {
-            let before = String(remaining[..<match.range.lowerBound])
-            let after = String(remaining[match.range.upperBound...])
-            let withoutParentheticalNotes = after.replacingOccurrences(of: #"\([^()]*\)"#, with: " ", options: .regularExpression)
-            let unmatchedSource = before + " " + withoutParentheticalNotes
-            let modifierWords = Set(match.entry.modifiers.flatMap { $0.lowercased().split(whereSeparator: \.isWhitespace).map(String.init) })
-            unmatched = unmatchedSource.split(whereSeparator: \.isWhitespace)
-                .map(String.init).filter { token in
-                    let normalized = token.trimmingCharacters(in: CharacterSet(charactersIn: "()[],")).lowercased()
-                    return !isQuantityToken(normalized) && quantityPattern(normalized) == nil && !modifierWords.contains(normalized)
-                }
-        } else {
-            unmatched = []
+            var residue = product
+            let spans = [match.range] + modifierRanges(for: match, in: product).map(\.range).filter { !$0.overlaps(match.range) }
+            for span in spans.sorted(by: { $0.lowerBound > $1.lowerBound }) {
+                // Overlapping modifier/alias spans are handled by modifierRanges.
+                residue.replaceSubrange(span, with: " ")
+            }
+            residue = residue.replacingOccurrences(of: #"\([^()]*\)\s*$"#, with: " ", options: .regularExpression)
+            if case .count = quantity {
+                residue = residue.replacingOccurrences(of: #"(?i)^\s*(cloves?|spears?|stalks?|pieces?|sprigs?)\s*$"#, with: "", options: .regularExpression)
+            }
+            unmatched = residue.split(whereSeparator: \.isWhitespace).map(String.init)
+            if unmatched.isEmpty {
+                name = displayName(for: match, in: product)
+            }
+        }
+        name = normalized(name)
+        guard !name.isEmpty else { return nil }
+        let range = matchResult.flatMap { match -> IngredientParseResult.Range? in
+            // Report the actual source span, not a canonical alias's length.
+            guard let productRange = clean.range(of: product) else { return nil }
+            return .init(location: clean.distance(from: clean.startIndex, to: productRange.lowerBound) + product.distance(from: product.startIndex, to: match.range.lowerBound),
+                         length: product.distance(from: match.range.lowerBound, to: match.range.upperBound))
         }
         return IngredientParseResult(originalText: original, ingredientID: matchResult?.entry.id,
-            ingredientRange: matchResult.map { .init(location: clean.distance(from: clean.startIndex, to: $0.range.lowerBound), length: $0.term.count) },
+            ingredientRange: range,
             displayName: name, searchTerm: name, quantity: quantity, omittedPreparation: removed,
             unmatchedText: unmatched, parserVersion: Self.version, dictionaryVersion: dictionary?.version,
             disposition: isAmbiguous ? .ambiguous : (matchResult == nil ? .unknown : (unmatched.isEmpty ? .recognized : .partial)),
-            explanation: matchResult.map { ["matched \($0.term) → \($0.entry.name)"] } ?? ["no dictionary match; preserved source wording"])
+            explanation: matchResult.map { [unmatched.isEmpty ? "matched \($0.term) → \($0.entry.name)" : "partial match; preserved product wording"] } ?? ["no unambiguous dictionary match; preserved product wording"])
+    }
+
+    private func normalized(_ text: String) -> String {
+        text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
+    // Longest validated leading quantity span; independent of known ingredients.
+    // Do not split numeric aliases (4 cheese ravioli) or numeric brand names.
+    private func extractLeadingQuantity(_ text: String) -> QuantityExtraction {
+        let identity = resolve(in: text).0
+        let numericBrand = text.range(of: #"(?i)^7\s*up\b"#, options: .regularExpression) != nil
+        guard !numericBrand else { return QuantityExtraction(name: text, quantity: .unspecified) }
+        for end in text.indices.reversed() where text[end].isWhitespace {
+            let prefix = String(text[..<end])
+            let rest = String(text[end...]).trimmingCharacters(in: .whitespaces)
+            if let identity, end > identity.range.lowerBound { continue }
+            if let quantity = quantityPattern(removingParentheticalQuantities(from: prefix)) {
+                // A bare word is not a quantity for an unknown product (L plates,
+                // cup holder, can opener). Keep legacy bare units for known food.
+                if identity == nil {
+                    if case .measure(amount: nil, unit: _) = quantity { continue }
+                    if case .packages(count: nil, size: nil, sizeUnit: _, container: _) = quantity { continue }
+                }
+                // Never salvage only the count from a malformed measure/package.
+                if case .count = quantity,
+                   rest.range(of: #"(?i)^(?:[x×]|g|kg|ml|l|oz|cups?|cans?|boxes|packs?)\b|^[\d(]"#, options: .regularExpression) != nil { continue }
+                return QuantityExtraction(name: rest, quantity: quantity)
+            }
+        }
+        return QuantityExtraction(name: text, quantity: .unspecified)
+    }
+
+    private func isPreparationClause(_ source: String) -> Bool {
+        let text = normalized(source).lowercased()
+        return preparations.contains { text == $0 || text.hasPrefix($0 + " with ") }
     }
 
     func parseList(_ text: String) -> [IngredientParseResult] {
         text.components(separatedBy: CharacterSet.newlines.union(CharacterSet(charactersIn: ";\t")))
             .flatMap { line -> [IngredientParseResult] in
-                let parts = line.split(separator: ",", omittingEmptySubsequences: true).map(String.init)
-                guard parts.count > 1, parts.allSatisfy({ bestMatch(in: $0) != nil }) else { return parseRecord(line).map { [$0] } ?? [] }
-                return parts.compactMap(parseRecord)
+                // Parenthetical notes may contain commas without being list syntax.
+                var depth = 0
+                var segments = [""]
+                for character in line {
+                    if character == "(" { depth += 1 }
+                    if character == ")" { depth = max(0, depth - 1) }
+                    if character == ",", depth == 0 { segments.append("") }
+                    else { segments[segments.count - 1].append(character) }
+                }
+                var records: [String] = []
+                for segment in segments where !normalized(segment).isEmpty {
+                    if !records.isEmpty, isPreparationClause(segment) { records[records.count - 1] += "," + segment }
+                    else { records.append(segment) }
+                }
+                return records.compactMap(parseRecord)
             }
     }
 
@@ -101,30 +181,36 @@ struct IngredientParser {
             .compactMap(parseRecord).map(\.grocery)
     }
 
-    private func bestMatch(in text: String) -> Match? {
-        resolve(in: text).0
-    }
-
     private func resolve(in text: String) -> (Match?, Bool) {
         guard let dictionary else { return (nil, false) }
         let candidates = dictionary.ingredients.flatMap { entry in
-            ([entry.name] + entry.aliases).compactMap { term -> Match? in
-                guard let range = text.range(of: term, options: [.caseInsensitive, .diacriticInsensitive]),
-                      isBoundary(text, range.lowerBound, before: true), isBoundary(text, range.upperBound, before: false) else { return nil }
-                return Match(entry: entry, range: range, term: term)
+            ([entry.name] + entry.aliases).flatMap { term -> [Match] in
+                ranges(of: term, in: text).map { Match(entry: entry, range: $0, term: term) }
             }
         }
         let sorted = candidates.sorted { lhs, rhs in
             if lhs.term.count != rhs.term.count { return lhs.term.count > rhs.term.count }
-            if lhs.entry.name == lhs.term && rhs.entry.name != rhs.term { return true }
+            if (lhs.entry.name == lhs.term) != (rhs.entry.name == rhs.term) { return lhs.entry.name == lhs.term }
+            if lhs.range.lowerBound != rhs.range.lowerBound { return lhs.range.lowerBound < rhs.range.lowerBound }
             return lhs.entry.id < rhs.entry.id
         }
         var independent: [Match] = []
         for candidate in sorted where !independent.contains(where: { $0.range.overlaps(candidate.range) }) {
             independent.append(candidate)
         }
-        guard independent.count <= 1 else { return (nil, true) }
+        guard Set(independent.map { $0.entry.id }).count <= 1 else { return (nil, true) }
         return (independent.first, false)
+    }
+
+    private func ranges(of term: String, in text: String) -> [Range<String.Index>] {
+        var start = text.startIndex
+        var result: [Range<String.Index>] = []
+        while start < text.endIndex,
+              let range = text.range(of: normalized(term), options: [.caseInsensitive, .diacriticInsensitive], range: start..<text.endIndex) {
+            if isBoundary(text, range.lowerBound, before: true), isBoundary(text, range.upperBound, before: false) { result.append(range) }
+            start = range.upperBound
+        }
+        return result
     }
 
     private func isBoundary(_ text: String, _ index: String.Index, before: Bool) -> Bool {
@@ -136,40 +222,29 @@ struct IngredientParser {
         return !text[index].isLetter && !text[index].isNumber
     }
 
-    private func parseQuantity(in text: String, match: Match?) -> GroceryQuantity {
-        let prefix = match.map { String(text[..<$0.range.lowerBound]).trimmingCharacters(in: .whitespaces) } ?? ""
-        let suffix = match.map { String(text[$0.range.upperBound...]).trimmingCharacters(in: .whitespaces) } ?? ""
-        let sides = [prefix, suffix].filter { !$0.isEmpty }.map { side in
-            var normalized = side
-            for modifier in match?.entry.modifiers ?? [] {
-                normalized = normalized.replacingOccurrences(of: #"(?i)\b"# + NSRegularExpression.escapedPattern(for: modifier) + #"\b"#, with: " ", options: .regularExpression)
-            }
-            normalized = normalized.replacingOccurrences(of: #"(?i)\bfreshly grated\b"#, with: " ", options: .regularExpression)
-            normalized = removingParentheticalQuantities(from: normalized)
-            return normalized.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+    private func modifierRanges(for match: Match, in text: String) -> [(term: String, range: Range<String.Index>)] {
+        let note = text.range(of: #"\([^()]*\)\s*$"#, options: .regularExpression)
+        let candidates = match.entry.modifiers.flatMap { term in ranges(of: term, in: text).filter { range in
+            !(note.map { $0.overlaps(range) } ?? false)
+        }.map { (term: term, range: $0) } }
+        var result: [(term: String, range: Range<String.Index>)] = []
+        for candidate in candidates.sorted(by: { $0.term.count > $1.term.count }) {
+            if !result.contains(where: { $0.range.overlaps(candidate.range) }) { result.append(candidate) }
         }
-        for side in sides {
-            if let q = quantityPattern(side) { return q }
-        }
-        return .unspecified
+        return result.sorted { $0.range.lowerBound < $1.range.lowerBound }
     }
 
     private func displayName(for match: Match, in text: String) -> String {
-        let modifiers = match.entry.modifiers.compactMap { modifier -> (String, String.Index)? in
-            guard let range = text.range(of: modifier, options: [.caseInsensitive, .diacriticInsensitive]),
-                  isBoundary(text, range.lowerBound, before: true), isBoundary(text, range.upperBound, before: false) else { return nil }
-            return (modifier, range.lowerBound)
+        let modifiers = modifierRanges(for: match, in: text).filter {
+            // A qualifier already present in the canonical name needs no duplication.
+            ranges(of: $0.term, in: match.entry.name).isEmpty
         }
-        let base: String
-        if let modifier = modifiers.sorted(by: {
-            $0.1 == $1.1 ? $0.0.count > $1.0.count : $0.1 < $1.1
-        }).first {
-            let capitalized = modifier.0.prefix(1).uppercased() + modifier.0.dropFirst()
-            let lowerName = match.entry.name.prefix(1).lowercased() + match.entry.name.dropFirst()
-            base = modifier.1 < match.range.lowerBound ? "\(capitalized) \(lowerName)" : "\(match.entry.name) \(modifier.0)"
-        } else {
-            base = match.entry.name
-        }
+        let before = modifiers.filter { $0.range.lowerBound <= match.range.lowerBound }.map(\.term)
+        let after = modifiers.filter { $0.range.lowerBound > match.range.lowerBound }.map(\.term)
+        let canonical = before.isEmpty ? match.entry.name : match.entry.name.prefix(1).lowercased() + match.entry.name.dropFirst()
+        var base = [before.joined(separator: " "), canonical, after.joined(separator: " ")]
+            .filter { !$0.isEmpty }.joined(separator: " ")
+        base = base.prefix(1).uppercased() + base.dropFirst()
 
         let suffix = String(text[match.range.upperBound...]).trimmingCharacters(in: .whitespaces)
         guard let noteRange = suffix.range(of: #"\([^()]*\)\s*$"#, options: .regularExpression) else { return base }
@@ -182,31 +257,34 @@ struct IngredientParser {
         let text = source.replacingOccurrences(of: #"[(),]"#, with: " ", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression).trimmingCharacters(in: .whitespaces)
         if let package = captures(text, #"^(\d+)\s*[x×]\s*(\d+(?:\.\d+)?|\d+\s*/\s*\d+)\s*(oz|ounce|ounces|g|kg|ml|l)\s*(can|cans|tin|tins|bottle|bottles|jar|jars|pack|packs|packet|packets|carton|cartons|bag|bags|bunch|bunches|box|boxes)$"#),
-           let unit = units[package[2].lowercased()] {
-            return .packages(count: rational(package[0]), size: rational(package[1]), sizeUnit: unit, container: singularContainer(package[3]))
+           let unit = units[package[2].lowercased()], let count = rational(package[0]), let size = rational(package[1]) {
+            return .packages(count: count, size: size, sizeUnit: unit, container: singularContainer(package[3]))
         }
         if let package = captures(text, #"^(\d+)\s+(can|cans|tin|tins|bottle|bottles|jar|jars|pack|packs|packet|packets|carton|cartons|bag|bags|bunch|bunches|box|boxes)\s+(\d+(?:\.\d+)?|\d+\s*/\s*\d+)\s*(oz|ounce|ounces|g|kg|ml|l)$"#),
-           let unit = units[package[3].lowercased()] {
-            return .packages(count: rational(package[0]), size: rational(package[2]), sizeUnit: unit, container: singularContainer(package[1]))
+           let unit = units[package[3].lowercased()], let count = rational(package[0]), let size = rational(package[2]) {
+            return .packages(count: count, size: size, sizeUnit: unit, container: singularContainer(package[1]))
         }
         if let package = captures(text, #"^(?:(\d+)\s+)?(?:(\d+(?:\.\d+)?|\d+\s*/\s*\d+)\s*(oz|ounce|ounces|g|kg|ml|l))?\s*(can|cans|tin|tins|bottle|bottles|jar|jars|pack|packs|packet|packets|carton|cartons|bag|bags|bunch|bunches|box|boxes)$"#),
            let container = package[3].isEmpty ? nil : package[3].lowercased() {
+            guard package[0].isEmpty || rational(package[0]) != nil,
+                  package[1].isEmpty || rational(package[1]) != nil else { return nil }
             return .packages(count: package[0].isEmpty ? nil : rational(package[0]), size: package[1].isEmpty ? nil : rational(package[1]), sizeUnit: package[2].isEmpty ? nil : units[package[2].lowercased()], container: singularContainer(container))
         }
         let number = #"(?:\d+\s+)?\d+\s*/\s*\d+|\d*[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]|\d+(?:\.\d+)?"#
+        if let dozen = captures(text, #"^("# + number + #")\s+dozen$"#), let value = rational(dozen[0]) {
+            return .measure(amount: value, unit: "dozen")
+        }
         if let measure = captures(text, #"^("# + number + #")?\s*(g|grams?|kg|ml|l|litres?|oz|ounces?|lb|lbs|cups?|tbsp|tbs|tablespoons?|tsp|teaspoons?)$"#),
            let unit = units[measure[1].lowercased()] {
+            guard measure[0].isEmpty || rational(measure[0]) != nil else { return nil }
             return .measure(amount: measure[0].isEmpty ? nil : rational(measure[0]), unit: unit)
         }
-        if let compact = captures(text, #"^((?:\d+\s+)?\d+\s*/\s*\d+|\d+(?:\.\d+)?|[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])(g|kg|ml|l|oz)$"#), let unit = units[compact[1].lowercased()] {
-            return .measure(amount: rational(compact[0]), unit: unit)
+        if let compact = captures(text, #"^((?:\d+\s+)?\d+\s*/\s*\d+|\d+(?:\.\d+)?|[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])(g|kg|ml|l|oz)$"#), let unit = units[compact[1].lowercased()], let value = rational(compact[0]) {
+            return .measure(amount: value, unit: unit)
         }
         if let counted = captures(text, #"^(\d+)\s+(cloves?|spears?|stalks?|pieces?|sprigs?)$"#),
            let amount = rational(counted[0]) { return .count(amount) }
-        if let count = captures(text, #"^(\d+)$"#), let value = rational(count[0]) { return .count(value) }
-        let leadingNumber = #"(?:\d+\s+)?\d+\s*/\s*\d+|\d*[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]|\d+(?:\.\d+)?"#
-        let leadingMeasure = #"^((?:"# + leadingNumber + #")\s*(?:g|grams?|kg|ml|l|litres?|oz|ounces?|lb|lbs|cups?|tbsp|tbs|tablespoons?|tsp|teaspoons?))(?=\s|$)"#
-        if let leading = captures(text, leadingMeasure), let quantity = quantityPattern(leading[0]) { return quantity }
+        if let count = captures(text, #"^("# + number + #")\s*(?:[x×])?$"#), let value = rational(count[0]) { return .count(value) }
         return nil
     }
 
@@ -226,27 +304,6 @@ struct IngredientParser {
             if !isPackageSize && quantityPattern(contents) != nil { result.replaceSubrange(range, with: " ") }
         }
         return result
-    }
-
-    private func parseUnknown(_ source: String) -> UnknownParse? {
-        let packagePattern = #"^(\d+)\s+(can|cans|tin|tins|bottle|bottles|jar|jars|pack|packs|packet|packets|carton|cartons|bag|bags|bunch|bunches|box|boxes)\s+(.+)$"#
-        if let c = captures(source, packagePattern), let count = rational(c[0]) {
-            return UnknownParse(name: cleanUnknown(c[2]), quantity: .packages(count: count, size: nil, sizeUnit: nil, container: singularContainer(c[1])))
-        }
-        let number = #"(?:\d+\s+)?\d+\s*/\s*\d+|\d*[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]|\d+(?:\.\d+)?"#
-        let unitPattern = #"^("# + number + #")\s*(g|grams?|kg|ml|l|litres?|oz|ounces?|lb|lbs|cups?|tbsp|tbs|tablespoons?|tsp|teaspoons?)\s+(.+)$"#
-        if let c = captures(source, unitPattern), let amount = rational(c[0]), let unit = units[c[1].lowercased()] {
-            return UnknownParse(name: cleanUnknown(c[2]), quantity: .measure(amount: amount, unit: unit))
-        }
-        return nil
-    }
-
-    private func cleanUnknown(_ value: String) -> String {
-        var name = value
-        for note in preparations {
-            name = name.replacingOccurrences(of: #"(?i)\s*,?\s*"# + NSRegularExpression.escapedPattern(for: note) + #"\b.*$"#, with: "", options: .regularExpression)
-        }
-        return name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func rational(_ text: String) -> GroceryRational? {
@@ -289,8 +346,4 @@ struct IngredientParser {
         return plurals[value] ?? value
     }
 
-    private func isQuantityToken(_ token: String) -> Bool {
-        Int(token) != nil || rational(token) != nil || units[token.lowercased()] != nil
-            || containers.contains(token.lowercased()) || countedUnits.contains(token.lowercased())
-    }
 }

@@ -1,5 +1,11 @@
 import Foundation
 
+// Int(Double) traps for finite values outside Int's range (including rounded Int64.max).
+func formatGroceryAmount(_ value: Double) -> String {
+    if let integer = Int(exactly: value) { return String(integer) }
+    return String(value)
+}
+
 struct GroceryRational: Codable, Equatable, Hashable {
     let numerator: Int64
     let denominator: Int64

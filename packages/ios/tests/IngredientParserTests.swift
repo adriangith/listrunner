@@ -60,6 +60,58 @@ struct IngredientParserTests {
         check(IngredientDictionary.loadOrNil(duplicateModifier) == nil, "duplicate normalized modifier rejected")
         check(IngredientDictionary.loadOrNil(Data(#"{"version":0,"ingredients":[]}"#.utf8)) == nil,
               "nonpositive dictionary version rejected")
+        let preservationCases: [(String, String, Double?)] = [
+            ("taco shells", "taco shells", nil), ("12 taco shells", "taco shells", 12),
+            ("rice cakes", "rice cakes", nil), ("gluten-free bread", "gluten-free bread", nil),
+            ("lemon detergent", "lemon detergent", nil), ("soy  milk", "Soy milk", nil),
+            ("2% lactose-free milk", "2% lactose-free milk", nil),
+            ("lactose-free 2% milk", "Lactose-free 2% milk", nil),
+            ("gluten-free wholemeal penne", "Gluten-free wholemeal penne", nil),
+            ("wholemeal gluten-free penne", "Wholemeal gluten-free penne", nil),
+            ("500 g diced jackfruit", "diced jackfruit", 500),
+            ("250 g minced seitan", "minced seitan", 250),
+            ("500 g unmelted candy", "unmelted candy", 500),
+            ("2x apples", "Apples", 2), ("2 x apples", "Apples", 2),
+            ("1.5 apples", "Apples", 1.5), ("½ apples", "Apples", 0.5),
+            ("2 chairs", "chairs", 2), ("2 large eggs", "large eggs", 2),
+            ("2 organic apples", "organic apples", 2),
+            ("2 x 400 g cans organic tomatoes", "organic tomatoes", 2),
+            ("1/0 g milk", "1/0 g milk", nil),
+            ("999999999999999999999 g milk", "999999999999999999999 g milk", nil),
+            ("L plates", "L plates", nil), ("cup holder", "cup holder", nil),
+            ("can opener", "can opener", nil),
+            ("milkshake milk", "milkshake milk", nil)
+        ]
+        for (source, name, amount) in preservationCases {
+            let result = parser.parseRecord(source)
+            check(result?.grocery.name == name && result?.grocery.amount == amount,
+                  "source preservation: \(source) → \(result?.grocery.name ?? "nil")")
+            check(result?.originalText == source && result?.displayName.isEmpty == false,
+                  "nonempty name and original source retained: \(source)")
+        }
+        for source in ["500 g diced jackfruit", "250 g minced seitan", "2 chairs"] {
+            check(fallback.parseRecord(source)?.grocery.name == parser.parseRecord(source)?.grocery.name,
+                  "dictionary-free preservation: \(source)")
+        }
+        for (source, name) in [("2 eggs, beaten with milk", "Eggs"), ("1 onion, diced with garlic", "Onion")] {
+            check(parser.parseList(source).map(\.displayName) == [name], "recipe clause stays attached: \(source)")
+            check(parser.parseRecord(source)?.grocery.amount == (name == "Eggs" ? 2 : 1), "recipe quantity: \(source)")
+        }
+        check(parser.parseList("milk, mystery fizz").map(\.displayName) == ["Milk", "mystery fizz"], "mixed Reminder list preserved")
+        check(parser.parseList("milk, minced beef").map(\.displayName) == ["Milk", "Beef mince"], "leading preparation modifier starts a real item")
+        check(parser.parseRecord("rice diced tomatoes")?.displayName == "rice diced tomatoes", "unseparated product references are not discarded as preparation")
+        check(parser.parseRecord("1 dozen eggs")?.grocery.unit == "dozen", "dozen quantity is retained without unit conversion")
+        check(parser.parseRecord("milk (lactose-free)")?.displayName == "Milk (lactose-free)", "parenthetical qualifiers are not duplicated")
+        check(parser.parseProductEntry("taco shells, pasta shells").map(\.name) == ["taco shells", "Pasta shells"], "distinct shell products survive add adapter")
+        check(parser.parseRecord("coconut cream")?.displayName == "Coconut cream", "cream is not milk")
+        check(parser.parseRecord("cinnamon stick")?.displayName != parser.parseRecord("ground cinnamon")?.displayName, "whole and ground cinnamon distinct")
+        check(parser.parseRecord("milkshake milk")?.ingredientID == "milk", "later boundary-valid occurrence found")
+        check(parser.parseRecord("milkshake milk")?.ingredientRange?.location == 10, "range metadata identifies the boundary-valid occurrence")
+        let largePackage = parser.parseRecord("1 x 9223372036854775807 g cans tomatoes")
+        check(largePackage?.grocery.unit?.contains("g can") == true, "large package conversion does not trap")
+        check(largePackage?.grocery.parseResult == largePackage, "add adapter retains parse provenance")
+        check(formatGroceryAmount(Double(Int64.max)).isEmpty == false
+              && !formatGroceryAmount(.infinity).isEmpty, "amount formatting handles numeric boundaries without trapping")
         for fixture in fixtures {
             guard let result = parser.parseRecord(fixture.input) else {
                 print("FAIL \(fixture.input) → no result")
@@ -135,25 +187,27 @@ struct IngredientParserTests {
             failures += 1
         } else { print("PASS blank and bullet-only entries are ignored") }
 
-        // Every name/alias for the explicitly identified fixture ingredients must
+        // Every bundled name/alias must
         // resolve to that ingredient, not merely survive the unknown-name fallback.
-        let coveredIDs = Set(fixtures.compactMap(\.expectedIngredientID))
         var aliasChecks = 0
-        for entry in dictionary.ingredients where coveredIDs.contains(entry.id) {
+        for entry in dictionary.ingredients {
             for term in [entry.name] + entry.aliases {
                 aliasChecks += 1
                 let result = parser.parseRecord("500 g " + term)
-                if result?.ingredientID != entry.id || result?.displayName != entry.name
+                if result?.ingredientID != entry.id || result?.displayName.isEmpty != false
                     || result.map({ quantityDescription($0.quantity) }) != "measure:500:g" {
                     print("FAIL ingredient alias \(term) should resolve to \(entry.name) with 500 g")
                     failures += 1
                 }
+                let qualified = parser.parseRecord("500 g special-brand " + term)
+                check(qualified?.displayName == "special-brand " + term && qualified?.grocery.amount == 500,
+                      "unknown brand/qualifier preserved for \(term)")
             }
         }
         if failures == 0 { print("PASS all \(aliasChecks) ingredient name/alias identity and quantity checks") }
 
         if failures > 0 { exit(1) }
-        print("All parser fixtures passed (\(fixtures.count + 4 + aliasChecks + 7) checks).")
+        print("All \(fixtures.count) parser fixtures, \(aliasChecks) dictionary aliases and focused parser regressions passed.")
     }
 
     private static func quantityDescription(_ quantity: GroceryQuantity) -> String {
