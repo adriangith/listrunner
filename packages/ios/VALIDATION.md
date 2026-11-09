@@ -1,5 +1,27 @@
 # Reusable store framework validation
 
+## Add products glass trial — physical iPhone (9 November 2026)
+
+Trial app revision `5fa738c94abe8c769c9e135a79002a11b584a7ab` is isolated on
+`feat/liquid-glass-elements`. Reverting that single commit removes the panel
+trial while retaining the approved store switcher; pre-trial baseline is
+`79d4de35bd1eaf5545ef3319e83b8ce691c05294`.
+
+- The editor and actions share one list row/background to avoid a seam between
+  two independent glass surfaces. The inset divider remains; handlers, focus
+  bindings and individual control styles are unchanged. Regular glass is neutral
+  and non-interactive, with the adaptive opaque background before iOS 26.
+- Linux resource checks passed (9 tests) and `git diff --check` passed.
+- The separate Mac worktree was clean before fetching/fast-forwarding to the
+  exact pushed app revision. Xcode `RunProject` built, signed, installed in place
+  and launched on **Adrian’s iPhone / iOS 27.2**, PID **36815**, zero build errors.
+  Log: Mac ActionArtifacts `RunProject/RunProject-Log-20261109-165316.txt`.
+- Actual device-build resources match canonical source (**35 JSON + 1 JS**),
+  with no legacy `-v2` files; strict code-signature verification passed.
+- Focused simulator keyboard/action-layout checks and visual inspection are
+  pending. No phone data/session reset, fixture launch, retailer action, merge
+  or release was performed. This remains a reversible visual trial, not approval.
+
 ## List store switcher Liquid Glass — physical iPhone (9 November 2026)
 
 App revision `27af3fe47feb9438ab503fedde0893a86e29fc4c` on
