@@ -153,6 +153,28 @@ launch evidence: `~/Library/Logs/ListRunner/card-collapse-hint-reset-c299d14.jso
 and `card-collapse-hint-normal-launch-c299d14.json`. Device app path is the same
 desktop-Xcode DerivedData path recorded above. No merge or release was performed.
 
+### User-requested closer spacing
+
+After approving the above-card correction, the user requested a slightly smaller
+gap. App revision `cc51cd84ee2d533590cbd7f4745a81d6f2263e06` changes only the hint's
+bottom spacing from 20 to 12 pt (8 pt closer); the actual-card placement regression
+retains a minimum 8 pt clearance. Animation, cards, gestures and persistence are
+unchanged. Swift syntax parsing and `git diff --check` passed.
+
+Xcode BuildProject and RunProject passed with zero errors; the signed device app
+again passed **35 JSON + 1 JavaScript** resource verification and strict deep
+signature verification. It was installed in place on the same iPhone 17e / iOS
+27.2, initial PID **38118**, reference `7962ba400`. The hint-only reset was invoked
+once, as in the preceding installation, with no list/store/session/import/cart
+actions. The two focused hint tests are running; their results are not yet claimed.
+The final normal launch has no arguments, PID **38139**; launch JSON independently
+confirms the preceding reset launch's sole hint-reset argument and the final empty
+argument list. The reset argument is not saved in the shared scheme.
+
+Xcode logs: `BuildProject-Log-20261109-195820.txt` and
+`RunProject-Log-20261109-195902.txt`. Reset evidence:
+`~/Library/Logs/ListRunner/card-collapse-hint-reset-cc51cd8.json`.
+
 ## Retained store page — physical iPhone install (9 November 2026)
 
 App revision `127ba14c442941591cf641b0fd74bf461ecd2102` on
