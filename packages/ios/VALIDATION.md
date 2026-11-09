@@ -54,6 +54,19 @@ ready-preload wait to non-results fixtures. Production cooldown and retention co
 are unchanged; the two focused reruns are pending. Evidence:
 `ListRunner-store-resume-fd8606c.xcresult` in the same Mac DerivedData directory.
 
+Final focused follow-up at `09fec2f`: **2/2 passed, zero failures/skips/runtime
+warnings**, confirmed using `xcresulttool get test-results summary`. The standard
+store test retained the product document, `Keep my place` form value and settled
+251 pt field position through all three dismiss/reopen cycles, including the
+deferred-search observation windows. Ordinary preload promotion passed with the
+debug ready-preload wait. Together with the earlier All items and results-preload
+passes, both retained-page entry points and both preload paths now have passing
+UI coverage; this is coverage across focused runs, not a fresh single-run full
+suite. Evidence: `ListRunner-store-resume-09fec2f.xcresult` and
+`~/Library/Logs/ListRunner-store-resume-09fec2f.log` on the Mac. The on-phone app
+remains `127ba14`; subsequent changes affect tests/debug fixture timing and this
+record only. Manual phone confirmation and a complete release suite remain open.
+
 ## Paprika-style grouping capsule — physical iPhone (9 November 2026)
 
 At the user's request, app revision `587948feb281b2ba91d32ea38ba1504e22121b91`
