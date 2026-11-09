@@ -1,5 +1,30 @@
 # Reusable store framework validation
 
+## List store switcher Liquid Glass — physical iPhone (9 November 2026)
+
+App revision `27af3fe47feb9438ab503fedde0893a86e29fc4c` on
+`feat/liquid-glass-elements` was pushed and checked out at that exact SHA in
+the separate Mac worktree `~/Projects/listrunner-worktrees/liquid-glass-elements`.
+The canonical Mac checkout and its untracked Xcode Cloud directory were untouched.
+
+- The shared store/All items picker uses an interactive regular glass capsule on
+  iOS 26+, with the existing adaptive background on earlier releases and a minimum
+  44pt target. Menu actions and list/session ownership are unchanged.
+- Linux resource checks passed (9 tests); `git diff --check` passed.
+- An initial SSH command-line device build compiled but failed signing with
+  `errSecInternalComponent`; it was not installed. After the user approved Xcode
+  MCP access, Xcode `RunProject` successfully built, signed, installed in place
+  and launched on **Adrian’s iPhone / iOS 27.2**, PID **36792**, zero build errors.
+- Actual Xcode-built `Debug-iphoneos/ListRunner.app` resource verification passed:
+  **35 JSON + 1 JavaScript** files match canonical source, no legacy `-v2` resources.
+  `codesign --verify --deep --strict` passed.
+- Focused simulator switching/target checks are pending; phone visual inspection,
+  VoiceOver, Reduce Transparency and earlier-iOS fallback remain unverified.
+
+Build log: Mac Xcode ActionArtifacts `RunProject/RunProject-Log-20261109-164807.txt`.
+No uninstall, data/session reset, test fixture on the phone, retailer action,
+merge or TestFlight release was performed.
+
 ## Paprika-style grouping capsule — physical iPhone (9 November 2026)
 
 At the user's request, app revision `587948feb281b2ba91d32ea38ba1504e22121b91`
