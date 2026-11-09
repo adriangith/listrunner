@@ -81,7 +81,6 @@ struct ShoppingRootScreen: View {
                                 else { showingAllItems = true }
                             }, onSelectAllItems: {
                                 if allItemsAddDestination.isEmpty { allItemsAddDestination = storeID.rawValue }
-                                previewingStoreWelcome = false
                                 showingAllItems = true
                            }, storeLaunchRequested: $storeLaunchRequested,
                            importLaunchRequested: $importLaunchRequested,
@@ -1518,10 +1517,6 @@ struct GroceryListScreen: View {
                     }
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-                    if !allItems.isEmpty {
-                        Button("View saved items", action: onSelectAllItems)
-                            .accessibilityIdentifier("view-saved-items")
-                    }
                 } else if shoppingVisibleIDs.isEmpty {
                     ContentUnavailableView {
                         Label("No stores enabled", systemImage: "basket")
