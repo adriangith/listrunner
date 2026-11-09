@@ -42,9 +42,22 @@ trial while retaining the approved store switcher; pre-trial baseline is
   Log: Mac ActionArtifacts `RunProject/RunProject-Log-20261109-165316.txt`.
 - Actual device-build resources match canonical source (**35 JSON + 1 JS**),
   with no legacy `-v2` files; strict code-signature verification passed.
-- Focused simulator keyboard/action-layout checks and visual inspection are
-  pending. No phone data/session reset, fixture launch, retailer action, merge
-  or release was performed. This remains a reversible visual trial, not approval.
+- Focused iPhone 17 / iOS 27.2 simulator UI checks passed **3/3**, zero failures
+  or skips: `testAllItemsLongDestinationStacksActionsAndMatchesStandardAddHeight`,
+  `testAllItemsGroupAddSelectsStorePreservesDraftAndFocusesEntry`, and
+  `testAddProductsEntryOpensKeyboardAndSubmitsFromEmptyList`.
+- Standard and long-destination visual checks found one continuous readable
+  panel, no clipped editor/divider/actions, and correct stacking with 44pt Add
+  and destination controls. Manual typing/Return submitted an isolated fixture
+  item, cleared the editor and retained focus; tapping outside dismissed focus.
+  Manual interaction hid the software keyboard, so actual keyboard appearance
+  was verified by XCTest rather than a manual keyboard-visible screenshot.
+  Evidence: `/tmp/opencode/glass-entry-verification/`. Mac result bundle:
+  `~/Library/Developer/Xcode/DerivedData/ListRunner-glass-entry-tests-evidence/entry-5fa738c-20261109T165328.xcresult`.
+- The user approved the Add products appearance before requesting list-panel
+  glass. No phone data/session reset, fixture launch, retailer action, merge or
+  release was performed. Dark mode, VoiceOver and earlier-iOS fallback remain
+  unverified for this panel.
 
 ## List store switcher Liquid Glass — physical iPhone (9 November 2026)
 
