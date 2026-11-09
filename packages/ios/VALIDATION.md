@@ -2,6 +2,25 @@
 
 ## Grocery list panel glass trial — physical iPhone (9 November 2026)
 
+**Rejected visual trials; list backgrounds restored to the approved baseline.**
+The original `e26b325` passed 3 functional UI tests (delete in both groupings,
+store-owned reorder, equal short-row height), but light/dark simulator captures
+showed glass obscuring list and entry controls. Tests alone did not establish
+visual correctness. Evidence: `/tmp/opencode/list-panel-glass-review/`.
+
+Correction `834c92be67997c72115d1efdb1b9476049c52db6` removed cross-List glass
+extraction and used UIKit glass inside each row background instead. It compiled
+and restored readable contents and outer corners in light/dark store and All
+items captures, but dark mode retained broad per-row tonal/rim bands. No UI tests
+were run on that correction because its visual gate failed. Evidence:
+`/tmp/opencode/list-panel-native-glass-834c92b/`.
+
+Both list-only implementation commits have been reversed, leaving
+`GroceryListScreen.swift` and `plan.md` identical to approved Add products app
+revision `5fa738c94abe8c769c9e135a79002a11b584a7ab`. Switcher and Add products
+glass remain intact. List glass is not complete or approved; the historical
+initial installation details below do not certify its appearance.
+
 App revision `e26b3259c2c2903a6ad20ce5f25c563e1f90115b` extends the approved
 Add products treatment to store-list and All items group backgrounds. It is a
 separate reversible commit on `feat/liquid-glass-elements`; reversing it retains
@@ -20,8 +39,8 @@ the independently approved switcher and Add products glass.
   Mac ActionArtifacts `RunProject/RunProject-Log-20261109-170145.txt`.
 - Actual device-build resource comparison passed (**35 JSON + 1 JS**, no legacy
   `-v2` files), as did strict code-signature verification.
-- Simulator row-action/reorder/layout tests and light/dark visual checks are
-  pending; cross-row glass union appearance is not yet visually certified.
+- Original simulator row-action/reorder/layout tests passed **3/3**, but visual
+  verification failed as detailed above; cross-row union must not be shipped.
   No app data/session reset, phone fixtures, retailer action, merge or release.
 
 ## Add products glass trial — physical iPhone (9 November 2026)

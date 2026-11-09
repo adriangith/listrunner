@@ -472,74 +472,6 @@ private struct ProductEntryPanelSurface: View {
     }
 }
 
-private struct ListPanelRowSurface: View {
-    var isFirst = false
-    var isLast = false
-    var highlight: Color? = nil
-
-    var body: some View {
-        let shape = UnevenRoundedRectangle(
-            topLeadingRadius: isFirst ? 20 : 0,
-            bottomLeadingRadius: isLast ? 20 : 0,
-            bottomTrailingRadius: isLast ? 20 : 0,
-            topTrailingRadius: isFirst ? 20 : 0)
-        if #available(iOS 26.0, *) {
-            // Keep glass inside the cell background's UIKit layer. Extracting
-            // SwiftUI glass across a List can composite it above cell content.
-            ListRowGlassBackground(isFirst: isFirst, isLast: isLast)
-                .clipShape(shape)
-                .overlay { shape.fill(highlight ?? .clear) }
-        } else {
-            highlight ?? Color(uiColor: .secondarySystemGroupedBackground)
-        }
-    }
-}
-
-@available(iOS 26.0, *)
-private struct ListRowGlassBackground: UIViewRepresentable {
-    let isFirst: Bool
-    let isLast: Bool
-
-    func makeUIView(context: Context) -> BackgroundView {
-        BackgroundView()
-    }
-
-    func updateUIView(_ view: BackgroundView, context: Context) {
-        view.isFirst = isFirst
-        view.isLast = isLast
-        view.setNeedsLayout()
-    }
-
-    final class BackgroundView: UIView {
-        private let glass = UIVisualEffectView(effect: UIGlassEffect(style: .regular))
-        var isFirst = false
-        var isLast = false
-
-        init() {
-            super.init(frame: .zero)
-            isUserInteractionEnabled = false
-            accessibilityElementsHidden = true
-            clipsToBounds = true
-            glass.layer.cornerRadius = 20
-            glass.layer.cornerCurve = .continuous
-            glass.clipsToBounds = true
-            addSubview(glass)
-        }
-
-        required init?(coder: NSCoder) { return nil }
-
-        override func layoutSubviews() {
-            super.layoutSubviews()
-            // Crop away internal top/bottom glass rims so rows read as one
-            // panel, while keeping native lazy cells, separators and actions.
-            let top: CGFloat = isFirst ? 0 : 32
-            let bottom: CGFloat = isLast ? 0 : 32
-            glass.frame = CGRect(x: 0, y: -top, width: bounds.width,
-                                 height: bounds.height + top + bottom)
-        }
-    }
-}
-
 private struct ListItemContent: View {
     let name: String
     let quantity: String
@@ -1016,7 +948,6 @@ private struct AllItemsScreen: View {
                             onAdd: beginAdding)
                         .id(group.id)
                         .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
-                        .listRowBackground(ListPanelRowSurface(isFirst: true))
                         ForEach(group.items, id: \.id) { item in
                             allItemRow(item)
                                 .id(item.id)
@@ -1030,8 +961,8 @@ private struct AllItemsScreen: View {
                                 .onAppear {
                                     if scrollTargetItemID == item.id { scrollToAddedItem(item.id, using: proxy) }
                                 }
-                                .listRowBackground(ListPanelRowSurface(
-                                    highlight: highlightedItemIDs.contains(item.id) ? Color.accentColor.opacity(0.12) : nil))
+                                .listRowBackground(highlightedItemIDs.contains(item.id)
+                                    ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
                                 .listRowInsets(ListItemRowLayout.insets)
                         }
                         .onMove(perform: group.storeIDs.count == 1 ? { source, destination in
@@ -1044,8 +975,7 @@ private struct AllItemsScreen: View {
                                 itemIDs: Set(group.items.map(\.id)))
                         }
                         .accessibilityLabel("Clear \(group.title) list")
-                         .accessibilityIdentifier("all-items-clear-\(group.id)")
-                         .listRowBackground(ListPanelRowSurface(isLast: true))
+                        .accessibilityIdentifier("all-items-clear-\(group.id)")
                         .confirmationDialog("Clear your list?", isPresented: Binding(
                             get: { clearRequest?.groupID == group.id },
                             set: { if !$0 { clearRequest = nil } }), titleVisibility: .visible) {
@@ -1708,11 +1638,9 @@ struct GroceryListScreen: View {
                             ContentUnavailableView("Your list is empty", systemImage: "basket",
                                                    description: Text("Add products above, then shop though them with ListRunner"))
                                 .padding(.vertical, 12)
-                                .listRowBackground(ListPanelRowSurface(isFirst: true, isLast: true))
                         } else {
                             groceryList(using: scrollProxy)
-                             ClearListButton(action: clearList)
-                              .listRowBackground(ListPanelRowSurface(isLast: true))
+                            ClearListButton(action: clearList)
                              .confirmationDialog("Clear your list?", isPresented: $showingClearConfirmation,
                                                  titleVisibility: .visible) {
                                 if addedCount > 0 {
@@ -1993,8 +1921,11 @@ struct GroceryListScreen: View {
                 insertion: .move(edge: .top).combined(with: .opacity),
                 removal: .opacity
             ))
-            .listRowBackground(ListPanelRowSurface(isFirst: item.id == items.first?.id,
-                highlight: recentlyAddedItemIDs.contains(item.id) ? storeHighlightColor.opacity(0.18) : nil))
+            .listRowBackground(
+                recentlyAddedItemIDs.contains(item.id)
+                    ? storeHighlightColor.opacity(0.18)
+                    : Color(uiColor: .secondarySystemGroupedBackground)
+            )
             .listRowInsets(ListItemRowLayout.insets)
         }
         .onMove(perform: moveItems)
