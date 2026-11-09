@@ -175,6 +175,17 @@ Xcode logs: `BuildProject-Log-20261109-195820.txt` and
 `RunProject-Log-20261109-195902.txt`. Reset evidence:
 `~/Library/Logs/ListRunner/card-collapse-hint-reset-cc51cd8.json`.
 
+The final `cc51cd8` focused rerun completed **2/2 passed**, zero failures/skips/
+runtime warnings, confirmed using `xcresulttool`. The retained screenshot shows a
+visibly closer, roughly 16 pt gap with no card overlap; the minimum 8 pt assertion,
+cross-store/relaunch persistence and incomplete/successful-collapse checks passed.
+Evidence: Mac DerivedData `ListRunner-card-collapse-hint-cc51cd8.xcresult`,
+`~/Library/Logs/ListRunner/card-collapse-hint-ui-cc51cd8.log`, and reviewed local
+screenshot `/tmp/opencode/card-collapse-hint-cc51cd8-evidence/initial-coles-hint-closer.png`.
+Only the dedicated hint simulator was shut down afterward; its state/evidence
+were preserved. The phone remains on the same already-installed `cc51cd8` app;
+this result recording does not reset the hint or relaunch the phone again.
+
 ## Retained store page — physical iPhone install (9 November 2026)
 
 App revision `127ba14c442941591cf641b0fd74bf461ecd2102` on
