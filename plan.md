@@ -2,7 +2,7 @@
 
 ### List panel glass trial (9 November 2026)
 
-* Extend the approved Add products panel's neutral, non-interactive regular glass to the white grocery-list backgrounds on iOS 26+, including each All items group header, rows and Clear List footer. Unite adjacent glass backgrounds per section while retaining native individual row identity, separators, reorder/swipe/menu actions and recent-add highlights. Earlier iOS retains its existing adaptive surfaces. Keep this trial in a separate reversible commit; the store switcher and Add products glass are independently approved.
+* Extend the approved Add products panel's neutral, non-interactive regular glass to the white grocery-list backgrounds on iOS 26+, including each All items group header, rows and Clear List footer. Keep native glass within each row's background layer and crop internal rims for a continuous panel appearance, retaining individual row identity, separators, reorder/swipe/menu actions and recent-add highlights. Do not extract glass across the List: that trial obscured foreground controls. Earlier iOS retains its existing adaptive surfaces. Keep this trial separately reversible; the store switcher and Add products glass are independently approved.
 
 ### Add products glass trial (9 November 2026)
 
