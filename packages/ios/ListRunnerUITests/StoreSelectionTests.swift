@@ -3639,7 +3639,7 @@ final class StoreSelectionTests: XCTestCase {
         let card = app.otherElements["selected-shopping-card"]
         XCTAssertTrue(card.waitForExistence(timeout: 3))
         XCTAssertEqual(card.frame.height, 224, accuracy: 1)
-        XCTAssertLessThanOrEqual(hint.frame.maxY, card.frame.minY - 12,
+        XCTAssertLessThanOrEqual(hint.frame.maxY, card.frame.minY - 8,
                                  "The complete hint must sit above the actual card, not its inset collapse button")
         let initialAppearance = XCTAttachment(screenshot: app.screenshot())
         initialAppearance.name = "Card collapse hint — clear gap above card"

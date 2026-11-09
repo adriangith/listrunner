@@ -367,7 +367,7 @@ struct StoreShoppingView: View {
                         // Lay out the entire label above the carousel rather
                         // than relying on TimelineView's alignment guides.
                         // Even at the float's lowest point a clear gap remains.
-                        .padding(.bottom, 20)
+                        .padding(.bottom, 12)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(height: 0, alignment: .bottom)
                 }
