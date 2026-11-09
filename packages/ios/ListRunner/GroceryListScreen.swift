@@ -79,9 +79,10 @@ struct ShoppingRootScreen: View {
                                 sessions.endAllInteractions()
                                 if shoppingVisibleIDs.contains(id) { activeStoreID = id.rawValue }
                                 else { showingAllItems = true }
-                           }, onSelectAllItems: {
-                               if allItemsAddDestination.isEmpty { allItemsAddDestination = storeID.rawValue }
-                               showingAllItems = true
+                            }, onSelectAllItems: {
+                                if allItemsAddDestination.isEmpty { allItemsAddDestination = storeID.rawValue }
+                                previewingStoreWelcome = false
+                                showingAllItems = true
                            }, storeLaunchRequested: $storeLaunchRequested,
                            importLaunchRequested: $importLaunchRequested,
                            onPromoteStore: promote)

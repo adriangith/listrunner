@@ -712,6 +712,43 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.buttons["welcome-choose-store"].exists)
     }
 
+    func testFirstStoreWelcomePreviewSavedItemsOpensAllItemsAndPreservesLists() {
+        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["view-saved-items"].exists, "Fresh installs have no saved items to view")
+        app.buttons["welcome-choose-store"].tap()
+        enableWelcomeStore("coles")
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap()
+        input.typeText("Saved welcome preview item")
+        app.buttons["Add Items"].tap()
+        XCTAssertTrue(row("Saved welcome preview item", status: "Pending").waitForExistence(timeout: 5))
+
+        // First preview from a store list, then from the saved All items scope.
+        for _ in 0..<2 {
+            app.terminate()
+            app.launchArguments = ["--preview-store-welcome"]
+            app.launch()
+            XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
+            let savedItems = app.buttons["view-saved-items"]
+            for _ in 0..<6 {
+                if savedItems.exists && savedItems.isHittable { break }
+                app.swipeUp()
+            }
+            XCTAssertTrue(savedItems.isHittable)
+            savedItems.tap()
+            XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.buttons["welcome-choose-store"].exists)
+            XCTAssertTrue(row("Saved welcome preview item", status: "Pending").waitForExistence(timeout: 5))
+        }
+
+        app.terminate()
+        app.launchArguments = []
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertTrue(row("Saved welcome preview item", status: "Pending").waitForExistence(timeout: 5))
+    }
+
     func testFirstStoreWelcomeSimpleSetupCancelsThenActivatesChosenStore() {
         XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
         app.buttons["welcome-choose-store"].tap()
