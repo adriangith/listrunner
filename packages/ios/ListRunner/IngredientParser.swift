@@ -128,6 +128,12 @@ struct IngredientParser {
             let rest = String(text[end...]).trimmingCharacters(in: .whitespaces)
             if let identity, end > identity.range.lowerBound { continue }
             if let quantity = quantityPattern(removingParentheticalQuantities(from: prefix)) {
+                // A bare word is not a quantity for an unknown product (L plates,
+                // cup holder, can opener). Keep legacy bare units for known food.
+                if identity == nil {
+                    if case .measure(amount: nil, unit: _) = quantity { continue }
+                    if case .packages(count: nil, size: nil, sizeUnit: _, container: _) = quantity { continue }
+                }
                 // Never salvage only the count from a malformed measure/package.
                 if case .count = quantity,
                    rest.range(of: #"(?i)^(?:[x×]|g|kg|ml|l|oz|cups?|cans?|boxes|packs?)\b|^[\d(]"#, options: .regularExpression) != nil { continue }

@@ -78,6 +78,8 @@ struct IngredientParserTests {
             ("2 x 400 g cans organic tomatoes", "organic tomatoes", 2),
             ("1/0 g milk", "1/0 g milk", nil),
             ("999999999999999999999 g milk", "999999999999999999999 g milk", nil),
+            ("L plates", "L plates", nil), ("cup holder", "cup holder", nil),
+            ("can opener", "can opener", nil),
             ("milkshake milk", "milkshake milk", nil)
         ]
         for (source, name, amount) in preservationCases {
