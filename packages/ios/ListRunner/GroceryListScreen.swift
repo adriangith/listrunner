@@ -608,6 +608,46 @@ private enum AllItemsGrouping: String {
     case category
 }
 
+private struct AllItemsGroupingSwitcher: View {
+    @Environment(\.isEnabled) private var isEnabled
+    @Binding var selection: AllItemsGrouping
+
+    var body: some View {
+        HStack(spacing: 0) {
+            option("By store", value: .store)
+            option("By category", value: .category)
+        }
+        .padding(4)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
+        .overlay {
+            Capsule().strokeBorder(Color(uiColor: .separator).opacity(0.3), lineWidth: 0.5)
+                .allowsHitTesting(false)
+        }
+        .opacity(isEnabled ? 1 : 0.5)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Group items")
+        .accessibilityIdentifier("all-items-grouping")
+    }
+
+    private func option(_ title: LocalizedStringKey, value: AllItemsGrouping) -> some View {
+        Button { selection = value } label: {
+            Text(title)
+                .font(.body.weight(selection == value ? .semibold : .regular))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .foregroundStyle(selection == value ? Color.white : Color.primary)
+                .background(selection == value ? Color.accentColor : Color.clear, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selection == value ? .isSelected : [])
+        .accessibilityIdentifier("all-items-grouping-\(value.rawValue)")
+    }
+}
+
 private struct AllItemsGroup: Identifiable {
     let id: String
     let title: String
@@ -856,14 +896,9 @@ private struct AllItemsScreen: View {
                         onAdd: addItems, onManageStores: { showingStoreManagement = true })
                 }
             Section {
-                Picker("Group items", selection: Binding(
-                    get: { grouping.rawValue }, set: { groupingRawValue = $0 })) {
-                    Text("By store").tag(AllItemsGrouping.store.rawValue)
-                    Text("By category").tag(AllItemsGrouping.category.rawValue)
-                }
-                .pickerStyle(.segmented)
+                AllItemsGroupingSwitcher(selection: Binding(
+                    get: { grouping }, set: { groupingRawValue = $0.rawValue }))
                 .disabled(editMode.isEditing)
-                .accessibilityIdentifier("all-items-grouping")
             }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
