@@ -3095,7 +3095,10 @@ final class StoreBrowser: ObservableObject {
             // Deterministic UI fixtures never contact a retailer or a real account.
             let verificationFixture = ProcessInfo.processInfo.environment["LISTRUNNER_VERIFICATION_TEST_FIXTURE"] == "enabled"
             let resultsFixture = ProcessInfo.processInfo.environment["LISTRUNNER_RESULTS_SCROLL_TEST_FIXTURE"] == "enabled"
+            // Do not expose the interactive fixture on the initial homepage:
+            // XCTest must wait for the selected item's paced search to load.
             let resumeFixture = ProcessInfo.processInfo.environment["LISTRUNNER_STORE_RESUME_TEST_FIXTURE"] != nil
+                && (!store.capabilities.search || url == latestRequestedSearchURL)
             let html = resumeFixture ? """
                 <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
                 <body style="margin:20px;font-size:20px">

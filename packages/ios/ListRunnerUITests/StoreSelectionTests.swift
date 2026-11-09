@@ -1408,7 +1408,24 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testStoreResumePreservesPageAndScrollAfterHandleDismissal() {
-        app.buttons["Show Store"].tap()
+        checkStoreResumePreservesPageAndScroll(allItems: false)
+    }
+
+    func testAllItemsStoreResumePreservesPageAndScrollAfterHandleDismissal() {
+        checkStoreResumePreservesPageAndScroll(allItems: true)
+    }
+
+    private func checkStoreResumePreservesPageAndScroll(allItems: Bool) {
+        if allItems { choose("All items") }
+        func openStore() {
+            if allItems {
+                app.buttons["all-items-show-store"].tap()
+                app.buttons["Shop at Coles"].tap()
+            } else {
+                app.buttons["Show Store"].tap()
+            }
+        }
+        openStore()
         let web = app.webViews.firstMatch
         let openProduct = web.buttons["Open fixture product"]
         XCTAssertTrue(openProduct.waitForExistence(timeout: 10))
@@ -1433,8 +1450,9 @@ final class StoreSelectionTests: XCTestCase {
             } else {
                 handle.tap()
             }
-            XCTAssertTrue(app.buttons["Show Store"].waitForExistence(timeout: 5))
-            app.buttons["Show Store"].tap()
+            let footer = allItems ? app.buttons["all-items-show-store"] : app.buttons["Show Store"]
+            XCTAssertTrue(footer.waitForExistence(timeout: 5))
+            openStore()
             let preserved = NSPredicate { _, _ in
                 note.exists && note.value as? String == "Keep my place"
                     && abs(note.frame.minY - originalY) < 3
@@ -1442,6 +1460,10 @@ final class StoreSelectionTests: XCTestCase {
             }
             XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: preserved, object: note)], timeout: 8), .completed,
                            "Reopening must retain the product document, form value and scroll position")
+            let lostState = XCTNSPredicateExpectation(predicate: NSCompoundPredicate(notPredicateWithSubpredicate: preserved), object: note)
+            lostState.isInverted = true
+            XCTAssertEqual(XCTWaiter.wait(for: [lostState], timeout: 3), .completed,
+                           "A deferred search must not reload the retained page after reopening")
         }
     }
 
