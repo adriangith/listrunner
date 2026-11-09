@@ -46,7 +46,8 @@ struct ShoppingRootScreen: View {
         let storeID = StoreID(rawValue: activeStoreID) ?? .coles
         ZStack {
         Group {
-        if showingAllItems {
+        // A one-launch preview takes precedence without changing the saved scope.
+        if showingAllItems && !previewingStoreWelcome {
             NavigationStack {
             AllItemsScreen(sessions: sessions, visibility: visibility, paprikaReminders: paprikaReminders,
                            draft: $allItemsDraft, destinationRawValue: $allItemsAddDestination,
@@ -69,9 +70,10 @@ struct ShoppingRootScreen: View {
                                // its safe areas/header. Fade the captured outgoing
                                // screen instead of interpolating live stack layout.
                                welcomeTransition.perform(reduceMotion: reduceMotion) {
-                                   previewingStoreWelcome = false
-                                   activeStoreID = id.rawValue
-                                   welcomeCompletion += 1
+                                    previewingStoreWelcome = false
+                                    activeStoreID = id.rawValue
+                                    showingAllItems = false
+                                    welcomeCompletion += 1
                                }
                             }, onSelectStore: { id in
                                 sessions.endAllInteractions()

@@ -675,6 +675,42 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.buttons["welcome-choose-store"].exists)
     }
 
+    func testFirstStoreWelcomePreviewOverridesAllItemsWithoutChangingSavedScope() {
+        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
+        app.buttons["welcome-choose-store"].tap()
+        enableWelcomeStore("coles")
+        choose("All items")
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
+
+        app.terminate()
+        app.launchArguments = ["--preview-store-welcome"]
+        app.launch()
+        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["A list for every store."].exists)
+        XCTAssertFalse(app.buttons["all-items-scope-picker"].exists)
+        app.buttons["welcome-choose-store"].tap()
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 5))
+
+        app.terminate()
+        app.launchArguments = []
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10),
+                      "Previewing and cancelling must preserve the saved All items scope")
+        XCTAssertFalse(app.buttons["welcome-choose-store"].exists)
+
+        app.terminate()
+        app.launchArguments = ["--preview-store-welcome"]
+        app.launch()
+        XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
+        app.buttons["welcome-choose-store"].tap()
+        enableWelcomeStore("bunnings")
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"),
+                      "Explicit welcome completion must open the chosen store, not All items")
+        XCTAssertFalse(app.buttons["all-items-scope-picker"].exists)
+        XCTAssertFalse(app.buttons["welcome-choose-store"].exists)
+    }
+
     func testFirstStoreWelcomeSimpleSetupCancelsThenActivatesChosenStore() {
         XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10))
         app.buttons["welcome-choose-store"].tap()
