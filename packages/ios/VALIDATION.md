@@ -1,5 +1,33 @@
 # Reusable store framework validation
 
+## Retained store page — physical iPhone install (9 November 2026)
+
+App revision `127ba14c442941591cf641b0fd74bf461ecd2102` on
+`fix/preserve-store-sheet-page` was pushed and checked out cleanly at that exact
+SHA in the separate Mac worktree
+`/Users/adrianzafir/Projects/listrunner-worktrees/preserve-store-sheet-phone`.
+The primary Mac checkout and the earlier simulator-test worktree were not changed.
+
+- With explicit user approval, Xcode RunProject built, signed, installed in place
+  and launched on **Adrian’s iPhone / iOS 27.2**, zero build errors, PID **36685**,
+  launch reference `753745980`.
+- Shared scheme launch arguments and environment overrides were empty. No UI-test
+  fixture, uninstall, app-data clear, import, store reset or retailer action was run
+  on the phone. Manual hide/reopen behavior on that device awaits user confirmation.
+- The actual `Debug-iphoneos/ListRunner.app` passed resource verification: **35
+  JSON + 1 JavaScript** files match canonical source, no legacy `-v2` resources.
+  Strict deep code-signature verification passed.
+- Linux results-scroll checks passed **53/53** and bundled-resource source checks
+  passed **9/9**. The Release simulator build of implementation `eab4679` passed;
+  focused UI tests on that earlier revision were still running at installation.
+  The extra All items/deferred-reload regression checks added in `127ba14` have
+  not yet been run; this install is not a claim of a completed simulator suite.
+
+Build evidence: Mac Xcode ActionArtifacts
+`RunProject/RunProject-Log-20261109-163738.txt`.
+Device app: `~/Library/Developer/Xcode/DerivedData/ListRunner-gllnnsrafcgklxaqtnxldzpvfydi/Build/Products/Debug-iphoneos/ListRunner.app`.
+No merge, archive or TestFlight release was performed.
+
 ## Paprika-style grouping capsule — physical iPhone (9 November 2026)
 
 At the user's request, app revision `587948feb281b2ba91d32ea38ba1504e22121b91`
