@@ -173,14 +173,6 @@ struct IngredientParser {
         parseList(text).map(\.grocery)
     }
 
-    // Direct product entry uses explicit list separators even for products
-    // outside the ingredient dictionary. Keep recipe/Reminder comma handling
-    // separate so preparation notes remain attached to their ingredient.
-    func parseProductEntry(_ text: String) -> [ParsedGrocery] {
-        text.components(separatedBy: CharacterSet.newlines.union(CharacterSet(charactersIn: ",;\t")))
-            .compactMap(parseRecord).map(\.grocery)
-    }
-
     private func resolve(in text: String) -> (Match?, Bool) {
         guard let dictionary else { return (nil, false) }
         let candidates = dictionary.ingredients.flatMap { entry in

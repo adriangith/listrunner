@@ -40,7 +40,7 @@ struct RecoveryTests {
         let safeParser = IngredientParser(dictionary: parserDictionary)
         let parserData = try ShoppingLists.open(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
         let parserContext = parserData.mainContext
-        let safeRows = ShoppingLists.stageAdd(safeParser.parseProductEntry("12 taco shells, 2 pasta shells, gluten-free bread, bread")
+        let safeRows = ShoppingLists.stageAdd(safeParser.parseGroceries("12 taco shells\n2 pasta shells\ngluten-free bread\nbread")
             + [ParsedGrocery(name: "  ", amount: nil, unit: nil)], to: .coles, allItems: [], context: parserContext)
         check(safeRows.map(\.name) == ["taco shells", "Pasta shells", "gluten-free bread", "Bread"]
               && safeRows.map(\.quantityAmount) == [12, 2, nil, nil],
@@ -51,6 +51,24 @@ struct RecoveryTests {
         let persistedSafeRows = try parserContext.fetch(FetchDescriptor<GroceryItem>())
         check(persistedSafeRows.count == 4 && persistedSafeRows.contains(where: { $0.name == "taco shells" && $0.quantityAmount == 12 }),
               "parser-safe names survive an isolated SwiftData save/fetch")
+        let manualNames = ["500 g penne pasta", "Firm tofu thinly sliced", "2 eggs"]
+        let manualRows = ShoppingLists.stageAdd(ParsedGrocery.productEntries(in: manualNames.joined(separator: "; ")),
+                                                to: .coles, allItems: [otherStoreItem], context: addContext)
+        check(manualRows.map(\.name) == manualNames && manualRows.map(\.searchTerm) == manualNames,
+              "manual additions retain complete literal names and search terms in input order")
+        check(manualRows.allSatisfy { $0.quantityAmount == nil && $0.quantityUnit == nil && $0.displayQuantity == "1" },
+              "manual additions do not infer amounts or units from product wording")
+        manualRows[0].status = .added
+        let repeatedRows = ShoppingLists.stageAdd(ParsedGrocery.productEntries(in: "500 g penne pasta"),
+                                                  to: .coles, allItems: manualRows + [otherStoreItem], context: addContext)
+        check(repeatedRows.count == 1 && repeatedRows[0].id == manualRows[0].id && repeatedRows[0].status == .pending,
+              "literal manual duplicates still reactivate the destination's existing row")
+        try addContext.save()
+        let savedManualRows = try addContext.fetch(FetchDescriptor<GroceryItem>()).filter { $0.listID == StoreID.coles.listID }
+        check(savedManualRows.count == 3 && savedManualRows.allSatisfy { manualNames.contains($0.name) && $0.searchTerm == $0.name },
+              "saved manual names and search terms are not rewritten by persistence")
+        check(otherStoreItem.quantityAmount == 9 && otherStoreItem.name == "milk",
+              "literal manual additions leave other stores unchanged")
         let firstID = UUID(), secondID = UUID(), thirdID = UUID()
         let initialOrder = ItemPromotionOrder.promoting([firstID, secondID], in: "", existing: [firstID, secondID, thirdID])
         let updatedOrder = ItemPromotionOrder.promoting([thirdID, firstID], in: initialOrder,

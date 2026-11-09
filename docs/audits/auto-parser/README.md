@@ -2,6 +2,11 @@
 
 Historical baseline report. Follow-up implementation and validation are described in `IMPLEMENTATION.md`; findings/file lines below refer to the audited revision, before fixes.
 
+After the manual-entry bypass merge, the standalone probe's `ENTRY` output uses
+`ParsedGrocery.productEntries(in:)`, matching current literal manual entry. `LIST`
+and record probes still exercise import parsing. The historical observations below
+describe the original parser-based manual-entry path, not the current app behavior.
+
 Audit date: 9 November 2026. Baseline: `8fdbf1bc428b52a7217ef4e24eb44ffd322e0432`, branch `audit/auto-parser`.
 
 **No implementation fixes were made.** Only this report and standalone observation probes were added in the audit worktree. The main Linux checkout and Mac checkout were not modified. No app installation, user-list mutation, Reminders access/write, retailer browsing or cart operation was performed.

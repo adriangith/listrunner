@@ -40,7 +40,7 @@ struct ParserAudit {
         for source in ["2 eggs, beaten with milk", "1 onion, diced with garlic",
                        "milk, mystery fizz", "milk, bread, eggs", "taco shells, pasta shells"] {
             print("LIST \(source.debugDescription) => \(parser.parseList(source).map { grocery($0.grocery) })")
-            print("ENTRY \(source.debugDescription) => \(parser.parseProductEntry(source).map(grocery))")
+            print("ENTRY \(source.debugDescription) => \(ParsedGrocery.productEntries(in: source).map(grocery))")
         }
         let fallback = IngredientParser(dictionary: nil)
         for source in ["2 apples", "500 g diced mystery greens", "diced mystery greens"] {

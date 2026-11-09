@@ -5,6 +5,11 @@
 * Hiding the store with its handle or native sheet dismissal and reopening it through Show Store resumes the existing retailer document, history, form state and scroll position when the selected item, saved search term and ingredient-naming preferences are unchanged. Apply the same store-owned behavior from All items. Do not re-run search or results auto-scroll just because the sheet reappears.
 * Dismissal still cancels automation, pending searches, preloads and cart Undo; reopening establishes a fresh interaction context, never reuses a pending cart candidate. A different/edited selection, changed naming preferences, a cancelled search that never navigated, or a rebuilt/reset browser starts the appropriate search instead. Explicit refresh and existing verification/load/process-recovery safeguards remain unchanged. This is in-memory page retention, not restoration after app termination or WebKit process loss.
 
+### Manual product entry bypasses ingredient parsing (9 November 2026)
+
+* “Tap to add products” in individual store lists and All items keeps each product's wording as entered, trimming surrounding whitespace and splitting only on the existing comma, newline, semicolon and tab separators. Return, Add and multiline paste share this behavior. Do not canonicalise ingredient names, remove qualifiers/preparation wording or extract quantities/units; `500 g penne pasta` stays the complete product name and search term, with the ordinary default quantity of 1.
+* Ingredient/quantity parsing is reserved for imports. Preserve Paprika parsing, source identity, deduplication, transactions and reminder safeguards. Manual additions retain destination-local duplicate reactivation, input order, save-failure draft recovery and focus behavior. Existing saved rows and the independent local-ingredient search-name setting are unchanged. This supersedes earlier typed-input ingredient parsing requirements.
+
 ### App appearance (6 November 2026)
 
 * Settings offers System, Light and Dark appearance choices using the existing native Settings style. System is the default and follows device appearance changes; explicit Light/Dark choices override the native app appearance immediately, including sheets and local-data recovery.

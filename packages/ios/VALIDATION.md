@@ -98,6 +98,46 @@ this revision on the same physical iPhone, zero errors, PID **36232**; log
 `RunProject-Log-20261109-153750.txt`. Actual device-build resources and strict
 code-signature verification passed again. No data/session reset or live actions.
 
+## Manual entry bypasses automatic parsing (9 November 2026)
+
+Merge follow-up: integrated with main's newer parser-preservation and retained-store
+changes. Kept parser provenance, all import safety fixes and both documentation
+histories; migrated the additional shell-product persistence regression to the
+import adapter and updated the standalone audit probe to current manual entry.
+On the merged tree, **450/450 JavaScript tests**, **9/9 resource tests**, all **162
+parser fixtures + 884 dictionary aliases and focused regressions**, and **195
+regional-search checks** passed. Swift checks used the previously extracted Linux
+toolchain at `/tmp/opencode/auto-parser-audit/swift-toolchain` (not on the default
+PATH). `git diff --check` passed. This supersedes the original Linux Swift blocker
+below; SwiftData recovery, Xcode build and iOS UI tests remain unverified for this
+merged revision. No Mac synchronization or phone install was performed by the merge.
+
+Branch `fix/manual-products-no-parser` separates manual product entry from
+`IngredientParser`. Store-list and All items enablement/submission now use
+`ParsedGrocery.productEntries(in:)`: split existing comma/newline/semicolon/tab
+separators, trim edges, preserve the product wording and leave quantity unspecified
+(display default 1). Paprika import parsing and the independent regional-search
+name preference are unchanged. No saved-row migration is involved.
+
+- Linux: **379/379 retailer DOM/results-scroll tests** and **9/9 bundled-resource
+  verifier tests** passed; `git diff --check` passed. These checks do not execute
+  the changed Swift code.
+- Added Swift coverage for literal names, quantities left in names, qualifiers,
+  preparation wording, aliases, separators/empty segments, import parsing,
+  destination-local duplicate reactivation, order and persistence.
+- Added isolated UI regressions for store-list Add/Return and All items Add with
+  relaunch persistence; updated Lemon Tree and batch-order expectations to retain
+  manual wording rather than dictionary names.
+- **Swift/native/UI validation remains pending**: Linux has no `swiftc` (the parser
+  runner stops with `swiftc: not found`), and SSH to the canonical Mac at
+  `192.168.4.94` timed out. No iOS build, simulator run or phone install is claimed.
+  On the exact pushed task revision, run `tests/run-parser-tests.sh`,
+  `tests/run-regional-search-tests.sh`, `tests/run-recovery-tests.sh` and an Xcode
+  build, then the two new manual-entry UI tests plus existing Lemon Tree,
+  batch-order and Paprika import regressions. See README for Git handoff rules.
+
+No retailer, cart, Apple Reminders or device data was changed during this task.
+
 ## All items main-branch merge review (8 November 2026)
 
 Merged `a201ba522dcf05b1578ceb51dade4978e7db50e6` into main with merge commit

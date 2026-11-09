@@ -892,7 +892,7 @@ private struct AllItemsScreen: View {
                 }, onActionsFrame: { actionsFrame = $0 }) {
                     AllItemsAddButton(destination: destinationID, stores: visibleStores,
                         destinationRawValue: $destinationRawValue,
-                        canAdd: !IngredientParser.application.parseProductEntry(draft).isEmpty,
+                        canAdd: !ParsedGrocery.productEntries(in: draft).isEmpty,
                         onAdd: addItems, onManageStores: { showingStoreManagement = true })
                 }
             Section {
@@ -1315,13 +1315,13 @@ private struct AllItemsScreen: View {
     }
 
     private func addItems() {
-        guard let destinationID, !IngredientParser.application.parseProductEntry(draft).isEmpty else { return }
+        let entries = ParsedGrocery.productEntries(in: draft)
+        guard let destinationID, !entries.isEmpty else { return }
         guard !modelContext.hasChanges else {
             notice = "Save or retry your pending list changes before adding more items. Your text is still here."
             return
         }
-        let parsed = IngredientParser.application.parseProductEntry(draft)
-        let promoted = ShoppingLists.stageAdd(parsed, to: destinationID, allItems: allItems, context: modelContext)
+        let promoted = ShoppingLists.stageAdd(entries, to: destinationID, allItems: allItems, context: modelContext)
         for item in promoted { stageReminderWriteback(for: item) }
         do {
             try modelContext.save()
@@ -1570,7 +1570,7 @@ struct GroceryListScreen: View {
                                 // SwiftUI delivers the preceding typing change.
                                 // That obsolete edit must not cancel its reveal.
                                 guard value == rawInput else { return }
-                                // Multiline paste is parsed in a single edit.
+                                // Multiline paste is submitted in a single edit.
                                 // Keyboard Return is intercepted before insertion.
                                 if value.contains(where: { $0.isNewline }) {
                                     addItems()
@@ -1592,7 +1592,7 @@ struct GroceryListScreen: View {
                                 addItems(keepingInputFocused: true)
                             }
                                 .buttonStyle(ProductAddButtonStyle(tint: storePrimaryColor))
-                                .disabled(IngredientParser.application.parseProductEntry(rawInput).isEmpty)
+                                .disabled(ParsedGrocery.productEntries(in: rawInput).isEmpty)
                                 .onGeometryChange(for: CGRect?.self) { geometry in
                                     groceryInputFocused ? geometry.frame(in: .global) : nil
                                 } action: { frame in
@@ -1947,8 +1947,8 @@ struct GroceryListScreen: View {
     }
 
     private func addItems(keepingInputFocused: Bool) {
-        let parsed = IngredientParser.application.parseProductEntry(rawInput)
-        guard !parsed.isEmpty else { return }
+        let entries = ParsedGrocery.productEntries(in: rawInput)
+        guard !entries.isEmpty else { return }
         if modelContext.hasChanges {
             saveChanges()
             guard !saveFailed else { return }
@@ -1961,7 +1961,7 @@ struct GroceryListScreen: View {
         // the first row still gets the added-item highlight and animated scroll.
         withAnimation(items.isEmpty ? nil : .spring(response: 0.42, dampingFraction: 0.82)) {
             let existingIDs = Set(items.map(\.id))
-            let promotedItems = ShoppingLists.stageAdd(parsed, to: storeID, allItems: allItems, context: modelContext)
+            let promotedItems = ShoppingLists.stageAdd(entries, to: storeID, allItems: allItems, context: modelContext)
             for item in promotedItems {
                 if existingIDs.contains(item.id) { stageReminderWriteback(for: item) }
                 else { newlyAddedIDs.insert(item.id) }

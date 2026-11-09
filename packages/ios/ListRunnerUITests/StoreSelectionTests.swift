@@ -1681,6 +1681,23 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Hardware & Garden"].exists)
     }
 
+    func testAllItemsManualEntryPreservesProductWording() {
+        choose("All items")
+        let entry = app.textViews["all-items-entry"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 3))
+        entry.tap()
+        entry.typeText("500 g penne pasta")
+        app.buttons["all-items-add"].tap()
+        let product = row("500 g penne pasta", status: "Pending")
+        XCTAssertTrue(product.waitForExistence(timeout: 5))
+        XCTAssertTrue(product.label.contains("quantity 1"), "Manual entry must not extract 500 g as a quantity")
+        assertGroceryInputIsEmpty(entry)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertTrue(product.waitForExistence(timeout: 5), "Literal manual wording must survive relaunch")
+    }
+
     func testAllItemsRepeatedEntryKeepsComposerAndPreferences() {
         choose("All items")
         let entry = app.textViews["all-items-entry"]
@@ -3141,13 +3158,13 @@ final class StoreSelectionTests: XCTestCase {
         input.typeText("lemon, Lemon tree")
         app.buttons["Add Items"].tap()
         app.staticTexts["Ready when you are"].tap()
-        XCTAssertTrue(app.buttons["Actions for Lemon"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["Actions for Lemon Tree"].exists,
+        XCTAssertTrue(app.buttons["Actions for lemon"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Actions for Lemon tree"].exists,
                       "Lemon Tree must retain its full name rather than merging with Lemon")
         app.terminate()
         app.launch()
-        XCTAssertTrue(app.buttons["Actions for Lemon"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Actions for Lemon Tree"].exists)
+        XCTAssertTrue(app.buttons["Actions for lemon"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Actions for Lemon tree"].exists)
     }
 
     func testKeyboardDismissalAnimationOnOutsideTap() {
@@ -3219,6 +3236,24 @@ final class StoreSelectionTests: XCTestCase {
         assertGroceryInputIsEmpty(input)
     }
 
+    func testManualEntryPreservesProductWordingForButtonAndReturn() {
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("500 g penne pasta")
+        app.buttons["Add Items"].tap()
+        let pasta = row("500 g penne pasta", status: "Pending")
+        XCTAssertTrue(pasta.waitForExistence(timeout: 5))
+        XCTAssertTrue(pasta.label.contains("quantity 1"), "Manual entry must not extract a quantity")
+        input.typeText("Firm tofu thinly sliced\n")
+        XCTAssertTrue(row("Firm tofu thinly sliced", status: "Pending").waitForExistence(timeout: 5),
+                      "Return must preserve qualifiers and preparation wording too")
+        assertGroceryInputIsEmpty(input)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(row("Firm tofu thinly sliced", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertTrue(pasta.exists, "Literal manual wording must survive relaunch")
+    }
+
     func testNewItemsAreAddedToFrontInEnteredOrder() {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 3))
@@ -3226,10 +3261,8 @@ final class StoreSelectionTests: XCTestCase {
         input.typeText("new apples; new pears")
         app.buttons["Add Items"].tap()
 
-        // The ingredient-first parser canonicalizes known ingredient names and
-        // drops non-ingredient modifiers such as "new".
-        let apples = row("apples", status: "Pending")
-        let pears = row("pears", status: "Pending")
+        let apples = row("new apples", status: "Pending")
+        let pears = row("new pears", status: "Pending")
         let existing = row("Coles fixture item", status: "Pending")
         XCTAssertTrue(apples.waitForExistence(timeout: 3))
         XCTAssertTrue(apples.isHittable, "New items should scroll into the visible viewport")

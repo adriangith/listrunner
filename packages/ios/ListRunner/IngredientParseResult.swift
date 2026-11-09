@@ -5,6 +5,17 @@ struct ParsedGrocery {
     var amount: Double?
     var unit: String?
     var parseResult: IngredientParseResult? = nil
+
+    // Manual entry only separates products; ingredient/quantity interpretation
+    // belongs to imports. Preserve each product's wording after trimming edges.
+    static func productEntries(in text: String) -> [ParsedGrocery] {
+        text.components(separatedBy: CharacterSet.newlines.union(CharacterSet(charactersIn: ",;\t")))
+            .compactMap { segment in
+                let name = segment.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return nil }
+                return ParsedGrocery(name: name, amount: nil, unit: nil)
+            }
+    }
 }
 
 struct IngredientParseResult: Codable, Equatable {
