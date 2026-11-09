@@ -18,8 +18,17 @@ The canonical Mac checkout and its untracked Xcode Cloud directory were untouche
 - Actual Xcode-built `Debug-iphoneos/ListRunner.app` resource verification passed:
   **35 JSON + 1 JavaScript** files match canonical source, no legacy `-v2` resources.
   `codesign --verify --deep --strict` passed.
-- Focused simulator switching/target checks are pending; phone visual inspection,
-  VoiceOver, Reduce Transparency and earlier-iOS fallback remain unverified.
+- Focused iPhone 17 / iOS 27.2 simulator UI checks passed **2/2**, zero failures:
+  `testStorePickerKeepsListsAndStatusesSeparate` and
+  `testStoreSwitcherHasAccessibleTargetAcrossScopes`. The latter verifies the
+  store and All items targets and returning to Woolworths through the menu.
+- Simulator light-mode Woolworths inspection found a readable, aligned capsule,
+  label and chevrons, with a **161.7 × 44pt** accessibility frame and no visible
+  clipping/overlap. Screenshot:
+  `/tmp/opencode/liquid-glass-switcher-verification/woolworths-glass-switcher.png`.
+  Mac result bundle: `~/Library/Developer/Xcode/DerivedData/ListRunner-glass-switcher-tests/evidence/switcher-focused-20261109.xcresult`.
+  Phone visual inspection, dark-mode/animated-glass visual review, VoiceOver,
+  Reduce Transparency and earlier-iOS fallback remain unverified.
 
 Build log: Mac Xcode ActionArtifacts `RunProject/RunProject-Log-20261109-164807.txt`.
 No uninstall, data/session reset, test fixture on the phone, retailer action,
