@@ -1518,6 +1518,9 @@ final class StoreSelectionTests: XCTestCase {
         let store = app.buttons["all-items-grouping-store"]
         let category = app.buttons["all-items-grouping-category"]
         let list = app.collectionViews.firstMatch
+        let entryPanel = list.cells.containing(.textView, identifier: "all-items-entry").firstMatch
+        XCTAssertTrue(entryPanel.waitForExistence(timeout: 3))
+        let panelFrame = entryPanel.frame
         for _ in 0..<6 where !category.isHittable { list.swipeUp() }
         XCTAssertTrue(store.isHittable)
         XCTAssertTrue(category.isHittable)
@@ -1530,6 +1533,10 @@ final class StoreSelectionTests: XCTestCase {
             XCTAssertLessThanOrEqual(button.frame.maxX, app.frame.maxX)
         }
         XCTAssertEqual(store.frame.width, category.frame.width, accuracy: 1)
+        // The selected/unselected buttons sit 4pt inside the capsule's outer edge.
+        XCTAssertEqual(min(store.frame.minX, category.frame.minX) - 4, panelFrame.minX, accuracy: 1,
+                       "The capsule must align with the white entry/list panels, not their inset content")
+        XCTAssertEqual(max(store.frame.maxX, category.frame.maxX) + 4, panelFrame.maxX, accuracy: 1)
         XCTAssertTrue(store.isSelected)
         XCTAssertFalse(category.isSelected)
         category.tap()
