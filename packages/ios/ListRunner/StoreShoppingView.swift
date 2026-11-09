@@ -104,6 +104,13 @@ struct StoreShoppingView: View {
             }
 
             #if DEBUG
+            if browser.isStoreResumeTestFixture {
+                Text(browser.storeResumeTestStatus)
+                    .accessibilityIdentifier("store-resume-test-status")
+                    .frame(width: 1, height: 1)
+                    .opacity(0.01)
+                    .allowsHitTesting(false)
+            }
             if browser.isResultsScrollLiveProbe {
                 Text(browser.resultsScrollProbeStatus)
                     .accessibilityIdentifier("results-scroll-probe-status")
@@ -206,7 +213,7 @@ struct StoreShoppingView: View {
             browser.setBrowsingActive(scenePhase == .active)
             if selectedID == nil || !items.contains(where: { $0.id == selectedID }) { selectedID = items.first?.id }
             if let selected {
-                browser.beginInteraction(itemID: selected.id, searchTerm: selected.searchTerm)
+                browser.resumeInteraction(itemID: selected.id, searchTerm: selected.searchTerm)
             } else {
                 browser.loadIfNeeded()
             }
@@ -225,6 +232,9 @@ struct StoreShoppingView: View {
             }
             .task {
                 #if DEBUG
+                if ProcessInfo.processInfo.environment["LISTRUNNER_STORE_RESUME_TEST_FIXTURE"] == "checks" {
+                    await browser.runStoreResumeTestChecks()
+                }
                 if browser.isResultsScrollLiveProbe {
                     await browser.runResultsScrollLiveProbe()
                 }
@@ -1035,6 +1045,83 @@ final class StoreBrowser: ObservableObject {
     private var intendedSearchNamingGeneration: UUID?
 
     #if DEBUG
+    var isStoreResumeTestFixture: Bool {
+        uiTestMode && ProcessInfo.processInfo.environment["LISTRUNNER_STORE_RESUME_TEST_FIXTURE"] != nil
+    }
+    @Published private(set) var storeResumeTestStatus = ""
+
+    func runStoreResumeTestChecks() async {
+        guard isStoreResumeTestFixture else { return }
+        var failures: [String] = []
+        var checks = 0
+        func check(_ condition: Bool, _ name: String) {
+            checks += 1
+            if !condition { failures.append(name) }
+        }
+        for id in [StoreID.coles, .woolworths, .tesco] {
+            let subject = StoreBrowser(store: .load(id), websiteDataStore: .nonPersistent(), diagnostics: DiagnosticStore(fileURL: nil))
+            subject.setBrowsingActive(true)
+            let item = UUID()
+            subject.resumeInteraction(itemID: item, searchTerm: "milk")
+            check(subject.interactionEnabled && subject.itemID == item, "\(id) first open starts interaction")
+            for _ in 0..<120 {
+                if subject.pendingSearchTask == nil && !subject.webView.isLoading { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            let view = subject.webView
+            let navigation = subject.latestNavigation
+            let interaction = subject.interactionID
+            subject.setBrowsingActive(false)
+            subject.endInteraction()
+            check(!subject.interactionEnabled && subject.activeCandidate == nil && subject.preloadedSearch == nil,
+                  "\(id) dismissal stops automation")
+            subject.setBrowsingActive(true)
+            subject.resumeInteraction(itemID: item, searchTerm: "milk")
+            check(subject.webView === view && subject.latestNavigation === navigation && subject.pendingSearchTask == nil,
+                  "\(id) same selection keeps document without queued navigation")
+            check(subject.interactionEnabled && subject.interactionID != interaction,
+                  "\(id) resume uses fresh automation context")
+            if subject.store.capabilities.search {
+                subject.endInteraction()
+                subject.resumeInteraction(itemID: item, searchTerm: "bread")
+                check(subject.pendingSearchTask != nil && subject.latestRequestedSearchURL == subject.store.searchURL(for: "bread"),
+                      "\(id) edited query searches")
+                subject.endInteraction()
+                subject.resumeInteraction(itemID: item, searchTerm: "bread")
+                check(subject.pendingSearchTask != nil, "\(id) cancelled paced search is requested on reopen")
+                subject.endInteraction()
+                let other = UUID()
+                subject.resumeInteraction(itemID: other, searchTerm: "bread")
+                check(subject.itemID == other && subject.pendingSearchTask != nil, "\(id) different item searches")
+                subject.endInteraction()
+                subject.navigationPacing = StoreNavigationPacing()
+                subject.resumeInteraction(itemID: other, searchTerm: "zucchini")
+                for _ in 0..<120 {
+                    if subject.pendingSearchTask == nil && !subject.webView.isLoading { break }
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+                subject.endInteraction()
+                subject.updateIngredientSearchContext(IngredientSearchContext(countryCode: "NZ", enabled: true))
+                subject.resumeInteraction(itemID: other, searchTerm: "zucchini")
+                check(subject.pendingSearchTask != nil && subject.latestRequestedSearchURL == subject.store.searchURL(for: "courgette"),
+                      "\(id) changed naming settings search")
+            }
+            subject.endInteraction()
+            subject.enterStoreRecovery(.loadFailed)
+            subject.resumeInteraction(itemID: item, searchTerm: "milk")
+            check(subject.storeRecovery == .loadFailed && !subject.interactionEnabled && subject.pendingSearchTask == nil,
+                  "\(id) resume does not bypass recovery")
+            subject.leaveStoreRecovery()
+            subject.rebuildWebView()
+            subject.resumeInteraction(itemID: item, searchTerm: "milk")
+            check(subject.webView !== view && subject.interactionEnabled && subject.resumableSearch?.itemID == item,
+                  "\(id) rebuilt browser starts fresh")
+            subject.endInteraction()
+            subject.webView.stopLoading()
+        }
+        storeResumeTestStatus = failures.isEmpty ? "PASS: \(checks) store resume checks" : "FAIL: " + failures.joined(separator: ", ")
+    }
+
     var isIdleRecoveryTestFixture: Bool {
         uiTestMode && ProcessInfo.processInfo.environment["LISTRUNNER_IDLE_RECOVERY_TEST_FIXTURE"] == "enabled"
     }
@@ -1268,6 +1355,10 @@ final class StoreBrowser: ObservableObject {
     private var sessionID = UUID().uuidString
     private var interactionID = UUID().uuidString
     private var itemID: UUID?
+    // Retain the selected search across sheet dismissal, independently of the
+    // short-lived automation context. Website navigation may now be on a product
+    // or cart page; resuming must not replace that document with search results.
+    private var resumableSearch: (itemID: UUID, term: String, namingGeneration: UUID)?
     private var documentGeneration = 0
     private var activeCandidate: (productID: String, before: Int, deadline: TimeInterval)?
     private var candidatePageURL: URL?
@@ -2406,6 +2497,7 @@ final class StoreBrowser: ObservableObject {
         dismissCartUndoWarning()
         candidateTimeoutTask?.cancel()
         self.itemID = itemID
+        resumableSearch = (itemID, searchTerm, namingGeneration)
         interactionEnabled = true
         interactionID = UUID().uuidString
         activeCandidate = nil
@@ -2429,6 +2521,7 @@ final class StoreBrowser: ObservableObject {
             preloadedSearchReady = false
             preloadedResponseStatus = nil
             webView = preload.view
+            hasLoaded = true
             documentGeneration += 1
             intendedURL = preload.view.url ?? preload.url
             latestRequestedSearchURL = preload.url
@@ -2537,7 +2630,10 @@ final class StoreBrowser: ObservableObject {
 
     func resumeInteraction(itemID: UUID, searchTerm: String) {
         guard canPresentStore, storeRecovery == nil else { return }
-        if needsIdleBrowserRebuild {
+        if needsIdleBrowserRebuild || !hasLoaded
+            || resumableSearch?.itemID != itemID
+            || resumableSearch?.term != searchTerm
+            || resumableSearch?.namingGeneration != namingGeneration {
             beginInteraction(itemID: itemID, searchTerm: searchTerm)
             return
         }
@@ -2999,7 +3095,16 @@ final class StoreBrowser: ObservableObject {
             // Deterministic UI fixtures never contact a retailer or a real account.
             let verificationFixture = ProcessInfo.processInfo.environment["LISTRUNNER_VERIFICATION_TEST_FIXTURE"] == "enabled"
             let resultsFixture = ProcessInfo.processInfo.environment["LISTRUNNER_RESULTS_SCROLL_TEST_FIXTURE"] == "enabled"
-            let html = resultsFixture ? """
+            let resumeFixture = ProcessInfo.processInfo.environment["LISTRUNNER_STORE_RESUME_TEST_FIXTURE"] != nil
+            let html = resumeFixture ? """
+                <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                <body style="margin:20px;font-size:20px">
+                <button onclick="history.pushState({}, '', '/product/fixture');this.textContent='Fixture product opened'">Open fixture product</button>
+                <div style="height:700px">Store resume fixture</div>
+                <label>Store page note <input aria-label="Store page note" style="font-size:20px;width:90%"></label>
+                <button onclick="document.activeElement.blur()">Save fixture note</button>
+                <div style="height:1600px">Below fixture note</div></body></html>
+                """ : resultsFixture ? """
                 <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
                 <body style="margin:0"><h1>Results scroll fixture</h1><div style="height:1200px">Content above results</div>
                 <article data-testid="product-tile" style="height:400px"><h2>Results scroll fixture item</h2></article>
@@ -3023,6 +3128,9 @@ final class StoreBrowser: ObservableObject {
         cancelPreload()
         interactionEnabled = false
         interactionID = UUID().uuidString
+        // A paced search cancelled before it navigated has no page to resume.
+        // Reopen must request that selection rather than keep the previous item.
+        if pendingSearchTask != nil { resumableSearch = nil }
         pendingSearchTask?.cancel()
         pendingSearchTask = nil
         searchRequestID = UUID()
@@ -3114,6 +3222,7 @@ final class StoreBrowser: ObservableObject {
 
     private func rebuildWebView() {
         needsIdleBrowserRebuild = false
+        resumableSearch = nil
         cancelPreload()
         endInteraction()
         retireCurrentNavigation()

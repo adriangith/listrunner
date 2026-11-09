@@ -35,6 +35,16 @@ The verifier requires every canonical JSON file (including Bunnings) to be byte-
 
 ## Current implementation
 
+### Reopening the store sheet
+
+Show Store resumes the retained retailer page after handle/native-sheet dismissal,
+including its scroll position, browsing history and form state. The selected item,
+saved query and naming preferences must still match. This is shared by store lists
+and All items; it does not persist the page across app termination or WebKit process
+loss. Dismissal still stops automation and pending work, and reopening uses a fresh
+interaction context. Changed selections/queries/preferences, cancelled unstarted
+searches, explicit refresh and browser recovery retain their search/reload behavior.
+
 ### Appearance
 
 Settings → Appearance offers System (the default), Light and Dark. The choice
