@@ -41,7 +41,7 @@ final class GroceryItem {
     }
 
     private static func formatAmount(_ value: Double) -> String {
-        value.rounded() == value ? String(Int(value)) : String(value)
+        formatGroceryAmount(value)
     }
 }
 

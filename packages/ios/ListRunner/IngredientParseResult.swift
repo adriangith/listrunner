@@ -4,6 +4,7 @@ struct ParsedGrocery {
     var name: String
     var amount: Double?
     var unit: String?
+    var parseResult: IngredientParseResult? = nil
 }
 
 struct IngredientParseResult: Codable, Equatable {
@@ -24,6 +25,12 @@ struct IngredientParseResult: Codable, Equatable {
     let explanation: [String]
 
     var grocery: ParsedGrocery {
+        var projected = projectedGrocery
+        projected.parseResult = self
+        return projected
+    }
+
+    private var projectedGrocery: ParsedGrocery {
         func amount(_ value: GroceryRational?) -> Double? {
             value.map { Double($0.numerator) / Double($0.denominator) }
         }
@@ -39,8 +46,8 @@ struct IngredientParseResult: Codable, Equatable {
             return ParsedGrocery(name: displayName, amount: numericAmount, unit: displayUnit)
         case .packages(let count, let size, let sizeUnit, let container):
             let numericCount = amount(count)
-            let sizeDescription = amount(size).map { value in
-                let formatted = value.rounded() == value ? String(Int(value)) : String(value)
+            let sizeDescription = size.map { value in
+                let formatted = value.denominator == 1 ? value.description : formatGroceryAmount(Double(value.numerator) / Double(value.denominator))
                 return [formatted, sizeUnit].compactMap { $0 }.joined(separator: " ")
             }
             let displayedContainer = container.map { value in

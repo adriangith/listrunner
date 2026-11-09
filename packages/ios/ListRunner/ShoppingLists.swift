@@ -119,6 +119,7 @@ enum ShoppingLists {
             value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
         }
         for entry in entries {
+            guard !entry.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
             if let existing = staged.first(where: {
                 GroceryParser.normalizedName($0.name) == GroceryParser.normalizedName(entry.name)
                     && (unit($0.quantityUnit) == unit(entry.unit) || $0.quantityAmount == nil || entry.amount == nil)
