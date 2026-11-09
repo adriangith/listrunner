@@ -28,6 +28,21 @@ Build evidence: Mac Xcode ActionArtifacts
 Device app: `~/Library/Developer/Xcode/DerivedData/ListRunner-gllnnsrafcgklxaqtnxldzpvfydi/Build/Products/Debug-iphoneos/ListRunner.app`.
 No merge, archive or TestFlight release was performed.
 
+Simulator follow-up: `ListRunner-store-resume-eab4679.xcresult` completed with
+**8/10 passed, 2 failed** on iPhone 17 / iOS 27.2. The browser-resume fixture passed
+**30 internal checks** across Coles, Woolworths and browsing-only Tesco. Idle
+process recovery, changed naming country/toggle, explicit reload controls,
+keyboard/draft retention, All items shopping return and verification recovery
+also passed. The two failures were before the intended assertions: the preload
+test expected `preload apple` to parse as `Apples` despite the current parser
+preserving unknown prefixes; the retention UI test asked WebKit for hittability
+of an offscreen field, which threw instead of returning false. Test-only revision
+`fd8606c8f6f70ca7a855f793221693d70974f5af` uses real ingredient names and
+frame-guided uncovered-page scrolling; focused reruns are pending. The result
+bundle also reports two publishing-during-view-update runtime warnings, not yet
+attributed; do not describe this run as warning-free. The phone remains on
+`127ba14`, and no production code changed in this test correction.
+
 ## Paprika-style grouping capsule — physical iPhone (9 November 2026)
 
 At the user's request, app revision `587948feb281b2ba91d32ea38ba1504e22121b91`
