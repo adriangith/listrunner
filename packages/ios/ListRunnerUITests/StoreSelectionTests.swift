@@ -557,6 +557,25 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["No stores enabled"].waitForExistence(timeout: 10))
     }
 
+    func testFirstStoreWelcomeCompactLayoutFitsWithoutSteps() {
+        let action = app.buttons["welcome-choose-store"]
+        XCTAssertTrue(action.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["A list for every store."].exists)
+        for step in ["Choose a store", "Make your list", "Shop your way"] {
+            XCTAssertFalse(app.staticTexts[step].exists)
+        }
+        let footnote = app.staticTexts["Add more stores and lists whenever you like."]
+        XCTAssertTrue(action.isHittable, "The main action should be visible without scrolling at standard text size")
+        XCTAssertTrue(footnote.isHittable)
+        XCTAssertGreaterThanOrEqual(action.frame.minY, app.collectionViews.firstMatch.frame.minY)
+        XCTAssertLessThanOrEqual(footnote.frame.maxY, app.collectionViews.firstMatch.frame.maxY,
+                                 "The full welcome should fit above the bottom safe area")
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Compact welcome without steps"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     func testFirstStoreWelcomeManageBackgroundAndReturnLayout() throws {
         let heading = app.staticTexts["A list for every store."]
         let action = app.buttons["welcome-choose-store"]

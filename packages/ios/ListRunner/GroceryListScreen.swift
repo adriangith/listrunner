@@ -193,6 +193,7 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
             .listStyle(.insetGrouped)
             .contentMargins(.top, 0, for: .scrollContent)
             .listSectionSpacing(.compact)
+            .scrollIndicators(isWelcome ? .hidden : .automatic, axes: .vertical)
             .scrollDismissesKeyboard(keyboardDismissMode)
             .simultaneousGesture(DragGesture(minimumDistance: 10).updating($isDragging) { _, dragging, _ in
                 if !dragging { dragging = true }
@@ -2259,7 +2260,6 @@ private struct StoreWelcomeContent: View {
         VStack(spacing: 24) {
             StoreWelcomeIllustration()
             StoreWelcomeIntroduction()
-            StoreWelcomeSteps()
 
             VStack(spacing: 12) {
                 Button(action: chooseStore) {
@@ -2433,48 +2433,6 @@ private struct StoreWelcomeExampleCard: View {
                 .strokeBorder(.white.opacity(0.5), lineWidth: 0.5)
         }
         .shadow(color: .black.opacity(0.12), radius: 8, y: 6)
-    }
-}
-
-private struct StoreWelcomeSteps: View {
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 6) {
-                StoreWelcomeStep(number: 1, title: "Choose a store")
-                Image(systemName: "chevron.right").accessibilityHidden(true)
-                StoreWelcomeStep(number: 2, title: "Make your list")
-                Image(systemName: "chevron.right").accessibilityHidden(true)
-                StoreWelcomeStep(number: 3, title: "Shop your way")
-            }
-            .fixedSize(horizontal: true, vertical: false)
-            VStack(alignment: .leading, spacing: 10) {
-                StoreWelcomeStep(number: 1, title: "Choose a store")
-                StoreWelcomeStep(number: 2, title: "Make your list")
-                StoreWelcomeStep(number: 3, title: "Shop your way")
-            }
-        }
-        .font(.caption2)
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct StoreWelcomeStep: View {
-    let number: Int
-    let title: LocalizedStringKey
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text(number, format: .number)
-                .fontWeight(.semibold)
-                .foregroundStyle(.blue)
-            Text(title)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .font(.caption)
-        .padding(8)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
-        .accessibilityElement(children: .combine)
     }
 }
 
