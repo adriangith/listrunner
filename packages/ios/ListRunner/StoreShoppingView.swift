@@ -2268,11 +2268,11 @@ final class StoreBrowser: ObservableObject {
 
     func waitForPreloadResultsFixture() async {
         guard uiTestMode,
-              ProcessInfo.processInfo.environment["LISTRUNNER_PRELOAD_TEST_FIXTURE"] == "enabled",
-              ProcessInfo.processInfo.environment["LISTRUNNER_RESULTS_SCROLL_TEST_FIXTURE"] == "enabled" else { return }
+              ProcessInfo.processInfo.environment["LISTRUNNER_PRELOAD_TEST_FIXTURE"] == "enabled" else { return }
+        let needsPositioning = ProcessInfo.processInfo.environment["LISTRUNNER_RESULTS_SCROLL_TEST_FIXTURE"] == "enabled"
         for _ in 0..<150 {
-            guard !Task.isCancelled, browsingActive, storeRecovery == nil,
-                  !preloadScrollFixturePositioned else { return }
+            guard !Task.isCancelled, browsingActive, storeRecovery == nil else { return }
+            if needsPositioning ? preloadScrollFixturePositioned : preloadedSearchReady { return }
             try? await Task.sleep(for: .milliseconds(100))
         }
     }

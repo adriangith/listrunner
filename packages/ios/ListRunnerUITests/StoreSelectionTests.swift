@@ -1452,7 +1452,19 @@ final class StoreSelectionTests: XCTestCase {
         web.buttons["Save fixture note"].tap()
         let keyboardHidden = NSPredicate(format: "exists == false")
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: keyboardHidden, object: app.keyboards.firstMatch)], timeout: 5), .completed)
+        // Keyboard disappearance precedes WebKit's final inset/scroll adjustment.
+        // Capture the resting position, not an intermediate animation frame.
+        var lastY: CGFloat?
+        var stableSamples = 0
+        let settled = NSPredicate { _, _ in
+            let y = note.frame.minY
+            stableSamples = lastY.map { abs($0 - y) < 0.5 } == true ? stableSamples + 1 : 0
+            lastY = y
+            return stableSamples >= 3
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: settled, object: note)], timeout: 8), .completed)
         let originalY = note.frame.minY
+        print("STORE_RESUME_BASELINE allItems=\(allItems) y=\(originalY) value=\(note.value ?? "nil")")
         for swipe in [true, false, true] {
             let handle = app.buttons["Dismiss store"]
             if swipe {
@@ -1470,7 +1482,7 @@ final class StoreSelectionTests: XCTestCase {
                     && web.buttons["Fixture product opened"].exists
             }
             XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: preserved, object: note)], timeout: 8), .completed,
-                           "Reopening must retain the product document, form value and scroll position")
+                           "Reopening must retain the product document, form value and scroll position; expectedY=\(originalY), actual=\(note.frame), value=\(note.value ?? "nil"), product=\(web.buttons["Fixture product opened"].exists)")
             let lostState = XCTNSPredicateExpectation(predicate: NSCompoundPredicate(notPredicateWithSubpredicate: preserved), object: note)
             lostState.isInverted = true
             XCTAssertEqual(XCTWaiter.wait(for: [lostState], timeout: 3), .completed,
