@@ -251,10 +251,23 @@ private struct ListScopePicker: View {
             .contentShape(Rectangle())
             .padding(.horizontal, 13)
             .padding(.vertical, 9)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
+            .frame(minHeight: 44)
+            .modifier(ListScopePickerSurface())
         }
+        .buttonStyle(.plain)
         .accessibilityIdentifier(selectedStoreID == nil ? "all-items-scope-picker" : "store-picker")
         .accessibilityHint("Each store has its own grocery list and basket")
+    }
+}
+
+private struct ListScopePickerSurface: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular.interactive(), in: Capsule())
+        } else {
+            content.background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
+        }
     }
 }
 

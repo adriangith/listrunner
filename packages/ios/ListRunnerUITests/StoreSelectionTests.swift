@@ -1502,6 +1502,25 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("Coles fixture item", status: "Skipped").waitForExistence(timeout: 3))
     }
 
+    func testStoreSwitcherHasAccessibleTargetAcrossScopes() {
+        let storePicker = app.buttons["store-picker"]
+        XCTAssertTrue(storePicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(storePicker.isHittable)
+        XCTAssertGreaterThanOrEqual(storePicker.frame.height, 44)
+        choose("All items")
+
+        let scopePicker = app.buttons["all-items-scope-picker"]
+        XCTAssertTrue(scopePicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(scopePicker.isHittable)
+        XCTAssertGreaterThanOrEqual(scopePicker.frame.height, 44)
+        scopePicker.tap()
+        XCTAssertTrue(app.buttons["store-picker-manage-stores"].waitForExistence(timeout: 3))
+        app.buttons["Woolworths"].firstMatch.tap()
+        XCTAssertTrue(storePicker.waitForExistence(timeout: 5))
+        XCTAssertTrue(storePicker.label.contains("Woolworths"))
+        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").exists)
+    }
+
     func testAllItemsGroupingCapsuleHasAccessibleTargetsAndSelection() {
         assertAllItemsGroupingCapsule()
     }

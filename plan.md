@@ -1,5 +1,9 @@
 ## ListRunner Build Specification
 
+### List store switcher Liquid Glass (9 November 2026)
+
+* The shared list-header store/All items switcher uses an interactive regular Liquid Glass capsule on iOS 26 and later, retaining its heavy store-coloured label, native menu, scope selection and accessibility identifiers/hint. Keep a minimum 44-point target and the existing adaptive flat capsule on earlier iOS releases. This is a presentation-only change; other list elements, saved lists and retailer sessions are unchanged.
+
 ### App appearance (6 November 2026)
 
 * Settings offers System, Light and Dark appearance choices using the existing native Settings style. System is the default and follows device appearance changes; explicit Light/Dark choices override the native app appearance immediately, including sheets and local-data recovery.
