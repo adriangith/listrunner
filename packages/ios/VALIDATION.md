@@ -23,6 +23,14 @@ Build evidence: Mac Xcode ActionArtifacts
 `RunProject/RunProject-Log-20261109-153513.txt`.
 No uninstall, app-data clear, store-session reset, merge or TestFlight release.
 
+Follow-up width correction: app `cd8eba113ef7d19ea401f1c85e4bce1a642099c5`
+removes the grouping row's extra 16pt horizontal content insets so the capsule
+aligns with the white entry/list panel edges. Standard/largest-text UI tests now
+assert that alignment but have not been run. Xcode rebuilt, installed and launched
+this revision on the same physical iPhone, zero errors, PID **36232**; log
+`RunProject-Log-20261109-153750.txt`. Actual device-build resources and strict
+code-signature verification passed again. No data/session reset or live actions.
+
 ## All items main-branch merge review (8 November 2026)
 
 Merged `a201ba522dcf05b1578ceb51dade4978e7db50e6` into main with merge commit
