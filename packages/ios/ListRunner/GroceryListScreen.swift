@@ -410,45 +410,64 @@ private struct ProductEntrySection<AddButton: View>: View {
 
     var body: some View {
         Section("Add products") {
-            ProductEntryEditor(text: $text, isFocused: $isFocused, focusControl: focusControl,
-                               onSubmit: onSubmit, accessibilityIdentifier: accessibilityIdentifier)
-                .onChange(of: text) { _, value in onTextChange(value) }
-                .modifier(ProductEntryFieldStyle(tint: tint, isFocused: isFocused))
-                .simultaneousGesture(TapGesture().onEnded {
-                    isFocused = true
-                    onFocus()
-                })
-                .onGeometryChange(for: CGRect?.self) { isFocused ? $0.frame(in: .global) : nil } action: { frame in
-                    if let frame { onEditorFrame(frame) }
+            VStack(spacing: 0) {
+                ProductEntryEditor(text: $text, isFocused: $isFocused, focusControl: focusControl,
+                                   onSubmit: onSubmit, accessibilityIdentifier: accessibilityIdentifier)
+                    .onChange(of: text) { _, value in onTextChange(value) }
+                    .modifier(ProductEntryFieldStyle(tint: tint, isFocused: isFocused))
+                    .simultaneousGesture(TapGesture().onEnded {
+                        isFocused = true
+                        onFocus()
+                    })
+                    .onGeometryChange(for: CGRect?.self) { isFocused ? $0.frame(in: .global) : nil } action: { frame in
+                        if let frame { onEditorFrame(frame) }
+                    }
+                    .padding(.vertical, 4)
+                    .id("product-entry-editor")
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                Divider().padding(.leading, 16)
+                ProductEntryActionsLayout(preferStacked: dynamicTypeSize.isAccessibilitySize) {
+                    Button(action: onImport) {
+                        Label(importing ? "Importing…" : compactImport ? "Import" :
+                                importConfigured ? "Import from Paprika" : "Import items...",
+                              systemImage: importing ? "hourglass" : "checklist")
+                            .labelStyle(.titleAndIcon)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .buttonStyle(.plain)
+                    .frame(minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .disabled(importing || importDisabled)
+                    .accessibilityIdentifier(importConfigured ? "import-from-paprika" : "set-import-source")
+                    .accessibilityHint(importConfigured ?
+                        (removeReminders ? "Imports unchecked Paprika reminders and removes them after saving groceries" : "Imports unchecked Paprika reminders and keeps them linked") : "Choose your grocery import source")
+                    addButton()
                 }
                 .padding(.vertical, 4)
-                .id("product-entry-editor")
-            ProductEntryActionsLayout(preferStacked: dynamicTypeSize.isAccessibilitySize) {
-                Button(action: onImport) {
-                    Label(importing ? "Importing…" : compactImport ? "Import" :
-                            importConfigured ? "Import from Paprika" : "Import items...",
-                          systemImage: importing ? "hourglass" : "checklist")
-                        .labelStyle(.titleAndIcon)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(minHeight: 44, alignment: .leading)
-                        .contentShape(Rectangle())
+                .id("product-entry-actions")
+                .onGeometryChange(for: CGRect?.self) { isFocused ? $0.frame(in: .global) : nil } action: { frame in
+                    if let frame { onActionsFrame(frame) }
                 }
-                .font(.footnote.weight(.semibold))
-                .buttonStyle(.plain)
-                .frame(minHeight: 44, alignment: .leading)
-                .contentShape(Rectangle())
-                .disabled(importing || importDisabled)
-                .accessibilityIdentifier(importConfigured ? "import-from-paprika" : "set-import-source")
-                .accessibilityHint(importConfigured ?
-                    (removeReminders ? "Imports unchecked Paprika reminders and removes them after saving groceries" : "Imports unchecked Paprika reminders and keeps them linked") : "Choose your grocery import source")
-                addButton()
+                .padding(.horizontal, 16)
             }
-            .padding(.vertical, 4)
-            .id("product-entry-actions")
-            .onGeometryChange(for: CGRect?.self) { isFocused ? $0.frame(in: .global) : nil } action: { frame in
-                if let frame { onActionsFrame(frame) }
-            }
-            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(ProductEntryPanelSurface())
+        }
+    }
+}
+
+private struct ProductEntryPanelSurface: View {
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            // One quiet, non-interactive surface behind both editor and actions.
+            // The panel is not a button; its existing controls remain independent.
+            Color.clear.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20))
+        } else {
+            Color(uiColor: .secondarySystemGroupedBackground)
         }
     }
 }

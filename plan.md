@@ -1,5 +1,9 @@
 ## ListRunner Build Specification
 
+### Add products glass trial (9 November 2026)
+
+* Trial a subtle, untinted regular Liquid Glass background behind the shared Add products editor/action panel on iOS 26+, without an interactive glass response on the whole panel. Keep individual controls, draft/focus, import/add actions and the earlier-iOS adaptive opaque surface. The store-switcher glass is approved independently; this panel trial is isolated in its own commit for easy reversal.
+
 ### List store switcher Liquid Glass (9 November 2026)
 
 * The shared list-header store/All items switcher uses an interactive regular Liquid Glass capsule on iOS 26 and later, retaining its heavy store-coloured label, native menu, scope selection and accessibility identifiers/hint. Keep a minimum 44-point target and the existing adaptive flat capsule on earlier iOS releases. This is a presentation-only change; other list elements, saved lists and retailer sessions are unchanged.
