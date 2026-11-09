@@ -2273,7 +2273,7 @@ private struct StoreWelcomeContent: View {
                 }
                 .buttonStyle(StoreWelcomeButtonStyle())
                 .accessibilityIdentifier("welcome-choose-store")
-                Text("You can add more stores later.")
+                Text("Add more stores and lists whenever you like.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -2289,10 +2289,10 @@ private struct StoreWelcomeContent: View {
 private struct StoreWelcomeIntroduction: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Your lists.\nStreamlined.")
+            Text("A list for every store.")
                 .font(.largeTitle.bold())
                 .accessibilityAddTraits(.isHeader)
-            Text("Bring your shopping lists to your favourite stores’ websites and work through them with ListRunner.")
+            Text("Keep your shopping lists organised by where you shop, ready whenever you need them. Shopping online? Work through your list right on the store’s website.")
                 .font(.body)
                 .foregroundStyle(.secondary)
         }
@@ -2444,15 +2444,15 @@ private struct StoreWelcomeSteps: View {
             HStack(spacing: 6) {
                 StoreWelcomeStep(number: 1, title: "Choose a store")
                 Image(systemName: "chevron.right").accessibilityHidden(true)
-                StoreWelcomeStep(number: 2, title: "Add your list")
+                StoreWelcomeStep(number: 2, title: "Make your list")
                 Image(systemName: "chevron.right").accessibilityHidden(true)
-                StoreWelcomeStep(number: 3, title: "Shop")
+                StoreWelcomeStep(number: 3, title: "Shop your way")
             }
             .fixedSize(horizontal: true, vertical: false)
             VStack(alignment: .leading, spacing: 10) {
                 StoreWelcomeStep(number: 1, title: "Choose a store")
-                StoreWelcomeStep(number: 2, title: "Add your list")
-                StoreWelcomeStep(number: 3, title: "Shop")
+                StoreWelcomeStep(number: 2, title: "Make your list")
+                StoreWelcomeStep(number: 3, title: "Shop your way")
             }
         }
         .font(.caption2)
