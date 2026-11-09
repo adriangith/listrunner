@@ -35,6 +35,17 @@ The verifier requires every canonical JSON file (including Bunnings) to be byte-
 
 ## Current implementation
 
+### First-use card collapse hint
+
+Expanded shopping cards show `Swipe cards down to collapse` just above the carousel
+with a gentle four-point float. The hint does not intercept touches or shift the
+cards. Reduce Motion leaves the text static; inactive/offscreen views stop animating.
+The first completed downward collapse or collapse-button tap permanently dismisses
+the hint across stores and app launches. Leaving the sheet or an incomplete gesture
+does not dismiss it. Confirmed Reset Local Data restores it; diagnostics and retailer
+session clears do not. The preference uses the existing app-wide defaults suite,
+including isolated UI-test suites.
+
 ### Reopening the store sheet
 
 Show Store resumes the retained retailer page after handle/native-sheet dismissal,

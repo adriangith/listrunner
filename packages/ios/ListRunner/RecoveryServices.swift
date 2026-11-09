@@ -94,7 +94,7 @@ final class LocalDataController: ObservableObject {
                          "selectEnabledStoreAfterEmpty.v1", "pendingEnabledStoreSelection.v1",
                          GroceryImportSource.preferenceKey, GroceryImportSource.removeRemindersKey,
                          GroceryImportSource.remindersListIDKey, GroceryImportSource.remindersListNameKey,
-                          "autoScrollToResults.v1", "appearance.v1", "allItemsScope.v1", "allItemsGrouping.v1",
+                          "autoScrollToResults.v1", "appearance.v1", "hasCollapsedShoppingCards.v1", "allItemsScope.v1", "allItemsGrouping.v1",
                           "allItemsRecentStoreOrder.v1", "allItemsRecentItemOrder.v1", "allItemsAddDestination.v1", "allItemsDraft.v1"] {
                 defaults.removeObject(forKey: key)
             }

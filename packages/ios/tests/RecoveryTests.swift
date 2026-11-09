@@ -1640,6 +1640,10 @@ struct RecoveryTests {
         let suiteName = "ListRunnerRecoveryTests." + UUID().uuidString
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
+        check(!defaults.bool(forKey: "hasCollapsedShoppingCards.v1"), "card collapse hint starts undismissed")
+        defaults.set(true, forKey: "hasCollapsedShoppingCards.v1")
+        check(UserDefaults(suiteName: suiteName)!.bool(forKey: "hasCollapsedShoppingCards.v1"),
+              "card collapse learning persists across preferences reloads")
         let scrollPreferences = StoreVisibilityPreferences(defaults: defaults)
         check(scrollPreferences.autoScrollToResults, "auto-scroll defaults on")
         scrollPreferences.setAutoScrollToResults(false)
@@ -1684,6 +1688,7 @@ struct RecoveryTests {
                && defaults.array(forKey: "visibleStoreIDs.v1") as? [String] == ["coles"],
                "clearing diagnostics preserves country and visibility preferences")
          check(defaults.string(forKey: "appearance.v1") == "dark", "clearing diagnostics preserves appearance")
+        check(defaults.bool(forKey: "hasCollapsedShoppingCards.v1"), "clearing diagnostics preserves card collapse learning")
         defaults.set("keep", forKey: "unrelated")
         let url = root.appendingPathComponent("test.store")
         let unrelatedFile = root.appendingPathComponent("unrelated.txt")
@@ -1724,6 +1729,8 @@ struct RecoveryTests {
               "local reset removes auto-scroll preference")
         check(defaults.object(forKey: "appearance.v1") == nil,
               "local reset restores system appearance")
+        check(defaults.object(forKey: "hasCollapsedShoppingCards.v1") == nil,
+              "confirmed local reset restores the card collapse hint")
          check(defaults.string(forKey: "lastOverlaySelectedItemID") == nil, "local reset clears app metadata")
          check(defaults.object(forKey: "visibleStoreIDs.v1") == nil
                && defaults.object(forKey: "knownStoreIDs.v1") == nil

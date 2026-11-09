@@ -19,6 +19,7 @@ struct StoreShoppingView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("hasCollapsedShoppingCards.v1") private var hasCollapsedShoppingCards = false
     @State private var selectedID: UUID?
     @State private var selectionHistory: [UUID] = []
     @State private var isCollapsed = false
@@ -359,6 +360,13 @@ struct StoreShoppingView: View {
                 }
             }
             .frame(height: 250)
+            .overlay(alignment: .top) {
+                if !hasCollapsedShoppingCards && !isCollapsed && !items.isEmpty {
+                    CardCollapseHint()
+                        .padding(.horizontal, 20)
+                        .alignmentGuide(.top) { $0[.bottom] + 8 }
+                }
+            }
             .contentShape(Rectangle())
             // Keep only a small breathing gap above the navigation controls.
             // The previous 80 pt spacer left the cards visually detached from
@@ -846,6 +854,7 @@ struct StoreShoppingView: View {
     }
 
     private func collapse() {
+        hasCollapsedShoppingCards = true
         if secondsRemaining > 0 {
             task?.cancel()
             browser.cancelPreload()
@@ -858,6 +867,34 @@ struct StoreShoppingView: View {
     private func dismissStore() {
         if secondsRemaining > 0 { task?.cancel(); secondsRemaining = 0; undoRecord = nil }
         dismiss()
+    }
+}
+
+private struct CardCollapseHint: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isVisible = false
+
+    private var shouldAnimate: Bool { isVisible && !reduceMotion && scenePhase == .active }
+
+    var body: some View {
+        // Keep the repeating animation local to the hint, not the cards or browser.
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !shouldAnimate)) { context in
+            let phase = context.date.timeIntervalSinceReferenceDate * .pi / 1.8
+            Text("Swipe cards down to collapse")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.primary.opacity(0.85))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(.regularMaterial, in: Capsule())
+                .offset(y: shouldAnimate ? 2 * (1 - cos(phase)) : 0)
+        }
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
+        .allowsHitTesting(false)
+        .accessibilityIdentifier("card-collapse-hint")
     }
 }
 

@@ -1,5 +1,10 @@
 ## ListRunner Build Specification
 
+### First-use card collapse hint (9 November 2026)
+
+* The expanded shopping-card view shows `Swipe cards down to collapse` floating subtly above the cards until the first successful collapse, whether by downward swipe or the existing collapse button. Keep card/control geometry and gestures unchanged; the hint does not intercept touches and remains readable over retailer content.
+* Dismissal is app-wide across stores, list scopes and relaunches. Merely opening, browsing or dismissing the store sheet does not complete the hint. Empty card views do not show it. Reduce Motion keeps the text static, and animation stops while inactive or offscreen. Diagnostics/store-session clearing preserves completion; confirmed Reset Local Data restores the hint.
+
 ### Resume a hidden store sheet (9 November 2026)
 
 * Hiding the store with its handle or native sheet dismissal and reopening it through Show Store resumes the existing retailer document, history, form state and scroll position when the selected item, saved search term and ingredient-naming preferences are unchanged. Apply the same store-owned behavior from All items. Do not re-run search or results auto-scroll just because the sheet reappears.

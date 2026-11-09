@@ -1,5 +1,37 @@
 # Reusable store framework validation
 
+## First-use card collapse hint (9 November 2026)
+
+Branch `feat/card-collapse-hint` adds an app-wide first-collapse preference and a
+noninteractive floating label above the existing card carousel. Both successful
+swipes and the existing collapse button set completion; sheet dismissal and
+incomplete gestures do not. The existing default-app-storage environment keeps
+production and UI-test preferences separate. Only confirmed local-data reset
+clears completion. The animation is isolated to the hint and paused for Reduce
+Motion, inactive scenes and offscreen views.
+
+Linux checks passed: all **450/450** offline JavaScript tests, **9/9** bundled
+resource source checks, **3/3** store-expansion consistency checks and
+`git diff --check`. All four changed Swift files also passed syntax parsing with
+the extracted Linux Swift toolchain at
+`/tmp/opencode/auto-parser-audit/swift-toolchain/usr/bin/swiftc -frontend -parse`.
+This does not type-check SwiftUI/UIKit APIs. These are regression/syntax checks,
+not native rendering or new-hint runtime verification.
+
+Added native UI coverage (not yet run):
+`testCardCollapseHintPersistsUntilCollapseAcrossStoresAndRelaunches` checks first
+appearance/placement, sheet reopen, incomplete learning across relaunch, button
+collapse, re-expansion, store switch, persisted completion and All items.
+`testCardCollapseHintSurvivesIncompleteGesturesThenClearsOnSwipe` checks upward,
+short and horizontal gestures, followed by a successful downward swipe.
+`RecoveryTests.swift` adds preference-default/persistence, diagnostics preservation
+and confirmed local-reset assertions.
+
+The Mac SSH destination `adrianzafir@192.168.4.94` returned `No route to host`.
+No Xcode build, Swift recovery run, simulator UI run or device installation was
+performed. Native layout/animation, dark mode, large text, VoiceOver, Reduce Motion
+and lifecycle checks remain pending; no retailer data/cart action was performed.
+
 ## Retained store page — physical iPhone install (9 November 2026)
 
 App revision `127ba14c442941591cf641b0fd74bf461ecd2102` on

@@ -3628,6 +3628,81 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["Mark Added"].isHittable)
     }
 
+    func testCardCollapseHintPersistsUntilCollapseAcrossStoresAndRelaunches() {
+        choose("Coles")
+        app.buttons["Show Store"].tap()
+        let hint = app.staticTexts["card-collapse-hint"]
+        XCTAssertTrue(hint.waitForExistence(timeout: 5))
+        XCTAssertEqual(hint.label, "Swipe cards down to collapse")
+        let collapse = app.buttons["Collapse overlay"]
+        XCTAssertTrue(collapse.waitForExistence(timeout: 3))
+        XCTAssertLessThan(hint.frame.maxY, collapse.frame.minY, "The hint must float above the cards")
+
+        app.buttons["Dismiss store"].tap()
+        XCTAssertTrue(app.buttons["Show Store"].waitForExistence(timeout: 3))
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(hint.waitForExistence(timeout: 3), "Leaving the sheet does not complete learning")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["Show Store"].waitForExistence(timeout: 5))
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(hint.waitForExistence(timeout: 3), "The hint remains across launches until a collapse")
+
+        collapse.tap()
+        let expand = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Expand overlay")).firstMatch
+        XCTAssertTrue(expand.waitForExistence(timeout: 3))
+        XCTAssertFalse(hint.exists)
+        expand.tap()
+        XCTAssertTrue(collapse.waitForExistence(timeout: 3))
+        XCTAssertFalse(hint.exists, "Re-expanding must not restore the hint")
+        app.buttons["Dismiss store"].tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 3))
+        choose("Woolworths")
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(collapse.waitForExistence(timeout: 3))
+        XCTAssertFalse(hint.exists, "Learning is app-wide, not per store")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["Show Store"].waitForExistence(timeout: 5))
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(collapse.waitForExistence(timeout: 3))
+        XCTAssertFalse(hint.exists, "Completed learning survives relaunch")
+        app.buttons["Dismiss store"].tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 3))
+        choose("All items")
+        app.buttons["all-items-show-store"].tap()
+        XCTAssertTrue(app.buttons["Shop at Coles"].waitForExistence(timeout: 3))
+        app.buttons["Shop at Coles"].tap()
+        XCTAssertTrue(collapse.waitForExistence(timeout: 3))
+        XCTAssertFalse(hint.exists, "All items shares the same completed hint")
+    }
+
+    func testCardCollapseHintSurvivesIncompleteGesturesThenClearsOnSwipe() {
+        choose("Coles")
+        app.buttons["Show Store"].tap()
+        let hint = app.staticTexts["card-collapse-hint"]
+        XCTAssertTrue(hint.waitForExistence(timeout: 5))
+        let card = app.buttons.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@",
+                                                   "Coles fixture item", "selected")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 3))
+        for translation in [CGVector(dx: 0, dy: -80), CGVector(dx: 0, dy: 35), CGVector(dx: 80, dy: 0)] {
+            let start = card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+            start.press(forDuration: 0.2, thenDragTo: start.withOffset(translation),
+                        withVelocity: .slow, thenHoldForDuration: 0.3)
+            XCTAssertTrue(app.buttons["Collapse overlay"].exists)
+            XCTAssertTrue(hint.exists, "Upward, short and horizontal drags must not complete learning")
+        }
+        let start = card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+        start.press(forDuration: 0.2, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 140)),
+                    withVelocity: .slow, thenHoldForDuration: 0.3)
+        let expand = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Expand overlay")).firstMatch
+        XCTAssertTrue(expand.waitForExistence(timeout: 3))
+        XCTAssertFalse(hint.exists)
+        expand.tap()
+        XCTAssertTrue(card.waitForExistence(timeout: 3))
+        XCTAssertFalse(hint.exists, "A successful swipe permanently clears the hint")
+    }
+
     func testProgressChevronCollapsesOverlayAndPreservesStatus() {
         app.buttons["Show Store"].tap()
         let collapse = app.buttons["Collapse overlay"]
