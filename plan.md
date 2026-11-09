@@ -1,5 +1,9 @@
 ## ListRunner Build Specification
 
+### List panel glass trial (9 November 2026)
+
+* Extend the approved Add products panel's neutral, non-interactive regular glass to the white grocery-list backgrounds on iOS 26+, including each All items group header, rows and Clear List footer. Unite adjacent glass backgrounds per section while retaining native individual row identity, separators, reorder/swipe/menu actions and recent-add highlights. Earlier iOS retains its existing adaptive surfaces. Keep this trial in a separate reversible commit; the store switcher and Add products glass are independently approved.
+
 ### Add products glass trial (9 November 2026)
 
 * Trial a subtle, untinted regular Liquid Glass background behind the shared Add products editor/action panel on iOS 26+, without an interactive glass response on the whole panel. Keep individual controls, draft/focus, import/add actions and the earlier-iOS adaptive opaque surface. The store-switcher glass is approved independently; this panel trial is isolated in its own commit for easy reversal.

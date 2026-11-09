@@ -188,6 +188,7 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
 
     var body: some View {
         List { rows() }
+            .modifier(ListPanelGlassContainer())
             .listStyle(.insetGrouped)
             .contentMargins(.top, 0, for: .scrollContent)
             .listSectionSpacing(.compact)
@@ -468,6 +469,51 @@ private struct ProductEntryPanelSurface: View {
             Color.clear.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20))
         } else {
             Color(uiColor: .secondarySystemGroupedBackground)
+        }
+    }
+}
+
+private extension EnvironmentValues {
+    @Entry var listPanelGlassNamespace: Namespace.ID? = nil
+}
+
+private struct ListPanelGlassContainer: ViewModifier {
+    @Namespace private var namespace
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: 0) {
+                content.environment(\.listPanelGlassNamespace, namespace)
+            }
+        } else {
+            content
+        }
+    }
+}
+
+private struct ListPanelRowSurface: View {
+    @Environment(\.listPanelGlassNamespace) private var namespace
+    let panelID: String
+    var isFirst = false
+    var isLast = false
+    var highlight: Color? = nil
+
+    var body: some View {
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: isFirst ? 20 : 0,
+            bottomLeadingRadius: isLast ? 20 : 0,
+            bottomTrailingRadius: isLast ? 20 : 0,
+            topTrailingRadius: isFirst ? 20 : 0)
+        if #available(iOS 26.0, *), let namespace {
+            // Unite adjacent row backgrounds without changing native row identity,
+            // swipe actions or reordering. Each section remains its own surface.
+            Color.clear
+                .glassEffect(.regular, in: shape)
+                .glassEffectUnion(id: panelID, namespace: namespace)
+                .overlay { shape.fill(highlight ?? .clear) }
+        } else {
+            highlight ?? Color(uiColor: .secondarySystemGroupedBackground)
         }
     }
 }
@@ -948,6 +994,7 @@ private struct AllItemsScreen: View {
                             onAdd: beginAdding)
                         .id(group.id)
                         .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+                        .listRowBackground(ListPanelRowSurface(panelID: "all-items-\(group.id)", isFirst: true))
                         ForEach(group.items, id: \.id) { item in
                             allItemRow(item)
                                 .id(item.id)
@@ -961,8 +1008,8 @@ private struct AllItemsScreen: View {
                                 .onAppear {
                                     if scrollTargetItemID == item.id { scrollToAddedItem(item.id, using: proxy) }
                                 }
-                                .listRowBackground(highlightedItemIDs.contains(item.id)
-                                    ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
+                                .listRowBackground(ListPanelRowSurface(panelID: "all-items-\(group.id)",
+                                    highlight: highlightedItemIDs.contains(item.id) ? Color.accentColor.opacity(0.12) : nil))
                                 .listRowInsets(ListItemRowLayout.insets)
                         }
                         .onMove(perform: group.storeIDs.count == 1 ? { source, destination in
@@ -975,7 +1022,8 @@ private struct AllItemsScreen: View {
                                 itemIDs: Set(group.items.map(\.id)))
                         }
                         .accessibilityLabel("Clear \(group.title) list")
-                        .accessibilityIdentifier("all-items-clear-\(group.id)")
+                         .accessibilityIdentifier("all-items-clear-\(group.id)")
+                         .listRowBackground(ListPanelRowSurface(panelID: "all-items-\(group.id)", isLast: true))
                         .confirmationDialog("Clear your list?", isPresented: Binding(
                             get: { clearRequest?.groupID == group.id },
                             set: { if !$0 { clearRequest = nil } }), titleVisibility: .visible) {
@@ -1638,9 +1686,11 @@ struct GroceryListScreen: View {
                             ContentUnavailableView("Your list is empty", systemImage: "basket",
                                                    description: Text("Add products above, then shop though them with ListRunner"))
                                 .padding(.vertical, 12)
+                                .listRowBackground(ListPanelRowSurface(panelID: "store-list", isFirst: true, isLast: true))
                         } else {
                             groceryList(using: scrollProxy)
-                            ClearListButton(action: clearList)
+                             ClearListButton(action: clearList)
+                              .listRowBackground(ListPanelRowSurface(panelID: "store-list", isLast: true))
                              .confirmationDialog("Clear your list?", isPresented: $showingClearConfirmation,
                                                  titleVisibility: .visible) {
                                 if addedCount > 0 {
@@ -1921,11 +1971,8 @@ struct GroceryListScreen: View {
                 insertion: .move(edge: .top).combined(with: .opacity),
                 removal: .opacity
             ))
-            .listRowBackground(
-                recentlyAddedItemIDs.contains(item.id)
-                    ? storeHighlightColor.opacity(0.18)
-                    : Color(uiColor: .secondarySystemGroupedBackground)
-            )
+            .listRowBackground(ListPanelRowSurface(panelID: "store-list", isFirst: item.id == items.first?.id,
+                highlight: recentlyAddedItemIDs.contains(item.id) ? storeHighlightColor.opacity(0.18) : nil))
             .listRowInsets(ListItemRowLayout.insets)
         }
         .onMove(perform: moveItems)
