@@ -529,7 +529,8 @@ final class StoreSelectionTests: XCTestCase {
     func testFirstStoreWelcomePersistsUntilStoreEnabled() {
         XCTAssertTrue(app.buttons["welcome-choose-store"].waitForExistence(timeout: 10), app.debugDescription)
         XCTAssertTrue(app.staticTexts["A list for every store."].exists)
-        XCTAssertTrue(app.staticTexts["Keep your shopping lists organised by where you shop, ready whenever you need them. Shopping online? Work through your list right on the store’s website."].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@",
+            "Keep your shopping lists organised by where you shop, ready whenever you need them. Shopping online? Work through your list right on the store’s website.")).firstMatch.exists)
         XCTAssertTrue(app.staticTexts["Add more stores and lists whenever you like."].exists)
         XCTAssertEqual(app.buttons["welcome-choose-store"].label, "Choose Your First Store")
         XCTAssertFalse(app.buttons["Mark Added"].exists, "The illustrated action must not be an interactive shopping control")
