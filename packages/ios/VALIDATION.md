@@ -1,5 +1,72 @@
 # Reusable store framework validation
 
+## Retained store page — physical iPhone install (9 November 2026)
+
+App revision `127ba14c442941591cf641b0fd74bf461ecd2102` on
+`fix/preserve-store-sheet-page` was pushed and checked out cleanly at that exact
+SHA in the separate Mac worktree
+`/Users/adrianzafir/Projects/listrunner-worktrees/preserve-store-sheet-phone`.
+The primary Mac checkout and the earlier simulator-test worktree were not changed.
+
+- With explicit user approval, Xcode RunProject built, signed, installed in place
+  and launched on **Adrian’s iPhone / iOS 27.2**, zero build errors, PID **36685**,
+  launch reference `753745980`.
+- Shared scheme launch arguments and environment overrides were empty. No UI-test
+  fixture, uninstall, app-data clear, import, store reset or retailer action was run
+  on the phone. Manual hide/reopen behavior on that device awaits user confirmation.
+- The actual `Debug-iphoneos/ListRunner.app` passed resource verification: **35
+  JSON + 1 JavaScript** files match canonical source, no legacy `-v2` resources.
+  Strict deep code-signature verification passed.
+- Linux results-scroll checks passed **53/53** and bundled-resource source checks
+  passed **9/9**. The Release simulator build of implementation `eab4679` passed;
+  focused UI tests on that earlier revision were still running at installation.
+  The extra All items/deferred-reload regression checks added in `127ba14` have
+  not yet been run; this install is not a claim of a completed simulator suite.
+
+Build evidence: Mac Xcode ActionArtifacts
+`RunProject/RunProject-Log-20261109-163738.txt`.
+Device app: `~/Library/Developer/Xcode/DerivedData/ListRunner-gllnnsrafcgklxaqtnxldzpvfydi/Build/Products/Debug-iphoneos/ListRunner.app`.
+No merge, archive or TestFlight release was performed.
+
+Simulator follow-up: `ListRunner-store-resume-eab4679.xcresult` completed with
+**8/10 passed, 2 failed** on iPhone 17 / iOS 27.2. The browser-resume fixture passed
+**30 internal checks** across Coles, Woolworths and browsing-only Tesco. Idle
+process recovery, changed naming country/toggle, explicit reload controls,
+keyboard/draft retention, All items shopping return and verification recovery
+also passed. The two failures were before the intended assertions: the preload
+test expected `preload apple` to parse as `Apples` despite the current parser
+preserving unknown prefixes; the retention UI test asked WebKit for hittability
+of an offscreen field, which threw instead of returning false. Test-only revision
+`fd8606c8f6f70ca7a855f793221693d70974f5af` uses real ingredient names and
+frame-guided uncovered-page scrolling; focused reruns are pending. The result
+bundle also reports two publishing-during-view-update runtime warnings, not yet
+attributed; do not describe this run as warning-free. The phone remains on
+`127ba14`, and no production code changed in this test correction.
+
+The `fd8606c` focused run finished **2/4 passed** with no runtime warnings:
+All items retained product document/form/scroll state through three dismiss/reopen
+cycles, and preload results positioning/promotion passed. The individual-store
+retention predicate timed out, and the ordinary preload was cancelled as unready
+before promotion. These remain failures, not waived setup issues. Revision
+`09fec2f813a340f6ea710f591729e39a3464456e` adds stable post-keyboard geometry
+sampling with diagnostic assertion values and extends the existing debug-only
+ready-preload wait to non-results fixtures. Production cooldown and retention code
+are unchanged; the two focused reruns are pending. Evidence:
+`ListRunner-store-resume-fd8606c.xcresult` in the same Mac DerivedData directory.
+
+Final focused follow-up at `09fec2f`: **2/2 passed, zero failures/skips/runtime
+warnings**, confirmed using `xcresulttool get test-results summary`. The standard
+store test retained the product document, `Keep my place` form value and settled
+251 pt field position through all three dismiss/reopen cycles, including the
+deferred-search observation windows. Ordinary preload promotion passed with the
+debug ready-preload wait. Together with the earlier All items and results-preload
+passes, both retained-page entry points and both preload paths now have passing
+UI coverage; this is coverage across focused runs, not a fresh single-run full
+suite. Evidence: `ListRunner-store-resume-09fec2f.xcresult` and
+`~/Library/Logs/ListRunner-store-resume-09fec2f.log` on the Mac. The on-phone app
+remains `127ba14`; subsequent changes affect tests/debug fixture timing and this
+record only. Manual phone confirmation and a complete release suite remain open.
+
 ## Paprika-style grouping capsule — physical iPhone (9 November 2026)
 
 At the user's request, app revision `587948feb281b2ba91d32ea38ba1504e22121b91`

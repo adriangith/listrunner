@@ -431,6 +431,9 @@ final class StoreSelectionTests: XCTestCase {
         if name.contains("IdleRecovery") {
             app.launchEnvironment["LISTRUNNER_IDLE_RECOVERY_TEST_FIXTURE"] = "enabled"
         }
+        if name.contains("StoreResume") {
+            app.launchEnvironment["LISTRUNNER_STORE_RESUME_TEST_FIXTURE"] = name.contains("Checks") ? "checks" : "page"
+        }
         if name.contains("RegionalSearch") {
             app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "NZ"
             app.launchEnvironment["LISTRUNNER_UI_TEST_EMPTY_LIST"] = "1"
@@ -1383,7 +1386,9 @@ final class StoreSelectionTests: XCTestCase {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 3))
         input.tap()
-        input.typeText("preload apple; preload pear")
+        // Use actual ingredient names. Unknown prefixes are intentionally kept
+        // by the parser rather than silently discarded to make these labels.
+        input.typeText("apple; pear")
         app.buttons["Add Items"].tap()
         XCTAssertTrue(row("Apples", status: "Pending").waitForExistence(timeout: 3))
         XCTAssertTrue(row("Pears", status: "Pending").exists)
@@ -1393,6 +1398,96 @@ final class StoreSelectionTests: XCTestCase {
                         resultsScroll ? "PASS: results positioned before promotion and preserved" : "Promoting completed preload")
         ).firstMatch
         XCTAssertTrue(promoted.waitForExistence(timeout: 25), app.debugDescription)
+    }
+
+    func testStoreResumeBrowserChecks() {
+        app.buttons["Show Store"].tap()
+        let status = app.staticTexts["store-resume-test-status"]
+        let finished = NSPredicate(format: "label BEGINSWITH %@ OR label BEGINSWITH %@", "PASS:", "FAIL:")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: finished, object: status)], timeout: 60), .completed)
+        XCTAssertTrue(status.label.hasPrefix("PASS:"), status.label)
+        print("STORE_RESUME " + status.label)
+    }
+
+    func testStoreResumePreservesPageAndScrollAfterHandleDismissal() {
+        checkStoreResumePreservesPageAndScroll(allItems: false)
+    }
+
+    func testAllItemsStoreResumePreservesPageAndScrollAfterHandleDismissal() {
+        checkStoreResumePreservesPageAndScroll(allItems: true)
+    }
+
+    private func checkStoreResumePreservesPageAndScroll(allItems: Bool) {
+        if allItems { choose("All items") }
+        func openStore() {
+            if allItems {
+                app.buttons["all-items-show-store"].tap()
+                app.buttons["Shop at Coles"].tap()
+            } else {
+                app.buttons["Show Store"].tap()
+            }
+        }
+        openStore()
+        let web = app.webViews.firstMatch
+        let openProduct = web.buttons["Open fixture product"]
+        XCTAssertTrue(openProduct.waitForExistence(timeout: 10))
+        openProduct.tap()
+        let note = web.textFields["Store page note"]
+        for _ in 0..<5 {
+            // Asking WebKit for hittability of an offscreen text field can
+            // throw instead of returning false on iOS 27. Scroll the uncovered
+            // upper page until its frame is visible above the shopping cards.
+            let frame = note.frame
+            let viewport = web.frame
+            if frame.height > 0 && frame.minY > viewport.minY + 40
+                && frame.maxY < viewport.midY { break }
+            web.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.45))
+                .press(forDuration: 0.05, thenDragTo: web.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.15)))
+        }
+        XCTAssertGreaterThan(note.frame.height, 0)
+        XCTAssertGreaterThan(note.frame.minY, web.frame.minY + 40)
+        XCTAssertLessThan(note.frame.maxY, web.frame.midY)
+        note.tap()
+        note.typeText("Keep my place")
+        web.buttons["Save fixture note"].tap()
+        let keyboardHidden = NSPredicate(format: "exists == false")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: keyboardHidden, object: app.keyboards.firstMatch)], timeout: 5), .completed)
+        // Keyboard disappearance precedes WebKit's final inset/scroll adjustment.
+        // Capture the resting position, not an intermediate animation frame.
+        var lastY: CGFloat?
+        var stableSamples = 0
+        let settled = NSPredicate { _, _ in
+            let y = note.frame.minY
+            stableSamples = lastY.map { abs($0 - y) < 0.5 } == true ? stableSamples + 1 : 0
+            lastY = y
+            return stableSamples >= 3
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: settled, object: note)], timeout: 8), .completed)
+        let originalY = note.frame.minY
+        print("STORE_RESUME_BASELINE allItems=\(allItems) y=\(originalY) value=\(note.value ?? "nil")")
+        for swipe in [true, false, true] {
+            let handle = app.buttons["Dismiss store"]
+            if swipe {
+                let start = handle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 230)))
+            } else {
+                handle.tap()
+            }
+            let footer = allItems ? app.buttons["all-items-show-store"] : app.buttons["Show Store"]
+            XCTAssertTrue(footer.waitForExistence(timeout: 5))
+            openStore()
+            let preserved = NSPredicate { _, _ in
+                note.exists && note.value as? String == "Keep my place"
+                    && abs(note.frame.minY - originalY) < 3
+                    && web.buttons["Fixture product opened"].exists
+            }
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: preserved, object: note)], timeout: 8), .completed,
+                           "Reopening must retain the product document, form value and scroll position; expectedY=\(originalY), actual=\(note.frame), value=\(note.value ?? "nil"), product=\(web.buttons["Fixture product opened"].exists)")
+            let lostState = XCTNSPredicateExpectation(predicate: NSCompoundPredicate(notPredicateWithSubpredicate: preserved), object: note)
+            lostState.isInverted = true
+            XCTAssertEqual(XCTWaiter.wait(for: [lostState], timeout: 3), .completed,
+                           "A deferred search must not reload the retained page after reopening")
+        }
     }
 
     func testIdleRecoveryBrowserChecks() {

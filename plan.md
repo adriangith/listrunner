@@ -1,5 +1,10 @@
 ## ListRunner Build Specification
 
+### Resume a hidden store sheet (9 November 2026)
+
+* Hiding the store with its handle or native sheet dismissal and reopening it through Show Store resumes the existing retailer document, history, form state and scroll position when the selected item, saved search term and ingredient-naming preferences are unchanged. Apply the same store-owned behavior from All items. Do not re-run search or results auto-scroll just because the sheet reappears.
+* Dismissal still cancels automation, pending searches, preloads and cart Undo; reopening establishes a fresh interaction context, never reuses a pending cart candidate. A different/edited selection, changed naming preferences, a cancelled search that never navigated, or a rebuilt/reset browser starts the appropriate search instead. Explicit refresh and existing verification/load/process-recovery safeguards remain unchanged. This is in-memory page retention, not restoration after app termination or WebKit process loss.
+
 ### App appearance (6 November 2026)
 
 * Settings offers System, Light and Dark appearance choices using the existing native Settings style. System is the default and follows device appearance changes; explicit Light/Dark choices override the native app appearance immediately, including sheets and local-data recovery.
