@@ -2032,12 +2032,10 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(entry.frame.minY, standardFrame.minY, accuracy: 2)
         let scope = app.buttons["all-items-scope-picker"]
         let headerFrame = scope.frame
-        let titleFrame = app.staticTexts["Your list"].frame
         let list = app.collectionViews.firstMatch
         for _ in 0..<3 { list.swipeUp() }
         XCTAssertTrue(scope.isHittable)
         XCTAssertEqual(scope.frame.minY, headerFrame.minY, accuracy: 1)
-        XCTAssertEqual(app.staticTexts["Your list"].frame.minY, titleFrame.minY, accuracy: 1)
         XCTAssertFalse(entry.isHittable, "The Add products section scrolls with the list")
         XCTAssertFalse(app.segmentedControls["all-items-grouping"].isHittable, "Grouping also scrolls, not just the rows")
         XCTAssertTrue(app.buttons["all-items-show-store"].isHittable)
@@ -2245,57 +2243,15 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["all-items-grouping-category"].isSelected)
     }
 
-    func testAllItemsEditReordersWithinStoreAndRestoresGrouping() {
-        choose("All items")
-        app.buttons["all-items-add-destination"].tap()
-        app.buttons["Coles"].firstMatch.tap()
-        let entry = app.textViews["all-items-entry"]
-        entry.tap()
-        entry.typeText("First reorder item, Second reorder item")
-        app.buttons["all-items-add"].tap()
-        app.buttons["all-items-grouping-category"].tap()
-        app.buttons["Edit"].tap()
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["all-items-grouping-store"].isSelected)
-        XCTAssertFalse(app.buttons["all-items-grouping-category"].isEnabled)
-        XCTAssertFalse(app.keyboards.firstMatch.exists)
-        let first = app.staticTexts["First reorder item"]
-        let second = app.staticTexts["Second reorder item"]
-        XCTAssertTrue(first.waitForExistence(timeout: 3))
-        XCTAssertTrue(second.exists)
-        XCTAssertLessThan(first.frame.minY, second.frame.minY)
-        let firstCell = app.collectionViews.cells.containing(.staticText, identifier: "First reorder item").firstMatch
-        let secondCell = app.collectionViews.cells.containing(.staticText, identifier: "Second reorder item").firstMatch
-        let handles = NSPredicate(format: "label BEGINSWITH %@", "Reorder")
-        let firstHandle = firstCell.buttons.matching(handles).firstMatch
-        let secondHandle = secondCell.buttons.matching(handles).firstMatch
-        XCTAssertTrue(firstHandle.isHittable)
-        XCTAssertTrue(secondHandle.isHittable)
-        let target = firstHandle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
-        secondHandle.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            .press(forDuration: 1, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 0.5)
-        let reordered = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            second.frame.minY < first.frame.minY
-        }, object: nil)
-        XCTAssertEqual(XCTWaiter.wait(for: [reordered], timeout: 5), .completed)
-        let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "All items — standard Settings and Edit controls"
-        screenshot.lifetime = .keepAlways
-        add(screenshot)
-        app.buttons["Done"].tap()
-        XCTAssertTrue(app.buttons["all-items-grouping-category"].isSelected)
-        app.terminate()
-        app.launch()
-        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["all-items-grouping-category"].isSelected)
-        app.buttons["all-items-scope-picker"].tap()
-        app.buttons["Coles"].firstMatch.tap()
-        XCTAssertTrue(row("Second reorder item", status: "Pending").waitForExistence(timeout: 5))
-        XCTAssertLessThan(row("Second reorder item", status: "Pending").frame.minY,
-                          row("First reorder item", status: "Pending").frame.minY)
-        choose("Woolworths")
-        XCTAssertFalse(row("First reorder item", status: "Pending").exists)
-        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").waitForExistence(timeout: 3))
+    func testCompactTopBarOpensAllItemsWithoutEditControl() {
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["all-items-shortcut"].isHittable)
+        XCTAssertFalse(app.buttons["Edit"].exists)
+        XCTAssertFalse(app.staticTexts["Your list"].exists)
+
+        app.buttons["all-items-shortcut"].tap()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Edit"].exists)
     }
 
     func testAllItemsShowStoreOnlyOffersPopulatedLists() {
@@ -3134,7 +3090,7 @@ final class StoreSelectionTests: XCTestCase {
         if cancel.exists {
             cancel.tap()
         } else {
-            app.staticTexts["Your list"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
         }
         XCTAssertTrue(app.buttons["Clear All"].waitForNonExistence(timeout: 3))
     }

@@ -183,6 +183,7 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
     var keyboardDismissMode: ScrollDismissesKeyboardMode = .interactively
     var onViewportChange: (CGRect) -> Void = { _ in }
     var onManualScroll: () -> Void = {}
+    var onSelectAllItems: (() -> Void)?
     @GestureState private var isDragging = false
     @ViewBuilder let scope: () -> Scope
     @ViewBuilder let footer: () -> Footer
@@ -203,13 +204,7 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
             }
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { onViewportChange($0) }
             .safeAreaInset(edge: .top, spacing: 0) {
-                HStack(alignment: .center) {
-                    Text(isWelcome ? "ListRunner" : "Your list")
-                        .font(isWelcome ? .title3.weight(.bold) : .largeTitle.weight(.bold))
-                        .foregroundStyle(.primary)
-                    Spacer(minLength: 8)
-                    scope()
-                }
+                ListPageHeader(isWelcome: isWelcome, onSelectAllItems: onSelectAllItems, scope: scope)
                 .padding(.horizontal, 20)
                 .padding(.vertical, 10)
                 .background(Color(uiColor: .systemGroupedBackground))
@@ -218,6 +213,35 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(isWelcome ? .hidden : .visible, for: .navigationBar)
+    }
+}
+
+private struct ListPageHeader<Scope: View>: View {
+    let isWelcome: Bool
+    let onSelectAllItems: (() -> Void)?
+    @ViewBuilder let scope: () -> Scope
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            if isWelcome {
+                Text("ListRunner")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.primary)
+            } else {
+                scope()
+                if let onSelectAllItems {
+                    Button(action: onSelectAllItems) {
+                        Image(systemName: "square.grid.2x2")
+                            .font(.body.weight(.semibold))
+                            .frame(width: 36, height: 36)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: Circle())
+                    }
+                    .accessibilityLabel("All items")
+                    .accessibilityIdentifier("all-items-shortcut")
+                }
+            }
+            Spacer(minLength: 8)
+        }
     }
 }
 
@@ -262,14 +286,10 @@ private struct ListScopePicker: View {
 }
 
 private struct ListPageToolbar: ToolbarContent {
-    let showEdit: Bool
     var showSettings = true
     let onSettings: () -> Void
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            if showEdit { EditButton() }
-        }
         ToolbarItem(placement: .topBarTrailing) {
             if showSettings {
                 Button(action: onSettings) { Image(systemName: "gearshape") }
@@ -711,7 +731,6 @@ private struct AllItemsScreen: View {
     @State private var notice: String?
     @State private var showingStoreManagement = false
     @State private var showingSettings = false
-    @State private var editMode = EditMode.inactive
     @State private var workingStoreID: StoreID?
     @State private var groupAddRequest: UUID?
     @State private var clearRequest: AllItemsClearRequest?
@@ -738,9 +757,7 @@ private struct AllItemsScreen: View {
     @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
 
     private var grouping: AllItemsGrouping {
-        // Reorder handles must only change positions inside an existing store list.
-        // Keep the saved grouping untouched so Done restores the user's view.
-        editMode.isEditing ? .store : (AllItemsGrouping(rawValue: groupingRawValue) ?? .store)
+        AllItemsGrouping(rawValue: groupingRawValue) ?? .store
     }
     private var shoppingVisibleIDs: Set<StoreID> {
         sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs)
@@ -901,7 +918,6 @@ private struct AllItemsScreen: View {
             Section {
                 AllItemsGroupingSwitcher(selection: Binding(
                     get: { grouping }, set: { groupingRawValue = $0.rawValue }))
-                .disabled(editMode.isEditing)
             }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
@@ -914,7 +930,7 @@ private struct AllItemsScreen: View {
                     Section {
                         AllItemsGroupHeader(group: group,
                             tint: grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary,
-                            addStore: grouping == .store && !editMode.isEditing
+                            addStore: grouping == .store
                                 ? group.storeIDs.first.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil } : nil,
                             onAdd: beginAdding)
                         .id(group.id)
@@ -936,9 +952,6 @@ private struct AllItemsScreen: View {
                                     ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
                                 .listRowInsets(ListItemRowLayout.insets)
                         }
-                        .onMove(perform: group.storeIDs.count == 1 ? { source, destination in
-                            moveItems(in: group, from: source, to: destination)
-                        } : nil)
                         ClearListButton {
                             entryFocused = false
                             entryFocus.resignFirstResponder()
@@ -1028,22 +1041,11 @@ private struct AllItemsScreen: View {
         }
         }
         .toolbar {
-            ListPageToolbar(showEdit: !allItems.isEmpty) {
+            ListPageToolbar {
                 entryFocused = false
                 entryFocus.resignFirstResponder()
-                editMode = .inactive
                 showingSettings = true
             }
-        }
-        .environment(\.editMode, $editMode)
-        .onChange(of: editMode) { _, value in
-            if value.isEditing {
-                entryFocused = false
-                entryFocus.resignFirstResponder()
-            }
-        }
-        .onChange(of: allItems.isEmpty) { _, isEmpty in
-            if isEmpty { editMode = .inactive }
         }
         .navigationDestination(isPresented: $showingSettings) {
             SettingsOverviewScreen(sessions: sessions, visibility: visibility,
@@ -1130,7 +1132,7 @@ private struct AllItemsScreen: View {
     }
 
     private func beginAdding(to store: StoreID) {
-        guard grouping == .store, !editMode.isEditing, shoppingVisibleIDs.contains(store) else { return }
+        guard grouping == .store, shoppingVisibleIDs.contains(store) else { return }
         addedItemScrollTask?.cancel()
         addedItemScrollTask = nil
         scrollTargetItemID = nil
@@ -1169,7 +1171,6 @@ private struct AllItemsScreen: View {
             status: item.status, tint: owner.map(storeTint) ?? .accentColor,
             accessibilityLabel: "\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(owner.map { ", \($0.displayName)" } ?? ", Uncategorised")\(available ? "" : ", Unavailable")",
             onOpen: {
-                guard !editMode.isEditing else { editingItem = item; return }
                 guard let owner else {
                     notice = "This saved item has no recognized store list. It remains visible and has not been moved or deleted."
                     return
@@ -1206,16 +1207,6 @@ private struct AllItemsScreen: View {
     private func setStatus(_ status: GroceryStatus, for item: GroceryItem) {
         item.status = status
         stageReminderWriteback(for: item)
-        saveChanges()
-    }
-
-    private func moveItems(in group: AllItemsGroup, from source: IndexSet, to destination: Int) {
-        guard grouping == .store, group.storeIDs.count == 1 else { return }
-        var orderedItems = group.items
-        orderedItems.move(fromOffsets: source, toOffset: destination)
-        for (position, item) in orderedItems.enumerated() {
-            item.position = position
-        }
         saveChanges()
     }
 
@@ -1488,7 +1479,7 @@ struct GroceryListScreen: View {
                     productEntryRevealTask?.cancel()
                     scrollTargetItemID = nil
                     itemFrames.removeAll(keepingCapacity: true)
-                }, scope: {
+                }, onSelectAllItems: showingStoreWelcome || shoppingVisibleIDs.isEmpty ? nil : onSelectAllItems, scope: {
                     if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty {
                         ListScopePicker(stores: StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
                             enabledIDs: shoppingVisibleIDs), selectedStoreID: storeID, tint: storePrimaryColor,
@@ -1687,8 +1678,7 @@ struct GroceryListScreen: View {
                 }
             }
             .toolbar {
-                ListPageToolbar(showEdit: !showingStoreWelcome && !shoppingVisibleIDs.isEmpty && !items.isEmpty,
-                                showSettings: !showingStoreWelcome) {
+                ListPageToolbar(showSettings: !showingStoreWelcome) {
                     groceryInputFocused = false
                     showingSettings = true
                 }
