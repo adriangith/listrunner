@@ -1508,7 +1508,9 @@ struct GroceryListScreen: View {
                         }
                         .disabled(!browser.canPresentStore || !shoppingVisibleIDs.contains(storeID))
                         .padding(.horizontal, 20).padding(.top, 8)
-                        .padding(.bottom, groceryInputFocused ? 16 : 0)
+                        // Tuck the fixed action closer to the home indicator, but
+                        // retain its comfortable keyboard clearance while editing.
+                        .padding(.bottom, groceryInputFocused ? 16 : -12)
                     }
                 }) {
                 if showingStoreWelcome {
