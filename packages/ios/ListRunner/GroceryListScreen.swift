@@ -696,6 +696,7 @@ private struct AllItemsGroupHeader: View {
 
 private struct AllItemsScreen: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \GroceryItem.position) private var allItems: [GroceryItem]
     @Query private var lists: [GroceryList]
     @ObservedObject var sessions: StoreSessions
@@ -1141,7 +1142,15 @@ private struct AllItemsScreen: View {
         destinationRawValue = store.rawValue
         // This is a temporary working-group priority, not a fabricated add event.
         // Saved recency is updated only by the existing successful add/import path.
-        workingStoreID = store
+        if reduceMotion {
+            workingStoreID = store
+        } else {
+            // Each group keeps a stable ID, allowing List to animate this as a
+            // section move instead of removing and recreating the store list.
+            withAnimation(.easeInOut(duration: 0.35)) {
+                workingStoreID = store
+            }
+        }
         groupAddRequest = UUID()
     }
 
