@@ -1794,6 +1794,114 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.buttons["Actions for Destination draft retained"].exists)
     }
 
+    func testAllItemsSelectedEmptyDestinationIsTemporaryAndBecomesPopulated() {
+        choose("All items")
+        openAllItemsClearOptions("store-coles")
+        app.buttons["Clear All"].tap()
+        let menu = app.buttons["all-items-add-destination"]
+        for _ in 0..<6 where !menu.isHittable { app.collectionViews.firstMatch.swipeDown() }
+        menu.tap()
+        app.buttons["Coles"].firstMatch.tap()
+        let empty = app.staticTexts["all-items-empty-store-coles"]
+        XCTAssertTrue(empty.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["all-items-clear-store-coles"].exists)
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        let titles = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-title-store-"))
+        XCTAssertEqual(titles.firstMatch.label, "Coles")
+        menu.tap()
+        app.buttons["Woolworths"].firstMatch.tap()
+        XCTAssertFalse(empty.exists)
+        XCTAssertFalse(app.staticTexts["all-items-group-title-store-coles"].exists)
+        menu.tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(empty.waitForExistence(timeout: 3))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertFalse(empty.exists, "Selecting an empty destination must not create saved grocery data")
+        menu.tap()
+        app.buttons["Coles"].firstMatch.tap()
+        let entry = app.textViews["all-items-entry"]
+        entry.tap()
+        entry.typeText("First item in empty destination")
+        app.buttons["all-items-add"].tap()
+        XCTAssertTrue(app.staticTexts["First item in empty destination"].waitForExistence(timeout: 3))
+        XCTAssertFalse(empty.exists)
+        XCTAssertTrue(app.buttons["all-items-clear-store-coles"].exists)
+    }
+
+    func testAllItemsBrowseCardsMatchEntryWidth() {
+        choose("All items")
+        let entryCell = app.collectionViews.cells.containing(.textView, identifier: "all-items-entry").firstMatch
+        let clear = app.buttons["all-items-clear-store-bunnings"]
+        XCTAssertTrue(entryCell.waitForExistence(timeout: 3))
+        XCTAssertTrue(clear.waitForExistence(timeout: 3))
+        XCTAssertEqual(clear.frame.minX, entryCell.frame.minX, accuracy: 1)
+        XCTAssertEqual(clear.frame.maxX, entryCell.frame.maxX, accuracy: 1)
+        app.buttons["all-items-grouping-category"].tap()
+        let categoryClear = app.buttons["all-items-clear-category-hardwareGarden"]
+        XCTAssertTrue(categoryClear.waitForExistence(timeout: 3))
+        XCTAssertEqual(categoryClear.frame.minX, entryCell.frame.minX, accuracy: 1)
+        XCTAssertEqual(categoryClear.frame.maxX, entryCell.frame.maxX, accuracy: 1)
+    }
+
+    func testAllItemsBrowseSwipeDeleteWorksInBothGroupings() {
+        choose("All items")
+        for (grouping, name) in [("store", "Coles fixture item"), ("category", "Woolworths fixture item")] {
+            let groupingButton = app.buttons["all-items-grouping-\(grouping)"]
+            for _ in 0..<6 where !groupingButton.isHittable { app.collectionViews.firstMatch.swipeDown() }
+            groupingButton.tap()
+            let item = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "\(name), quantity")).firstMatch
+            for _ in 0..<8 where !item.isHittable { app.collectionViews.firstMatch.swipeUp() }
+            XCTAssertTrue(item.isHittable)
+            item.swipeLeft()
+            let delete = app.buttons["Delete"].firstMatch
+            XCTAssertTrue(delete.waitForExistence(timeout: 3), "A left swipe must reveal row-level Delete")
+            delete.tap()
+            XCTAssertTrue(item.waitForNonExistence(timeout: 3))
+            XCTAssertTrue(app.staticTexts["Bunnings fixture item"].exists)
+        }
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Coles fixture item"].exists)
+        XCTAssertFalse(app.staticTexts["Woolworths fixture item"].exists)
+        XCTAssertTrue(app.staticTexts["Bunnings fixture item"].exists)
+    }
+
+    func testAllItemsBrowseLongPressReordersWithinStoreAndPersists() {
+        choose("All items")
+        app.buttons["all-items-add-destination"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        let entry = app.textViews["all-items-entry"]
+        entry.tap()
+        entry.typeText("Drag first")
+        app.buttons["all-items-add"].tap()
+        entry.typeText("Drag second")
+        app.buttons["all-items-add"].tap()
+        let grouping = app.buttons["all-items-grouping-store"]
+        for _ in 0..<6 where !grouping.isHittable { app.collectionViews.firstMatch.swipeDown() }
+        grouping.tap()
+        let source = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Coles fixture item, quantity")).firstMatch
+        let target = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Drag second, quantity")).firstMatch
+        for _ in 0..<8 where !source.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(source.isHittable)
+        XCTAssertTrue(target.isHittable)
+        source.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 1,
+            thenDragTo: target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)))
+        let reordered = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            source.frame.minY < target.frame.minY
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [reordered], timeout: 5), .completed)
+        XCTAssertFalse(app.buttons["Done"].exists, "Long-press reorder must not require Edit mode")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertTrue(source.waitForExistence(timeout: 3))
+        XCTAssertLessThan(source.frame.minY, target.frame.minY)
+        XCTAssertTrue(app.staticTexts["Woolworths fixture item"].exists)
+    }
+
     func testAllItemsManualEntryPreservesProductWording() {
         choose("All items")
         let entry = app.textViews["all-items-entry"]

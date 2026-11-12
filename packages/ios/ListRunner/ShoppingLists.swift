@@ -108,6 +108,17 @@ enum ShoppingMigration: SchemaMigrationPlan {
 enum ShoppingLists {
     static var schema: Schema { Schema(versionedSchema: ShoppingSchemaV3.self) }
 
+    static func reorderedIDs(_ current: [UUID], moving sources: [UUID], before destination: UUID?) -> [UUID]? {
+        let moving = Set(sources)
+        guard !moving.isEmpty, moving.isSubset(of: Set(current)) else { return nil }
+        if let destination, !current.contains(destination) || moving.contains(destination) { return nil }
+        let picked = current.filter { moving.contains($0) }
+        var remaining = current.filter { !moving.contains($0) }
+        let index = destination.flatMap { remaining.firstIndex(of: $0) } ?? remaining.endIndex
+        remaining.insert(contentsOf: picked, at: index)
+        return remaining
+    }
+
     @MainActor
     static func stageAdd(_ entries: [ParsedGrocery], to store: StoreID,
                          allItems: [GroceryItem], context: ModelContext) -> [GroceryItem] {

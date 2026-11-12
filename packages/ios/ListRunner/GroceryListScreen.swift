@@ -709,23 +709,25 @@ private final class AllItemsInteractionGeometry {
 }
 
 private struct AllItemsGroupRegion<Content: View>: View {
-    let editing: Bool
+    let nativeRows: Bool
     let order: [StoreID]
     let reduceMotion: Bool
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        if editing {
+        if nativeRows {
             content()
         } else {
             Section {
                 // One native host row keeps section-slot reuse out of group
                 // reorders. SwiftUI moves the complete, stably identified cards.
                 VStack(spacing: 16, content: content)
+                    .frame(maxWidth: .infinity)
+                    .modifier(AllItemsSwipeContainer())
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: order)
                     .padding(.vertical, 1)
             }
-            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
         }
@@ -733,17 +735,40 @@ private struct AllItemsGroupRegion<Content: View>: View {
 }
 
 private struct AllItemsGroupCard<Content: View>: View {
-    let editing: Bool
+    let nativeRows: Bool
+    let canReorder: Bool
+    let onReorder: ([UUID], UUID?) -> Void
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        if editing {
+        if nativeRows {
             Section(content: content)
+        } else if #available(iOS 27.0, *) {
+            card.reorderContainer(for: GroceryItem.self, itemID: \.id, isEnabled: canReorder) { difference in
+                switch difference.destination.position {
+                case .before(let id): onReorder(difference.sources, id)
+                case .end: onReorder(difference.sources, nil)
+                }
+            }
         } else {
-            VStack(spacing: 0, content: content)
-                .background(Color(uiColor: .secondarySystemGroupedBackground),
-                            in: RoundedRectangle(cornerRadius: 24))
+            card
         }
+    }
+
+    private var card: some View {
+        VStack(spacing: 0, content: content)
+            .frame(maxWidth: .infinity)
+            .background(Color(uiColor: .secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: 24))
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+    }
+}
+
+private struct AllItemsSwipeContainer: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 27.0, *) { content.swipeActionsContainer() }
+        else { content }
     }
 }
 
@@ -796,6 +821,12 @@ private struct AllItemsScreen: View {
         // Keep the saved grouping untouched so Done restores the user's view.
         editMode.isEditing ? .store : (AllItemsGrouping(rawValue: groupingRawValue) ?? .store)
     }
+    private var usesNativeGroupRows: Bool {
+        // Older systems retain native row gestures and Edit handles. SDK 27
+        // supplies native row-level gestures within the animated browse cards.
+        if #available(iOS 27.0, *) { return editMode.isEditing }
+        return true
+    }
     private var shoppingVisibleIDs: Set<StoreID> {
         sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs)
     }
@@ -845,7 +876,7 @@ private struct AllItemsScreen: View {
                     if left.position == right.position { return left.id.uuidString < right.id.uuidString }
                     return left.position < right.position
                 }
-                if !values.isEmpty {
+                if !values.isEmpty || (!editMode.isEditing && workingStoreID == id && shoppingVisibleIDs.contains(id)) {
                     known.append(AllItemsGroup(id: "store-\(id.rawValue)", title: id.displayName, storeIDs: [id], items: values))
                 }
             }
@@ -976,9 +1007,11 @@ private struct AllItemsScreen: View {
                                        description: Text("Add products above, or choose a store list."))
                     .listRowBackground(Color.clear)
             } else {
-                AllItemsGroupRegion(editing: editMode.isEditing, order: workingStoreOrder, reduceMotion: reduceMotion) {
+                AllItemsGroupRegion(nativeRows: usesNativeGroupRows, order: workingStoreOrder, reduceMotion: reduceMotion) {
                 ForEach(groups) { group in
-                    AllItemsGroupCard(editing: editMode.isEditing) {
+                    AllItemsGroupCard(nativeRows: usesNativeGroupRows,
+                        canReorder: grouping == .store && group.storeIDs.count == 1,
+                        onReorder: { reorderItems($0, before: $1, in: group) }) {
                         AllItemsGroupHeader(group: group,
                             tint: grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary,
                             addStore: grouping == .store && !editMode.isEditing
@@ -990,33 +1023,21 @@ private struct AllItemsScreen: View {
                                 DispatchQueue.main.async { beginAdding(to: store, using: proxy) }
                             },
                             onAddFrame: { interactionGeometry.groupAddButtons[$0] = $1 })
-                        .padding(.horizontal, editMode.isEditing ? 0 : 20)
-                        .padding(.vertical, editMode.isEditing ? 0 : 4)
+                        .padding(.horizontal, usesNativeGroupRows ? 0 : 20)
+                        .padding(.vertical, usesNativeGroupRows ? 0 : 4)
                         .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
-                        if !editMode.isEditing { Divider().padding(.horizontal, 16) }
-                        ForEach(group.items, id: \.id) { item in
-                            allItemRow(item)
-                                .padding(.horizontal, editMode.isEditing ? 0 : 16)
-                                .background(highlightedItemIDs.contains(item.id) ? Color.accentColor.opacity(0.12) : Color.clear)
-                                .id(item.id)
-                                .onGeometryChange(for: CGRect?.self) { geometry in
-                                    scrollTargetItemID == item.id ? geometry.frame(in: .global) : nil
-                                } action: { frame in
-                                    guard let frame, scrollTargetItemID == item.id else { return }
-                                    itemFrames[item.id] = frame
-                                    scrollToAddedItem(item.id, using: proxy)
-                                }
-                                .onAppear {
-                                    if scrollTargetItemID == item.id { scrollToAddedItem(item.id, using: proxy) }
-                                }
-                                .listRowBackground(highlightedItemIDs.contains(item.id)
-                                    ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
-                                .listRowInsets(ListItemRowLayout.insets)
-                            if !editMode.isEditing { Divider().padding(.horizontal, 16) }
+                        if group.items.isEmpty {
+                            Text("No items yet. Add products above.")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, usesNativeGroupRows ? 0 : 20)
+                                .padding(.vertical, 16)
+                                .accessibilityIdentifier("all-items-empty-\(group.id)")
+                        } else {
+                            if !usesNativeGroupRows { Divider().padding(.horizontal, 16) }
+                            groupItemRows(group, using: proxy)
                         }
-                        .onMove(perform: editMode.isEditing && group.storeIDs.count == 1 ? { source, destination in
-                            moveItems(in: group, from: source, to: destination)
-                        } : nil)
+                        if !group.items.isEmpty {
                         ClearListButton {
                             entryFocused = false
                             entryFocus.resignFirstResponder()
@@ -1040,6 +1061,7 @@ private struct AllItemsScreen: View {
                                 Text("This clears only items shown in the \(group.title) category in ListRunner, across its store lists. It does not change any store cart or Apple Reminders.")
                             }
                         }
+                        }
                     }
                     .id(group.id)
                     .zIndex(!editMode.isEditing && group.storeIDs.first == workingStoreID ? 1 : 0)
@@ -1060,7 +1082,7 @@ private struct AllItemsScreen: View {
                 entryRevealSuppressed = true
                 entryRevealTask?.cancel()
                 scrollTargetItemID = itemID
-                if editMode.isEditing {
+                if usesNativeGroupRows {
                     withAnimation { proxy.scrollTo(itemID, anchor: .bottom) }
                 } else {
                     scrollToAddedItem(itemID, using: proxy)
@@ -1231,12 +1253,61 @@ private struct AllItemsScreen: View {
             }
         }
         .onDisappear {
+            if let workingStoreID, !allItems.contains(where: { $0.listID == workingStoreID.listID }) {
+                self.workingStoreID = nil
+            }
             groupAddRequest = nil
             entryRevealTask?.cancel()
             addedItemScrollTask?.cancel()
             addedItemScrollTask = nil
             scrollTargetItemID = nil
         }
+    }
+
+    @ViewBuilder
+    private func groupItemRows(_ group: AllItemsGroup, using proxy: ScrollViewProxy) -> some View {
+        let rows = ForEach(group.items, id: \.id) { item in
+            if usesNativeGroupRows {
+                groupItemRow(item, using: proxy)
+            } else {
+                VStack(spacing: 0) {
+                    groupItemRow(item, using: proxy)
+                    Divider().padding(.horizontal, 16)
+                }
+            }
+        }
+        if #available(iOS 27.0, *), !usesNativeGroupRows {
+            rows.reorderable()
+        } else {
+            rows.onMove(perform: grouping == .store && group.storeIDs.count == 1 ? { source, destination in
+                moveItems(in: group, from: source, to: destination)
+            } : nil)
+        }
+    }
+
+    private func groupItemRow(_ item: GroceryItem, using proxy: ScrollViewProxy) -> some View {
+        allItemRow(item)
+            .padding(.horizontal, usesNativeGroupRows ? 0 : 16)
+            .background(highlightedItemIDs.contains(item.id) ? Color.accentColor.opacity(0.12) : Color.clear)
+            .id(item.id)
+            .onGeometryChange(for: CGRect?.self) { geometry in
+                scrollTargetItemID == item.id ? geometry.frame(in: .global) : nil
+            } action: { frame in
+                guard let frame, scrollTargetItemID == item.id else { return }
+                itemFrames[item.id] = frame
+                scrollToAddedItem(item.id, using: proxy)
+            }
+            .onAppear {
+                if scrollTargetItemID == item.id { scrollToAddedItem(item.id, using: proxy) }
+            }
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button("Delete", systemImage: "trash", role: .destructive) { delete(item) }
+                    .accessibilityHint("Removes this item from ListRunner only, not the store cart")
+                    .accessibilityIdentifier("all-items-delete-\(item.id.uuidString)")
+            }
+            .listRowBackground(highlightedItemIDs.contains(item.id)
+                ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
+            .listRowInsets(ListItemRowLayout.insets)
     }
 
     private func revealFocusedEntry() {
@@ -1326,7 +1397,7 @@ private struct AllItemsScreen: View {
             guard let target = itemFrames[id] else { return nil }
             return ListItemRevealGeometry(target: target, viewport: listViewportFrame)
         }, scroll: { anchor, animated in
-            if !editMode.isEditing, let frame = itemFrames[id] {
+            if !usesNativeGroupRows, let frame = itemFrames[id] {
                 // Browse cards share a native host row; scroll to the measured
                 // item, not to the bottom of that entire native cell.
                 let adjustment = anchor == .bottom
@@ -1396,6 +1467,19 @@ private struct AllItemsScreen: View {
         for (position, item) in orderedItems.enumerated() {
             item.position = position
         }
+        saveChanges()
+    }
+
+    private func reorderItems(_ sources: [UUID], before destination: UUID?, in group: AllItemsGroup) {
+        guard grouping == .store, group.storeIDs.count == 1, let store = group.storeIDs.first else { return }
+        let current = allItems.filter { $0.listID == store.listID }.sorted {
+            $0.position == $1.position ? $0.id.uuidString < $1.id.uuidString : $0.position < $1.position
+        }
+        // A drag from another card must never become a cross-store transfer.
+        guard let order = ShoppingLists.reorderedIDs(current.map(\.id), moving: sources, before: destination),
+              order != current.map(\.id) else { return }
+        let byID = Dictionary(uniqueKeysWithValues: current.map { ($0.id, $0) })
+        for (position, id) in order.enumerated() { byID[id]?.position = position }
         saveChanges()
     }
 
