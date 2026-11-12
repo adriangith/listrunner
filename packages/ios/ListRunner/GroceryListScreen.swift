@@ -974,6 +974,7 @@ private struct AllItemsScreen: View {
     @State private var interactionGeometry = AllItemsInteractionGeometry()
     @State private var entryRevealTask: Task<Void, Never>?
     @State private var entryRevealSuppressed = false
+    @State private var isRevealingEntry = false
     @State private var scrollTargetItemID: UUID?
     @State private var itemFrames: [UUID: CGRect] = [:]
     @State private var addedItemScrollTask: Task<Void, Never>?
@@ -1086,22 +1087,13 @@ private struct AllItemsScreen: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-        // Dismiss explicitly on a deliberate drag, before List can recycle the
-        // focused row inside a UIKit layout transaction with animations disabled.
-        ShoppingListPage(keyboardDismissMode: .never,
+        ShoppingListPage(keyboardDismissMode: isRevealingEntry ? .never : .interactively,
             onViewportChange: { frame in
                 listViewportFrame = frame
                 revealFocusedEntry()
                 if let id = scrollTargetItemID { scrollToAddedItem(id, using: proxy) }
             }, onManualScroll: {
                 groupAddRequest = nil
-                entryFocused = false
-                DispatchQueue.main.async {
-                    // A + tap may have started a newer focus request after this
-                    // drag ended. Never dismiss that request's keyboard.
-                    guard groupAddRequest == nil, !entryFocused else { return }
-                    entryFocus.resignFirstResponder()
-                }
                 entryRevealTask?.cancel()
                 entryRevealSuppressed = true
                 addedItemScrollTask?.cancel()
@@ -1477,7 +1469,7 @@ private struct AllItemsScreen: View {
             guard entryFocused, !entryRevealSuppressed else { return nil }
             return ProductEntryRevealGeometry(editor: interactionGeometry.editor, actions: interactionGeometry.actions,
                                               viewport: listViewportFrame)
-        }, onRevealing: { _ in })
+        }, onRevealing: { isRevealingEntry = $0 })
     }
 
     private func selectAddDestination(_ store: StoreID) {
