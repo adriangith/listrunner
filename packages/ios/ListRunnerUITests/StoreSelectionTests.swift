@@ -1907,7 +1907,9 @@ final class StoreSelectionTests: XCTestCase {
             for _ in 0..<8 where !shortcut.isHittable { app.collectionViews.firstMatch.swipeUp() }
             XCTAssertTrue(shortcut.isHittable)
             shortcut.tap()
-            XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "Missing keyboard after + for \(store)")
+            guard keyboard.waitForExistence(timeout: 5) else {
+                return XCTFail("Missing keyboard after + for \(store): \(app.staticTexts["all-items-focus-status"].label)")
+            }
             entry.typeText("x") // No tap on the entry: + must make it the first responder.
             draft += "x"
             XCTAssertEqual(entry.value as? String, draft)
