@@ -708,188 +708,43 @@ private final class AllItemsInteractionGeometry {
     var groupAddButtons: [StoreID: CGRect] = [:]
 }
 
-// List reuses section slots on a reorder, swapping their contents without a
-// visible section move. Animate viewport-sized snapshots over the native list;
-// leave its data source, row actions, edit handles and scrolling untouched.
-@MainActor
-private final class AllItemsGroupMoveTransition {
-    private struct Anchor { weak var view: UIView? }
-    private var anchors: [String: Anchor] = [:]
-    private var overlay: UIView?
-    private var generation = UUID()
+private struct AllItemsGroupRegion<Content: View>: View {
+    let editing: Bool
+    let order: [StoreID]
+    let reduceMotion: Bool
+    @ViewBuilder let content: () -> Content
 
-    func register(_ view: UIView, for id: String) {
-        // Native section slots can reuse their hosting views for a new group.
-        anchors = anchors.filter { $0.key == id || ($0.value.view != nil && $0.value.view !== view) }
-        anchors[id] = Anchor(view: view)
-    }
-
-    func cancel() {
-        generation = UUID()
-        overlay?.removeFromSuperview()
-        overlay = nil
-    }
-
-    private func location(of view: UIView) -> (UICollectionView, IndexPath)? {
-        var ancestor: UIView? = view
-        var cell: UICollectionViewCell?
-        while let current = ancestor {
-            if let current = current as? UICollectionViewCell { cell = current }
-            if let list = current as? UICollectionView, let cell,
-               let index = list.indexPath(for: cell) { return (list, index) }
-            ancestor = current.superview
-        }
-        return nil
-    }
-
-    private func frames(_ ids: [String], in list: UICollectionView, window: UIWindow) -> [String: CGRect] {
-        guard let base = ids.enumerated().compactMap({ index, id -> Int? in
-            guard let view = anchors[id]?.view, view.window === window,
-                  let (owner, path) = location(of: view), owner === list else { return nil }
-            return path.section - index
-        }).first else { return [:] }
-        var result: [String: CGRect] = [:]
-        for (index, id) in ids.enumerated() {
-            let section = base + index
-            guard section >= 0, section < list.numberOfSections else { continue }
-            let count = list.numberOfItems(inSection: section)
-            guard count > 0,
-                  let first = list.layoutAttributesForItem(at: IndexPath(item: 0, section: section)),
-                  let last = list.layoutAttributesForItem(at: IndexPath(item: count - 1, section: section)) else { continue }
-            let rect = CGRect(x: list.bounds.minX, y: first.frame.minY,
-                              width: list.bounds.width, height: last.frame.maxY - first.frame.minY)
-            result[id] = list.convert(rect, to: window)
-        }
-        if let firstID = ids.first, let first = result[firstID] {
-            let top = list.convert(CGPoint(x: list.bounds.minX, y: -list.adjustedContentInset.top), to: window).y
-            result["page-entry"] = CGRect(x: first.minX, y: top, width: first.width, height: max(0, first.minY - top))
-        }
-        return result
-    }
-
-    private func capture(viewport: CGRect, list: UICollectionView, window: UIWindow,
-                         afterUpdates: Bool) -> UIImage? {
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = window.traitCollection.displayScale
-        format.opaque = true
-        var rendered = false
-        // drawHierarchy's destination is renderer-local. A scroll view's bounds
-        // has a nonzero content offset; using that as the renderer origin crops
-        // the image at the offset a second time after a programmatic scroll.
-        let destination = list.convert(list.bounds, to: window)
-            .offsetBy(dx: -viewport.minX, dy: -viewport.minY)
-        let image = UIGraphicsImageRenderer(size: viewport.size, format: format).image { _ in
-            rendered = list.drawHierarchy(in: destination, afterScreenUpdates: afterUpdates)
-        }
-        return rendered ? image : nil
-    }
-
-    private func snapshot(_ frame: CGRect, viewport: CGRect, image: UIImage) -> (UIView, CGRect)? {
-        let visible = frame.intersection(viewport)
-        guard !visible.isNull, visible.width > 0, visible.height > 0 else { return nil }
-        let local = visible.offsetBy(dx: -viewport.minX, dy: -viewport.minY)
-        let pixels = CGRect(x: local.minX * image.scale, y: local.minY * image.scale,
-                            width: local.width * image.scale, height: local.height * image.scale)
-        guard let crop = image.cgImage?.cropping(to: pixels) else { return nil }
-        return (UIImageView(image: UIImage(cgImage: crop, scale: image.scale, orientation: .up)), local)
-    }
-
-    func perform(groupIDs: [String], newGroupIDs: [String], viewport: CGRect, reduceMotion: Bool,
-                 updates: () -> Void, reveal: (() -> Void)? = nil,
-                 completion: @escaping () -> Void = {}) {
-        cancel()
-        let request = generation
-        let list = anchors.values.compactMap { $0.view }.compactMap { location(of: $0)?.0 }.first
-        guard !reduceMotion, let list, let window = list.window else {
-            var transaction = Transaction(animation: nil)
-            transaction.disablesAnimations = true
-            withTransaction(transaction) { updates(); reveal?() }
-            DispatchQueue.main.async(execute: completion)
-            return
-        }
-        let viewport = viewport.intersection(list.convert(list.bounds, to: window))
-        guard !viewport.isNull, !viewport.isEmpty else { updates(); reveal?(); completion(); return }
-        list.layoutIfNeeded()
-        let oldFrames = frames(groupIDs, in: list, window: window)
-        guard !oldFrames.isEmpty, let oldImage = capture(viewport: viewport, list: list, window: window,
-                                                       afterUpdates: false) else { updates(); reveal?(); completion(); return }
-        var oldSnapshots: [String: (UIView, CGRect)] = [:]
-        for (id, frame) in oldFrames {
-            oldSnapshots[id] = snapshot(frame, viewport: viewport, image: oldImage)
-        }
-        let cover = UIView(frame: viewport)
-        cover.backgroundColor = .systemGroupedBackground
-        cover.clipsToBounds = true
-        cover.accessibilityElementsHidden = true
-        // Block a second action for the short move, rather than letting it act
-        // on native cells whose visible snapshots are still in transit.
-        cover.isUserInteractionEnabled = true
-        for (view, frame) in oldSnapshots.values { view.frame = frame; cover.addSubview(view) }
-        window.addSubview(cover)
-        overlay = cover
-        var transaction = Transaction(animation: nil)
-        transaction.disablesAnimations = true
-        withTransaction(transaction, updates)
-        // Let List apply its section diff before resolving the editor scroll.
-        DispatchQueue.main.async { [weak self, weak list] in
-            guard let self, self.generation == request, let list else { return }
-            UIView.performWithoutAnimation { list.layoutIfNeeded(); reveal?(); list.layoutIfNeeded() }
-            DispatchQueue.main.async { [weak self, weak list] in
-                guard let self, self.generation == request, let list else { return }
-                list.layoutIfNeeded()
-                let newFrames = self.frames(newGroupIDs, in: list, window: window)
-                guard !newFrames.isEmpty, let newImage = self.capture(viewport: viewport, list: list,
-                    window: window, afterUpdates: true) else { self.cancel(); completion(); return }
-                var moving: [(UIView, CGRect)] = []
-                // The promoted card travels above the displaced cards, with
-                // deterministic stacking instead of dictionary iteration order.
-                for id in ["page-entry"] + Array(newGroupIDs.reversed()) {
-                    guard let frame = newFrames[id], let old = oldFrames[id] else { continue }
-                    let view = UIView(frame: old.offsetBy(dx: -viewport.minX, dy: -viewport.minY))
-                    view.clipsToBounds = true
-                    // Keep both visible portions in group-local coordinates.
-                    // Cropping only to the destination viewport would cut off
-                    // the bottom of a departing card before it starts moving.
-                    if let (slice, visible) = self.snapshot(frame, viewport: viewport, image: newImage) {
-                        slice.frame = visible.offsetBy(dx: viewport.minX - frame.minX,
-                                                       dy: viewport.minY - frame.minY)
-                        view.addSubview(slice)
-                    }
-                    if let (slice, visible) = self.snapshot(old, viewport: viewport, image: oldImage) {
-                        slice.frame = visible.offsetBy(dx: viewport.minX - old.minX,
-                                                       dy: viewport.minY - old.minY)
-                        view.addSubview(slice)
-                    }
-                    guard !view.subviews.isEmpty else { continue }
-                    moving.append((view, frame.offsetBy(dx: -viewport.minX, dy: -viewport.minY)))
-                }
-                cover.subviews.forEach { $0.removeFromSuperview() }
-                moving.forEach { cover.addSubview($0.0) }
-                UIView.animate(withDuration: 0.4, delay: 0,
-                               options: [.curveEaseInOut, .beginFromCurrentState]) {
-                    moving.forEach { $0.0.frame = $0.1 }
-                } completion: { [weak self] _ in
-                    guard let self, self.generation == request else { return }
-                    self.cancel()
-                    completion()
-                }
+    var body: some View {
+        if editing {
+            content()
+        } else {
+            Section {
+                // One native host row keeps section-slot reuse out of group
+                // reorders. SwiftUI moves the complete, stably identified cards.
+                VStack(spacing: 16, content: content)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: order)
+                    .padding(.vertical, 1)
             }
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 }
 
-private struct AllItemsGroupMoveAnchor: UIViewRepresentable {
-    let id: String
-    let transition: AllItemsGroupMoveTransition
+private struct AllItemsGroupCard<Content: View>: View {
+    let editing: Bool
+    @ViewBuilder let content: () -> Content
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
-        view.isUserInteractionEnabled = false
-        transition.register(view, for: id)
-        return view
+    var body: some View {
+        if editing {
+            Section(content: content)
+        } else {
+            VStack(spacing: 0, content: content)
+                .background(Color(uiColor: .secondarySystemGroupedBackground),
+                            in: RoundedRectangle(cornerRadius: 24))
+        }
     }
-
-    func updateUIView(_ view: UIView, context: Context) { transition.register(view, for: id) }
 }
 
 private struct AllItemsScreen: View {
@@ -925,7 +780,6 @@ private struct AllItemsScreen: View {
     @State private var entryFocus = ProductEntryFocus()
     @State private var listViewportFrame: CGRect = .zero
     @State private var interactionGeometry = AllItemsInteractionGeometry()
-    @State private var groupMoveTransition = AllItemsGroupMoveTransition()
     @State private var entryRevealTask: Task<Void, Never>?
     @State private var entryRevealSuppressed = false
     @State private var scrollTargetItemID: UUID?
@@ -1122,8 +976,9 @@ private struct AllItemsScreen: View {
                                        description: Text("Add products above, or choose a store list."))
                     .listRowBackground(Color.clear)
             } else {
+                AllItemsGroupRegion(editing: editMode.isEditing, order: workingStoreOrder, reduceMotion: reduceMotion) {
                 ForEach(groups) { group in
-                    Section {
+                    AllItemsGroupCard(editing: editMode.isEditing) {
                         AllItemsGroupHeader(group: group,
                             tint: grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary,
                             addStore: grouping == .store && !editMode.isEditing
@@ -1135,10 +990,14 @@ private struct AllItemsScreen: View {
                                 DispatchQueue.main.async { beginAdding(to: store, using: proxy) }
                             },
                             onAddFrame: { interactionGeometry.groupAddButtons[$0] = $1 })
-                        .background(AllItemsGroupMoveAnchor(id: group.id, transition: groupMoveTransition))
+                        .padding(.horizontal, editMode.isEditing ? 0 : 20)
+                        .padding(.vertical, editMode.isEditing ? 0 : 4)
                         .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
+                        if !editMode.isEditing { Divider().padding(.horizontal, 16) }
                         ForEach(group.items, id: \.id) { item in
                             allItemRow(item)
+                                .padding(.horizontal, editMode.isEditing ? 0 : 16)
+                                .background(highlightedItemIDs.contains(item.id) ? Color.accentColor.opacity(0.12) : Color.clear)
                                 .id(item.id)
                                 .onGeometryChange(for: CGRect?.self) { geometry in
                                     scrollTargetItemID == item.id ? geometry.frame(in: .global) : nil
@@ -1153,8 +1012,9 @@ private struct AllItemsScreen: View {
                                 .listRowBackground(highlightedItemIDs.contains(item.id)
                                     ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
                                 .listRowInsets(ListItemRowLayout.insets)
+                            if !editMode.isEditing { Divider().padding(.horizontal, 16) }
                         }
-                        .onMove(perform: group.storeIDs.count == 1 ? { source, destination in
+                        .onMove(perform: editMode.isEditing && group.storeIDs.count == 1 ? { source, destination in
                             moveItems(in: group, from: source, to: destination)
                         } : nil)
                         ClearListButton {
@@ -1182,6 +1042,8 @@ private struct AllItemsScreen: View {
                         }
                     }
                     .id(group.id)
+                    .zIndex(!editMode.isEditing && group.storeIDs.first == workingStoreID ? 1 : 0)
+                }
                 }
             }
             if let notice {
@@ -1365,7 +1227,6 @@ private struct AllItemsScreen: View {
             }
         }
         .onDisappear {
-            groupMoveTransition.cancel()
             groupAddRequest = nil
             entryRevealTask?.cancel()
             addedItemScrollTask?.cancel()
@@ -1393,9 +1254,7 @@ private struct AllItemsScreen: View {
         guard grouping == .store, !editMode.isEditing else { return }
         // Changing destination is not a request to open/dismiss the keyboard or
         // submit the draft. Animate only the same temporary group priority.
-        let groupIDs = groups.map(\.id)
-        groupMoveTransition.perform(groupIDs: groupIDs, newGroupIDs: groupOrder(promoting: store),
-                                    viewport: listViewportFrame, reduceMotion: reduceMotion) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) {
             workingStoreOrder = promotedOrder
             workingStoreID = store
         }
@@ -1403,12 +1262,6 @@ private struct AllItemsScreen: View {
 
     private func workingOrder(promoting store: StoreID) -> [StoreID] {
         [store] + groups.compactMap { $0.storeIDs.first }.filter { $0 != store }
-    }
-
-    private func groupOrder(promoting store: StoreID) -> [String] {
-        let id = "store-\(store.rawValue)"
-        let ids = groups.map(\.id)
-        return ids.contains(id) ? [id] + ids.filter { $0 != id } : ids
     }
 
     private func beginAdding(to store: StoreID, using proxy: ScrollViewProxy) {
@@ -1431,15 +1284,13 @@ private struct AllItemsScreen: View {
         let promotedOrder = workingOrder(promoting: store)
         // This is a temporary working-group priority, not a fabricated add event.
         // Saved recency is updated only by the existing successful add/import path.
-        groupMoveTransition.perform(groupIDs: groups.map(\.id), newGroupIDs: groupOrder(promoting: store),
-                                    viewport: listViewportFrame, reduceMotion: reduceMotion, updates: {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4), completionCriteria: .removed) {
             workingStoreOrder = promotedOrder
             workingStoreID = store
-        }, reveal: {
             proxy.scrollTo("product-entry-editor", anchor: .top)
-        }, completion: {
-            finishGroupAdd(request, to: store)
-        })
+        } completion: {
+            DispatchQueue.main.async { finishGroupAdd(request, to: store) }
+        }
     }
 
     private func finishGroupAdd(_ request: UUID, to store: StoreID) {
