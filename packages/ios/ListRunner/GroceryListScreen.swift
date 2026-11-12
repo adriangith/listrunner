@@ -773,8 +773,13 @@ private final class AllItemsGroupMoveTransition {
         format.scale = window.traitCollection.displayScale
         format.opaque = true
         var rendered = false
-        let image = UIGraphicsImageRenderer(bounds: window.convert(viewport, to: list), format: format).image { _ in
-            rendered = list.drawHierarchy(in: list.bounds, afterScreenUpdates: afterUpdates)
+        // drawHierarchy's destination is renderer-local. A scroll view's bounds
+        // has a nonzero content offset; using that as the renderer origin crops
+        // the image at the offset a second time after a programmatic scroll.
+        let destination = list.convert(list.bounds, to: window)
+            .offsetBy(dx: -viewport.minX, dy: -viewport.minY)
+        let image = UIGraphicsImageRenderer(size: viewport.size, format: format).image { _ in
+            rendered = list.drawHierarchy(in: destination, afterScreenUpdates: afterUpdates)
         }
         return rendered ? image : nil
     }
@@ -839,17 +844,24 @@ private final class AllItemsGroupMoveTransition {
                 // The promoted card travels above the displaced cards, with
                 // deterministic stacking instead of dictionary iteration order.
                 for id in ["page-entry"] + Array(newGroupIDs.reversed()) {
-                    guard let frame = newFrames[id], let old = oldFrames[id],
-                          let (view, destination) = self.snapshot(frame, viewport: viewport, image: newImage) else { continue }
-                    view.frame = destination.offsetBy(dx: 0, dy: old.minY - frame.minY)
-                    moving.append((view, destination))
-                }
-                // Retain departing groups as they travel out of the viewport.
-                for (id, (view, source)) in oldSnapshots {
-                    guard let old = oldFrames[id], let new = newFrames[id],
-                          new.intersection(viewport).isNull else { continue }
-                    view.frame = source
-                    moving.insert((view, source.offsetBy(dx: 0, dy: new.minY - old.minY)), at: 0)
+                    guard let frame = newFrames[id], let old = oldFrames[id] else { continue }
+                    let view = UIView(frame: old.offsetBy(dx: -viewport.minX, dy: -viewport.minY))
+                    view.clipsToBounds = true
+                    // Keep both visible portions in group-local coordinates.
+                    // Cropping only to the destination viewport would cut off
+                    // the bottom of a departing card before it starts moving.
+                    if let (slice, visible) = self.snapshot(frame, viewport: viewport, image: newImage) {
+                        slice.frame = visible.offsetBy(dx: viewport.minX - frame.minX,
+                                                       dy: viewport.minY - frame.minY)
+                        view.addSubview(slice)
+                    }
+                    if let (slice, visible) = self.snapshot(old, viewport: viewport, image: oldImage) {
+                        slice.frame = visible.offsetBy(dx: viewport.minX - old.minX,
+                                                       dy: viewport.minY - old.minY)
+                        view.addSubview(slice)
+                    }
+                    guard !view.subviews.isEmpty else { continue }
+                    moving.append((view, frame.offsetBy(dx: -viewport.minX, dy: -viewport.minY)))
                 }
                 cover.subviews.forEach { $0.removeFromSuperview() }
                 moving.forEach { cover.addSubview($0.0) }
