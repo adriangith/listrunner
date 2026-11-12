@@ -2092,7 +2092,13 @@ final class StoreSelectionTests: XCTestCase {
         for _ in 0..<5 where !woolworthsActions.isHittable { app.collectionViews.firstMatch.swipeUp() }
         XCTAssertTrue(aggregateActions.waitForExistence(timeout: 3))
         XCTAssertTrue(woolworthsActions.waitForExistence(timeout: 3))
-        let categoryHeight = abs(woolworthsActions.frame.midY - aggregateActions.frame.midY)
+        // The next item's longer name can wrap. Remove its measured padded
+        // height from the center-to-center spacing to isolate the Coles row.
+        let woolworthsName = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@",
+            "Woolworths fixture item, quantity")).firstMatch
+        XCTAssertTrue(woolworthsName.exists)
+        let nextHeight = max(48, max(woolworthsName.frame.height, woolworthsActions.frame.height)) + 30
+        let categoryHeight = 2 * abs(woolworthsActions.frame.midY - aggregateActions.frame.midY) - nextHeight - 1
         print("ROW_HEIGHT allItemsByCategory=\(categoryHeight)")
         XCTAssertEqual(categoryHeight, storeHeight, accuracy: 1)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
