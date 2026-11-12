@@ -757,18 +757,38 @@ private struct AllItemsGroupCard<Content: View>: View {
 // Each browse card owns real native item rows, but never a second scrolling
 // surface. The outer List scrolls; this table supplies swipe actions and local
 // drag/drop while SwiftUI animates the complete card around it.
-private struct AllItemsItemTable<Row: View>: UIViewRepresentable {
+private struct AllItemsItemRows<Row: View>: View {
     let groupID: String
     let items: [GroceryItem]
     let canReorder: Bool
     let onReorder: ([UUID], UUID?) -> Void
     let onDelete: (GroceryItem) -> Void
     @ViewBuilder let row: (GroceryItem) -> Row
+    @State private var height: CGFloat = 0
+
+    var body: some View {
+        AllItemsItemTable(groupID: groupID, items: items, canReorder: canReorder,
+            onReorder: onReorder, onDelete: onDelete, onHeightChange: { value in
+                if abs(height - value) > 0.5 { height = value }
+            }, row: row)
+            .frame(height: height > 0 ? height : CGFloat(items.count) * 78)
+    }
+}
+
+private struct AllItemsItemTable<Row: View>: UIViewRepresentable {
+    let groupID: String
+    let items: [GroceryItem]
+    let canReorder: Bool
+    let onReorder: ([UUID], UUID?) -> Void
+    let onDelete: (GroceryItem) -> Void
+    let onHeightChange: (CGFloat) -> Void
+    @ViewBuilder let row: (GroceryItem) -> Row
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
     func makeUIView(context: Context) -> ContentTable {
         let table = ContentTable(frame: .zero, style: .plain)
+        table.onHeightChange = onHeightChange
         table.backgroundColor = .clear
         table.isScrollEnabled = false
         table.contentInsetAdjustmentBehavior = .never
@@ -793,6 +813,7 @@ private struct AllItemsItemTable<Row: View>: UIViewRepresentable {
         let changed = context.coordinator.items.map(\.id) != items.map(\.id)
         context.coordinator.parent = self
         context.coordinator.items = items
+        table.onHeightChange = onHeightChange
         table.dragInteractionEnabled = canReorder
         if changed {
             table.reloadData()
@@ -801,25 +822,24 @@ private struct AllItemsItemTable<Row: View>: UIViewRepresentable {
                 if let cell = table.cellForRow(at: path) { context.coordinator.configure(cell, at: path) }
             }
         }
-        table.invalidateIntrinsicContentSize()
-    }
-
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: ContentTable, context: Context) -> CGSize? {
-        guard let width = proposal.width, width > 0 else { return nil }
-        uiView.bounds.size.width = width
-        uiView.layoutIfNeeded()
-        return CGSize(width: width, height: uiView.contentSize.height)
     }
 
     final class ContentTable: UITableView {
+        var onHeightChange: ((CGFloat) -> Void)?
+        private var heightUpdateScheduled = false
+
         override var contentSize: CGSize {
             didSet {
-                if abs(oldValue.height - contentSize.height) > 0.5 { invalidateIntrinsicContentSize() }
+                guard abs(oldValue.height - contentSize.height) > 0.5, !heightUpdateScheduled else { return }
+                heightUpdateScheduled = true
+                // Never lay out hosting cells synchronously from SwiftUI's
+                // sizeThatFits: that re-enters its active AttributeGraph pass.
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.heightUpdateScheduled = false
+                    if self.contentSize.height > 0 { self.onHeightChange?(self.contentSize.height) }
+                }
             }
-        }
-
-        override var intrinsicContentSize: CGSize {
-            CGSize(width: UIView.noIntrinsicMetric, height: contentSize.height)
         }
     }
 
@@ -1394,12 +1414,11 @@ private struct AllItemsScreen: View {
                 moveItems(in: group, from: source, to: destination)
             } : nil)
         } else {
-            AllItemsItemTable(groupID: group.id, items: group.items,
+            AllItemsItemRows(groupID: group.id, items: group.items,
                 canReorder: grouping == .store && group.storeIDs.count == 1,
                 onReorder: { reorderItems($0, before: $1, in: group) }, onDelete: delete) { item in
                     groupItemRow(item, using: proxy)
                 }
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
