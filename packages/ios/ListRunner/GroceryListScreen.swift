@@ -525,7 +525,7 @@ private struct AllItemsAddButton: View {
     @ScaledMetric(relativeTo: .body) private var verticalPadding = 7.0
     let destination: StoreID?
     let stores: [StoreDefinition]
-    @Binding var destinationRawValue: String
+    let onChooseDestination: (StoreID) -> Void
     let canAdd: Bool
     let onAdd: () -> Void
     let onManageStores: () -> Void
@@ -547,7 +547,7 @@ private struct AllItemsAddButton: View {
                 Rectangle().fill(.white.opacity(0.35)).frame(width: 1, height: 26)
                 Menu {
                     ForEach(stores, id: \.id) { store in
-                        Button { destinationRawValue = store.id.rawValue } label: {
+                        Button { onChooseDestination(store.id) } label: {
                             if store.id == destination { Label(store.displayName, systemImage: "checkmark") }
                             else { Text(store.displayName) }
                         }
@@ -566,7 +566,7 @@ private struct AllItemsAddButton: View {
                 if stores.isEmpty { Button("Manage Stores", action: onManageStores) }
                 else {
                     ForEach(stores, id: \.id) { store in
-                        Button(store.displayName) { destinationRawValue = store.id.rawValue }
+                        Button(store.displayName) { onChooseDestination(store.id) }
                     }
                 }
             } label: {
@@ -699,6 +699,15 @@ private struct AllItemsGroupHeader: View {
     }
 }
 
+// These measurements drive hit testing and imperative reveal corrections, not
+// view rendering. Updating them during a drag must not invalidate every group.
+@MainActor
+private final class AllItemsInteractionGeometry {
+    var editor: CGRect = .zero
+    var actions: CGRect = .zero
+    var groupAddButtons: [StoreID: CGRect] = [:]
+}
+
 private struct AllItemsScreen: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -731,11 +740,8 @@ private struct AllItemsScreen: View {
     @State private var entryFocused = false
     @State private var entryFocus = ProductEntryFocus()
     @State private var listViewportFrame: CGRect = .zero
-    @State private var entryFrame: CGRect = .zero
-    @State private var actionsFrame: CGRect = .zero
-    @State private var groupAddFrames: [StoreID: CGRect] = [:]
+    @State private var interactionGeometry = AllItemsInteractionGeometry()
     @State private var entryRevealTask: Task<Void, Never>?
-    @State private var isRevealingEntry = false
     @State private var entryRevealSuppressed = false
     @State private var scrollTargetItemID: UUID?
     @State private var itemFrames: [UUID: CGRect] = [:]
@@ -910,12 +916,12 @@ private struct AllItemsScreen: View {
                     entryRevealSuppressed = false
                     revealFocusedEntry()
                 }, onEditorFrame: { frame in
-                    let heightChanged = abs(entryFrame.height - frame.height) > 0.5
-                    entryFrame = frame
+                    let heightChanged = abs(interactionGeometry.editor.height - frame.height) > 0.5
+                    interactionGeometry.editor = frame
                     if heightChanged { revealFocusedEntry() }
-                }, onActionsFrame: { actionsFrame = $0 }) {
+                }, onActionsFrame: { interactionGeometry.actions = $0 }) {
                     AllItemsAddButton(destination: destinationID, stores: visibleStores,
-                        destinationRawValue: $destinationRawValue,
+                         onChooseDestination: selectAddDestination,
                         canAdd: !ParsedGrocery.productEntries(in: draft).isEmpty,
                         onAdd: addItems, onManageStores: { showingStoreManagement = true })
                 }
@@ -943,7 +949,7 @@ private struct AllItemsScreen: View {
                                 // the original touch with its new frame.
                                 DispatchQueue.main.async { beginAdding(to: store, using: proxy) }
                             },
-                            onAddFrame: { groupAddFrames[$0] = $1 })
+                            onAddFrame: { interactionGeometry.groupAddButtons[$0] = $1 })
                         .id(group.id)
                         .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
                         ForEach(group.items, id: \.id) { item in
@@ -1087,9 +1093,9 @@ private struct AllItemsScreen: View {
         .simultaneousGesture(
             SpatialTapGesture(coordinateSpace: .global).onEnded { value in
                 guard entryFocused,
-                      !entryFrame.contains(value.location),
-                      !actionsFrame.contains(value.location),
-                      !groupAddFrames.values.contains(where: { $0.contains(value.location) }) else { return }
+                      !interactionGeometry.editor.contains(value.location),
+                      !interactionGeometry.actions.contains(value.location),
+                      !interactionGeometry.groupAddButtons.values.contains(where: { $0.contains(value.location) }) else { return }
                 groupAddRequest = nil
                 entryFocused = false
             },
@@ -1186,9 +1192,28 @@ private struct AllItemsScreen: View {
         guard entryFocused, !entryRevealSuppressed else { return }
         entryRevealTask = entryFocus.revealCard(geometry: {
             guard entryFocused, !entryRevealSuppressed else { return nil }
-            return ProductEntryRevealGeometry(editor: entryFrame, actions: actionsFrame,
-                                             viewport: listViewportFrame)
-        }, onRevealing: { isRevealingEntry = $0 })
+            return ProductEntryRevealGeometry(editor: interactionGeometry.editor, actions: interactionGeometry.actions,
+                                              viewport: listViewportFrame)
+        }, onRevealing: { _ in })
+    }
+
+    private func selectAddDestination(_ store: StoreID) {
+        guard shoppingVisibleIDs.contains(store) else { return }
+        groupAddRequest = nil
+        groupAddFocusRequest = nil
+        let promotedOrder = workingOrder(promoting: store)
+        destinationRawValue = store.rawValue
+        guard grouping == .store, !editMode.isEditing else { return }
+        // Changing destination is not a request to open/dismiss the keyboard or
+        // submit the draft. Animate only the same temporary group priority.
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) {
+            workingStoreOrder = promotedOrder
+            workingStoreID = store
+        }
+    }
+
+    private func workingOrder(promoting store: StoreID) -> [StoreID] {
+        [store] + groups.compactMap { $0.storeIDs.first }.filter { $0 != store }
     }
 
     private func beginAdding(to store: StoreID, using proxy: ScrollViewProxy) {
@@ -1208,7 +1233,7 @@ private struct AllItemsScreen: View {
         groupAddFocusRequest = nil
         // Promote within the currently displayed order, not the saved recency
         // order: the old first group becomes second, with no long-distance swap.
-        let promotedOrder = [store] + groups.compactMap { $0.storeIDs.first }.filter { $0 != store }
+        let promotedOrder = workingOrder(promoting: store)
         // This is a temporary working-group priority, not a fabricated add event.
         // Saved recency is updated only by the existing successful add/import path.
         if reduceMotion {

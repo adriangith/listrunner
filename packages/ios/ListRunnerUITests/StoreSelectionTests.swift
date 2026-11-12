@@ -1768,6 +1768,32 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Hardware & Garden"].exists)
     }
 
+    func testAllItemsDestinationChoicePromotesGroupWithoutChangingDraftOrKeyboardState() {
+        choose("All items")
+        let entry = app.textViews["all-items-entry"]
+        let keyboard = app.keyboards.firstMatch
+        let titles = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-title-store-"))
+        XCTAssertFalse(keyboard.exists)
+        app.buttons["all-items-add-destination"].tap()
+        app.buttons["Woolworths"].firstMatch.tap()
+        XCTAssertEqual(titles.firstMatch.label, "Woolworths")
+        XCTAssertEqual(titles.element(boundBy: 1).label, "Bunnings")
+        XCTAssertFalse(keyboard.exists, "Changing destination must not open the keyboard")
+
+        entry.tap()
+        entry.typeText("Destination draft")
+        app.buttons["all-items-add-destination"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
+        entry.typeText(" retained") // No entry tap: the menu must preserve focus.
+        XCTAssertEqual(entry.value as? String, "Destination draft retained")
+        app.buttons["all-items-grouping-store"].tap()
+        XCTAssertTrue(keyboard.waitForNonExistence(timeout: 3))
+        XCTAssertEqual(titles.firstMatch.label, "Coles")
+        XCTAssertEqual(titles.element(boundBy: 1).label, "Woolworths")
+        XCTAssertFalse(app.buttons["Actions for Destination draft retained"].exists)
+    }
+
     func testAllItemsManualEntryPreservesProductWording() {
         choose("All items")
         let entry = app.textViews["all-items-entry"]
