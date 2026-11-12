@@ -668,6 +668,7 @@ private struct AllItemsGroupHeader: View {
     let tint: Color
     let addStore: StoreID?
     let onAdd: (StoreID) -> Void
+    var onAddFrame: (StoreID, CGRect) -> Void = { _, _ in }
 
     var body: some View {
         HStack {
@@ -686,6 +687,10 @@ private struct AllItemsGroupHeader: View {
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Add items to \(group.title)")
                 .accessibilityIdentifier("all-items-group-add-\(addStore.rawValue)")
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                    onAddFrame(addStore, $0)
+                }
+                .onDisappear { onAddFrame(addStore, .zero) }
             }
             Text(group.items.count, format: .number).foregroundStyle(.secondary)
         }
@@ -727,6 +732,7 @@ private struct AllItemsScreen: View {
     @State private var listViewportFrame: CGRect = .zero
     @State private var entryFrame: CGRect = .zero
     @State private var actionsFrame: CGRect = .zero
+    @State private var groupAddFrames: [StoreID: CGRect] = [:]
     @State private var entryRevealTask: Task<Void, Never>?
     @State private var isRevealingEntry = false
     @State private var entryRevealSuppressed = false
@@ -839,13 +845,17 @@ private struct AllItemsScreen: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-        ShoppingListPage(keyboardDismissMode: isRevealingEntry ? .never : .interactively,
+        // Dismiss explicitly on a deliberate drag, before List can recycle the
+        // focused row inside a UIKit layout transaction with animations disabled.
+        ShoppingListPage(keyboardDismissMode: .never,
             onViewportChange: { frame in
                 listViewportFrame = frame
                 revealFocusedEntry()
                 if let id = scrollTargetItemID { scrollToAddedItem(id, using: proxy) }
             }, onManualScroll: {
                 groupAddRequest = nil
+                entryFocused = false
+                DispatchQueue.main.async { entryFocus.resignFirstResponder() }
                 entryRevealTask?.cancel()
                 entryRevealSuppressed = true
                 addedItemScrollTask?.cancel()
@@ -921,7 +931,8 @@ private struct AllItemsScreen: View {
                             tint: grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary,
                             addStore: grouping == .store && !editMode.isEditing
                                 ? group.storeIDs.first.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil } : nil,
-                            onAdd: { beginAdding(to: $0, using: proxy) })
+                            onAdd: { beginAdding(to: $0, using: proxy) },
+                            onAddFrame: { groupAddFrames[$0] = $1 })
                         .id(group.id)
                         .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
                         ForEach(group.items, id: \.id) { item in
@@ -1029,6 +1040,18 @@ private struct AllItemsScreen: View {
             }
         }
         .environment(\.editMode, $editMode)
+        .simultaneousGesture(
+            SpatialTapGesture(coordinateSpace: .global).onEnded { value in
+                guard entryFocused,
+                      !entryFrame.contains(value.location),
+                      !actionsFrame.contains(value.location),
+                      !groupAddFrames.values.contains(where: { $0.contains(value.location) }) else { return }
+                groupAddRequest = nil
+                entryFocused = false
+            },
+            including: entryFocused && !showingSettings && !showingStoreManagement
+                && shoppingDestination == nil && importDestination == nil ? .all : .subviews
+        )
         .onChange(of: editMode) { _, value in
             if value.isEditing {
                 groupAddRequest = nil
@@ -1156,7 +1179,9 @@ private struct AllItemsScreen: View {
                 workingStoreID = store
                 proxy.scrollTo("product-entry-editor", anchor: .top)
             } completion: {
-                finishGroupAdd(request, to: store)
+                // Leave SwiftUI's animation/layout callback before requesting
+                // focus, so UIKit can present the keyboard in a fresh turn.
+                DispatchQueue.main.async { finishGroupAdd(request, to: store) }
             }
         }
     }
@@ -2597,12 +2622,16 @@ private struct ProductEntryEditor: UIViewRepresentable {
         view.returnKeyType = .continue
         view.accessibilityIdentifier = accessibilityIdentifier
         view.accessibilityLabel = String(localized: "Type or paste groceries")
+        view.onWindowAttachment = { [weak coordinator = context.coordinator] view in
+            coordinator?.synchronizeFocus(for: view)
+        }
         view.placeholder.text = String(localized: "Tap to add products…")
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return view
     }
 
     func updateUIView(_ view: EntryTextView, context: Context) {
+        focusControl.view = view
         context.coordinator.parent = self
         if view.text != text {
             view.text = text
@@ -2672,6 +2701,14 @@ private struct ProductEntryEditor: UIViewRepresentable {
 
     final class EntryTextView: UITextView {
         let placeholder = UILabel()
+        var onWindowAttachment: ((EntryTextView) -> Void)?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            // A lazy List can update the editor before attaching its cell. Retry
+            // the desired focus on attachment instead of waiting for a scroll.
+            if window != nil { onWindowAttachment?(self) }
+        }
         #if DEBUG
         static var lastFocusUpdateAnimationsEnabled: Bool?
         static var lastResignAnimationsEnabled: Bool?

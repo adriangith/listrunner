@@ -1883,6 +1883,20 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(titles.firstMatch.label, "Bunnings", "A shortcut must not fabricate persisted addition recency")
     }
 
+    func testAllItemsEntryDismissesOnOutsideTapAndManualScroll() {
+        choose("All items")
+        let entry = app.textViews["all-items-entry"]
+        let keyboard = app.keyboards.firstMatch
+        entry.tap()
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
+        app.buttons["all-items-grouping-store"].tap()
+        XCTAssertTrue(keyboard.waitForNonExistence(timeout: 3))
+        entry.tap()
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
+        app.collectionViews.firstMatch.swipeUp()
+        XCTAssertTrue(keyboard.waitForNonExistence(timeout: 3))
+    }
+
     func testAllItemsUnavailableGroupAddIsAbsentAndCategoriesHaveNoShortcut() {
         choose("All items")
         let list = app.collectionViews.firstMatch
