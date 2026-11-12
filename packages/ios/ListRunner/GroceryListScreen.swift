@@ -598,6 +598,7 @@ private struct AllItemsShoppingFooter: View {
             .modifier(StoreLaunchButtonStyle(tint: .accentColor))
             .accessibilityIdentifier("all-items-show-store")
             .padding(.horizontal, 20).padding(.top, 8)
+            .padding(.bottom, -12)
         } else if !isTyping && hasItems {
             Button("Manage Stores", action: onManageStores)
                 .frame(maxWidth: .infinity, minHeight: 44).buttonStyle(.bordered)
