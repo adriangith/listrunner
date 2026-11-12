@@ -1060,7 +1060,11 @@ private struct AllItemsScreen: View {
                 entryRevealSuppressed = true
                 entryRevealTask?.cancel()
                 scrollTargetItemID = itemID
-                withAnimation { proxy.scrollTo(itemID, anchor: .bottom) }
+                if editMode.isEditing {
+                    withAnimation { proxy.scrollTo(itemID, anchor: .bottom) }
+                } else {
+                    scrollToAddedItem(itemID, using: proxy)
+                }
             }
         }
         .onChange(of: groupingRawValue) { _, _ in
@@ -1322,7 +1326,15 @@ private struct AllItemsScreen: View {
             guard let target = itemFrames[id] else { return nil }
             return ListItemRevealGeometry(target: target, viewport: listViewportFrame)
         }, scroll: { anchor, animated in
-            withAnimation(animated ? .easeInOut(duration: 0.35) : nil) { proxy.scrollTo(id, anchor: anchor) }
+            if !editMode.isEditing, let frame = itemFrames[id] {
+                // Browse cards share a native host row; scroll to the measured
+                // item, not to the bottom of that entire native cell.
+                let adjustment = anchor == .bottom
+                    ? frame.maxY - listViewportFrame.maxY : frame.minY - listViewportFrame.minY
+                entryFocus.adjustListOffset(by: adjustment, animated: animated)
+            } else {
+                withAnimation(animated ? .easeInOut(duration: 0.35) : nil) { proxy.scrollTo(id, anchor: anchor) }
+            }
         }, finished: {
             if addedItemScrollRequestID == requestID { addedItemScrollTask = nil }
         })
@@ -1367,6 +1379,7 @@ private struct AllItemsScreen: View {
                     }
                 Button("Delete Item", systemImage: "trash", role: .destructive) { delete(item) }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("all-item-\(item.id.uuidString)")
     }
 
@@ -2678,7 +2691,7 @@ private final class ProductEntryFocus {
         }
     }
 
-    func adjustListOffset(by adjustment: CGFloat) {
+    func adjustListOffset(by adjustment: CGFloat, animated: Bool = true) {
         guard let view, view.isFirstResponder else { return }
         var ancestor = view.superview
         while let candidate = ancestor {
@@ -2687,7 +2700,7 @@ private final class ProductEntryFocus {
                 let minimum = -list.adjustedContentInset.top
                 let maximum = max(minimum, list.contentSize.height - list.bounds.height + list.adjustedContentInset.bottom)
                 let offset = min(maximum, max(minimum, list.contentOffset.y + adjustment))
-                list.setContentOffset(CGPoint(x: list.contentOffset.x, y: offset), animated: true)
+                list.setContentOffset(CGPoint(x: list.contentOffset.x, y: offset), animated: animated)
                 return
             }
             ancestor = candidate.superview

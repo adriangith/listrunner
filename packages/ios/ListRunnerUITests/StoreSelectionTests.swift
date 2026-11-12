@@ -2071,7 +2071,11 @@ final class StoreSelectionTests: XCTestCase {
         let storeHeight = storeCell.frame.height
         XCTAssertEqual(storeHeight, 78, accuracy: 1)
         choose("All items")
-        let aggregateCell = app.collectionViews.cells.containing(.any, identifier: "Actions for Coles fixture item").firstMatch
+        // Browse mode hosts whole cards together so their positions can animate.
+        // Compare the actual item container, not the shared native host cell.
+        let aggregateCell = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-item-"))
+            .containing(.any, identifier: "Actions for Coles fixture item").firstMatch
         for _ in 0..<5 where !aggregateCell.exists { app.collectionViews.firstMatch.swipeUp() }
         XCTAssertTrue(aggregateCell.waitForExistence(timeout: 3))
         print("ROW_HEIGHT store=\(storeHeight) allItemsByStore=\(aggregateCell.frame.height)")
