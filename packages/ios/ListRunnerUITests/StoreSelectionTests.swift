@@ -1864,11 +1864,22 @@ final class StoreSelectionTests: XCTestCase {
         app.staticTexts["Ready when you are"].tap()
         let titles = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-title-store-"))
         XCTAssertEqual(titles.firstMatch.label, "Woolworths")
+        XCTAssertEqual(titles.element(boundBy: 1).label, "Bunnings",
+                       "Promoting a list must shift the previous first list to second, not swap it down")
+        let colesShortcut = app.buttons["all-items-group-add-coles"]
+        for _ in 0..<6 where !colesShortcut.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(colesShortcut.isHittable)
+        colesShortcut.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        app.staticTexts["Ready when you are"].tap()
+        XCTAssertEqual(titles.firstMatch.label, "Coles")
+        XCTAssertEqual(titles.element(boundBy: 1).label, "Woolworths",
+                       "Repeated promotion must preserve the displayed order of the other lists")
         app.terminate()
         app.launch()
         XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
         XCTAssertEqual(entry.value as? String, "Shortcut unsubmitted draft suffix")
-        XCTAssertTrue(app.buttons["all-items-add"].label.contains("Woolworths"))
+        XCTAssertTrue(app.buttons["all-items-add"].label.contains("Coles"))
         XCTAssertEqual(titles.firstMatch.label, "Bunnings", "A shortcut must not fabricate persisted addition recency")
     }
 

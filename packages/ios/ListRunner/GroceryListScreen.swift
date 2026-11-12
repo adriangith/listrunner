@@ -714,6 +714,7 @@ private struct AllItemsScreen: View {
     @State private var showingSettings = false
     @State private var editMode = EditMode.inactive
     @State private var workingStoreID: StoreID?
+    @State private var workingStoreOrder: [StoreID] = []
     @State private var groupAddRequest: UUID?
     @State private var clearRequest: AllItemsClearRequest?
     @State private var editingItem: GroceryItem?
@@ -797,9 +798,11 @@ private struct AllItemsScreen: View {
                 }
             }
             known.sort { lhs, rhs in
-                let leftWorking = lhs.storeIDs.first == workingStoreID
-                let rightWorking = rhs.storeIDs.first == workingStoreID
-                if leftWorking != rightWorking { return leftWorking }
+                if workingStoreID != nil {
+                    let left = lhs.storeIDs.first.flatMap { workingStoreOrder.firstIndex(of: $0) } ?? Int.max
+                    let right = rhs.storeIDs.first.flatMap { workingStoreOrder.firstIndex(of: $0) } ?? Int.max
+                    if left != right { return left < right }
+                }
                 let li = groupRank(lhs), ri = groupRank(rhs)
                 return li == ri ? lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending : li < ri
             }
@@ -1135,9 +1138,13 @@ private struct AllItemsScreen: View {
         destinationRawValue = store.rawValue
         let request = UUID()
         groupAddRequest = request
+        // Promote within the currently displayed order, not the saved recency
+        // order: the old first group becomes second, with no long-distance swap.
+        let promotedOrder = [store] + groups.compactMap { $0.storeIDs.first }.filter { $0 != store }
         // This is a temporary working-group priority, not a fabricated add event.
         // Saved recency is updated only by the existing successful add/import path.
         if reduceMotion {
+            workingStoreOrder = promotedOrder
             workingStoreID = store
             proxy.scrollTo("product-entry-editor", anchor: .top)
             finishGroupAdd(request, to: store)
@@ -1145,6 +1152,7 @@ private struct AllItemsScreen: View {
             // Animate the stable section move and the shared editor reveal in
             // one transaction. Completion also respects Simulator slow animations.
             withAnimation(.easeInOut(duration: 0.35), completionCriteria: .removed) {
+                workingStoreOrder = promotedOrder
                 workingStoreID = store
                 proxy.scrollTo("product-entry-editor", anchor: .top)
             } completion: {
