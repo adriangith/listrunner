@@ -1287,9 +1287,21 @@ private struct AllItemsScreen: View {
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4), completionCriteria: .removed) {
             workingStoreOrder = promotedOrder
             workingStoreID = store
-            proxy.scrollTo("product-entry-editor", anchor: .top)
         } completion: {
             DispatchQueue.main.async { finishGroupAdd(request, to: store) }
+        }
+        if reduceMotion {
+            proxy.scrollTo("product-entry-editor", anchor: .top)
+        } else {
+            // List's scrollTo can synchronously relayout its host row and
+            // consume the card animation if both start in the same update.
+            // Give the card its first rendered frames, then overlap the scroll.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                guard groupAddRequest == request else { return }
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    proxy.scrollTo("product-entry-editor", anchor: .top)
+                }
+            }
         }
     }
 
