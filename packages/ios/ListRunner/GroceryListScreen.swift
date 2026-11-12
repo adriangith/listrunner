@@ -950,7 +950,6 @@ private struct AllItemsScreen: View {
                                 DispatchQueue.main.async { beginAdding(to: store, using: proxy) }
                             },
                             onAddFrame: { interactionGeometry.groupAddButtons[$0] = $1 })
-                        .id(group.id)
                         .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
                         ForEach(group.items, id: \.id) { item in
                             allItemRow(item)
@@ -996,7 +995,9 @@ private struct AllItemsScreen: View {
                             }
                         }
                     }
+                    .id(group.id)
                 }
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: workingStoreOrder)
             }
             if let notice {
                 Section {
