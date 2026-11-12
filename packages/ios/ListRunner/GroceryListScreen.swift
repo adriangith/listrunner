@@ -767,13 +767,26 @@ private final class AllItemsGroupMoveTransition {
         return result
     }
 
-    private func snapshot(_ frame: CGRect, viewport: CGRect, list: UICollectionView,
-                          window: UIWindow, afterUpdates: Bool) -> (UIView, CGRect)? {
+    private func capture(viewport: CGRect, list: UICollectionView, window: UIWindow,
+                         afterUpdates: Bool) -> UIImage? {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = window.traitCollection.displayScale
+        format.opaque = true
+        var rendered = false
+        let image = UIGraphicsImageRenderer(bounds: window.convert(viewport, to: list), format: format).image { _ in
+            rendered = list.drawHierarchy(in: list.bounds, afterScreenUpdates: afterUpdates)
+        }
+        return rendered ? image : nil
+    }
+
+    private func snapshot(_ frame: CGRect, viewport: CGRect, image: UIImage) -> (UIView, CGRect)? {
         let visible = frame.intersection(viewport)
-        guard !visible.isNull, visible.width > 0, visible.height > 0,
-              let view = list.resizableSnapshotView(from: window.convert(visible, to: list),
-                  afterScreenUpdates: afterUpdates, withCapInsets: .zero) else { return nil }
-        return (view, visible.offsetBy(dx: -viewport.minX, dy: -viewport.minY))
+        guard !visible.isNull, visible.width > 0, visible.height > 0 else { return nil }
+        let local = visible.offsetBy(dx: -viewport.minX, dy: -viewport.minY)
+        let pixels = CGRect(x: local.minX * image.scale, y: local.minY * image.scale,
+                            width: local.width * image.scale, height: local.height * image.scale)
+        guard let crop = image.cgImage?.cropping(to: pixels) else { return nil }
+        return (UIImageView(image: UIImage(cgImage: crop, scale: image.scale, orientation: .up)), local)
     }
 
     func perform(groupIDs: [String], newGroupIDs: [String], viewport: CGRect, reduceMotion: Bool,
@@ -793,10 +806,11 @@ private final class AllItemsGroupMoveTransition {
         guard !viewport.isNull, !viewport.isEmpty else { updates(); reveal?(); completion(); return }
         list.layoutIfNeeded()
         let oldFrames = frames(groupIDs, in: list, window: window)
-        guard !oldFrames.isEmpty else { updates(); reveal?(); completion(); return }
+        guard !oldFrames.isEmpty, let oldImage = capture(viewport: viewport, list: list, window: window,
+                                                       afterUpdates: false) else { updates(); reveal?(); completion(); return }
         var oldSnapshots: [String: (UIView, CGRect)] = [:]
         for (id, frame) in oldFrames {
-            oldSnapshots[id] = snapshot(frame, viewport: viewport, list: list, window: window, afterUpdates: false)
+            oldSnapshots[id] = snapshot(frame, viewport: viewport, image: oldImage)
         }
         let cover = UIView(frame: viewport)
         cover.backgroundColor = .systemGroupedBackground
@@ -819,11 +833,14 @@ private final class AllItemsGroupMoveTransition {
                 guard let self, self.generation == request, let list else { return }
                 list.layoutIfNeeded()
                 let newFrames = self.frames(newGroupIDs, in: list, window: window)
-                guard !newFrames.isEmpty else { self.cancel(); completion(); return }
+                guard !newFrames.isEmpty, let newImage = self.capture(viewport: viewport, list: list,
+                    window: window, afterUpdates: true) else { self.cancel(); completion(); return }
                 var moving: [(UIView, CGRect)] = []
-                for (id, frame) in newFrames {
-                    guard let old = oldFrames[id], let (view, destination) = self.snapshot(frame,
-                        viewport: viewport, list: list, window: window, afterUpdates: true) else { continue }
+                // The promoted card travels above the displaced cards, with
+                // deterministic stacking instead of dictionary iteration order.
+                for id in ["page-entry"] + Array(newGroupIDs.reversed()) {
+                    guard let frame = newFrames[id], let old = oldFrames[id],
+                          let (view, destination) = self.snapshot(frame, viewport: viewport, image: newImage) else { continue }
                     view.frame = destination.offsetBy(dx: 0, dy: old.minY - frame.minY)
                     moving.append((view, destination))
                 }
@@ -832,7 +849,7 @@ private final class AllItemsGroupMoveTransition {
                     guard let old = oldFrames[id], let new = newFrames[id],
                           new.intersection(viewport).isNull else { continue }
                     view.frame = source
-                    moving.append((view, source.offsetBy(dx: 0, dy: new.minY - old.minY)))
+                    moving.insert((view, source.offsetBy(dx: 0, dy: new.minY - old.minY)), at: 0)
                 }
                 cover.subviews.forEach { $0.removeFromSuperview() }
                 moving.forEach { cover.addSubview($0.0) }
