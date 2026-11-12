@@ -723,7 +723,6 @@ private struct AllItemsGroupRegion<Content: View>: View {
                 // reorders. SwiftUI moves the complete, stably identified cards.
                 VStack(spacing: 16, content: content)
                     .frame(maxWidth: .infinity)
-                    .modifier(AllItemsSwipeContainer())
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: order)
                     .padding(.vertical, 1)
             }
@@ -736,20 +735,11 @@ private struct AllItemsGroupRegion<Content: View>: View {
 
 private struct AllItemsGroupCard<Content: View>: View {
     let nativeRows: Bool
-    let canReorder: Bool
-    let onReorder: ([UUID], UUID?) -> Void
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         if nativeRows {
             Section(content: content)
-        } else if #available(iOS 27.0, *) {
-            card.reorderContainer(for: GroceryItem.self, itemID: \.id, isEnabled: canReorder) { difference in
-                switch difference.destination.position {
-                case .before(let id): onReorder(difference.sources, id)
-                case .end: onReorder(difference.sources, nil)
-                }
-            }
         } else {
             card
         }
@@ -764,11 +754,146 @@ private struct AllItemsGroupCard<Content: View>: View {
     }
 }
 
-private struct AllItemsSwipeContainer: ViewModifier {
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 27.0, *) { content.swipeActionsContainer() }
-        else { content }
+// Each browse card owns real native item rows, but never a second scrolling
+// surface. The outer List scrolls; this table supplies swipe actions and local
+// drag/drop while SwiftUI animates the complete card around it.
+private struct AllItemsItemTable<Row: View>: UIViewRepresentable {
+    let groupID: String
+    let items: [GroceryItem]
+    let canReorder: Bool
+    let onReorder: ([UUID], UUID?) -> Void
+    let onDelete: (GroceryItem) -> Void
+    @ViewBuilder let row: (GroceryItem) -> Row
+
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    func makeUIView(context: Context) -> ContentTable {
+        let table = ContentTable(frame: .zero, style: .plain)
+        table.backgroundColor = .clear
+        table.isScrollEnabled = false
+        table.contentInsetAdjustmentBehavior = .never
+        table.rowHeight = UITableView.automaticDimension
+        table.estimatedRowHeight = 78
+        table.sectionHeaderHeight = 0
+        table.sectionFooterHeight = 0
+        table.sectionHeaderTopPadding = 0
+        table.separatorInset = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
+        table.dataSource = context.coordinator
+        table.delegate = context.coordinator
+        table.dragDelegate = context.coordinator
+        table.dropDelegate = context.coordinator
+        table.dragInteractionEnabled = canReorder
+        table.allowsSelection = false
+        table.register(UITableViewCell.self, forCellReuseIdentifier: "item")
+        table.reloadData()
+        return table
+    }
+
+    func updateUIView(_ table: ContentTable, context: Context) {
+        let changed = context.coordinator.items.map(\.id) != items.map(\.id)
+        context.coordinator.parent = self
+        context.coordinator.items = items
+        table.dragInteractionEnabled = canReorder
+        if changed {
+            table.reloadData()
+        } else {
+            for path in table.indexPathsForVisibleRows ?? [] {
+                if let cell = table.cellForRow(at: path) { context.coordinator.configure(cell, at: path) }
+            }
+        }
+        table.invalidateIntrinsicContentSize()
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: ContentTable, context: Context) -> CGSize? {
+        guard let width = proposal.width, width > 0 else { return nil }
+        uiView.bounds.size.width = width
+        uiView.layoutIfNeeded()
+        return CGSize(width: width, height: uiView.contentSize.height)
+    }
+
+    final class ContentTable: UITableView {
+        override var contentSize: CGSize {
+            didSet {
+                if abs(oldValue.height - contentSize.height) > 0.5 { invalidateIntrinsicContentSize() }
+            }
+        }
+
+        override var intrinsicContentSize: CGSize {
+            CGSize(width: UIView.noIntrinsicMetric, height: contentSize.height)
+        }
+    }
+
+    final class Coordinator: NSObject, UITableViewDataSource, UITableViewDelegate, UITableViewDragDelegate, UITableViewDropDelegate {
+        var parent: AllItemsItemTable
+        var items: [GroceryItem]
+
+        init(parent: AllItemsItemTable) { self.parent = parent; items = parent.items }
+
+        func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { items.count }
+        func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool { true }
+        func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool { parent.canReorder }
+
+        func configure(_ cell: UITableViewCell, at indexPath: IndexPath) {
+            guard items.indices.contains(indexPath.row) else { return }
+            let item = items[indexPath.row]
+            cell.backgroundColor = .clear
+            cell.selectionStyle = .none
+            cell.contentConfiguration = UIHostingConfiguration { parent.row(item) }.margins(.all, 0)
+        }
+
+        func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+            let cell = tableView.dequeueReusableCell(withIdentifier: "item", for: indexPath)
+            configure(cell, at: indexPath)
+            return cell
+        }
+
+        func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+            guard items.indices.contains(indexPath.row) else { return nil }
+            let item = items[indexPath.row]
+            let action = UIContextualAction(style: .destructive, title: String(localized: "Delete")) { [weak self] _, _, done in
+                guard let self, self.items.contains(where: { $0.id == item.id }) else { done(false); return }
+                self.parent.onDelete(item)
+                done(true)
+            }
+            action.image = UIImage(systemName: "trash")
+            let actions = UISwipeActionsConfiguration(actions: [action])
+            actions.performsFirstActionWithFullSwipe = false
+            return actions
+        }
+
+        func tableView(_ tableView: UITableView, itemsForBeginning session: UIDragSession, at indexPath: IndexPath) -> [UIDragItem] {
+            guard parent.canReorder, items.indices.contains(indexPath.row) else { return [] }
+            let item = items[indexPath.row]
+            session.localContext = parent.groupID
+            let drag = UIDragItem(itemProvider: NSItemProvider(object: item.id.uuidString as NSString))
+            drag.localObject = item.id
+            return [drag]
+        }
+
+        func tableView(_ tableView: UITableView, dragSessionIsRestrictedToDraggingApplication session: UIDragSession) -> Bool { true }
+
+        func tableView(_ tableView: UITableView, canHandle session: UIDropSession) -> Bool {
+            parent.canReorder && (session.localDragSession?.localContext as? String) == parent.groupID
+        }
+
+        func tableView(_ tableView: UITableView, dropSessionDidUpdate session: UIDropSession,
+                       withDestinationIndexPath destinationIndexPath: IndexPath?) -> UITableViewDropProposal {
+            UITableViewDropProposal(operation: self.tableView(tableView, canHandle: session) ? .move : .forbidden,
+                                    intent: .insertAtDestinationIndexPath)
+        }
+
+        func tableView(_ tableView: UITableView, performDropWith coordinator: UITableViewDropCoordinator) {
+            guard self.tableView(tableView, canHandle: coordinator.session),
+                  let drop = coordinator.items.first, let id = drop.dragItem.localObject as? UUID,
+                  let source = items.firstIndex(where: { $0.id == id }) else { return }
+            let destination = min(coordinator.destinationIndexPath?.row ?? items.count - 1, items.count - 1)
+            guard destination >= 0 else { return }
+            let item = items.remove(at: source)
+            items.insert(item, at: destination)
+            tableView.moveRow(at: IndexPath(row: source, section: 0), to: IndexPath(row: destination, section: 0))
+            parent.onReorder([id], items.indices.contains(destination + 1) ? items[destination + 1].id : nil)
+            coordinator.drop(drop.dragItem, toRowAt: IndexPath(row: destination, section: 0))
+        }
     }
 }
 
@@ -822,10 +947,7 @@ private struct AllItemsScreen: View {
         editMode.isEditing ? .store : (AllItemsGrouping(rawValue: groupingRawValue) ?? .store)
     }
     private var usesNativeGroupRows: Bool {
-        // Older systems retain native row gestures and Edit handles. SDK 27
-        // supplies native row-level gestures within the animated browse cards.
-        if #available(iOS 27.0, *) { return editMode.isEditing }
-        return true
+        editMode.isEditing
     }
     private var shoppingVisibleIDs: Set<StoreID> {
         sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs)
@@ -1009,9 +1131,7 @@ private struct AllItemsScreen: View {
             } else {
                 AllItemsGroupRegion(nativeRows: usesNativeGroupRows, order: workingStoreOrder, reduceMotion: reduceMotion) {
                 ForEach(groups) { group in
-                    AllItemsGroupCard(nativeRows: usesNativeGroupRows,
-                        canReorder: grouping == .store && group.storeIDs.count == 1,
-                        onReorder: { reorderItems($0, before: $1, in: group) }) {
+                    AllItemsGroupCard(nativeRows: usesNativeGroupRows) {
                         AllItemsGroupHeader(group: group,
                             tint: grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary,
                             addStore: grouping == .store && !editMode.isEditing
@@ -1266,22 +1386,20 @@ private struct AllItemsScreen: View {
 
     @ViewBuilder
     private func groupItemRows(_ group: AllItemsGroup, using proxy: ScrollViewProxy) -> some View {
-        let rows = ForEach(group.items, id: \.id) { item in
-            if usesNativeGroupRows {
+        if usesNativeGroupRows {
+            ForEach(group.items, id: \.id) { item in
                 groupItemRow(item, using: proxy)
-            } else {
-                VStack(spacing: 0) {
-                    groupItemRow(item, using: proxy)
-                    Divider().padding(.horizontal, 16)
-                }
             }
-        }
-        if #available(iOS 27.0, *), !usesNativeGroupRows {
-            rows.reorderable()
-        } else {
-            rows.onMove(perform: grouping == .store && group.storeIDs.count == 1 ? { source, destination in
+            .onMove(perform: grouping == .store && group.storeIDs.count == 1 ? { source, destination in
                 moveItems(in: group, from: source, to: destination)
             } : nil)
+        } else {
+            AllItemsItemTable(groupID: group.id, items: group.items,
+                canReorder: grouping == .store && group.storeIDs.count == 1,
+                onReorder: { reorderItems($0, before: $1, in: group) }, onDelete: delete) { item in
+                    groupItemRow(item, using: proxy)
+                }
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
