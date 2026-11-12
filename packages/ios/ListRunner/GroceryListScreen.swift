@@ -204,44 +204,34 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
             }
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { onViewportChange($0) }
             .safeAreaInset(edge: .top, spacing: 0) {
-                ListPageHeader(isWelcome: isWelcome, onSelectAllItems: onSelectAllItems, scope: scope)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(Color(uiColor: .systemGroupedBackground))
+                if isWelcome {
+                    HStack {
+                        Text("ListRunner").font(.title3.weight(.bold))
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(Color(uiColor: .systemGroupedBackground))
+                }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) { footer() }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar(isWelcome ? .hidden : .visible, for: .navigationBar)
-    }
-}
-
-private struct ListPageHeader<Scope: View>: View {
-    let isWelcome: Bool
-    let onSelectAllItems: (() -> Void)?
-    @ViewBuilder let scope: () -> Scope
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            if isWelcome {
-                Text("ListRunner")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(.primary)
-            } else {
-                scope()
-                if let onSelectAllItems {
-                    Button(action: onSelectAllItems) {
-                        Image(systemName: "square.grid.2x2")
-                            .font(.body.weight(.semibold))
-                            .frame(width: 36, height: 36)
-                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: Circle())
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if !isWelcome { scope() }
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    if !isWelcome, let onSelectAllItems {
+                        Button(action: onSelectAllItems) {
+                            Image(systemName: "square.grid.2x2")
+                        }
+                        .accessibilityLabel("All items")
+                        .accessibilityIdentifier("all-items-shortcut")
                     }
-                    .accessibilityLabel("All items")
-                    .accessibilityIdentifier("all-items-shortcut")
                 }
             }
-            Spacer(minLength: 8)
-        }
+            .toolbar(isWelcome ? .hidden : .visible, for: .navigationBar)
     }
 }
 
@@ -270,15 +260,12 @@ private struct ListScopePicker: View {
         } label: {
             HStack(spacing: 6) {
                 Text(selectedStoreID?.displayName ?? "All items")
-                    .font(.system(.title3, design: .default, weight: .heavy))
+                    .font(.headline)
                     .lineLimit(1)
                 Image(systemName: "chevron.up.chevron.down").font(.caption2.weight(.black))
             }
             .foregroundStyle(tint)
             .contentShape(Rectangle())
-            .padding(.horizontal, 13)
-            .padding(.vertical, 9)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
         }
         .accessibilityIdentifier(selectedStoreID == nil ? "all-items-scope-picker" : "store-picker")
         .accessibilityHint("Each store has its own grocery list and basket")

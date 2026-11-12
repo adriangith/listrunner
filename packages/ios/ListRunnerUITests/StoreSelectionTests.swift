@@ -2246,11 +2246,17 @@ final class StoreSelectionTests: XCTestCase {
     func testCompactTopBarOpensAllItemsWithoutEditControl() {
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["all-items-shortcut"].isHittable)
+        let settings = app.buttons["Settings"]
+        XCTAssertTrue(settings.isHittable)
+        XCTAssertEqual(app.buttons["store-picker"].frame.midY, settings.frame.midY, accuracy: 2)
+        XCTAssertEqual(app.buttons["all-items-shortcut"].frame.midY, settings.frame.midY, accuracy: 2)
+        XCTAssertLessThan(app.buttons["store-picker"].frame.midX, app.buttons["all-items-shortcut"].frame.midX)
         XCTAssertFalse(app.buttons["Edit"].exists)
         XCTAssertFalse(app.staticTexts["Your list"].exists)
 
         app.buttons["all-items-shortcut"].tap()
         XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["all-items-scope-picker"].frame.midY, settings.frame.midY, accuracy: 2)
         XCTAssertFalse(app.buttons["Edit"].exists)
     }
 
