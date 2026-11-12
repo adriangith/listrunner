@@ -499,18 +499,26 @@ private struct ShoppingListItemRow<Actions: View>: View {
     let status: GroceryStatus
     let tint: Color
     let accessibilityLabel: String
+    var nativeSelection = false
     let onOpen: () -> Void
     @ViewBuilder let actions: () -> Actions
 
     var body: some View {
         HStack(spacing: 12) {
-            Button(action: onOpen) {
-                ListItemContent(name: name, quantity: quantity, ownerName: ownerName,
-                                unavailable: unavailable, status: status,
-                                tint: status == .skipped ? .secondary : tint)
+            if nativeSelection {
+                // UITableView cancels selection for a swipe or drag. A hosted
+                // SwiftUI Button can also fire on touch cancellation, opening
+                // the store over the Delete action underneath it.
+                itemContent
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(accessibilityLabel)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { onOpen() }
+            } else {
+                Button(action: onOpen) { itemContent }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(accessibilityLabel)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(accessibilityLabel)
             ListItemActions(name: name, actions: actions)
                 .buttonStyle(.borderless)
         }
@@ -518,6 +526,12 @@ private struct ShoppingListItemRow<Actions: View>: View {
         // Include padding inside measured scroll identity, not outside it.
         .padding(.vertical, 15)
         .tint(tint)
+    }
+
+    private var itemContent: some View {
+        ListItemContent(name: name, quantity: quantity, ownerName: ownerName,
+                        unavailable: unavailable, status: status,
+                        tint: status == .skipped ? .secondary : tint)
     }
 }
 
@@ -763,12 +777,13 @@ private struct AllItemsItemRows<Row: View>: View {
     let canReorder: Bool
     let onReorder: ([UUID], UUID?) -> Void
     let onDelete: (GroceryItem) -> Void
+    let onSelect: (GroceryItem) -> Void
     @ViewBuilder let row: (GroceryItem) -> Row
     @State private var height: CGFloat = 0
 
     var body: some View {
         AllItemsItemTable(groupID: groupID, items: items, canReorder: canReorder,
-            onReorder: onReorder, onDelete: onDelete, onHeightChange: { value in
+            onReorder: onReorder, onDelete: onDelete, onSelect: onSelect, onHeightChange: { value in
                 if abs(height - value) > 0.5 { height = value }
             }, row: row)
             .frame(height: height > 0 ? height : CGFloat(items.count) * 78)
@@ -781,6 +796,7 @@ private struct AllItemsItemTable<Row: View>: UIViewRepresentable {
     let canReorder: Bool
     let onReorder: ([UUID], UUID?) -> Void
     let onDelete: (GroceryItem) -> Void
+    let onSelect: (GroceryItem) -> Void
     let onHeightChange: (CGFloat) -> Void
     @ViewBuilder let row: (GroceryItem) -> Row
 
@@ -803,7 +819,7 @@ private struct AllItemsItemTable<Row: View>: UIViewRepresentable {
         table.dragDelegate = context.coordinator
         table.dropDelegate = context.coordinator
         table.dragInteractionEnabled = canReorder
-        table.allowsSelection = false
+        table.allowsSelection = true
         table.register(UITableViewCell.self, forCellReuseIdentifier: "item")
         table.reloadData()
         return table
@@ -865,6 +881,12 @@ private struct AllItemsItemTable<Row: View>: UIViewRepresentable {
             let cell = tableView.dequeueReusableCell(withIdentifier: "item", for: indexPath)
             configure(cell, at: indexPath)
             return cell
+        }
+
+        func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+            tableView.deselectRow(at: indexPath, animated: false)
+            guard items.indices.contains(indexPath.row) else { return }
+            parent.onSelect(items[indexPath.row])
         }
 
         func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
@@ -1416,14 +1438,15 @@ private struct AllItemsScreen: View {
         } else {
             AllItemsItemRows(groupID: group.id, items: group.items,
                 canReorder: grouping == .store && group.storeIDs.count == 1,
-                onReorder: { reorderItems($0, before: $1, in: group) }, onDelete: delete) { item in
+                onReorder: { reorderItems($0, before: $1, in: group) }, onDelete: delete,
+                onSelect: openAllItem) { item in
                     groupItemRow(item, using: proxy)
                 }
         }
     }
 
     private func groupItemRow(_ item: GroceryItem, using proxy: ScrollViewProxy) -> some View {
-        allItemRow(item)
+        allItemRow(item, nativeSelection: !usesNativeGroupRows)
             .padding(.horizontal, usesNativeGroupRows ? 0 : 16)
             .background(highlightedItemIDs.contains(item.id) ? Color.accentColor.opacity(0.12) : Color.clear)
             .id(item.id)
@@ -1548,27 +1571,14 @@ private struct AllItemsScreen: View {
         })
     }
 
-    private func allItemRow(_ item: GroceryItem) -> some View {
+    private func allItemRow(_ item: GroceryItem, nativeSelection: Bool = false) -> some View {
         let owner = StoreID.allCases.first { $0.listID == item.listID }
         let available = owner.map { shoppingVisibleIDs.contains($0) } ?? false
         return ShoppingListItemRow(name: item.name, quantity: item.displayQuantity,
             ownerName: owner?.displayName ?? "Uncategorised", unavailable: !available,
             status: item.status, tint: owner.map(storeTint) ?? .accentColor,
             accessibilityLabel: "\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(owner.map { ", \($0.displayName)" } ?? ", Uncategorised")\(available ? "" : ", Unavailable")",
-            onOpen: {
-                guard !editMode.isEditing else { editingItem = item; return }
-                guard let owner else {
-                    notice = "This saved item has no recognized store list. It remains visible and has not been moved or deleted."
-                    return
-                }
-                guard available else {
-                    notice = "Shopping with \(owner.displayName) is unavailable. This saved item remains editable here; use its Actions menu to edit or move it."
-                    return
-                }
-                let list = lists.first { $0.id == owner.listID }
-                list?.selectedItemID = item.id
-                if saveChanges() { shoppingDestination = owner }
-            }) {
+            nativeSelection: nativeSelection, onOpen: { openAllItem(item) }) {
                 Button("Edit Item", systemImage: "pencil") { editingItem = item }
                 if item.status == .pending {
                     Button("Mark Added", systemImage: "checkmark.circle") { setStatus(.added, for: item) }
@@ -1589,6 +1599,21 @@ private struct AllItemsScreen: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("all-item-\(item.id.uuidString)")
+    }
+
+    private func openAllItem(_ item: GroceryItem) {
+        guard !editMode.isEditing else { editingItem = item; return }
+        guard let owner = StoreID.allCases.first(where: { $0.listID == item.listID }) else {
+            notice = "This saved item has no recognized store list. It remains visible and has not been moved or deleted."
+            return
+        }
+        guard shoppingVisibleIDs.contains(owner) else {
+            notice = "Shopping with \(owner.displayName) is unavailable. This saved item remains editable here; use its Actions menu to edit or move it."
+            return
+        }
+        let list = lists.first { $0.id == owner.listID }
+        list?.selectedItemID = item.id
+        if saveChanges() { shoppingDestination = owner }
     }
 
     private func setStatus(_ status: GroceryStatus, for item: GroceryItem) {
