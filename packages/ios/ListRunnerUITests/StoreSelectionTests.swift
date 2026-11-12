@@ -1852,8 +1852,18 @@ final class StoreSelectionTests: XCTestCase {
             for _ in 0..<6 where !groupingButton.isHittable { app.collectionViews.firstMatch.swipeDown() }
             groupingButton.tap()
             let item = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "\(name), quantity")).firstMatch
-            for _ in 0..<8 where !item.isHittable { app.collectionViews.firstMatch.swipeUp() }
+            let top = app.buttons["all-items-scope-picker"].frame.maxY + 8
+            let bottom = app.buttons["all-items-show-store"].frame.minY - 16
+            // AX can call a row behind the translucent floating footer
+            // hittable. Put the entire gesture inside the actual list viewport.
+            for _ in 0..<8 {
+                if item.exists && item.isHittable && item.frame.minY >= top && item.frame.maxY <= bottom { break }
+                if item.exists && item.frame.minY < top { app.collectionViews.firstMatch.swipeDown() }
+                else { app.collectionViews.firstMatch.swipeUp() }
+            }
             XCTAssertTrue(item.isHittable)
+            XCTAssertGreaterThanOrEqual(item.frame.minY, top)
+            XCTAssertLessThanOrEqual(item.frame.maxY, bottom)
             item.swipeLeft()
             let delete = app.buttons["Delete"].firstMatch
             guard delete.waitForExistence(timeout: 3) else {
