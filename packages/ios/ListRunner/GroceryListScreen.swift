@@ -722,9 +722,6 @@ private struct AllItemsScreen: View {
     @State private var workingStoreOrder: [StoreID] = []
     @State private var groupAddRequest: UUID?
     @State private var groupAddFocusRequest: UUID?
-    #if DEBUG
-    @State private var groupAddFocusStatus = "idle"
-    #endif
     @State private var clearRequest: AllItemsClearRequest?
     @State private var editingItem: GroceryItem?
     @State private var shoppingDestination: StoreID?
@@ -857,7 +854,6 @@ private struct AllItemsScreen: View {
                 revealFocusedEntry()
                 if let id = scrollTargetItemID { scrollToAddedItem(id, using: proxy) }
             }, onManualScroll: {
-                traceGroupAdd("manual-scroll")
                 groupAddRequest = nil
                 entryFocused = false
                 DispatchQueue.main.async {
@@ -1019,7 +1015,6 @@ private struct AllItemsScreen: View {
         }
         .task(id: groupAddFocusRequest) {
             guard let request = groupAddFocusRequest else { return }
-            traceGroupAdd("focus-task")
             // A section move can preserve List's old visible-row anchor and
             // displace the editor after the simultaneous scroll. Resolve its
             // stable row ID again against the finished section layout.
@@ -1029,19 +1024,17 @@ private struct AllItemsScreen: View {
             // List can attach/reuse the editor after the section animation has
             // completed. Keep the intent until UIKit actually accepts focus,
             // rather than treating a SwiftUI Boolean as an acknowledgement.
-            for attempt in 0..<20 {
+            for _ in 0..<20 {
                 guard !Task.isCancelled, groupAddRequest == request,
                       !showingSettings, !showingStoreManagement,
                       editingItem == nil, shoppingDestination == nil,
                       importDestination == nil, clearRequest == nil else { return }
-                traceGroupAdd("attempt=\(attempt) view=\(entryFocus.view != nil) window=\(entryFocus.view?.window != nil) frame=\(entryFocus.view.map { $0.convert($0.bounds, to: nil) } ?? .zero) viewport=\(listViewportFrame)")
                 if let editor = entryFocus.view, editor.window != nil {
                     entryFocused = true
                     if !editor.isFirstResponder { editor.becomeFirstResponder() }
                     await Task.yield()
                     guard !Task.isCancelled, groupAddRequest == request else { return }
                     if entryFocus.view === editor, editor.isFirstResponder {
-                        traceGroupAdd("focused")
                         groupAddRequest = nil
                         entryRevealSuppressed = false
                         revealFocusedEntry()
@@ -1091,15 +1084,6 @@ private struct AllItemsScreen: View {
             }
         }
         .environment(\.editMode, $editMode)
-        .overlay(alignment: .topLeading) {
-            #if DEBUG
-            if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"].flatMap(UUID.init(uuidString:)) != nil {
-                Text(groupAddFocusStatus).font(.caption2)
-                    .accessibilityIdentifier("all-items-focus-status")
-                    .allowsHitTesting(false)
-            }
-            #endif
-        }
         .simultaneousGesture(
             SpatialTapGesture(coordinateSpace: .global).onEnded { value in
                 guard entryFocused,
@@ -1107,7 +1091,6 @@ private struct AllItemsScreen: View {
                       !actionsFrame.contains(value.location),
                       !groupAddFrames.values.contains(where: { $0.contains(value.location) }) else { return }
                 groupAddRequest = nil
-                traceGroupAdd("outside-tap")
                 entryFocused = false
             },
             including: entryFocused && !showingSettings && !showingStoreManagement
@@ -1209,7 +1192,6 @@ private struct AllItemsScreen: View {
     }
 
     private func beginAdding(to store: StoreID, using proxy: ScrollViewProxy) {
-        traceGroupAdd("begin-\(store.rawValue)")
         guard grouping == .store, !editMode.isEditing, shoppingVisibleIDs.contains(store) else { return }
         addedItemScrollTask?.cancel()
         addedItemScrollTask = nil
@@ -1250,19 +1232,10 @@ private struct AllItemsScreen: View {
     }
 
     private func finishGroupAdd(_ request: UUID, to store: StoreID) {
-        traceGroupAdd("animation-finished current=\(groupAddRequest == request) working=\(workingStoreID == store) destination=\(destinationID == store)")
         guard groupAddRequest == request, workingStoreID == store,
               destinationID == store, !editMode.isEditing,
               shoppingVisibleIDs.contains(store) else { return }
         groupAddFocusRequest = request
-    }
-
-    private func traceGroupAdd(_ message: String) {
-        #if DEBUG
-        guard ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"].flatMap(UUID.init(uuidString:)) != nil else { return }
-        groupAddFocusStatus = message
-        print("GROUP_ADD_FOCUS \(message)")
-        #endif
     }
 
     private func scrollToAddedItem(_ id: UUID, using proxy: ScrollViewProxy) {

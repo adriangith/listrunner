@@ -1908,7 +1908,7 @@ final class StoreSelectionTests: XCTestCase {
             XCTAssertTrue(shortcut.isHittable)
             shortcut.tap()
             guard keyboard.waitForExistence(timeout: 5) else {
-                return XCTFail("Missing keyboard after + for \(store): \(app.staticTexts["all-items-focus-status"].label)")
+                return XCTFail("Missing keyboard after + for \(store): \(app.debugDescription)")
             }
             entry.typeText("x") // No tap on the entry: + must make it the first responder.
             draft += "x"
