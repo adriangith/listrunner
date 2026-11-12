@@ -1842,6 +1842,22 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(app.textViews["all-items-entry"].value as? String, "Persisted unsubmitted draft")
     }
 
+    func testAllItemsStoreHeaderOpensOnlyThatGroceryList() {
+        choose("All items")
+        let header = app.buttons["all-items-group-title-store-woolworths"]
+        for _ in 0..<6 where !header.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(header.isHittable)
+        XCTAssertGreaterThanOrEqual(header.frame.height, 44)
+        header.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Woolworths"))
+        XCTAssertTrue(app.buttons["Actions for Woolworths fixture item"].exists)
+        XCTAssertFalse(app.buttons["Actions for Coles fixture item"].exists)
+        XCTAssertFalse(app.webViews.firstMatch.exists, "Opening a grocery list must not open the retailer website")
+        choose("All items")
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
+    }
+
     func testAllItemsGroupAddSelectsStorePreservesDraftAndFocusesEntry() {
         choose("All items")
         let entry = app.textViews["all-items-entry"]
@@ -1862,7 +1878,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(entry.value as? String, "Shortcut unsubmitted draft suffix")
         XCTAssertFalse(app.buttons["Actions for Shortcut unsubmitted draft"].exists)
         app.staticTexts["Ready when you are"].tap()
-        let titles = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-title-store-"))
+        let titles = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-title-store-"))
         XCTAssertEqual(titles.firstMatch.label, "Woolworths")
         app.terminate()
         app.launch()
@@ -3074,6 +3090,8 @@ final class StoreSelectionTests: XCTestCase {
         let clear = app.buttons["Clear List"]
         XCTAssertTrue(clear.waitForExistence(timeout: 3))
         XCTAssertGreaterThan(clear.frame.width, 250)
+        XCTAssertGreaterThanOrEqual(clear.frame.height, 44)
+        XCTAssertLessThan(clear.frame.height, 56)
         clear.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertTrue(app.buttons["Clear All"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["Clear Added"].exists)
