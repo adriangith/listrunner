@@ -2192,19 +2192,14 @@ final class StoreSelectionTests: XCTestCase {
         choose("Coles")
         let storeCell = app.collectionViews.cells.containing(.any, identifier: "Actions for Coles fixture item").firstMatch
         XCTAssertTrue(storeCell.waitForExistence(timeout: 5))
-        let storeHeight = storeCell.frame.height
+        let storeHeight = storeCell.frame.height.rounded()
         XCTAssertEqual(storeHeight, 78, accuracy: 1)
         choose("All items")
-        // Browse cards share a native host cell. Measure the real row spacing,
-        // not that host or an AX container whose frame omits visual padding.
-        // This fixture has one Coles row, immediately above its clear button;
-        // its Actions button is vertically centered within the padded row.
-        let aggregateActions = app.buttons["Actions for Coles fixture item"]
-        let clear = app.buttons["all-items-clear-store-coles"]
-        for _ in 0..<5 where !clear.isHittable { app.collectionViews.firstMatch.swipeUp() }
-        XCTAssertTrue(aggregateActions.waitForExistence(timeout: 3))
-        XCTAssertTrue(clear.isHittable)
-        let aggregateHeight = 2 * (clear.frame.minY - aggregateActions.frame.midY)
+        // Measure the inner native item cell, not the outer group host cell.
+        let aggregateCell = app.tables.cells.containing(.any, identifier: "Actions for Coles fixture item").firstMatch
+        for _ in 0..<5 where !aggregateCell.exists { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(aggregateCell.waitForExistence(timeout: 3))
+        let aggregateHeight = aggregateCell.frame.height.rounded()
         print("ROW_HEIGHT store=\(storeHeight) allItemsByStore=\(aggregateHeight)")
         XCTAssertEqual(aggregateHeight, storeHeight, accuracy: 1,
                        "A short row must not receive extra native vertical insets in All items")
@@ -2212,17 +2207,9 @@ final class StoreSelectionTests: XCTestCase {
             app.collectionViews.firstMatch.swipeDown()
         }
         app.buttons["all-items-grouping-category"].tap()
-        let woolworthsActions = app.buttons["Actions for Woolworths fixture item"]
-        for _ in 0..<5 where !woolworthsActions.isHittable { app.collectionViews.firstMatch.swipeUp() }
-        XCTAssertTrue(aggregateActions.waitForExistence(timeout: 3))
-        XCTAssertTrue(woolworthsActions.waitForExistence(timeout: 3))
-        // The next item's longer name can wrap. Remove its measured padded
-        // height from the center-to-center spacing to isolate the Coles row.
-        let woolworthsName = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@",
-            "Woolworths fixture item, quantity")).firstMatch
-        XCTAssertTrue(woolworthsName.exists)
-        let nextHeight = max(48, max(woolworthsName.frame.height, woolworthsActions.frame.height)) + 30
-        let categoryHeight = 2 * abs(woolworthsActions.frame.midY - aggregateActions.frame.midY) - nextHeight - 1
+        for _ in 0..<5 where !aggregateCell.exists { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(aggregateCell.waitForExistence(timeout: 3))
+        let categoryHeight = aggregateCell.frame.height.rounded()
         print("ROW_HEIGHT allItemsByCategory=\(categoryHeight)")
         XCTAssertEqual(categoryHeight, storeHeight, accuracy: 1)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
