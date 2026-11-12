@@ -3110,6 +3110,8 @@ final class StoreSelectionTests: XCTestCase {
         let clear = app.buttons["Clear List"]
         XCTAssertTrue(clear.waitForExistence(timeout: 3))
         XCTAssertGreaterThan(clear.frame.width, 250)
+        XCTAssertGreaterThanOrEqual(clear.frame.height, 44)
+        XCTAssertLessThan(clear.frame.height, 56)
         clear.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertTrue(app.buttons["Clear All"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["Clear Added"].exists)
