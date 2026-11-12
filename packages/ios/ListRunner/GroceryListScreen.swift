@@ -183,7 +183,6 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
     var keyboardDismissMode: ScrollDismissesKeyboardMode = .interactively
     var onViewportChange: (CGRect) -> Void = { _ in }
     var onManualScroll: () -> Void = {}
-    var onSelectAllItems: (() -> Void)?
     @GestureState private var isDragging = false
     @ViewBuilder let scope: () -> Scope
     @ViewBuilder let footer: () -> Footer
@@ -220,15 +219,6 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if !isWelcome { scope() }
-                }
-                ToolbarItem(placement: .topBarLeading) {
-                    if !isWelcome, let onSelectAllItems {
-                        Button(action: onSelectAllItems) {
-                            Image(systemName: "square.grid.2x2")
-                        }
-                        .accessibilityLabel("All items")
-                        .accessibilityIdentifier("all-items-shortcut")
-                    }
                 }
             }
             .toolbar(isWelcome ? .hidden : .visible, for: .navigationBar)
@@ -274,9 +264,22 @@ private struct ListScopePicker: View {
 
 private struct ListPageToolbar: ToolbarContent {
     var showSettings = true
+    var onSelectAllItems: (() -> Void)?
     let onSettings: () -> Void
 
     var body: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            if let onSelectAllItems {
+                Button(action: onSelectAllItems) {
+                    Image(systemName: "square.grid.2x2")
+                }
+                .accessibilityLabel("All items")
+                .accessibilityIdentifier("all-items-shortcut")
+            }
+        }
+        if #available(iOS 26.0, *), onSelectAllItems != nil {
+            ToolbarSpacer(.fixed, placement: .topBarTrailing)
+        }
         ToolbarItem(placement: .topBarTrailing) {
             if showSettings {
                 Button(action: onSettings) { Image(systemName: "gearshape") }
@@ -1466,7 +1469,7 @@ struct GroceryListScreen: View {
                     productEntryRevealTask?.cancel()
                     scrollTargetItemID = nil
                     itemFrames.removeAll(keepingCapacity: true)
-                }, onSelectAllItems: showingStoreWelcome || shoppingVisibleIDs.isEmpty ? nil : onSelectAllItems, scope: {
+                }, scope: {
                     if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty {
                         ListScopePicker(stores: StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
                             enabledIDs: shoppingVisibleIDs), selectedStoreID: storeID, tint: storePrimaryColor,
@@ -1665,7 +1668,8 @@ struct GroceryListScreen: View {
                 }
             }
             .toolbar {
-                ListPageToolbar(showSettings: !showingStoreWelcome) {
+                ListPageToolbar(showSettings: !showingStoreWelcome,
+                    onSelectAllItems: showingStoreWelcome || shoppingVisibleIDs.isEmpty ? nil : onSelectAllItems) {
                     groceryInputFocused = false
                     showingSettings = true
                 }

@@ -2251,6 +2251,8 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(app.buttons["store-picker"].frame.midY, settings.frame.midY, accuracy: 2)
         XCTAssertEqual(app.buttons["all-items-shortcut"].frame.midY, settings.frame.midY, accuracy: 2)
         XCTAssertLessThan(app.buttons["store-picker"].frame.midX, app.buttons["all-items-shortcut"].frame.midX)
+        XCTAssertLessThan(app.buttons["all-items-shortcut"].frame.maxX, settings.frame.minX)
+        XCTAssertGreaterThan(app.buttons["all-items-shortcut"].frame.midX, app.frame.midX)
         XCTAssertFalse(app.buttons["Edit"].exists)
         XCTAssertFalse(app.staticTexts["Your list"].exists)
 
