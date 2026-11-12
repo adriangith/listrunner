@@ -598,6 +598,7 @@ private struct AllItemsShoppingFooter: View {
             .modifier(StoreLaunchButtonStyle(tint: .accentColor))
             .accessibilityIdentifier("all-items-show-store")
             .padding(.horizontal, 20).padding(.top, 8)
+            .padding(.bottom, -12)
         } else if !isTyping && hasItems {
             Button("Manage Stores", action: onManageStores)
                 .frame(maxWidth: .infinity, minHeight: 44).buttonStyle(.bordered)
@@ -1508,7 +1509,9 @@ struct GroceryListScreen: View {
                         }
                         .disabled(!browser.canPresentStore || !shoppingVisibleIDs.contains(storeID))
                         .padding(.horizontal, 20).padding(.top, 8)
-                        .padding(.bottom, groceryInputFocused ? 16 : 0)
+                        // Tuck the fixed action closer to the home indicator, but
+                        // retain its comfortable keyboard clearance while editing.
+                        .padding(.bottom, groceryInputFocused ? 16 : -12)
                     }
                 }) {
                 if showingStoreWelcome {
