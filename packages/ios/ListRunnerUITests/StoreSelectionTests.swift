@@ -1897,6 +1897,25 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(keyboard.waitForNonExistence(timeout: 3))
     }
 
+    func testAllItemsRepeatedGroupAddAlwaysFocusesWithoutAnotherScroll() {
+        choose("All items")
+        let entry = app.textViews["all-items-entry"]
+        let keyboard = app.keyboards.firstMatch
+        var draft = ""
+        for store in ["woolworths", "coles", "bunnings", "coles", "woolworths", "bunnings"] {
+            let shortcut = app.buttons["all-items-group-add-\(store)"]
+            for _ in 0..<8 where !shortcut.isHittable { app.collectionViews.firstMatch.swipeUp() }
+            XCTAssertTrue(shortcut.isHittable)
+            shortcut.tap()
+            XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "Missing keyboard after + for \(store)")
+            entry.typeText("x") // No tap on the entry: + must make it the first responder.
+            draft += "x"
+            XCTAssertEqual(entry.value as? String, draft)
+            app.buttons["all-items-grouping-store"].tap()
+            XCTAssertTrue(keyboard.waitForNonExistence(timeout: 3))
+        }
+    }
+
     func testAllItemsUnavailableGroupAddIsAbsentAndCategoriesHaveNoShortcut() {
         choose("All items")
         let list = app.collectionViews.firstMatch

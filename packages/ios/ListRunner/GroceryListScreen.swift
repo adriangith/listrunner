@@ -721,6 +721,7 @@ private struct AllItemsScreen: View {
     @State private var workingStoreID: StoreID?
     @State private var workingStoreOrder: [StoreID] = []
     @State private var groupAddRequest: UUID?
+    @State private var groupAddFocusRequest: UUID?
     @State private var clearRequest: AllItemsClearRequest?
     @State private var editingItem: GroceryItem?
     @State private var shoppingDestination: StoreID?
@@ -855,7 +856,12 @@ private struct AllItemsScreen: View {
             }, onManualScroll: {
                 groupAddRequest = nil
                 entryFocused = false
-                DispatchQueue.main.async { entryFocus.resignFirstResponder() }
+                DispatchQueue.main.async {
+                    // A + tap may have started a newer focus request after this
+                    // drag ended. Never dismiss that request's keyboard.
+                    guard groupAddRequest == nil, !entryFocused else { return }
+                    entryFocus.resignFirstResponder()
+                }
                 entryRevealTask?.cancel()
                 entryRevealSuppressed = true
                 addedItemScrollTask?.cancel()
@@ -931,7 +937,12 @@ private struct AllItemsScreen: View {
                             tint: grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary,
                             addStore: grouping == .store && !editMode.isEditing
                                 ? group.storeIDs.first.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil } : nil,
-                            onAdd: { beginAdding(to: $0, using: proxy) },
+                            onAdd: { store in
+                                // Let this tap finish before moving its button.
+                                // Otherwise outside-tap dismissal can compare
+                                // the original touch with its new frame.
+                                DispatchQueue.main.async { beginAdding(to: store, using: proxy) }
+                            },
                             onAddFrame: { groupAddFrames[$0] = $1 })
                         .id(group.id)
                         .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
@@ -1001,6 +1012,34 @@ private struct AllItemsScreen: View {
         .onChange(of: groupingRawValue) { _, _ in
             workingStoreID = nil
             groupAddRequest = nil
+        }
+        .task(id: groupAddFocusRequest) {
+            guard let request = groupAddFocusRequest else { return }
+            // List can attach/reuse the editor after the section animation has
+            // completed. Keep the intent until UIKit actually accepts focus,
+            // rather than treating a SwiftUI Boolean as an acknowledgement.
+            for _ in 0..<20 {
+                guard !Task.isCancelled, groupAddRequest == request,
+                      !showingSettings, !showingStoreManagement,
+                      editingItem == nil, shoppingDestination == nil,
+                      importDestination == nil, clearRequest == nil else { return }
+                if let editor = entryFocus.view, editor.window != nil,
+                   editor.convert(editor.bounds, to: nil).intersects(listViewportFrame) {
+                    entryFocused = true
+                    if !editor.isFirstResponder { editor.becomeFirstResponder() }
+                    await Task.yield()
+                    guard !Task.isCancelled, groupAddRequest == request else { return }
+                    if entryFocus.view === editor, editor.isFirstResponder {
+                        groupAddRequest = nil
+                        entryRevealSuppressed = false
+                        revealFocusedEntry()
+                        return
+                    }
+                }
+                do { try await Task.sleep(for: .milliseconds(50)) }
+                catch { return }
+            }
+            if groupAddRequest == request { groupAddRequest = nil }
         }
         .onChange(of: destinationRawValue) { _, value in
             if let workingStoreID, workingStoreID.rawValue != value {
@@ -1161,6 +1200,7 @@ private struct AllItemsScreen: View {
         destinationRawValue = store.rawValue
         let request = UUID()
         groupAddRequest = request
+        groupAddFocusRequest = nil
         // Promote within the currently displayed order, not the saved recency
         // order: the old first group becomes second, with no long-distance swap.
         let promotedOrder = [store] + groups.compactMap { $0.storeIDs.first }.filter { $0 != store }
@@ -1190,10 +1230,7 @@ private struct AllItemsScreen: View {
         guard groupAddRequest == request, workingStoreID == store,
               destinationID == store, !editMode.isEditing,
               shoppingVisibleIDs.contains(store) else { return }
-        groupAddRequest = nil
-        entryRevealSuppressed = false
-        entryFocused = true
-        revealFocusedEntry()
+        groupAddFocusRequest = request
     }
 
     private func scrollToAddedItem(_ id: UUID, using proxy: ScrollViewProxy) {
@@ -2673,7 +2710,8 @@ private struct ProductEntryEditor: UIViewRepresentable {
             DispatchQueue.main.async { [weak self, weak view] in
                 guard let self else { return }
                 self.focusUpdateScheduled = false
-                guard !self.isDismantled, let view, view.window != nil else { return }
+                guard !self.isDismantled, let view, view.window != nil,
+                      self.parent.focusControl.view === view else { return }
                 if self.parent.isFocused && !view.isFirstResponder { view.becomeFirstResponder() }
                 else if !self.parent.isFocused && view.isFirstResponder { view.resignFirstResponder() }
             }
@@ -2692,9 +2730,12 @@ private struct ProductEntryEditor: UIViewRepresentable {
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
+            guard !isDismantled, parent.focusControl.view === textView else { return }
             if !parent.isFocused { parent.isFocused = true }
         }
         func textViewDidEndEditing(_ textView: UITextView) {
+            // A recycled editor must not clear the replacement editor's focus.
+            guard !isDismantled, parent.focusControl.view === textView else { return }
             if parent.isFocused { parent.isFocused = false }
         }
     }
