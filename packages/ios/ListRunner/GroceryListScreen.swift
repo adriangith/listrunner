@@ -277,9 +277,6 @@ private struct ListPageToolbar: ToolbarContent {
                 .accessibilityIdentifier("all-items-shortcut")
             }
         }
-        if #available(iOS 26.0, *), onSelectAllItems != nil {
-            ToolbarSpacer(.fixed, placement: .topBarTrailing)
-        }
         ToolbarItem(placement: .topBarTrailing) {
             if showSettings {
                 Button(action: onSettings) { Image(systemName: "gearshape") }
