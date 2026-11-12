@@ -935,7 +935,7 @@ private struct AllItemsScreen: View {
                             tint: grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary,
                             addStore: grouping == .store
                                 ? group.storeIDs.first.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil } : nil,
-                            openStore: grouping == .store && !editMode.isEditing
+                            openStore: grouping == .store
                                 ? group.storeIDs.first.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil } : nil,
                             onOpenStore: onChooseStoreList,
                             onAdd: beginAdding)
