@@ -667,14 +667,29 @@ private struct AllItemsGroupHeader: View {
     let group: AllItemsGroup
     let tint: Color
     let addStore: StoreID?
+    let openStore: StoreID?
+    let onOpenStore: (StoreID) -> Void
     let onAdd: (StoreID) -> Void
 
     var body: some View {
         HStack {
-            Text(group.title)
-                .font(.subheadline.weight(.semibold))
+            if let openStore {
+                Button { onOpenStore(openStore) } label: {
+                    Text(group.title)
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
                 .accessibilityAddTraits(.isHeader)
+                .accessibilityHint("Opens the \(group.title) grocery list")
                 .accessibilityIdentifier("all-items-group-title-\(group.id)")
+            } else {
+                Text(group.title)
+                    .font(.subheadline.weight(.semibold))
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("all-items-group-title-\(group.id)")
+            }
             Spacer()
             if let addStore {
                 Button { onAdd(addStore) } label: {
@@ -916,6 +931,9 @@ private struct AllItemsScreen: View {
                             tint: grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary,
                             addStore: grouping == .store && !editMode.isEditing
                                 ? group.storeIDs.first.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil } : nil,
+                            openStore: grouping == .store && !editMode.isEditing
+                                ? group.storeIDs.first.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil } : nil,
+                            onOpenStore: onChooseStoreList,
                             onAdd: beginAdding)
                         .id(group.id)
                         .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
