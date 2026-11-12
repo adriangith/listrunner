@@ -842,6 +842,7 @@ private struct AllItemsScreen: View {
                 revealFocusedEntry()
                 if let id = scrollTargetItemID { scrollToAddedItem(id, using: proxy) }
             }, onManualScroll: {
+                groupAddRequest = nil
                 entryRevealTask?.cancel()
                 entryRevealSuppressed = true
                 addedItemScrollTask?.cancel()
@@ -917,7 +918,7 @@ private struct AllItemsScreen: View {
                             tint: grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary,
                             addStore: grouping == .store && !editMode.isEditing
                                 ? group.storeIDs.first.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil } : nil,
-                            onAdd: beginAdding)
+                            onAdd: { beginAdding(to: $0, using: proxy) })
                         .id(group.id)
                         .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
                         ForEach(group.items, id: \.id) { item in
@@ -983,18 +984,6 @@ private struct AllItemsScreen: View {
                 withAnimation { proxy.scrollTo(itemID, anchor: .bottom) }
             }
         }
-        .task(id: groupAddRequest) {
-            guard groupAddRequest != nil, let workingStoreID,
-                  shoppingVisibleIDs.contains(workingStoreID) else { return }
-            // The entry is part of this List, not a second pinned composer.
-            // Reveal it first; the shared card correction handles keyboard layout.
-            proxy.scrollTo("product-entry-editor", anchor: .top)
-            await Task.yield()
-            guard !Task.isCancelled else { return }
-            entryRevealSuppressed = false
-            entryFocused = true
-            revealFocusedEntry()
-        }
         .onChange(of: groupingRawValue) { _, _ in
             workingStoreID = nil
             groupAddRequest = nil
@@ -1039,6 +1028,7 @@ private struct AllItemsScreen: View {
         .environment(\.editMode, $editMode)
         .onChange(of: editMode) { _, value in
             if value.isEditing {
+                groupAddRequest = nil
                 entryFocused = false
                 entryFocus.resignFirstResponder()
             }
@@ -1113,6 +1103,7 @@ private struct AllItemsScreen: View {
             }
         }
         .onDisappear {
+            groupAddRequest = nil
             entryRevealTask?.cancel()
             addedItemScrollTask?.cancel()
             addedItemScrollTask = nil
@@ -1130,7 +1121,7 @@ private struct AllItemsScreen: View {
         }, onRevealing: { isRevealingEntry = $0 })
     }
 
-    private func beginAdding(to store: StoreID) {
+    private func beginAdding(to store: StoreID, using proxy: ScrollViewProxy) {
         guard grouping == .store, !editMode.isEditing, shoppingVisibleIDs.contains(store) else { return }
         addedItemScrollTask?.cancel()
         addedItemScrollTask = nil
@@ -1138,20 +1129,38 @@ private struct AllItemsScreen: View {
         itemFrames.removeAll(keepingCapacity: true)
         highlightedItemIDs.removeAll()
         entryRevealTask?.cancel()
-        entryRevealSuppressed = false
+        // Do not let keyboard/viewport corrections compete with the move.
+        // Keep an existing first responder, but defer new focus until it finishes.
+        entryRevealSuppressed = true
         destinationRawValue = store.rawValue
+        let request = UUID()
+        groupAddRequest = request
         // This is a temporary working-group priority, not a fabricated add event.
         // Saved recency is updated only by the existing successful add/import path.
         if reduceMotion {
             workingStoreID = store
+            proxy.scrollTo("product-entry-editor", anchor: .top)
+            finishGroupAdd(request, to: store)
         } else {
-            // Each group keeps a stable ID, allowing List to animate this as a
-            // section move instead of removing and recreating the store list.
-            withAnimation(.easeInOut(duration: 0.35)) {
+            // Animate the stable section move and the shared editor reveal in
+            // one transaction. Completion also respects Simulator slow animations.
+            withAnimation(.easeInOut(duration: 0.35), completionCriteria: .removed) {
                 workingStoreID = store
+                proxy.scrollTo("product-entry-editor", anchor: .top)
+            } completion: {
+                finishGroupAdd(request, to: store)
             }
         }
-        groupAddRequest = UUID()
+    }
+
+    private func finishGroupAdd(_ request: UUID, to store: StoreID) {
+        guard groupAddRequest == request, workingStoreID == store,
+              destinationID == store, !editMode.isEditing,
+              shoppingVisibleIDs.contains(store) else { return }
+        groupAddRequest = nil
+        entryRevealSuppressed = false
+        entryFocused = true
+        revealFocusedEntry()
     }
 
     private func scrollToAddedItem(_ id: UUID, using proxy: ScrollViewProxy) {
