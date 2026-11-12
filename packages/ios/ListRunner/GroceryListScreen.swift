@@ -1020,6 +1020,12 @@ private struct AllItemsScreen: View {
         .task(id: groupAddFocusRequest) {
             guard let request = groupAddFocusRequest else { return }
             traceGroupAdd("focus-task")
+            // A section move can preserve List's old visible-row anchor and
+            // displace the editor after the simultaneous scroll. Resolve its
+            // stable row ID again against the finished section layout.
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) {
+                proxy.scrollTo("product-entry-editor", anchor: .top)
+            }
             // List can attach/reuse the editor after the section animation has
             // completed. Keep the intent until UIKit actually accepts focus,
             // rather than treating a SwiftUI Boolean as an acknowledgement.
@@ -1029,8 +1035,7 @@ private struct AllItemsScreen: View {
                       editingItem == nil, shoppingDestination == nil,
                       importDestination == nil, clearRequest == nil else { return }
                 traceGroupAdd("attempt=\(attempt) view=\(entryFocus.view != nil) window=\(entryFocus.view?.window != nil) frame=\(entryFocus.view.map { $0.convert($0.bounds, to: nil) } ?? .zero) viewport=\(listViewportFrame)")
-                if let editor = entryFocus.view, editor.window != nil,
-                   editor.convert(editor.bounds, to: nil).intersects(listViewportFrame) {
+                if let editor = entryFocus.view, editor.window != nil {
                     entryFocused = true
                     if !editor.isFirstResponder { editor.becomeFirstResponder() }
                     await Task.yield()
