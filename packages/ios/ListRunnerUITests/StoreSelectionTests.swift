@@ -1856,7 +1856,13 @@ final class StoreSelectionTests: XCTestCase {
             XCTAssertTrue(item.isHittable)
             item.swipeLeft()
             let delete = app.buttons["Delete"].firstMatch
-            XCTAssertTrue(delete.waitForExistence(timeout: 3), "A left swipe must reveal row-level Delete")
+            guard delete.waitForExistence(timeout: 3) else {
+                let attachment = XCTAttachment(screenshot: app.screenshot())
+                attachment.name = "Swipe delete failure — \(grouping)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                return XCTFail("A left swipe must reveal row-level Delete in \(grouping): \(app.debugDescription)")
+            }
             delete.tap()
             XCTAssertTrue(item.waitForNonExistence(timeout: 3))
             XCTAssertTrue(app.staticTexts["Bunnings fixture item"].exists)
