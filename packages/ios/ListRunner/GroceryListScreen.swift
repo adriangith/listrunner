@@ -458,19 +458,41 @@ private struct StoreListInteractiveBack: UIViewControllerRepresentable {
         weak var navigationController: UINavigationController?
         weak var owner: UIViewController?
 
+        private var canPop: Bool {
+            guard let navigationController, let owner else { return false }
+            return navigationController.topViewController === owner
+                && navigationController.viewControllers.count > 1
+                && navigationController.transitionCoordinator == nil
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            guard canPop, let view = gestureRecognizer.view else { return false }
+            let x = touch.location(in: view).x
+            let leadingDistance = view.effectiveUserInterfaceLayoutDirection == .rightToLeft ? view.bounds.width - x : x
+            // Hiding the separate native Back can veto touch delivery before
+            // shouldBegin. Admit only leading-edge touches on this destination;
+            // ordinary row swipes and content drags keep their existing owner.
+            return leadingDistance >= 0 && leadingDistance <= 28
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive event: UIEvent) -> Bool {
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"] != nil {
+                print("STORE_BACK receiveEvent canPop=\(canPop) type=\(event.type.rawValue)")
+            }
+            #endif
+            return canPop && event.type == .touches
+        }
+
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             #if DEBUG
             if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"] != nil {
                 print("STORE_BACK shouldBegin \(type(of: gestureRecognizer))")
             }
             #endif
-            guard let navigationController, let owner,
-                  navigationController.topViewController === owner,
-                  navigationController.viewControllers.count > 1,
-                  navigationController.transitionCoordinator == nil else { return false }
             // The system's default shouldBegin rejects a hidden native Back
             // item. Override only that gate; all other arbitration is forwarded.
-            return true
+            return canPop
         }
 
         override func responds(to selector: Selector!) -> Bool {
