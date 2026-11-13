@@ -200,6 +200,10 @@ changes are test/documentation-only. No physical-device install, merge or releas
 was performed. The typing issue's relationship to the unchanged baseline has not
 been established and is a separate follow-up, not silently waived validation.
 
+The user chose to finish the navigation task for review and track the typing
+issue separately. Keep the blocked idle-row-frame check with that follow-up;
+this is not approval to merge, install on a phone or call the full suite green.
+
 ## Retailer-neutral store-list wording (13 November 2026)
 
 Branch `fix/store-page-titles` changes the populated store-list section heading
