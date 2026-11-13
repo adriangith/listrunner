@@ -178,6 +178,16 @@ private struct WelcomeTransitionAnchor: UIViewRepresentable {
 
 // Shared presentation for store lists and the aggregate. Each screen supplies
 // its data/actions, not a second implementation of the page's visual structure.
+// SpatialTapGesture alone can accept a short drag. Give movement priority so a
+// small repositioning scroll cannot also become an outside tap-to-dismiss.
+private func entryDismissTap(_ action: @escaping (CGPoint) -> Void) -> some Gesture {
+    DragGesture(minimumDistance: 5, coordinateSpace: .global)
+        .exclusively(before: SpatialTapGesture(coordinateSpace: .global))
+        .onEnded { value in
+            if case .second(let tap) = value { action(tap.location) }
+        }
+}
+
 private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
     var isWelcome = false
     var keyboardDismissMode: ScrollDismissesKeyboardMode = .interactively
@@ -1319,11 +1329,11 @@ private struct AllItemsScreen: View {
         }
         .environment(\.editMode, $editMode)
         .simultaneousGesture(
-            SpatialTapGesture(coordinateSpace: .global).onEnded { value in
+            entryDismissTap { location in
                 guard entryFocused,
-                      !interactionGeometry.editor.contains(value.location),
-                      !interactionGeometry.actions.contains(value.location),
-                      !interactionGeometry.groupAddButtons.values.contains(where: { $0.contains(value.location) }) else { return }
+                      !interactionGeometry.editor.contains(location),
+                      !interactionGeometry.actions.contains(location),
+                      !interactionGeometry.groupAddButtons.values.contains(where: { $0.contains(location) }) else { return }
                 groupAddRequest = nil
                 entryFocused = false
             },
@@ -2189,10 +2199,10 @@ struct GroceryListScreen: View {
         }
         #endif
         .simultaneousGesture(
-            SpatialTapGesture(coordinateSpace: .global).onEnded { value in
+            entryDismissTap { location in
                 guard groceryInputFocused,
-                      !groceryInputFrame.contains(value.location),
-                      !addItemsButtonFrame.contains(value.location) else { return }
+                      !groceryInputFrame.contains(location),
+                      !addItemsButtonFrame.contains(location) else { return }
                 groceryInputFocused = false
             },
             // An inactive recognizer can still interfere with UIKit table-row

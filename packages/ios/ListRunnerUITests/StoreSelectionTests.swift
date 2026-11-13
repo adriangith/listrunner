@@ -2054,6 +2054,29 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(titles.firstMatch.label, "Bunnings", "A shortcut must not fabricate persisted addition recency")
     }
 
+    func testSmallRepositioningScrollKeepsEntryFocusedInBothScopes() {
+        for scope in ["Coles", "All items"] {
+            choose(scope)
+            let entry = app.textViews[scope == "Coles" ? "grocery-input" : "all-items-entry"]
+            entry.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+            for distance in [CGFloat(-20), 20, -12, 12] {
+                // The card's outside margin is not the editor or an action.
+                // Short vertical motion here must not count as an outside tap.
+                let origin = app.coordinate(withNormalizedOffset: .zero)
+                let point = CGPoint(x: 20, y: entry.frame.midY)
+                let start = origin.withOffset(CGVector(dx: point.x, dy: point.y))
+                let end = origin.withOffset(CGVector(dx: point.x, dy: point.y + distance))
+                start.press(forDuration: 0.05, thenDragTo: end)
+                XCTAssertTrue(app.keyboards.firstMatch.exists, "Small scroll dismissed keyboard in \(scope)")
+            }
+            entry.typeText("Still focused") // No extra tap is allowed.
+            XCTAssertEqual(entry.value as? String, "Still focused")
+            app.staticTexts["Ready when you are"].tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        }
+    }
+
     func testAllItemsEntryDismissesOnOutsideTapAndManualScroll() {
         choose("All items")
         let entry = app.textViews["all-items-entry"]
