@@ -1129,7 +1129,7 @@ final class StoreBrowser: ObservableObject {
         guard let request = productSelectionRequest else { return }
         productSelectionRequest = nil
         webView.callAsyncJavaScript("if (window.__listRunnerProductSelectionID === requestID) window.__listRunnerCancelProductSelection?.();",
-            arguments: ["requestID": request.uuidString], in: nil, contentWorld: automationWorld)
+            arguments: ["requestID": request.uuidString], in: nil, contentWorld: automationWorld, completionHandler: nil)
     }
     @Published private(set) var preloadWebView: WKWebView?
     #if DEBUG
