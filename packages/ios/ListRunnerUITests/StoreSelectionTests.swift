@@ -1672,6 +1672,28 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(localized.exists)
     }
 
+    func testStoreListsUseRetailerNeutralItemWording() {
+        for (store, fixture) in [("Coles", "Coles fixture item"),
+                                ("Woolworths", "Woolworths fixture item"),
+                                ("Bunnings", "Bunnings fixture item")] {
+            choose(store)
+            XCTAssertTrue(row(fixture, status: "Pending").waitForExistence(timeout: 3))
+            let heading = app.staticTexts["store-list-items-heading"]
+            XCTAssertTrue(heading.waitForExistence(timeout: 3))
+            XCTAssertEqual(heading.label, "Items", "\(store) must use the same retailer-neutral heading")
+            XCTAssertFalse(app.staticTexts["Groceries"].exists)
+            XCTAssertEqual(app.textViews["grocery-input"].label, "Type or paste products")
+            XCTAssertFalse(app.webViews.firstMatch.exists, "Changing list scope must not open a retailer website")
+        }
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Bunnings"))
+        XCTAssertTrue(row("Bunnings fixture item", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertEqual(app.staticTexts["store-list-items-heading"].label, "Items")
+    }
+
     func testStorePickerKeepsListsAndStatusesSeparate() {
         XCTAssertTrue(row("Coles fixture item", status: "Pending").exists)
         app.buttons["Actions for Coles fixture item"].tap()
@@ -3285,6 +3307,7 @@ final class StoreSelectionTests: XCTestCase {
     func testAddProductsEntryOpensKeyboardAndSubmitsFromEmptyList() {
         let input = app.descendants(matching: .any)["grocery-input"]
         XCTAssertTrue(input.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["store-list-items-heading"].exists, "Empty store lists omit the item heading")
         assertGroceryInputIsEmpty(input)
         XCTAssertFalse(app.staticTexts["Type or paste a list, e.g. milk, bread, eggs"].exists)
         XCTAssertFalse(app.buttons["Add products"].exists, "No separate plus button should remain")
@@ -3302,6 +3325,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["Add Items"].isEnabled)
         app.buttons["Add Items"].tap()
         XCTAssertTrue(row("Milk", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["store-list-items-heading"].label, "Items")
         assertGroceryInputIsEmpty(input)
     }
 

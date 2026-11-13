@@ -35,6 +35,15 @@ The verifier requires every canonical JSON file (including Bunnings) to be byte-
 
 ## Current implementation
 
+### Retailer-neutral list wording
+
+Individual store lists label their populated item section `Items` for every
+retailer, including supermarkets and Bunnings. Empty lists omit that heading.
+Shared store chooser/group accessibility hints and the no-stores message use
+`shopping list`; product entry announces `Type or paste products`. Paprika's
+grocery-specific import wording and retailer-category names are unchanged.
+No list data, categories, import behaviour or website sessions are changed.
+
 ### First-use card collapse hint
 
 Expanded shopping cards show `Swipe cards down to collapse` just above the carousel

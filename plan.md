@@ -1,5 +1,10 @@
 ## ListRunner Build Specification
 
+### Retailer-neutral list wording (13 November 2026)
+
+* Every individual store list uses `Items` as its populated-list section heading, including grocery retailers and non-grocery retailers such as Bunnings. Keep the heading hidden for empty lists. Store chooser/group accessibility hints and the no-stores message describe a shopping list; the shared product-entry accessibility label says `Type or paste products`.
+* This is wording only: preserve store categories, list ownership, saved items, entry/import behaviour and website sessions. Paprika-specific grocery instructions/results and the `Groceries & Home` retailer-category name remain unchanged.
+
 ### First-use card collapse hint (9 November 2026)
 
 * The expanded shopping-card view shows `Swipe cards down to collapse` floating subtly above the cards until the first successful collapse, whether by downward swipe or the existing collapse button. Keep card/control geometry and gestures unchanged; the hint does not intercept touches and remains readable over retailer content.

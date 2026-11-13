@@ -258,7 +258,7 @@ private struct ListScopePicker: View {
             .contentShape(Rectangle())
         }
         .accessibilityIdentifier(selectedStoreID == nil ? "all-items-scope-picker" : "store-picker")
-        .accessibilityHint("Each store has its own grocery list and basket")
+        .accessibilityHint("Each store has its own shopping list and basket")
     }
 }
 
@@ -690,7 +690,7 @@ private struct AllItemsGroupHeader: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(.isHeader)
-                .accessibilityHint("Opens the \(group.title) grocery list")
+                .accessibilityHint("Opens the \(group.title) shopping list")
                 .accessibilityIdentifier("all-items-group-title-\(group.id)")
             } else {
                 Text(group.title)
@@ -1521,7 +1521,7 @@ struct GroceryListScreen: View {
                     ContentUnavailableView {
                         Label("No stores enabled", systemImage: "basket")
                     } description: {
-                        Text("Enable a store to see its grocery list.")
+                        Text("Enable a store to see its shopping list.")
                     } actions: {
                         Button("Manage Stores") { showingStoreManagement = true }
                             .buttonStyle(.bordered)
@@ -1619,7 +1619,10 @@ struct GroceryListScreen: View {
                             }
                         }
                     } header: {
-                        if !items.isEmpty { Text("Groceries") }
+                        if !items.isEmpty {
+                            Text("Items", comment: "Section heading for shopping-list items at any retailer, not only groceries.")
+                                .accessibilityIdentifier("store-list-items-heading")
+                        }
                     }
                 }
             }
@@ -2569,7 +2572,7 @@ private struct ProductEntryEditor: UIViewRepresentable {
         view.isScrollEnabled = false
         view.returnKeyType = .continue
         view.accessibilityIdentifier = accessibilityIdentifier
-        view.accessibilityLabel = String(localized: "Type or paste groceries")
+        view.accessibilityLabel = String(localized: "Type or paste products")
         view.placeholder.text = String(localized: "Tap to add products…")
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return view
