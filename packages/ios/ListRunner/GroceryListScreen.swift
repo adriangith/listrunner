@@ -178,6 +178,16 @@ private struct WelcomeTransitionAnchor: UIViewRepresentable {
 
 // Shared presentation for store lists and the aggregate. Each screen supplies
 // its data/actions, not a second implementation of the page's visual structure.
+// SpatialTapGesture alone can accept a short drag. Give movement priority so a
+// small repositioning scroll cannot also become an outside tap-to-dismiss.
+private func entryDismissTap(_ action: @escaping (CGPoint) -> Void) -> some Gesture {
+    DragGesture(minimumDistance: 5, coordinateSpace: .global)
+        .exclusively(before: SpatialTapGesture(coordinateSpace: .global))
+        .onEnded { value in
+            if case .second(let tap) = value { action(tap.location) }
+        }
+}
+
 private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
     var isWelcome = false
     var keyboardDismissMode: ScrollDismissesKeyboardMode = .interactively
@@ -506,18 +516,26 @@ private struct ShoppingListItemRow<Actions: View>: View {
     let status: GroceryStatus
     let tint: Color
     let accessibilityLabel: String
+    var nativeSelection = false
     let onOpen: () -> Void
     @ViewBuilder let actions: () -> Actions
 
     var body: some View {
         HStack(spacing: 12) {
-            Button(action: onOpen) {
-                ListItemContent(name: name, quantity: quantity, ownerName: ownerName,
-                                unavailable: unavailable, status: status,
-                                tint: status == .skipped ? .secondary : tint)
+            if nativeSelection {
+                // UITableView cancels selection for a swipe or drag. A hosted
+                // SwiftUI Button can also fire on touch cancellation, opening
+                // the store over the Delete action underneath it.
+                itemContent
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(accessibilityLabel)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { onOpen() }
+            } else {
+                Button(action: onOpen) { itemContent }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(accessibilityLabel)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(accessibilityLabel)
             ListItemActions(name: name, actions: actions)
                 .buttonStyle(.borderless)
         }
@@ -526,13 +544,19 @@ private struct ShoppingListItemRow<Actions: View>: View {
         .padding(.vertical, 15)
         .tint(tint)
     }
+
+    private var itemContent: some View {
+        ListItemContent(name: name, quantity: quantity, ownerName: ownerName,
+                        unavailable: unavailable, status: status,
+                        tint: status == .skipped ? .secondary : tint)
+    }
 }
 
 private struct AllItemsAddButton: View {
     @ScaledMetric(relativeTo: .body) private var verticalPadding = 7.0
     let destination: StoreID?
     let stores: [StoreDefinition]
-    @Binding var destinationRawValue: String
+    let onChooseDestination: (StoreID) -> Void
     let canAdd: Bool
     let onAdd: () -> Void
     let onManageStores: () -> Void
@@ -554,7 +578,7 @@ private struct AllItemsAddButton: View {
                 Rectangle().fill(.white.opacity(0.35)).frame(width: 1, height: 26)
                 Menu {
                     ForEach(stores, id: \.id) { store in
-                        Button { destinationRawValue = store.id.rawValue } label: {
+                        Button { onChooseDestination(store.id) } label: {
                             if store.id == destination { Label(store.displayName, systemImage: "checkmark") }
                             else { Text(store.displayName) }
                         }
@@ -573,7 +597,7 @@ private struct AllItemsAddButton: View {
                 if stores.isEmpty { Button("Manage Stores", action: onManageStores) }
                 else {
                     ForEach(stores, id: \.id) { store in
-                        Button(store.displayName) { destinationRawValue = store.id.rawValue }
+                        Button(store.displayName) { onChooseDestination(store.id) }
                     }
                 }
             } label: {
@@ -678,6 +702,7 @@ private struct AllItemsGroupHeader: View {
     let openStore: StoreID?
     let onOpenStore: (StoreID) -> Void
     let onAdd: (StoreID) -> Void
+    var onAddFrame: (StoreID, CGRect) -> Void = { _, _ in }
 
     var body: some View {
         HStack {
@@ -709,6 +734,10 @@ private struct AllItemsGroupHeader: View {
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Add items to \(group.title)")
                 .accessibilityIdentifier("all-items-group-add-\(addStore.rawValue)")
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                    onAddFrame(addStore, $0)
+                }
+                .onDisappear { onAddFrame(addStore, .zero) }
             }
             Text(group.items.count, format: .number).foregroundStyle(.secondary)
         }
@@ -717,8 +746,235 @@ private struct AllItemsGroupHeader: View {
     }
 }
 
+// These measurements drive hit testing and imperative reveal corrections, not
+// view rendering. Updating them during a drag must not invalidate every group.
+@MainActor
+private final class AllItemsInteractionGeometry {
+    var editor: CGRect = .zero
+    var actions: CGRect = .zero
+    var groupAddButtons: [StoreID: CGRect] = [:]
+}
+
+private struct AllItemsGroupRegion<Content: View>: View {
+    let nativeRows: Bool
+    let order: [StoreID]
+    let reduceMotion: Bool
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        if nativeRows {
+            content()
+        } else {
+            Section {
+                // One native host row keeps section-slot reuse out of group
+                // reorders. SwiftUI moves the complete, stably identified cards.
+                VStack(spacing: 16, content: content)
+                    .frame(maxWidth: .infinity)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: order)
+                    .padding(.vertical, 1)
+            }
+            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        }
+    }
+}
+
+private struct AllItemsGroupCard<Content: View>: View {
+    let nativeRows: Bool
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        if nativeRows {
+            Section(content: content)
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
+        VStack(spacing: 0, content: content)
+            .frame(maxWidth: .infinity)
+            .background(Color(uiColor: .secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: 24))
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+    }
+}
+
+// Each browse card owns real native item rows, but never a second scrolling
+// surface. The outer List scrolls; this table supplies swipe actions and local
+// drag/drop while SwiftUI animates the complete card around it.
+private struct AllItemsItemRows<Row: View>: View {
+    let groupID: String
+    let items: [GroceryItem]
+    let canReorder: Bool
+    let onReorder: ([UUID], UUID?) -> Void
+    let onDelete: (GroceryItem) -> Void
+    let onSelect: (GroceryItem) -> Void
+    @ViewBuilder let row: (GroceryItem) -> Row
+    @State private var height: CGFloat = 0
+
+    var body: some View {
+        AllItemsItemTable(groupID: groupID, items: items, canReorder: canReorder,
+            onReorder: onReorder, onDelete: onDelete, onSelect: onSelect, onHeightChange: { value in
+                if abs(height - value) > 0.5 { height = value }
+            }, row: row)
+            .frame(height: height > 0 ? height : CGFloat(items.count) * 78)
+    }
+}
+
+private struct AllItemsItemTable<Row: View>: UIViewRepresentable {
+    let groupID: String
+    let items: [GroceryItem]
+    let canReorder: Bool
+    let onReorder: ([UUID], UUID?) -> Void
+    let onDelete: (GroceryItem) -> Void
+    let onSelect: (GroceryItem) -> Void
+    let onHeightChange: (CGFloat) -> Void
+    @ViewBuilder let row: (GroceryItem) -> Row
+
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    func makeUIView(context: Context) -> ContentTable {
+        let table = ContentTable(frame: .zero, style: .plain)
+        table.onHeightChange = onHeightChange
+        table.backgroundColor = .clear
+        table.isScrollEnabled = false
+        table.contentInsetAdjustmentBehavior = .never
+        table.rowHeight = UITableView.automaticDimension
+        table.estimatedRowHeight = 78
+        table.sectionHeaderHeight = 0
+        table.sectionFooterHeight = 0
+        table.sectionHeaderTopPadding = 0
+        table.separatorInset = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
+        table.dataSource = context.coordinator
+        table.delegate = context.coordinator
+        table.dragDelegate = context.coordinator
+        table.dropDelegate = context.coordinator
+        table.dragInteractionEnabled = canReorder
+        table.allowsSelection = true
+        table.register(UITableViewCell.self, forCellReuseIdentifier: "item")
+        table.reloadData()
+        return table
+    }
+
+    func updateUIView(_ table: ContentTable, context: Context) {
+        let changed = context.coordinator.items.map(\.id) != items.map(\.id)
+        context.coordinator.parent = self
+        context.coordinator.items = items
+        table.onHeightChange = onHeightChange
+        table.dragInteractionEnabled = canReorder
+        if changed {
+            table.reloadData()
+        } else {
+            for path in table.indexPathsForVisibleRows ?? [] {
+                if let cell = table.cellForRow(at: path) { context.coordinator.configure(cell, at: path) }
+            }
+        }
+    }
+
+    final class ContentTable: UITableView {
+        var onHeightChange: ((CGFloat) -> Void)?
+        private var heightUpdateScheduled = false
+
+        override var contentSize: CGSize {
+            didSet {
+                guard abs(oldValue.height - contentSize.height) > 0.5, !heightUpdateScheduled else { return }
+                heightUpdateScheduled = true
+                // Never lay out hosting cells synchronously from SwiftUI's
+                // sizeThatFits: that re-enters its active AttributeGraph pass.
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.heightUpdateScheduled = false
+                    if self.contentSize.height > 0 { self.onHeightChange?(self.contentSize.height) }
+                }
+            }
+        }
+    }
+
+    final class Coordinator: NSObject, UITableViewDataSource, UITableViewDelegate, UITableViewDragDelegate, UITableViewDropDelegate {
+        var parent: AllItemsItemTable
+        var items: [GroceryItem]
+
+        init(parent: AllItemsItemTable) { self.parent = parent; items = parent.items }
+
+        func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { items.count }
+        func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool { true }
+        func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool { parent.canReorder }
+
+        func configure(_ cell: UITableViewCell, at indexPath: IndexPath) {
+            guard items.indices.contains(indexPath.row) else { return }
+            let item = items[indexPath.row]
+            cell.backgroundColor = .clear
+            cell.selectionStyle = .none
+            cell.contentConfiguration = UIHostingConfiguration { parent.row(item) }.margins(.all, 0)
+        }
+
+        func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+            let cell = tableView.dequeueReusableCell(withIdentifier: "item", for: indexPath)
+            configure(cell, at: indexPath)
+            return cell
+        }
+
+        func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+            tableView.deselectRow(at: indexPath, animated: false)
+            guard items.indices.contains(indexPath.row) else { return }
+            parent.onSelect(items[indexPath.row])
+        }
+
+        func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+            guard items.indices.contains(indexPath.row) else { return nil }
+            let item = items[indexPath.row]
+            let action = UIContextualAction(style: .destructive, title: String(localized: "Delete")) { [weak self] _, _, done in
+                guard let self, self.items.contains(where: { $0.id == item.id }) else { done(false); return }
+                self.parent.onDelete(item)
+                done(true)
+            }
+            action.image = UIImage(systemName: "trash")
+            let actions = UISwipeActionsConfiguration(actions: [action])
+            actions.performsFirstActionWithFullSwipe = false
+            return actions
+        }
+
+        func tableView(_ tableView: UITableView, itemsForBeginning session: UIDragSession, at indexPath: IndexPath) -> [UIDragItem] {
+            guard parent.canReorder, items.indices.contains(indexPath.row) else { return [] }
+            let item = items[indexPath.row]
+            session.localContext = parent.groupID
+            let drag = UIDragItem(itemProvider: NSItemProvider(object: item.id.uuidString as NSString))
+            drag.localObject = item.id
+            return [drag]
+        }
+
+        func tableView(_ tableView: UITableView, dragSessionIsRestrictedToDraggingApplication session: UIDragSession) -> Bool { true }
+
+        func tableView(_ tableView: UITableView, canHandle session: UIDropSession) -> Bool {
+            parent.canReorder && (session.localDragSession?.localContext as? String) == parent.groupID
+        }
+
+        func tableView(_ tableView: UITableView, dropSessionDidUpdate session: UIDropSession,
+                       withDestinationIndexPath destinationIndexPath: IndexPath?) -> UITableViewDropProposal {
+            UITableViewDropProposal(operation: self.tableView(tableView, canHandle: session) ? .move : .forbidden,
+                                    intent: .insertAtDestinationIndexPath)
+        }
+
+        func tableView(_ tableView: UITableView, performDropWith coordinator: UITableViewDropCoordinator) {
+            guard self.tableView(tableView, canHandle: coordinator.session),
+                  let drop = coordinator.items.first, let id = drop.dragItem.localObject as? UUID,
+                  let source = items.firstIndex(where: { $0.id == id }) else { return }
+            let destination = min(coordinator.destinationIndexPath?.row ?? items.count - 1, items.count - 1)
+            guard destination >= 0 else { return }
+            let item = items.remove(at: source)
+            items.insert(item, at: destination)
+            tableView.moveRow(at: IndexPath(row: source, section: 0), to: IndexPath(row: destination, section: 0))
+            parent.onReorder([id], items.indices.contains(destination + 1) ? items[destination + 1].id : nil)
+            coordinator.drop(drop.dragItem, toRowAt: IndexPath(row: destination, section: 0))
+        }
+    }
+}
+
 private struct AllItemsScreen: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \GroceryItem.position) private var allItems: [GroceryItem]
     @Query private var lists: [GroceryList]
     @ObservedObject var sessions: StoreSessions
@@ -734,8 +990,11 @@ private struct AllItemsScreen: View {
     @State private var notice: String?
     @State private var showingStoreManagement = false
     @State private var showingSettings = false
+    @State private var editMode = EditMode.inactive
     @State private var workingStoreID: StoreID?
+    @State private var workingStoreOrder: [StoreID] = []
     @State private var groupAddRequest: UUID?
+    @State private var groupAddFocusRequest: UUID?
     @State private var clearRequest: AllItemsClearRequest?
     @State private var editingItem: GroceryItem?
     @State private var shoppingDestination: StoreID?
@@ -745,11 +1004,10 @@ private struct AllItemsScreen: View {
     @State private var entryFocused = false
     @State private var entryFocus = ProductEntryFocus()
     @State private var listViewportFrame: CGRect = .zero
-    @State private var entryFrame: CGRect = .zero
-    @State private var actionsFrame: CGRect = .zero
+    @State private var interactionGeometry = AllItemsInteractionGeometry()
     @State private var entryRevealTask: Task<Void, Never>?
-    @State private var isRevealingEntry = false
     @State private var entryRevealSuppressed = false
+    @State private var isRevealingEntry = false
     @State private var scrollTargetItemID: UUID?
     @State private var itemFrames: [UUID: CGRect] = [:]
     @State private var addedItemScrollTask: Task<Void, Never>?
@@ -761,6 +1019,9 @@ private struct AllItemsScreen: View {
 
     private var grouping: AllItemsGrouping {
         AllItemsGrouping(rawValue: groupingRawValue) ?? .store
+    }
+    private var usesNativeGroupRows: Bool {
+        editMode.isEditing
     }
     private var shoppingVisibleIDs: Set<StoreID> {
         sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs)
@@ -811,14 +1072,16 @@ private struct AllItemsScreen: View {
                     if left.position == right.position { return left.id.uuidString < right.id.uuidString }
                     return left.position < right.position
                 }
-                if !values.isEmpty {
+                if !values.isEmpty || (!editMode.isEditing && workingStoreID == id && shoppingVisibleIDs.contains(id)) {
                     known.append(AllItemsGroup(id: "store-\(id.rawValue)", title: id.displayName, storeIDs: [id], items: values))
                 }
             }
             known.sort { lhs, rhs in
-                let leftWorking = lhs.storeIDs.first == workingStoreID
-                let rightWorking = rhs.storeIDs.first == workingStoreID
-                if leftWorking != rightWorking { return leftWorking }
+                if workingStoreID != nil {
+                    let left = lhs.storeIDs.first.flatMap { workingStoreOrder.firstIndex(of: $0) } ?? Int.max
+                    let right = rhs.storeIDs.first.flatMap { workingStoreOrder.firstIndex(of: $0) } ?? Int.max
+                    if left != right { return left < right }
+                }
                 let li = groupRank(lhs), ri = groupRank(rhs)
                 return li == ri ? lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending : li < ri
             }
@@ -861,6 +1124,7 @@ private struct AllItemsScreen: View {
                 revealFocusedEntry()
                 if let id = scrollTargetItemID { scrollToAddedItem(id, using: proxy) }
             }, onManualScroll: {
+                groupAddRequest = nil
                 entryRevealTask?.cancel()
                 entryRevealSuppressed = true
                 addedItemScrollTask?.cancel()
@@ -909,12 +1173,12 @@ private struct AllItemsScreen: View {
                     entryRevealSuppressed = false
                     revealFocusedEntry()
                 }, onEditorFrame: { frame in
-                    let heightChanged = abs(entryFrame.height - frame.height) > 0.5
-                    entryFrame = frame
+                    let heightChanged = abs(interactionGeometry.editor.height - frame.height) > 0.5
+                    interactionGeometry.editor = frame
                     if heightChanged { revealFocusedEntry() }
-                }, onActionsFrame: { actionsFrame = $0 }) {
+                }, onActionsFrame: { interactionGeometry.actions = $0 }) {
                     AllItemsAddButton(destination: destinationID, stores: visibleStores,
-                        destinationRawValue: $destinationRawValue,
+                         onChooseDestination: selectAddDestination,
                         canAdd: !ParsedGrocery.productEntries(in: draft).isEmpty,
                         onAdd: addItems, onManageStores: { showingStoreManagement = true })
                 }
@@ -929,8 +1193,9 @@ private struct AllItemsScreen: View {
                                        description: Text("Add products above, or choose a store list."))
                     .listRowBackground(Color.clear)
             } else {
+                AllItemsGroupRegion(nativeRows: usesNativeGroupRows, order: workingStoreOrder, reduceMotion: reduceMotion) {
                 ForEach(groups) { group in
-                    Section {
+                    AllItemsGroupCard(nativeRows: usesNativeGroupRows) {
                         AllItemsGroupHeader(group: group,
                             tint: grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary,
                             addStore: grouping == .store
@@ -938,26 +1203,28 @@ private struct AllItemsScreen: View {
                             openStore: grouping == .store
                                 ? group.storeIDs.first.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil } : nil,
                             onOpenStore: onChooseStoreList,
-                            onAdd: beginAdding)
-                        .id(group.id)
+                            onAdd: { store in
+                                // Let this tap finish before moving its button.
+                                // Otherwise outside-tap dismissal can compare
+                                // the original touch with its new frame.
+                                DispatchQueue.main.async { beginAdding(to: store, using: proxy) }
+                            },
+                            onAddFrame: { interactionGeometry.groupAddButtons[$0] = $1 })
+                        .padding(.horizontal, usesNativeGroupRows ? 0 : 20)
+                        .padding(.vertical, usesNativeGroupRows ? 0 : 4)
                         .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20))
-                        ForEach(group.items, id: \.id) { item in
-                            allItemRow(item)
-                                .id(item.id)
-                                .onGeometryChange(for: CGRect?.self) { geometry in
-                                    scrollTargetItemID == item.id ? geometry.frame(in: .global) : nil
-                                } action: { frame in
-                                    guard let frame, scrollTargetItemID == item.id else { return }
-                                    itemFrames[item.id] = frame
-                                    scrollToAddedItem(item.id, using: proxy)
-                                }
-                                .onAppear {
-                                    if scrollTargetItemID == item.id { scrollToAddedItem(item.id, using: proxy) }
-                                }
-                                .listRowBackground(highlightedItemIDs.contains(item.id)
-                                    ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
-                                .listRowInsets(ListItemRowLayout.insets)
+                        if group.items.isEmpty {
+                            Text("No items yet. Add products above.")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, usesNativeGroupRows ? 0 : 20)
+                                .padding(.vertical, 16)
+                                .accessibilityIdentifier("all-items-empty-\(group.id)")
+                        } else {
+                            if !usesNativeGroupRows { Divider().padding(.horizontal, 16) }
+                            groupItemRows(group, using: proxy)
                         }
+                        if !group.items.isEmpty {
                         ClearListButton {
                             entryFocused = false
                             entryFocus.resignFirstResponder()
@@ -981,7 +1248,11 @@ private struct AllItemsScreen: View {
                                 Text("This clears only items shown in the \(group.title) category in ListRunner, across its store lists. It does not change any store cart or Apple Reminders.")
                             }
                         }
+                        }
                     }
+                    .id(group.id)
+                    .zIndex(!editMode.isEditing && group.storeIDs.first == workingStoreID ? 1 : 0)
+                }
                 }
             }
             if let notice {
@@ -998,24 +1269,49 @@ private struct AllItemsScreen: View {
                 entryRevealSuppressed = true
                 entryRevealTask?.cancel()
                 scrollTargetItemID = itemID
-                withAnimation { proxy.scrollTo(itemID, anchor: .bottom) }
+                if usesNativeGroupRows {
+                    withAnimation { proxy.scrollTo(itemID, anchor: .bottom) }
+                } else {
+                    scrollToAddedItem(itemID, using: proxy)
+                }
             }
-        }
-        .task(id: groupAddRequest) {
-            guard groupAddRequest != nil, let workingStoreID,
-                  shoppingVisibleIDs.contains(workingStoreID) else { return }
-            // The entry is part of this List, not a second pinned composer.
-            // Reveal it first; the shared card correction handles keyboard layout.
-            proxy.scrollTo("product-entry-editor", anchor: .top)
-            await Task.yield()
-            guard !Task.isCancelled else { return }
-            entryRevealSuppressed = false
-            entryFocused = true
-            revealFocusedEntry()
         }
         .onChange(of: groupingRawValue) { _, _ in
             workingStoreID = nil
             groupAddRequest = nil
+        }
+        .task(id: groupAddFocusRequest) {
+            guard let request = groupAddFocusRequest else { return }
+            // A section move can preserve List's old visible-row anchor and
+            // displace the editor after the simultaneous scroll. Resolve its
+            // stable row ID again against the finished section layout.
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) {
+                proxy.scrollTo("product-entry-editor", anchor: .top)
+            }
+            // List can attach/reuse the editor after the section animation has
+            // completed. Keep the intent until UIKit actually accepts focus,
+            // rather than treating a SwiftUI Boolean as an acknowledgement.
+            for _ in 0..<20 {
+                guard !Task.isCancelled, groupAddRequest == request,
+                      !showingSettings, !showingStoreManagement,
+                      editingItem == nil, shoppingDestination == nil,
+                      importDestination == nil, clearRequest == nil else { return }
+                if let editor = entryFocus.view, editor.window != nil {
+                    entryFocused = true
+                    if !editor.isFirstResponder { editor.becomeFirstResponder() }
+                    await Task.yield()
+                    guard !Task.isCancelled, groupAddRequest == request else { return }
+                    if entryFocus.view === editor, editor.isFirstResponder {
+                        groupAddRequest = nil
+                        entryRevealSuppressed = false
+                        revealFocusedEntry()
+                        return
+                    }
+                }
+                do { try await Task.sleep(for: .milliseconds(50)) }
+                catch { return }
+            }
+            if groupAddRequest == request { groupAddRequest = nil }
         }
         .onChange(of: destinationRawValue) { _, value in
             if let workingStoreID, workingStoreID.rawValue != value {
@@ -1052,6 +1348,29 @@ private struct AllItemsScreen: View {
                 entryFocus.resignFirstResponder()
                 showingSettings = true
             }
+        }
+        .environment(\.editMode, $editMode)
+        .simultaneousGesture(
+            entryDismissTap { location in
+                guard entryFocused,
+                      !interactionGeometry.editor.contains(location),
+                      !interactionGeometry.actions.contains(location),
+                      !interactionGeometry.groupAddButtons.values.contains(where: { $0.contains(location) }) else { return }
+                groupAddRequest = nil
+                entryFocused = false
+            },
+            including: entryFocused && !showingSettings && !showingStoreManagement
+                && shoppingDestination == nil && importDestination == nil ? .all : .subviews
+        )
+        .onChange(of: editMode) { _, value in
+            if value.isEditing {
+                groupAddRequest = nil
+                entryFocused = false
+                entryFocus.resignFirstResponder()
+            }
+        }
+        .onChange(of: allItems.isEmpty) { _, isEmpty in
+            if isEmpty { editMode = .inactive }
         }
         .navigationDestination(isPresented: $showingSettings) {
             SettingsOverviewScreen(sessions: sessions, visibility: visibility,
@@ -1120,10 +1439,66 @@ private struct AllItemsScreen: View {
             }
         }
         .onDisappear {
+            if let workingStoreID, !allItems.contains(where: { $0.listID == workingStoreID.listID }) {
+                self.workingStoreID = nil
+            }
+            groupAddRequest = nil
             entryRevealTask?.cancel()
             addedItemScrollTask?.cancel()
             addedItemScrollTask = nil
             scrollTargetItemID = nil
+        }
+    }
+
+    @ViewBuilder
+    private func groupItemRows(_ group: AllItemsGroup, using proxy: ScrollViewProxy) -> some View {
+        if usesNativeGroupRows {
+            ForEach(group.items, id: \.id) { item in
+                groupItemRow(item, using: proxy)
+            }
+            .onMove(perform: grouping == .store && group.storeIDs.count == 1 ? { source, destination in
+                moveItems(in: group, from: source, to: destination)
+            } : nil)
+        } else {
+            AllItemsItemRows(groupID: group.id, items: group.items,
+                canReorder: grouping == .store && group.storeIDs.count == 1,
+                onReorder: { reorderItems($0, before: $1, in: group) }, onDelete: delete,
+                onSelect: openAllItem) { item in
+                    groupItemRow(item, using: proxy)
+                }
+        }
+    }
+
+    @ViewBuilder
+    private func groupItemRow(_ item: GroceryItem, using proxy: ScrollViewProxy) -> some View {
+        let row = allItemRow(item, nativeSelection: !usesNativeGroupRows)
+            .padding(.horizontal, usesNativeGroupRows ? 0 : 16)
+            .background(highlightedItemIDs.contains(item.id) ? Color.accentColor.opacity(0.12) : Color.clear)
+            .id(item.id)
+            .onGeometryChange(for: CGRect?.self) { geometry in
+                scrollTargetItemID == item.id ? geometry.frame(in: .global) : nil
+            } action: { frame in
+                guard let frame, scrollTargetItemID == item.id else { return }
+                itemFrames[item.id] = frame
+                scrollToAddedItem(item.id, using: proxy)
+            }
+            .onAppear {
+                if scrollTargetItemID == item.id { scrollToAddedItem(item.id, using: proxy) }
+            }
+            .listRowBackground(highlightedItemIDs.contains(item.id)
+                ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
+            .listRowInsets(ListItemRowLayout.insets)
+        if usesNativeGroupRows {
+            row.swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button("Delete", systemImage: "trash", role: .destructive) { delete(item) }
+                    .accessibilityHint("Removes this item from ListRunner only, not the store cart")
+                    .accessibilityIdentifier("all-items-delete-\(item.id.uuidString)")
+            }
+        } else {
+            // Browse items already have UITableView contextual actions. A
+            // SwiftUI swipeActions trait here bubbles up to the outer List's
+            // shared host cell, making every header swipe expose all Deletes.
+            row
         }
     }
 
@@ -1132,25 +1507,76 @@ private struct AllItemsScreen: View {
         guard entryFocused, !entryRevealSuppressed else { return }
         entryRevealTask = entryFocus.revealCard(geometry: {
             guard entryFocused, !entryRevealSuppressed else { return nil }
-            return ProductEntryRevealGeometry(editor: entryFrame, actions: actionsFrame,
-                                             viewport: listViewportFrame)
+            return ProductEntryRevealGeometry(editor: interactionGeometry.editor, actions: interactionGeometry.actions,
+                                              viewport: listViewportFrame)
         }, onRevealing: { isRevealingEntry = $0 })
     }
 
-    private func beginAdding(to store: StoreID) {
-        guard grouping == .store, shoppingVisibleIDs.contains(store) else { return }
+    private func selectAddDestination(_ store: StoreID) {
+        guard shoppingVisibleIDs.contains(store) else { return }
+        groupAddRequest = nil
+        groupAddFocusRequest = nil
+        let promotedOrder = workingOrder(promoting: store)
+        destinationRawValue = store.rawValue
+        guard grouping == .store, !editMode.isEditing else { return }
+        // Changing destination is not a request to open/dismiss the keyboard or
+        // submit the draft. Animate only the same temporary group priority.
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4)) {
+            workingStoreOrder = promotedOrder
+            workingStoreID = store
+        }
+    }
+
+    private func workingOrder(promoting store: StoreID) -> [StoreID] {
+        [store] + groups.compactMap { $0.storeIDs.first }.filter { $0 != store }
+    }
+
+    private func beginAdding(to store: StoreID, using proxy: ScrollViewProxy) {
+        guard grouping == .store, !editMode.isEditing, shoppingVisibleIDs.contains(store) else { return }
         addedItemScrollTask?.cancel()
         addedItemScrollTask = nil
         scrollTargetItemID = nil
         itemFrames.removeAll(keepingCapacity: true)
         highlightedItemIDs.removeAll()
         entryRevealTask?.cancel()
-        entryRevealSuppressed = false
+        // Do not let keyboard/viewport corrections compete with the move.
+        // Keep an existing first responder, but defer new focus until it finishes.
+        entryRevealSuppressed = true
         destinationRawValue = store.rawValue
+        let request = UUID()
+        groupAddRequest = request
+        groupAddFocusRequest = nil
+        // Promote within the currently displayed order, not the saved recency
+        // order: the old first group becomes second, with no long-distance swap.
+        let promotedOrder = workingOrder(promoting: store)
         // This is a temporary working-group priority, not a fabricated add event.
         // Saved recency is updated only by the existing successful add/import path.
-        workingStoreID = store
-        groupAddRequest = UUID()
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.4), completionCriteria: .removed) {
+            workingStoreOrder = promotedOrder
+            workingStoreID = store
+        } completion: {
+            DispatchQueue.main.async { finishGroupAdd(request, to: store) }
+        }
+        if reduceMotion {
+            proxy.scrollTo("product-entry-editor", anchor: .top)
+        } else {
+            // List's scrollTo can synchronously relayout its host row and
+            // consume the card animation if both start in the same update.
+            // Give the card its first rendered frames, then overlap the scroll.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                guard groupAddRequest == request else { return }
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    proxy.scrollTo("product-entry-editor", anchor: .top)
+                }
+            }
+        }
+    }
+
+    private func finishGroupAdd(_ request: UUID, to store: StoreID) {
+        guard groupAddRequest == request, workingStoreID == store,
+              destinationID == store, !editMode.isEditing,
+              shoppingVisibleIDs.contains(store) else { return }
+        groupAddFocusRequest = request
     }
 
     private func scrollToAddedItem(_ id: UUID, using proxy: ScrollViewProxy) {
@@ -1163,32 +1589,28 @@ private struct AllItemsScreen: View {
             guard let target = itemFrames[id] else { return nil }
             return ListItemRevealGeometry(target: target, viewport: listViewportFrame)
         }, scroll: { anchor, animated in
-            withAnimation(animated ? .easeInOut(duration: 0.35) : nil) { proxy.scrollTo(id, anchor: anchor) }
+            if !usesNativeGroupRows, let frame = itemFrames[id] {
+                // Browse cards share a native host row; scroll to the measured
+                // item, not to the bottom of that entire native cell.
+                let adjustment = anchor == .bottom
+                    ? frame.maxY - listViewportFrame.maxY : frame.minY - listViewportFrame.minY
+                entryFocus.adjustListOffset(by: adjustment, animated: animated, requiresFocus: false)
+            } else {
+                withAnimation(animated ? .easeInOut(duration: 0.35) : nil) { proxy.scrollTo(id, anchor: anchor) }
+            }
         }, finished: {
             if addedItemScrollRequestID == requestID { addedItemScrollTask = nil }
         })
     }
 
-    private func allItemRow(_ item: GroceryItem) -> some View {
+    private func allItemRow(_ item: GroceryItem, nativeSelection: Bool = false) -> some View {
         let owner = StoreID.allCases.first { $0.listID == item.listID }
         let available = owner.map { shoppingVisibleIDs.contains($0) } ?? false
         return ShoppingListItemRow(name: item.name, quantity: item.displayQuantity,
             ownerName: owner?.displayName ?? "Uncategorised", unavailable: !available,
             status: item.status, tint: owner.map(storeTint) ?? .accentColor,
             accessibilityLabel: "\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(owner.map { ", \($0.displayName)" } ?? ", Uncategorised")\(available ? "" : ", Unavailable")",
-            onOpen: {
-                guard let owner else {
-                    notice = "This saved item has no recognized store list. It remains visible and has not been moved or deleted."
-                    return
-                }
-                guard available else {
-                    notice = "Shopping with \(owner.displayName) is unavailable. This saved item remains editable here; use its Actions menu to edit or move it."
-                    return
-                }
-                let list = lists.first { $0.id == owner.listID }
-                list?.selectedItemID = item.id
-                if saveChanges() { shoppingDestination = owner }
-            }) {
+            nativeSelection: nativeSelection, onOpen: { openAllItem(item) }) {
                 Button("Edit Item", systemImage: "pencil") { editingItem = item }
                 if item.status == .pending {
                     Button("Mark Added", systemImage: "checkmark.circle") { setStatus(.added, for: item) }
@@ -1207,12 +1629,51 @@ private struct AllItemsScreen: View {
                     }
                 Button("Delete Item", systemImage: "trash", role: .destructive) { delete(item) }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("all-item-\(item.id.uuidString)")
+    }
+
+    private func openAllItem(_ item: GroceryItem) {
+        guard !editMode.isEditing else { editingItem = item; return }
+        guard let owner = StoreID.allCases.first(where: { $0.listID == item.listID }) else {
+            notice = "This saved item has no recognized store list. It remains visible and has not been moved or deleted."
+            return
+        }
+        guard shoppingVisibleIDs.contains(owner) else {
+            notice = "Shopping with \(owner.displayName) is unavailable. This saved item remains editable here; use its Actions menu to edit or move it."
+            return
+        }
+        let list = lists.first { $0.id == owner.listID }
+        list?.selectedItemID = item.id
+        if saveChanges() { shoppingDestination = owner }
     }
 
     private func setStatus(_ status: GroceryStatus, for item: GroceryItem) {
         item.status = status
         stageReminderWriteback(for: item)
+        saveChanges()
+    }
+
+    private func moveItems(in group: AllItemsGroup, from source: IndexSet, to destination: Int) {
+        guard grouping == .store, group.storeIDs.count == 1 else { return }
+        var orderedItems = group.items
+        orderedItems.move(fromOffsets: source, toOffset: destination)
+        for (position, item) in orderedItems.enumerated() {
+            item.position = position
+        }
+        saveChanges()
+    }
+
+    private func reorderItems(_ sources: [UUID], before destination: UUID?, in group: AllItemsGroup) {
+        guard grouping == .store, group.storeIDs.count == 1, let store = group.storeIDs.first else { return }
+        let current = allItems.filter { $0.listID == store.listID }.sorted {
+            $0.position == $1.position ? $0.id.uuidString < $1.id.uuidString : $0.position < $1.position
+        }
+        // A drag from another card must never become a cross-store transfer.
+        guard let order = ShoppingLists.reorderedIDs(current.map(\.id), moving: sources, before: destination),
+              order != current.map(\.id) else { return }
+        let byID = Dictionary(uniqueKeysWithValues: current.map { ($0.id, $0) })
+        for (position, id) in order.enumerated() { byID[id]?.position = position }
         saveChanges()
     }
 
@@ -1765,10 +2226,10 @@ struct GroceryListScreen: View {
         }
         #endif
         .simultaneousGesture(
-            SpatialTapGesture(coordinateSpace: .global).onEnded { value in
+            entryDismissTap { location in
                 guard groceryInputFocused,
-                      !groceryInputFrame.contains(value.location),
-                      !addItemsButtonFrame.contains(value.location) else { return }
+                      !groceryInputFrame.contains(location),
+                      !addItemsButtonFrame.contains(location) else { return }
                 groceryInputFocused = false
             },
             // An inactive recognizer can still interfere with UIKit table-row
@@ -2513,8 +2974,8 @@ private final class ProductEntryFocus {
         }
     }
 
-    func adjustListOffset(by adjustment: CGFloat) {
-        guard let view, view.isFirstResponder else { return }
+    func adjustListOffset(by adjustment: CGFloat, animated: Bool = true, requiresFocus: Bool = true) {
+        guard let view, !requiresFocus || view.isFirstResponder else { return }
         var ancestor = view.superview
         while let candidate = ancestor {
             if let list = candidate as? UICollectionView {
@@ -2522,7 +2983,7 @@ private final class ProductEntryFocus {
                 let minimum = -list.adjustedContentInset.top
                 let maximum = max(minimum, list.contentSize.height - list.bounds.height + list.adjustedContentInset.bottom)
                 let offset = min(maximum, max(minimum, list.contentOffset.y + adjustment))
-                list.setContentOffset(CGPoint(x: list.contentOffset.x, y: offset), animated: true)
+                list.setContentOffset(CGPoint(x: list.contentOffset.x, y: offset), animated: animated)
                 return
             }
             ancestor = candidate.superview
@@ -2573,12 +3034,16 @@ private struct ProductEntryEditor: UIViewRepresentable {
         view.returnKeyType = .continue
         view.accessibilityIdentifier = accessibilityIdentifier
         view.accessibilityLabel = String(localized: "Type or paste products")
+        view.onWindowAttachment = { [weak coordinator = context.coordinator] view in
+            coordinator?.synchronizeFocus(for: view)
+        }
         view.placeholder.text = String(localized: "Tap to add products…")
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return view
     }
 
     func updateUIView(_ view: EntryTextView, context: Context) {
+        focusControl.view = view
         context.coordinator.parent = self
         if view.text != text {
             view.text = text
@@ -2620,7 +3085,8 @@ private struct ProductEntryEditor: UIViewRepresentable {
             DispatchQueue.main.async { [weak self, weak view] in
                 guard let self else { return }
                 self.focusUpdateScheduled = false
-                guard !self.isDismantled, let view, view.window != nil else { return }
+                guard !self.isDismantled, let view, view.window != nil,
+                      self.parent.focusControl.view === view else { return }
                 if self.parent.isFocused && !view.isFirstResponder { view.becomeFirstResponder() }
                 else if !self.parent.isFocused && view.isFirstResponder { view.resignFirstResponder() }
             }
@@ -2639,15 +3105,26 @@ private struct ProductEntryEditor: UIViewRepresentable {
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
+            guard !isDismantled, parent.focusControl.view === textView else { return }
             if !parent.isFocused { parent.isFocused = true }
         }
         func textViewDidEndEditing(_ textView: UITextView) {
+            // A recycled editor must not clear the replacement editor's focus.
+            guard !isDismantled, parent.focusControl.view === textView else { return }
             if parent.isFocused { parent.isFocused = false }
         }
     }
 
     final class EntryTextView: UITextView {
         let placeholder = UILabel()
+        var onWindowAttachment: ((EntryTextView) -> Void)?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            // A lazy List can update the editor before attaching its cell. Retry
+            // the desired focus on attachment instead of waiting for a scroll.
+            if window != nil { onWindowAttachment?(self) }
+        }
         #if DEBUG
         static var lastFocusUpdateAnimationsEnabled: Bool?
         static var lastResignAnimationsEnabled: Bool?

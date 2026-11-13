@@ -15,6 +15,19 @@ struct RecoveryTests {
         }
 
         let resources = URL(fileURLWithPath: CommandLine.arguments[1])
+        let reorderA = UUID(), reorderB = UUID(), reorderC = UUID(), foreignID = UUID()
+        let reorderInput = [reorderA, reorderB, reorderC]
+        check(ShoppingLists.reorderedIDs(reorderInput, moving: [reorderC], before: reorderA)
+              == [reorderC, reorderA, reorderB], "long-press move inserts before its target")
+        check(ShoppingLists.reorderedIDs(reorderInput, moving: [reorderA], before: nil)
+              == [reorderB, reorderC, reorderA], "long-press move can append within its store")
+        check(ShoppingLists.reorderedIDs(reorderInput, moving: [reorderC, reorderA], before: reorderB)
+              == [reorderA, reorderC, reorderB], "multi-item moves retain source-list order")
+        check(ShoppingLists.reorderedIDs(reorderInput, moving: [foreignID], before: reorderA) == nil
+              && ShoppingLists.reorderedIDs(reorderInput, moving: [reorderA], before: foreignID) == nil,
+              "dragging across store boundaries cannot transfer or lose items")
+        check(ShoppingLists.reorderedIDs(reorderInput, moving: [reorderA], before: reorderA) == nil,
+              "dropping onto a moving item is ignored")
         let addData = try ShoppingLists.open(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
         let addContext = addData.mainContext
         addContext.autosaveEnabled = false

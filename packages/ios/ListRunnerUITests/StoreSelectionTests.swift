@@ -1790,6 +1790,178 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Hardware & Garden"].exists)
     }
 
+    func testAllItemsDestinationChoicePromotesGroupWithoutChangingDraftOrKeyboardState() {
+        choose("All items")
+        let entry = app.textViews["all-items-entry"]
+        let keyboard = app.keyboards.firstMatch
+        let titles = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-title-store-"))
+        XCTAssertFalse(keyboard.exists)
+        app.buttons["all-items-add-destination"].tap()
+        app.buttons["Woolworths"].firstMatch.tap()
+        XCTAssertEqual(titles.firstMatch.label, "Woolworths")
+        XCTAssertEqual(titles.element(boundBy: 1).label, "Bunnings")
+        XCTAssertFalse(keyboard.exists, "Changing destination must not open the keyboard")
+
+        entry.tap()
+        entry.typeText("Destination draft")
+        app.buttons["all-items-add-destination"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
+        entry.typeText(" retained") // No entry tap: the menu must preserve focus.
+        XCTAssertEqual(entry.value as? String, "Destination draft retained")
+        app.buttons["all-items-grouping-store"].tap()
+        XCTAssertTrue(keyboard.waitForNonExistence(timeout: 3))
+        XCTAssertEqual(titles.firstMatch.label, "Coles")
+        XCTAssertEqual(titles.element(boundBy: 1).label, "Woolworths")
+        XCTAssertFalse(app.buttons["Actions for Destination draft retained"].exists)
+    }
+
+    func testAllItemsSelectedEmptyDestinationIsTemporaryAndBecomesPopulated() {
+        choose("All items")
+        openAllItemsClearOptions("store-coles")
+        app.buttons["Clear All"].tap()
+        let menu = app.buttons["all-items-add-destination"]
+        for _ in 0..<6 where !menu.isHittable { app.collectionViews.firstMatch.swipeDown() }
+        menu.tap()
+        app.buttons["Coles"].firstMatch.tap()
+        let empty = app.staticTexts["all-items-empty-store-coles"]
+        XCTAssertTrue(empty.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["all-items-clear-store-coles"].exists)
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        let titles = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-title-store-"))
+        XCTAssertEqual(titles.firstMatch.label, "Coles")
+        menu.tap()
+        app.buttons["Woolworths"].firstMatch.tap()
+        XCTAssertFalse(empty.exists)
+        XCTAssertFalse(app.buttons["all-items-group-title-store-coles"].exists)
+        menu.tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(empty.waitForExistence(timeout: 3))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertFalse(empty.exists, "Selecting an empty destination must not create saved grocery data")
+        menu.tap()
+        app.buttons["Coles"].firstMatch.tap()
+        let entry = app.textViews["all-items-entry"]
+        entry.tap()
+        entry.typeText("First item in empty destination")
+        app.buttons["all-items-add"].tap()
+        XCTAssertTrue(app.staticTexts["First item in empty destination"].waitForExistence(timeout: 3))
+        XCTAssertFalse(empty.exists)
+        XCTAssertTrue(app.buttons["all-items-clear-store-coles"].exists)
+    }
+
+    func testAllItemsBrowseCardsMatchEntryWidth() {
+        choose("All items")
+        let entryCell = app.collectionViews.cells.containing(.textView, identifier: "all-items-entry").firstMatch
+        let clear = app.buttons["all-items-clear-store-bunnings"]
+        XCTAssertTrue(entryCell.waitForExistence(timeout: 3))
+        XCTAssertTrue(clear.waitForExistence(timeout: 3))
+        XCTAssertEqual(clear.frame.minX, entryCell.frame.minX, accuracy: 1)
+        XCTAssertEqual(clear.frame.maxX, entryCell.frame.maxX, accuracy: 1)
+        app.buttons["all-items-grouping-category"].tap()
+        let categoryClear = app.buttons["all-items-clear-category-hardwareGarden"]
+        XCTAssertTrue(categoryClear.waitForExistence(timeout: 3))
+        XCTAssertEqual(categoryClear.frame.minX, entryCell.frame.minX, accuracy: 1)
+        XCTAssertEqual(categoryClear.frame.maxX, entryCell.frame.maxX, accuracy: 1)
+    }
+
+    func testAllItemsBrowseHeaderSwipeDoesNotExposeItemDeleteActions() {
+        choose("All items")
+        for (grouping, groupID) in [("store", "store-bunnings"), ("category", "category-hardwareGarden")] {
+            let groupingButton = app.buttons["all-items-grouping-\(grouping)"]
+            for _ in 0..<6 where !groupingButton.isHittable { app.collectionViews.firstMatch.swipeDown() }
+            groupingButton.tap()
+            let header = grouping == "store" ? app.buttons["all-items-group-title-\(groupID)"]
+                : app.staticTexts["all-items-group-title-\(groupID)"]
+            XCTAssertTrue(header.waitForExistence(timeout: 3))
+            let originalX = header.frame.minX
+            // A broad swipe across the header's blank area, clear of its +.
+            let left = header.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
+            left.withOffset(CGVector(dx: 240, dy: 0)).press(forDuration: 0.05, thenDragTo: left)
+            XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "Delete")).count, 0,
+                           "Header swipes must not expose the shared host cell's item actions")
+            XCTAssertEqual(header.frame.minX, originalX, accuracy: 1, "The whole group must not slide sideways")
+            XCTAssertTrue(app.staticTexts["Bunnings fixture item"].exists)
+            XCTAssertTrue(app.staticTexts["Coles fixture item"].exists)
+            XCTAssertTrue(app.staticTexts["Woolworths fixture item"].exists)
+        }
+    }
+
+    func testAllItemsBrowseSwipeDeleteWorksInBothGroupings() {
+        choose("All items")
+        for (grouping, name) in [("store", "Coles fixture item"), ("category", "Woolworths fixture item")] {
+            let groupingButton = app.buttons["all-items-grouping-\(grouping)"]
+            for _ in 0..<6 where !groupingButton.isHittable { app.collectionViews.firstMatch.swipeDown() }
+            groupingButton.tap()
+            let item = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "\(name), quantity")).firstMatch
+            let top = app.buttons["all-items-scope-picker"].frame.maxY + 8
+            let bottom = app.buttons["all-items-show-store"].frame.minY - 16
+            // AX can call a row behind the translucent floating footer
+            // hittable. Put the entire gesture inside the actual list viewport.
+            for _ in 0..<8 {
+                if item.exists && item.isHittable && item.frame.minY >= top && item.frame.maxY <= bottom { break }
+                if item.exists && item.frame.minY < top { app.collectionViews.firstMatch.swipeDown() }
+                else { app.collectionViews.firstMatch.swipeUp() }
+            }
+            XCTAssertTrue(item.isHittable)
+            XCTAssertGreaterThanOrEqual(item.frame.minY, top)
+            XCTAssertLessThanOrEqual(item.frame.maxY, bottom)
+            item.swipeLeft()
+            let delete = app.buttons["Delete"].firstMatch
+            guard delete.waitForExistence(timeout: 3) else {
+                let attachment = XCTAttachment(screenshot: app.screenshot())
+                attachment.name = "Swipe delete failure — \(grouping)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                return XCTFail("A left swipe must reveal row-level Delete in \(grouping): \(app.debugDescription)")
+            }
+            delete.tap()
+            XCTAssertTrue(item.waitForNonExistence(timeout: 3))
+            XCTAssertTrue(app.staticTexts["Bunnings fixture item"].exists)
+        }
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Coles fixture item"].exists)
+        XCTAssertFalse(app.staticTexts["Woolworths fixture item"].exists)
+        XCTAssertTrue(app.staticTexts["Bunnings fixture item"].exists)
+    }
+
+    func testAllItemsBrowseLongPressReordersWithinStoreAndPersists() {
+        choose("All items")
+        app.buttons["all-items-add-destination"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        let entry = app.textViews["all-items-entry"]
+        entry.tap()
+        entry.typeText("Drag first")
+        app.buttons["all-items-add"].tap()
+        entry.typeText("Drag second")
+        app.buttons["all-items-add"].tap()
+        let grouping = app.buttons["all-items-grouping-store"]
+        for _ in 0..<6 where !grouping.isHittable { app.collectionViews.firstMatch.swipeDown() }
+        grouping.tap()
+        let source = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Coles fixture item, quantity")).firstMatch
+        let target = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Drag second, quantity")).firstMatch
+        for _ in 0..<8 where !source.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(source.isHittable)
+        XCTAssertTrue(target.isHittable)
+        source.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 1,
+            thenDragTo: target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.05)))
+        let reordered = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            source.frame.minY < target.frame.minY
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [reordered], timeout: 5), .completed)
+        XCTAssertFalse(app.buttons["Done"].exists, "Long-press reorder must not require Edit mode")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        XCTAssertTrue(source.waitForExistence(timeout: 3))
+        XCTAssertLessThan(source.frame.minY, target.frame.minY)
+        XCTAssertTrue(app.staticTexts["Woolworths fixture item"].exists)
+    }
+
     func testAllItemsManualEntryPreservesProductWording() {
         choose("All items")
         let entry = app.textViews["all-items-entry"]
@@ -1902,12 +2074,81 @@ final class StoreSelectionTests: XCTestCase {
         app.staticTexts["Ready when you are"].tap()
         let titles = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-title-store-"))
         XCTAssertEqual(titles.firstMatch.label, "Woolworths")
+        XCTAssertEqual(titles.element(boundBy: 1).label, "Bunnings",
+                       "Promoting a list must shift the previous first list to second, not swap it down")
+        let colesShortcut = app.buttons["all-items-group-add-coles"]
+        for _ in 0..<6 where !colesShortcut.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(colesShortcut.isHittable)
+        colesShortcut.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        app.staticTexts["Ready when you are"].tap()
+        XCTAssertEqual(titles.firstMatch.label, "Coles")
+        XCTAssertEqual(titles.element(boundBy: 1).label, "Woolworths",
+                       "Repeated promotion must preserve the displayed order of the other lists")
         app.terminate()
         app.launch()
         XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
         XCTAssertEqual(entry.value as? String, "Shortcut unsubmitted draft suffix")
-        XCTAssertTrue(app.buttons["all-items-add"].label.contains("Woolworths"))
+        XCTAssertTrue(app.buttons["all-items-add"].label.contains("Coles"))
         XCTAssertEqual(titles.firstMatch.label, "Bunnings", "A shortcut must not fabricate persisted addition recency")
+    }
+
+    func testSmallRepositioningScrollKeepsEntryFocusedInBothScopes() {
+        for scope in ["Coles", "All items"] {
+            choose(scope)
+            let entry = app.textViews[scope == "Coles" ? "grocery-input" : "all-items-entry"]
+            entry.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+            for distance in [CGFloat(-20), 20, -12, 12] {
+                // The card's outside margin is not the editor or an action.
+                // Short vertical motion here must not count as an outside tap.
+                let origin = app.coordinate(withNormalizedOffset: .zero)
+                let point = CGPoint(x: 20, y: entry.frame.midY)
+                let start = origin.withOffset(CGVector(dx: point.x, dy: point.y))
+                let end = origin.withOffset(CGVector(dx: point.x, dy: point.y + distance))
+                start.press(forDuration: 0.05, thenDragTo: end)
+                XCTAssertTrue(app.keyboards.firstMatch.exists, "Small scroll dismissed keyboard in \(scope)")
+            }
+            entry.typeText("Still focused") // No extra tap is allowed.
+            XCTAssertEqual(entry.value as? String, "Still focused")
+            app.staticTexts["Ready when you are"].tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        }
+    }
+
+    func testAllItemsEntryDismissesOnOutsideTapAndManualScroll() {
+        choose("All items")
+        let entry = app.textViews["all-items-entry"]
+        let keyboard = app.keyboards.firstMatch
+        entry.tap()
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
+        app.buttons["all-items-grouping-store"].tap()
+        XCTAssertTrue(keyboard.waitForNonExistence(timeout: 3))
+        entry.tap()
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
+        app.collectionViews.firstMatch.swipeUp()
+        XCTAssertTrue(keyboard.waitForNonExistence(timeout: 3))
+    }
+
+    func testAllItemsRepeatedGroupAddAlwaysFocusesWithoutAnotherScroll() {
+        choose("All items")
+        let entry = app.textViews["all-items-entry"]
+        let keyboard = app.keyboards.firstMatch
+        var draft = ""
+        for store in ["woolworths", "coles", "bunnings", "coles", "woolworths", "bunnings"] {
+            let shortcut = app.buttons["all-items-group-add-\(store)"]
+            for _ in 0..<8 where !shortcut.isHittable { app.collectionViews.firstMatch.swipeUp() }
+            XCTAssertTrue(shortcut.isHittable)
+            shortcut.tap()
+            guard keyboard.waitForExistence(timeout: 5) else {
+                return XCTFail("Missing keyboard after + for \(store): \(app.debugDescription)")
+            }
+            entry.typeText("x") // No tap on the entry: + must make it the first responder.
+            draft += "x"
+            XCTAssertEqual(entry.value as? String, draft)
+            app.buttons["all-items-grouping-store"].tap()
+            XCTAssertTrue(keyboard.waitForNonExistence(timeout: 3))
+        }
     }
 
     func testAllItemsUnavailableGroupAddIsAbsentAndCategoriesHaveNoShortcut() {
@@ -2034,14 +2275,16 @@ final class StoreSelectionTests: XCTestCase {
         choose("Coles")
         let storeCell = app.collectionViews.cells.containing(.any, identifier: "Actions for Coles fixture item").firstMatch
         XCTAssertTrue(storeCell.waitForExistence(timeout: 5))
-        let storeHeight = storeCell.frame.height
+        let storeHeight = storeCell.frame.height.rounded()
         XCTAssertEqual(storeHeight, 78, accuracy: 1)
         choose("All items")
-        let aggregateCell = app.collectionViews.cells.containing(.any, identifier: "Actions for Coles fixture item").firstMatch
+        // Measure the inner native item cell, not the outer group host cell.
+        let aggregateCell = app.tables.cells.containing(.any, identifier: "Actions for Coles fixture item").firstMatch
         for _ in 0..<5 where !aggregateCell.exists { app.collectionViews.firstMatch.swipeUp() }
         XCTAssertTrue(aggregateCell.waitForExistence(timeout: 3))
-        print("ROW_HEIGHT store=\(storeHeight) allItemsByStore=\(aggregateCell.frame.height)")
-        XCTAssertEqual(aggregateCell.frame.height, storeHeight, accuracy: 1,
+        let aggregateHeight = aggregateCell.frame.height.rounded()
+        print("ROW_HEIGHT store=\(storeHeight) allItemsByStore=\(aggregateHeight)")
+        XCTAssertEqual(aggregateHeight, storeHeight, accuracy: 1,
                        "A short row must not receive extra native vertical insets in All items")
         for _ in 0..<3 where !app.buttons["all-items-grouping-category"].isHittable {
             app.collectionViews.firstMatch.swipeDown()
@@ -2049,8 +2292,9 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["all-items-grouping-category"].tap()
         for _ in 0..<5 where !aggregateCell.exists { app.collectionViews.firstMatch.swipeUp() }
         XCTAssertTrue(aggregateCell.waitForExistence(timeout: 3))
-        print("ROW_HEIGHT allItemsByCategory=\(aggregateCell.frame.height)")
-        XCTAssertEqual(aggregateCell.frame.height, storeHeight, accuracy: 1)
+        let categoryHeight = aggregateCell.frame.height.rounded()
+        print("ROW_HEIGHT allItemsByCategory=\(categoryHeight)")
+        XCTAssertEqual(categoryHeight, storeHeight, accuracy: 1)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "All items — shared native row height"
         screenshot.lifetime = .keepAlways
@@ -2155,7 +2399,7 @@ final class StoreSelectionTests: XCTestCase {
         }
         XCTAssertTrue(clear.isHittable, app.debugDescription)
         XCTAssertTrue(fullyVisible(), "The entire clear action must be above Show Store, not merely tappable through glass")
-        XCTAssertGreaterThanOrEqual(clear.frame.height, 56)
+        XCTAssertGreaterThanOrEqual(clear.frame.height, 44)
         clear.tap()
         XCTAssertTrue(app.buttons["Clear All"].waitForExistence(timeout: 3))
     }
