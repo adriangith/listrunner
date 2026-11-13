@@ -108,6 +108,36 @@ enum ShoppingMigration: SchemaMigrationPlan {
 enum ShoppingLists {
     static var schema: Schema { Schema(versionedSchema: ShoppingSchemaV3.self) }
 
+    // SwiftData rollback can leave already-held @Model references showing their
+    // staged values. Restore those presentation objects too, so a retry cannot
+    // add its quantity twice or retain the failed transaction's promoted order.
+    struct AdditionSnapshot {
+        private struct Row {
+            let item: GroceryItem
+            let amount: Double?
+            let unit: String?
+            let status: String
+            let position: Int
+        }
+        private let rows: [Row]
+
+        init(items: [GroceryItem], store: StoreID) {
+            rows = items.filter { $0.listID == store.listID }.map {
+                Row(item: $0, amount: $0.quantityAmount, unit: $0.quantityUnit,
+                    status: $0.statusRawValue, position: $0.position)
+            }
+        }
+
+        func restoreAfterRollback() {
+            for row in rows {
+                if row.item.quantityAmount != row.amount { row.item.quantityAmount = row.amount }
+                if row.item.quantityUnit != row.unit { row.item.quantityUnit = row.unit }
+                if row.item.statusRawValue != row.status { row.item.statusRawValue = row.status }
+                if row.item.position != row.position { row.item.position = row.position }
+            }
+        }
+    }
+
     @MainActor
     static func stageAdd(_ entries: [ParsedGrocery], to store: StoreID,
                          allItems: [GroceryItem], context: ModelContext) -> [GroceryItem] {

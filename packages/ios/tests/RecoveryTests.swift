@@ -76,6 +76,7 @@ struct RecoveryTests {
               && websiteRows[0].quantityAmount == 1 && websiteRows[0].status == .pending,
               "website review saves one literal product including commas, semicolons and pack-size wording")
         try addContext.save()
+        let websiteSnapshot = ShoppingLists.AdditionSnapshot(items: manualRows + websiteRows + [otherStoreItem], store: .bunnings)
         websiteRows[0].status = .added
         let duplicateWebsiteRows = ShoppingLists.stageAdd([ParsedGrocery(name: websiteTitle, amount: 2, unit: nil)],
             to: .bunnings, allItems: manualRows + websiteRows + [otherStoreItem], context: addContext)
@@ -83,8 +84,12 @@ struct RecoveryTests {
               && duplicateWebsiteRows[0].quantityAmount == 3 && duplicateWebsiteRows[0].status == .pending,
               "website additions reuse store-local duplicate reactivation and explicit quantity merging")
         addContext.rollback()
+        websiteSnapshot.restoreAfterRollback()
         check(websiteRows[0].quantityAmount == 1 && otherStoreItem.quantityAmount == 9,
-              "failed website addition rolls back only the newly staged transaction (product=\(String(describing: websiteRows[0].quantityAmount)), other=\(String(describing: otherStoreItem.quantityAmount)))")
+              "failed website addition restores cached model references as well as its durable transaction")
+        let durableWebsiteRows = try ModelContext(addData).fetch(FetchDescriptor<GroceryItem>())
+        check(durableWebsiteRows.first { $0.name == websiteTitle }?.quantityAmount == 1,
+              "failed website addition leaves the committed quantity unchanged")
         let firstID = UUID(), secondID = UUID(), thirdID = UUID()
         let initialOrder = ItemPromotionOrder.promoting([firstID, secondID], in: "", existing: [firstID, secondID, thirdID])
         let updatedOrder = ItemPromotionOrder.promoting([thirdID, firstID], in: initialOrder,
