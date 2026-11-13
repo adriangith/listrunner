@@ -3779,7 +3779,16 @@ final class StoreSelectionTests: XCTestCase {
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-        input.typeText("scroll fixture alpha; scroll fixture bravo; scroll fixture charlie; scroll fixture delta; scroll fixture echo; scroll fixture foxtrot")
+        var draft = ""
+        for name in ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"] {
+            // Verify batch setup independently of the rapid text-input issue:
+            // this test must reach scrolling with all six exact fixture names.
+            for chunk in [draft.isEmpty ? "scroll" : "; scroll", " fixture", " \(name)"] {
+                input.typeText(chunk)
+                draft += chunk
+                XCTAssertEqual(input.value as? String, draft, "Fixture input must be exact before submitting")
+            }
+        }
         app.buttons["Add Items"].tap()
         XCTAssertTrue(row("scroll fixture alpha", status: "Pending").waitForExistence(timeout: 5))
         input.typeText("\n") // Empty Return dismisses the keyboard without adding a row.
