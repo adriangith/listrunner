@@ -318,13 +318,14 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
 
 private struct StoreListScopeControl<Picker: View>: View {
     let showsBack: Bool
+    let tint: Color
     @ViewBuilder let picker: () -> Picker
 
     var body: some View {
         picker()
             .frame(minHeight: showsBack ? 44 : nil)
             .padding(.trailing, showsBack ? 10 : 0)
-        .modifier(JoinedStoreScopeChrome(joined: showsBack))
+        .modifier(JoinedStoreScopeChrome(joined: showsBack, tint: tint))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("store-navigation-control")
     }
@@ -332,6 +333,7 @@ private struct StoreListScopeControl<Picker: View>: View {
 
 private struct JoinedStoreScopeChrome: ViewModifier {
     let joined: Bool
+    let tint: Color
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -345,6 +347,15 @@ private struct JoinedStoreScopeChrome: ViewModifier {
                         Color.clear
                             .frame(width: geometry.size.width + 60, height: geometry.size.height)
                             .glassEffect(.regular, in: .capsule)
+                            .overlay(alignment: .leading) {
+                                // The shared material is composited above the
+                                // native item's glyph. Draw decoration over it;
+                                // the native Back remains the sole hit/AX target.
+                                Image(systemName: "chevron.backward")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(tint)
+                                    .frame(width: 44, height: geometry.size.height)
+                            }
                             .frame(width: geometry.size.width, alignment: .trailing)
                     }
                     .allowsHitTesting(false)
@@ -2175,7 +2186,7 @@ struct GroceryListScreen: View {
                     if let itemID = scrollTargetItemID { scrollToAddedItem(itemID, using: scrollProxy) }
                 }, scope: {
                     if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty {
-                        StoreListScopeControl(showsBack: showsJoinedBack) {
+                        StoreListScopeControl(showsBack: showsJoinedBack, tint: storePrimaryColor) {
                             ListScopePicker(stores: StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
                                 enabledIDs: shoppingVisibleIDs), selectedStoreID: storeID, tint: storePrimaryColor,
                                 onChooseAllItems: onSelectAllItems, onChooseStore: onSelectStore,
