@@ -2160,16 +2160,64 @@ Parser/dictionary v2 keeps uncertain product wording (including `taco shells`), 
 **Passed on Mac:** 1,887 native recovery/configuration/diagnostics checks, including new in-memory SwiftData identity/merge/save/fetch/blank-row tests and Paprika-staging preparation-clause coverage; unsigned Debug generic iOS simulator build; byte-for-byte verification of all 35 JSON and 1 JavaScript app resources with no legacy `-v2` resources. Logs: `/tmp/listrunner-auto-parser-dd06b05-{parser,regional,native,build,resources}.log`. A separate clean detached worktree at `/Users/adrianzafir/Projects/listrunner-auto-parser-e9b1004` tested the exact SHA above; the normal Mac checkout was not switched or edited. Derived Data stayed outside both checkouts.
 
 No new simulator UI-suite run, physical-device installation, user-list edit, real Reminders write, retailer/cart operation or release was performed. Documentation-only commits after the validated SHA do not change the tested implementation.
-# Website product → store list (13 November 2026)
+
+## Website product → store list (13 November 2026)
 
 Branch: `feature/add-store-product-to-list`. Implementation plan and safety contract:
 `docs/store-product-to-list.md`.
 
-Linux offline: 22 new selection-engine tests plus the existing results-scroll,
-Coles/Bunnings/Woolworths, IKEA snapshot, profiled retailer, BIG W and Tesco DOM
-regressions pass. All six `test-*.py` scripts pass (47 assertions/tests), including
-schema-8 preflight and legacy category/resource checks. Native configuration,
-SwiftData persistence and simulator checks require the separate Mac worktree.
+Linux offline: all 473 JavaScript tests pass, including 23 new selection-engine
+tests and the existing retailer/cart, scrolling, inspection and release checks.
+All six `test-*.py` scripts pass (47 tests), including schema-8 preflight and
+legacy category/resource checks. A real isolated Chromium touch test on offline
+HTML selected the exact title, made zero fixture retailer-cart clicks and cleaned
+up on Cancel. This is not a live-site or WebKit claim.
+A separate mobile-touch Chromium fixture confirmed that the page scrolls beneath
+the shields and that a second product can be selected after scrolling/repositioning
+without firing its retailer Add control. An initial fixture tap after a fast fling
+overshot the product and correctly returned no selection; targeting the now-visible
+second tile passed. This does not replace device scroll/reflow validation.
+
+Mac code revision `642ea5dfd0543f716bd764cb8fc885f9768dee88`:
+generic iOS Simulator build succeeds (arm64/x86_64, deployment target iOS 17);
+1,910 standalone native recovery/configuration/persistence checks pass. The built
+app's 35 JSON resources and JavaScript engine match canonical files byte-for-byte.
+The full `run-cloud-checks.sh` offline allowlist passes, including 162 parser
+fixtures, 884 ingredient aliases, 195 regional-search checks and the synthetic
+store-registry proof. Noninteractive SSH needs `/opt/homebrew/bin` on PATH for Node.
+All output remains outside the checkout. Work used a separate Mac worktree and
+dedicated simulator; no other agent's checkout or simulator was changed.
+
+The first complete simulator flow at code revision
+`53b0d2b301ed9fe30348102170554e9079bfd00f` passed grid selection → native review →
+Add → exact literal title in Bunnings, unchanged fixture cart control and absence
+from Coles. Product-page review/Cancel passed too. Screenshots show legible rail
+controls, the opaque Choose pill and native name/quantity review. Early runs caught
+and corrected accessibility locator ambiguity and a shield-label overlap; their
+failures remain in the evidence, not counted as successful Add checks. Final
+All items/manual-entry coverage is recorded below after completion.
+
+At `77bce126e014272247e55e45b7dec646aef62108`, the grid save and unconfigured
+store manual-entry tests passed. The All items screenshot/hierarchy showed the
+saved Pending row owned by Bunnings, but an incorrect ordinary-store picker
+locator stopped its final navigation assertions. Product-page recognition fell
+back to manual in one run while the heading was visible. The chooser now waits
+at most three seconds for that same committed document to finish loading, bound
+to its exact request, web view, generation and URL; it never reloads or follows a
+new navigation. Final four-path simulator results follow after completion.
+
+Evidence is outside Git under
+`~/Library/Developer/Xcode/StoreProductSelection-Evidence/` on the Mac, with
+per-revision `.xcresult` bundles and screenshots. The dedicated iPhone 17 / iOS
+27.2 simulator is `312871F5-F94E-4BF0-A1E4-83D8BB6FF11A`; only this task-created
+simulator is used, then shut down without deleting its evidence or state.
+
+The new native transaction checks exposed SwiftData retaining staged quantities
+in already-held model objects after rollback. The website-add path now restores
+a captured amount/unit/status/order snapshot as well as rolling back the database.
+Tests verify unchanged committed data, restored presentation values and a retry
+that applies its explicit quantity exactly once. Existing unrelated manual/import
+transaction code is not changed.
 
 Read-only isolated Chromium at 390×844: Bunnings AU staples grid returned 36 tiles
 with `[data-search-product-tile="true"]`; `a[href*="_p"] p` contains the product
@@ -2181,7 +2229,13 @@ returned an empty document and Woolworths Access Denied, so neither received a
 guessed selection profile. IKEA grid readback succeeded, but detail/profile review
 is deferred. All unconfigured destinations offer manual local-list entry.
 
-Remaining: Mac build/resource verification, focused native tests and simulator UI
-checks; live Bunnings embedded-WebKit grid/detail selection; VoiceOver, Dynamic
-Type and scrolling/reflow checks on device. No checkout/cart mutation is needed
-or authorised for those selection checks.
+Remaining: focused simulator UI check completion; live Bunnings embedded-WebKit
+grid/detail selection; VoiceOver, Dynamic Type and scrolling/reflow checks on
+device. No checkout/cart mutation is needed or authorised for selection checks.
+
+Accessibility safety boundary: VoiceOver/Switch Control use the native manual
+composer on grids, not DOM shields, because assistive activation may bypass visual
+hit testing and activate a covered website control. Product-page reads still
+prefill native review. Enabling either technology mid-selection cancels shields.
+The offline test covers this branch; physical-device assistive validation remains
+outstanding.

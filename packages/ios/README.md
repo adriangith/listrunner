@@ -51,7 +51,10 @@ Schema 8 adds optional `productSelection` grid/detail selectors separately from
 cart capabilities, retaining schemas 2–7 and all existing automation ceilings.
 Bunnings selectors have read-only public rendered evidence; other stores offer
 manual entry until their own profiles are reviewed. Native/live validation status
-is recorded in `VALIDATION.md`; offline tests are not live-site certification.
+is recorded in `VALIDATION.md`. VoiceOver/Switch Control use manual native entry
+on grids to avoid assistive activation of covered retailer controls; product-page
+reads can still prefill the review. Their full device sign-off remains outstanding.
+Offline tests are not live-site certification.
 See `../../docs/store-product-to-list.md` for the design and implementation plan.
 
 ### Retailer-neutral list wording
@@ -144,7 +147,8 @@ as well as every canonical JSON file.
 
 ### Twenty-store expansion (1 November 2026 — partial delivery)
 
-Native store definitions use retailer JSON schema 7 for one required category per
+Native store definitions use retailer JSON schema 7 (schema 8 for opt-in website
+product selection) for one required category per
 destination (33 destinations, including IKEA AU). Schemas 2–5 remain readable with
 category unknown; schema 6's multi-category arrays remain readable without assigning
 a primary category by array order. Categories do not grant automation or alter

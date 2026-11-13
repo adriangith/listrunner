@@ -1,6 +1,6 @@
 # Native store categories
 
-Retailer JSON schema 7 assigns exactly one app-defined `category` to each registered store. The category describes the retailer, not an individual product's aisle. Category grouping is a presentation feature: it does not imply search, retailer availability, automation, host trust, cart detection or Undo support. `automationSchemaVersion` preserves the store's detector-rule version across this metadata-only format migration.
+Retailer JSON schemas 7 and 8 assign exactly one app-defined `category` to each registered store. Schema 8 adds optional website-product selection rules without changing category semantics. The category describes the retailer, not an individual product's aisle. Category grouping is a presentation feature: it does not imply search, retailer availability, automation, host trust, cart detection or Undo support. `automationSchemaVersion` preserves the store's detector-rule version across this metadata-only format migration.
 
 ## Schema contract
 
