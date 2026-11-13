@@ -19,7 +19,49 @@ cases for header/menu navigation, Back history, completed/cancelled edge swipes,
 scope/draft/grouping restoration, single-store simplification, unavailable-owner
 recovery and deferred management reconciliation. The old compact-toolbar test
 now expects native leading Back instead of the trailing grid shortcut. Native
-build/runtime results will be recorded after verifying the pushed revision on Mac.
+UI runtime results are recorded separately below.
+
+### Native build and service checks
+
+The pushed revision `13be0dd41d4664fabe946d00fe87fa9d9fd467fc` was fetched into
+the clean detached Mac checkout
+`/Users/adrianzafir/Projects/listrunner-worktrees/list-navigation-transitions`.
+Xcode 27.2 Debug simulator `build-for-testing` passed for arm64 and x86_64;
+`run-recovery-tests.sh` passed **1,908 checks**, including the seven navigation
+policy assertions. The built app passed canonical byte-for-byte verification of
+all **35 JSON + 1 JavaScript** resources. Build warnings are the existing unused
+`resignFirstResponder()` result and skipped unused App Intents metadata extraction.
+
+Build output and test evidence are outside the checkout under
+`~/Library/Developer/ListRunnerValidation/list-navigation/`. The main Mac checkout
+stays on `main` with its unrelated untracked Xcode Cloud directory preserved.
+Focused XCTest UI checks use a newly created dedicated iPhone 17/iOS 27.2 simulator
+`2C1F2373-74C2-4F29-A053-F9FD798BEA8B`, never the user's existing booted simulator.
+No physical-device installation or retailer/cart action was performed.
+
+### Focused native UI results
+
+All **11/11** selected XCTest UI cases passed, with **zero failures**, at the same
+app revision on that dedicated iPhone 17/iOS 27.2 simulator. Coverage includes:
+
+* Store header → the correct store-only list → completed native edge swipe back.
+* Chooser store switches → one Back to All items, with no store-to-store history.
+* Completed swipe preserving aggregate draft, add destination and category grouping.
+* Cancelled edge swipe preserving the store scope, including after relaunch.
+* Relaunch restoration of both a store detail and All items.
+* Compact leading native Back placement, without the old trailing grid shortcut.
+* Settings return preserving scope/draft and the existing first-store welcome flow.
+* Single-store direct launch (including an older remembered All items scope),
+  hidden redundant overview/menu entry and preserved Manage Stores access.
+* Single-store access to unavailable/unknown-owner recovery rows.
+* One→two→one-store adaptation only after returning from management, without
+  dismissing the management screen when its store count changes.
+
+Evidence: `NavigationTests.xcresult` and `tests.log` in the validation directory
+above (709.5 seconds of tests). The completed console log contains no SwiftUI
+state-during-update or repeated-navigation-update warnings. Separate visual
+inspection and broader physical-device/VoiceOver/large-text/Reduce Motion/iOS 17
+release checks are not established by this focused simulator run.
 
 ## Retailer-neutral store-list wording (13 November 2026)
 
