@@ -204,6 +204,24 @@ The user chose to finish the navigation task for review and track the typing
 issue separately. Keep the blocked idle-row-frame check with that follow-up;
 this is not approval to merge, install on a phone or call the full suite green.
 
+### User-requested iPhone installation
+
+The user subsequently explicitly requested building on their phone instead of
+continuing the simulator preview. Xcode opened the clean isolated task checkout
+at `1bbcb424716798124bca2d37e6c33dd2868c6115`, selected **Adrian’s iPhone**
+(physical device, iOS 27.2), and `RunProject(attachDebugger: false)` built, signed,
+installed in place and launched ListRunner successfully with **zero build errors**,
+PID **65470**. Production source is unchanged from `73dcf09`. The normal shared
+scheme has no fixture environment or launch arguments; no reset, import, list
+clear or retailer/cart action was performed. Existing app data was not removed.
+
+The actual `Debug-iphoneos/ListRunner.app` passed **35 JSON + 1 JavaScript**
+canonical-resource verification and `codesign --verify --deep --strict`.
+Xcode log: `RunProject-Log-20261113-192608.txt` under
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/`.
+This verifies installation/launch, not a new physical UI-test run. The separately
+recorded input issue remains open; no merge or release was performed.
+
 ## Retailer-neutral store-list wording (13 November 2026)
 
 Branch `fix/store-page-titles` changes the populated store-list section heading
