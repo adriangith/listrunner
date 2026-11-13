@@ -188,6 +188,18 @@ short verified chunks, asserting the complete accumulated draft before Add, with
 the original row/keyboard/frame-tracking checks intact. Its focused rerun is
 pending (`VerifiedFixtureScroll.xcresult`); no production source changed for it.
 
+That focused rerun failed at its **first pre-submission input assertion**:
+typing `scroll` produced `scrll`. No Add or manual-scroll action ran, so it remains
+blocked on the separately recorded rapid-input issue, not a demonstrated failure
+of idle row-frame tracking. Evidence: `VerifiedFixtureScroll.xcresult` and
+`verified-fixture-scroll.log`. Do not describe the final regression run as fully
+green: final-app keyboard/edge/small-scroll checks passed **3/4**, final visual
+checks passed **3/3**, and idle-row tracking remains unverified. The production
+navigation revision remains `73dcf097aad51993970f14afdd35d3f097d98150`; later
+changes are test/documentation-only. No physical-device install, merge or release
+was performed. The typing issue's relationship to the unchanged baseline has not
+been established and is a separate follow-up, not silently waived validation.
+
 ## Retailer-neutral store-list wording (13 November 2026)
 
 Branch `fix/store-page-titles` changes the populated store-list section heading
