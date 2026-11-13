@@ -44,7 +44,7 @@ class StoreCategoryTests(unittest.TestCase):
         for store, expected in ASSIGNMENTS.items():
             with self.subTest(store=store):
                 data = json.loads((RESOURCES / f"{store}.json").read_text())
-                self.assertEqual(data["schemaVersion"], 7)
+                self.assertEqual(data["schemaVersion"], 8 if store == "bunnings" else 7)
                 self.assertEqual(data["automationSchemaVersion"], AUTOMATION_SCHEMA_VERSIONS[store])
                 self.assertEqual(data["id"], store)
                 self.assertEqual(data["category"], expected)

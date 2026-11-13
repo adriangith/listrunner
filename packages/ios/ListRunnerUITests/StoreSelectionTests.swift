@@ -381,6 +381,9 @@ final class StoreSelectionTests: XCTestCase {
         app = XCUIApplication()
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
+        if name.contains("StoreProduct") {
+            app.launchEnvironment["LISTRUNNER_PRODUCT_SELECTION_FIXTURE"] = name.contains("Detail") ? "detail" : "grid"
+        }
         if name.contains("LiveStoreLogin") {
             let store = name.contains("Waitrose") ? "waitrose" : "sainsburys"
             guard ProcessInfo.processInfo.environment["LISTRUNNER_LIVE_LOGIN_STORE"] == store else {
@@ -3776,6 +3779,45 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Shop at Coles"].tap()
         XCTAssertTrue(collapse.waitForExistence(timeout: 3))
         XCTAssertFalse(hint.exists, "All items shares the same completed hint")
+    }
+
+    func testStoreProductGridAddsLiteralTitleWithoutChangingCart() {
+        choose("Bunnings")
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        app.buttons["Collapse overlay"].tap()
+        let add = app.buttons["Add store item to list"]
+        XCTAssertTrue(add.waitForExistence(timeout: 3))
+        add.tap()
+        XCTAssertTrue(app.otherElements["store-product-selection-bar"].waitForExistence(timeout: 3))
+        let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
+        XCTAssertTrue(shield.waitForExistence(timeout: 5))
+        shield.tap()
+        let name = app.textFields["store-product-name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        XCTAssertEqual(name.value as? String, "2x LED lights, 75 mm")
+        app.buttons["confirm-store-product"].tap()
+        XCTAssertTrue(app.webViews.buttons["Fixture cart button"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.webViews.buttons["UNEXPECTED CART CHANGE"].exists)
+        app.buttons["Dismiss store"].tap()
+        XCTAssertTrue(app.staticTexts["2x LED lights, 75 mm"].waitForExistence(timeout: 5))
+        choose("Coles")
+        XCTAssertFalse(app.staticTexts["2x LED lights, 75 mm"].exists)
+    }
+
+    func testStoreProductDetailReviewsProductAndCancelDoesNotAdd() {
+        choose("Bunnings")
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        app.buttons["Collapse overlay"].tap()
+        app.buttons["Add store item to list"].tap()
+        let field = app.textFields["store-product-name"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertEqual(field.value as? String, "2x LED lights, 75 mm")
+        XCTAssertFalse(app.webViews.buttons["Choose product: 2x LED lights, 75 mm"].exists)
+        app.buttons["Cancel"].tap()
+        app.buttons["Dismiss store"].tap()
+        XCTAssertFalse(app.staticTexts["2x LED lights, 75 mm"].exists)
     }
 
     func testCardCollapseHintSurvivesIncompleteGesturesThenClearsOnSwipe() {

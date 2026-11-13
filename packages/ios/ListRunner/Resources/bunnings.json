@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 7,
+  "schemaVersion": 8,
   "id": "bunnings",
   "category": "hardwareGarden",
   "automationSchemaVersion": 2,
@@ -14,6 +14,18 @@
     "highlight": {"red": 255, "green": 171, "blue": 0}
   },
   "capabilities": {"search": true, "cartDetection": true, "cartUndo": false},
+  "productSelection": {
+    "productURLPattern": "_p(\\d{1,32})$",
+    "grid": {
+      "containerSelector": "[data-search-product-tile=\"true\"]",
+      "titleSelector": "a[href*=\"_p\"] p",
+      "linkSelector": "a[href*=\"_p\"]"
+    },
+    "detail": {
+      "containerSelector": "main#main .container-main",
+      "titleSelector": "h1[data-locator=\"product-title\"]"
+    }
+  },
   "cart": {
     "strategy": "trustedTileQuantity",
     "identityStrategy": "numericURLSuffix",

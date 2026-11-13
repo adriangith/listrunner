@@ -2160,3 +2160,28 @@ Parser/dictionary v2 keeps uncertain product wording (including `taco shells`), 
 **Passed on Mac:** 1,887 native recovery/configuration/diagnostics checks, including new in-memory SwiftData identity/merge/save/fetch/blank-row tests and Paprika-staging preparation-clause coverage; unsigned Debug generic iOS simulator build; byte-for-byte verification of all 35 JSON and 1 JavaScript app resources with no legacy `-v2` resources. Logs: `/tmp/listrunner-auto-parser-dd06b05-{parser,regional,native,build,resources}.log`. A separate clean detached worktree at `/Users/adrianzafir/Projects/listrunner-auto-parser-e9b1004` tested the exact SHA above; the normal Mac checkout was not switched or edited. Derived Data stayed outside both checkouts.
 
 No new simulator UI-suite run, physical-device installation, user-list edit, real Reminders write, retailer/cart operation or release was performed. Documentation-only commits after the validated SHA do not change the tested implementation.
+# Website product → store list (13 November 2026)
+
+Branch: `feature/add-store-product-to-list`. Implementation plan and safety contract:
+`docs/store-product-to-list.md`.
+
+Linux offline: 22 new selection-engine tests plus the existing results-scroll,
+Coles/Bunnings/Woolworths, IKEA snapshot, profiled retailer, BIG W and Tesco DOM
+regressions pass. All six `test-*.py` scripts pass (47 assertions/tests), including
+schema-8 preflight and legacy category/resource checks. Native configuration,
+SwiftData persistence and simulator checks require the separate Mac worktree.
+
+Read-only isolated Chromium at 390×844: Bunnings AU staples grid returned 36 tiles
+with `[data-search-product-tile="true"]`; `a[href*="_p"] p` contains the product
+name without ratings/price. A linked detail page has
+`main#main .container-main h1[data-locator="product-title"]`. Both returned 200.
+No retailer cart, sign-in, consent or fulfilment action was performed. These
+selectors do not certify all Bunnings layouts or native WebKit behavior. Coles
+returned an empty document and Woolworths Access Denied, so neither received a
+guessed selection profile. IKEA grid readback succeeded, but detail/profile review
+is deferred. All unconfigured destinations offer manual local-list entry.
+
+Remaining: Mac build/resource verification, focused native tests and simulator UI
+checks; live Bunnings embedded-WebKit grid/detail selection; VoiceOver, Dynamic
+Type and scrolling/reflow checks on device. No checkout/cart mutation is needed
+or authorised for those selection checks.

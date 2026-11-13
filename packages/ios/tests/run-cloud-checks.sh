@@ -15,6 +15,7 @@ python3 -B "$base/tests/test-store-onboarding.py"
 python3 -B "$base/tests/test-bundled-resources.py"
 python3 -B "$base/tests/test-cloud-ci.py"
 node --test \
+  "$base/tests/store-product-selection.test.mjs" \
   "$base/tests/results-scroll.test.mjs" \
   "$base/tests/bigw-cart-detection.test.mjs" \
   "$base/tests/coles-add-detection.test.mjs" \

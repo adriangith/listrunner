@@ -43,7 +43,7 @@ def validate(config):
     required = {'schemaVersion', 'id', 'displayName', 'serviceArea', 'homepage', 'allowedHosts',
                 'search', 'addedColor', 'capabilities', 'cart'}
     version = config.get('schemaVersion')
-    if type(version) is not int or version not in (2, 3, 4, 5, 6, 7):
+    if type(version) is not int or version not in (2, 3, 4, 5, 6, 7, 8):
         errors.append('Unsupported store schema version')
     if version == 6:
         required |= {'categories', 'automationSchemaVersion'}
@@ -58,7 +58,7 @@ def validate(config):
         automation = config.get('automationSchemaVersion')
         if type(automation) is not int or automation not in (2, 3, 4, 5):
             errors.append('Unsupported automation schema version')
-    if version == 7:
+    if version in (7, 8):
         required |= {'category', 'automationSchemaVersion'}
         vocabulary = {'grocery', 'groceryHome', 'clothingHome', 'homeFurniture',
                       'onlineMarketplace', 'hardwareGarden', 'pharmacyBeauty', 'electronics',
@@ -68,8 +68,28 @@ def validate(config):
         automation = config.get('automationSchemaVersion')
         if type(automation) is not int or automation not in (2, 3, 4, 5):
             errors.append('Unsupported automation schema version')
-    if not required.issubset(config) or set(config) - required - {'brandColors'}:
+    optional = {'brandColors'} | ({'productSelection'} if version == 8 else set())
+    if not required.issubset(config) or set(config) - required - optional:
         errors.append('Missing or unknown store configuration fields')
+    if 'productSelection' in config:
+        selection = config['productSelection']
+        if (version != 8 or not isinstance(selection, dict) or
+                set(selection) != {'productURLPattern', 'grid', 'detail'}):
+            errors.append('Product selection requires schema 8 and exact grid/detail rules')
+        else:
+            try:
+                pattern = selection['productURLPattern']
+                if not isinstance(pattern, str) or len(pattern.encode('utf-8')) > 512 or re.compile(pattern).groups != 1:
+                    raise ValueError('pattern')
+                for scope, fields in [('grid', {'containerSelector', 'titleSelector', 'linkSelector'}),
+                                      ('detail', {'containerSelector', 'titleSelector'})]:
+                    rule = selection[scope]
+                    if not isinstance(rule, dict) or set(rule) != fields:
+                        raise ValueError('fields')
+                    if any(not isinstance(v, str) or not v.strip() or len(v.encode('utf-8')) > 1024 for v in rule.values()):
+                        raise ValueError('selectors')
+            except (ValueError, TypeError, re.error):
+                errors.append('Product selection needs bounded selectors and a one-capture product URL pattern')
     if not isinstance(config.get('displayName'), str) or not config['displayName'].strip():
         errors.append('Display name must be nonempty text')
     color = config.get('addedColor')

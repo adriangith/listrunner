@@ -1095,6 +1095,8 @@ private struct AllItemsScreen: View {
                 }, onStatusChange: { item in
                     stageReminderWriteback(for: item)
                     saveChanges()
+                }, onAddStoreProduct: { name, quantity in
+                    addStoreProduct(name, quantity: quantity, to: store)
                 })
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
@@ -1342,6 +1344,23 @@ private struct AllItemsScreen: View {
             pendingReminderWrites.removeAll()
             notice = "Could not save the items. Your text is still here; try again."
         }
+    }
+
+    private func addStoreProduct(_ name: String, quantity: Int, to store: StoreID) -> Bool {
+        guard !paprikaReminders.importing, !name.isEmpty, name.utf8.count <= 512,
+              (1...999).contains(quantity) else { return false }
+        if modelContext.hasChanges, !saveChanges() { return false }
+        let entry = ParsedGrocery(name: name, amount: Double(quantity), unit: nil)
+        let promoted = ShoppingLists.stageAdd([entry], to: store, allItems: allItems, context: modelContext)
+        for item in promoted { stageReminderWriteback(for: item) }
+        guard saveChanges() else {
+            modelContext.rollback()
+            pendingReminderWrites.removeAll()
+            return false
+        }
+        onPromoteStore(store, promoted.map(\.id))
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Added to your \(store.displayName) list"))
+        return true
     }
 
     private func storeTint(_ id: StoreID) -> Color {
@@ -1717,7 +1736,7 @@ struct GroceryListScreen: View {
                 }, onStatusChange: { item in
                     stageReminderWriteback(for: item)
                     saveChanges()
-                })
+                }, onAddStoreProduct: addStoreProduct)
                     .presentationDetents([.large])
                     .presentationDragIndicator(.hidden)
                     .presentationCornerRadius(32)
@@ -1993,6 +2012,28 @@ struct GroceryListScreen: View {
                 recentlyAddedItemIDs.subtract(newlyAddedIDs)
             }
         }
+    }
+
+    private func addStoreProduct(_ name: String, quantity: Int) -> Bool {
+        guard !paprikaReminders.importing, !name.isEmpty, name.utf8.count <= 512,
+              (1...999).contains(quantity) else { return false }
+        if modelContext.hasChanges {
+            saveChanges()
+            guard !saveFailed else { return false }
+        }
+        // This is one literal product title, not a comma-separated ingredient input.
+        let entry = ParsedGrocery(name: name, amount: Double(quantity), unit: nil)
+        let promoted = ShoppingLists.stageAdd([entry], to: storeID, allItems: allItems, context: modelContext)
+        for item in promoted { stageReminderWriteback(for: item) }
+        saveChanges()
+        guard !saveFailed else {
+            modelContext.rollback()
+            pendingReminderWrites.removeAll()
+            return false
+        }
+        onPromoteStore(storeID, promoted.map(\.id))
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Added to your \(storeID.displayName) list"))
+        return true
     }
 
     private func revealFocusedProductEntry() {

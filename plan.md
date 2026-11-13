@@ -1,5 +1,11 @@
 ## ListRunner Build Specification
 
+### Add a website product to its store list (13 November 2026)
+
+* Shopping cards expose `Add store item to list` at both ends of the horizontal rail, with a collapsed-bar shortcut and accessibility action. Read a configured product page directly; on a grid temporarily hide cards and show ListRunner-owned shields over explicit product tiles. Tapping a shield selects a product without clicking/replaying a retailer link or cart button. Keep scrolling, Cancel and manual entry available.
+* Review the literal product name and quantity (default 1) before saving a Pending item to the browsed store's list. Preserve the current card, retailer document and scroll position; never split comma-containing titles or ingredient-parse them. Use existing destination-local duplicate merging, durable saves, reminder safeguards and promotion. Cancel/save failure preserves the list or draft appropriately. Both ordinary and All items shopping flows use the same review.
+* Schema 8 adds optional explicit grid/detail product-selection rules independently of cart automation. Schemas 2–7 stay readable. Bunnings AU has an initial profile grounded in read-only rendered selector evidence; other stores offer manual entry pending individual review. Do not infer cart support, product availability or live embedded-WebKit certification. See `docs/store-product-to-list.md` for the plan and safety/validation contract.
+
 ### Retailer-neutral list wording (13 November 2026)
 
 * Every individual store list uses `Items` as its populated-list section heading, including grocery retailers and non-grocery retailers such as Bunnings. Keep the heading hidden for empty lists. Store chooser/group accessibility hints and the no-stores message describe a shopping list; the shared product-entry accessibility label says `Type or paste products`.

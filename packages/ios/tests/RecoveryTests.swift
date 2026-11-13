@@ -119,6 +119,33 @@ struct RecoveryTests {
         }
         let woolworths = try JSONDecoder().decode(StoreDefinition.self, from: Data(contentsOf: resources.appendingPathComponent("woolworths.json")))
         let bunnings = try JSONDecoder().decode(StoreDefinition.self, from: Data(contentsOf: resources.appendingPathComponent("bunnings.json")))
+        var selectionObject = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
+        selectionObject["schemaVersion"] = 8
+        selectionObject["productSelection"] = [
+            "productURLPattern": "/product/[^/]+-(\\d+)$",
+            "grid": ["containerSelector": ".tile", "titleSelector": ".title", "linkSelector": "a[href]"],
+            "detail": ["containerSelector": "main", "titleSelector": "h1"]
+        ]
+        let selectionDefinition = try StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: selectionObject))
+        check(selectionDefinition.schemaVersion == 8 && selectionDefinition.productSelection?.grid.containerSelector == ".tile"
+              && selectionDefinition.automationSchemaVersion == coles.automationSchemaVersion,
+              "schema 8 adds explicit product selection without upgrading cart automation")
+        let selectionRoundTrip = try StoreDefinition.decodeConfiguration(from: JSONEncoder().encode(selectionDefinition))
+        check(selectionRoundTrip.productSelection?.detail.titleSelector == "h1", "product selection round-trips")
+        for version in [2, 6, 7] {
+            var invalid = selectionObject
+            invalid["schemaVersion"] = version
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: invalid))) == nil,
+                  "old schema cannot smuggle product selection rules")
+        }
+        for bad in [NSNull(), "main", ["productURLPattern": "(", "grid": [:], "detail": [:]],
+                    ["productURLPattern": "(x)", "grid": ["containerSelector": ".tile", "titleSelector": "", "linkSelector": "a"],
+                     "detail": ["containerSelector": "main", "titleSelector": "h1"]]] as [Any] {
+            var invalid = selectionObject
+            invalid["productSelection"] = bad
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: invalid))) == nil,
+                  "malformed product selection fails closed")
+        }
         check(coles.schemaVersion == 7 && coles.category == .grocery && coles.categories.isEmpty,
               "Coles schema-7 single category decodes as typed metadata")
         var schema6Object = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
@@ -179,6 +206,7 @@ struct RecoveryTests {
             object.removeValue(forKey: "categories")
             object.removeValue(forKey: "category")
             object.removeValue(forKey: "automationSchemaVersion")
+            object.removeValue(forKey: "productSelection")
             let legacyData = try JSONSerialization.data(withJSONObject: object)
             let legacy = try StoreDefinition.decodeConfiguration(from: legacyData)
             check(legacy.schemaVersion == legacyVersion && legacy.categories.isEmpty && legacy.isConfigurationValid,

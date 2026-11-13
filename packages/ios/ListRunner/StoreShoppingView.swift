@@ -15,6 +15,7 @@ struct StoreShoppingView: View {
     let saveFailed: Bool
     let onSelectionChange: (UUID) -> Void
     let onStatusChange: (GroceryItem) -> Void
+    let onAddStoreProduct: (String, Int) -> Bool
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -33,6 +34,9 @@ struct StoreShoppingView: View {
     @State private var navigationRightActionEdge: CGFloat = 0
     @State private var showingVerificationDetails = false
     @State private var showingCartDetectionDetails = false
+    @State private var choosingStoreProduct = false
+    @State private var storeProductDraft: StoreProductDraft?
+    @State private var productSelectionTask: Task<Void, Never>?
     @GestureState private var isTouchingOverlay = false
     @GestureState(resetTransaction: Transaction(animation: .spring(response: 0.4, dampingFraction: 0.86)))
     private var overlayDrag = OverlayDrag()
@@ -61,13 +65,14 @@ struct StoreShoppingView: View {
         }
     }
 
-    init(items: [GroceryItem], browser: StoreBrowser, initialSelectedID: UUID?, saveFailed: Bool = false, onSelectionChange: @escaping (UUID) -> Void, onStatusChange: @escaping (GroceryItem) -> Void) {
+    init(items: [GroceryItem], browser: StoreBrowser, initialSelectedID: UUID?, saveFailed: Bool = false, onSelectionChange: @escaping (UUID) -> Void, onStatusChange: @escaping (GroceryItem) -> Void, onAddStoreProduct: @escaping (String, Int) -> Bool) {
         self.items = items
         self.browser = browser
         self.initialSelectedID = initialSelectedID
         self.saveFailed = saveFailed
         self.onSelectionChange = onSelectionChange
         self.onStatusChange = onStatusChange
+        self.onAddStoreProduct = onAddStoreProduct
         _selectedID = State(initialValue: initialSelectedID)
     }
 
@@ -151,10 +156,10 @@ struct StoreShoppingView: View {
                 // (such as checkout confirmation buttons) fully reachable.
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     collapsedBar(bottomSafeAreaInset: geometry.safeAreaInsets.bottom)
-                        .opacity(isCollapsed ? 1 : 0)
-                        .allowsHitTesting(isCollapsed)
-                        .accessibilityHidden(!isCollapsed)
-                        .frame(height: isCollapsed ? 70 : 0)
+                        .opacity(isCollapsed && !choosingStoreProduct ? 1 : 0)
+                        .allowsHitTesting(isCollapsed && !choosingStoreProduct)
+                        .accessibilityHidden(!isCollapsed || choosingStoreProduct)
+                        .frame(height: isCollapsed && !choosingStoreProduct ? 70 : 0)
                 }
 
             VStack(spacing: 0) {
@@ -183,6 +188,12 @@ struct StoreShoppingView: View {
                         .padding(.horizontal, 20)
                         .accessibilityIdentifier("store-cart-undo-progress")
                 }
+                if choosingStoreProduct {
+                    StoreProductSelectionBar(onCancel: { cancelStoreProductSelection() }, onManual: {
+                        cancelStoreProductSelection(resume: false)
+                        storeProductDraft = StoreProductDraft(name: "")
+                    })
+                } else {
                 ZStack(alignment: .bottom) {
                     expandedPanel(bottomSafeAreaInset: geometry.safeAreaInsets.bottom)
                         .offset(y: reduceMotion ? 0 : 250 * collapseProgress)
@@ -193,9 +204,15 @@ struct StoreShoppingView: View {
                 }
                 .frame(height: isCollapsed ? 0 : 330, alignment: .bottom)
                 }
+                }
             }
             .background(Color(uiColor: .systemBackground))
             .interactiveDismissDisabled(isTouchingOverlay)
+            .sheet(item: $storeProductDraft, onDismiss: resumeAfterStoreProductSelection) { draft in
+                StoreProductReview(storeName: browser.store.displayName, initialName: draft.name,
+                                   onAdd: onAddStoreProduct)
+                    .presentationDetents([.medium, .large])
+            }
             .confirmationDialog("\(browser.store.displayName) has paused browsing", isPresented: $showingVerificationDetails,
                                 titleVisibility: .visible) {
                 Button("Retry store page", action: browser.retryAfterVerification)
@@ -267,6 +284,7 @@ struct StoreShoppingView: View {
             }
             .onChange(of: browser.storeRecovery) { _, recovery in
             guard recovery != nil else { return }
+            cancelStoreProductSelection(resume: false)
             task?.cancel()
             secondsRemaining = 0
             manuallyPaused = false
@@ -274,14 +292,16 @@ struct StoreShoppingView: View {
             }
             .onChange(of: browser.siteVerificationRequired) { _, blocked in
                 guard blocked else { return }
+                cancelStoreProductSelection(resume: false)
                 task?.cancel()
                 secondsRemaining = 0
                 manuallyPaused = false
                 if !isFinalConfirmation { undoRecord = nil }
             }
             .onChange(of: scenePhase) { _, phase in
+            if phase != .active { cancelStoreProductSelection(resume: false) }
             browser.setBrowsingActive(phase == .active)
-            if phase == .active {
+            if phase == .active && storeProductDraft == nil && !choosingStoreProduct {
                 if let selected {
                     browser.resumeInteraction(itemID: selected.id, searchTerm: selected.searchTerm)
                 } else {
@@ -305,6 +325,7 @@ struct StoreShoppingView: View {
             Text("Your shopping run is safe. Try again or return to your list.")
             }
             .onDisappear {
+            cancelStoreProductSelection(resume: false)
             browser.setBrowsingActive(false)
             task?.cancel()
             browser.endInteraction()
@@ -333,13 +354,17 @@ struct StoreShoppingView: View {
                 ScrollViewReader { scrollProxy in
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(alignment: .bottom, spacing: 12) {
+                            StoreProductAddButton(action: beginStoreProductSelection)
+                                .padding(.bottom, 14)
                             ForEach(items) { item in
                                 card(item)
                                     .id(item.id)
                             }
+                            StoreProductAddButton(action: beginStoreProductSelection)
+                                .padding(.bottom, 14)
                         }
                         // Allow even the first and last selected cards to sit centrally.
-                        .padding(.horizontal, max(0, (geometry.size.width - 160) / 2))
+                        .padding(.horizontal, max(0, (geometry.size.width - 160) / 2 - 100))
                         .padding(.top, 5)
                         .padding(.bottom, 14)
                     }
@@ -347,6 +372,7 @@ struct StoreShoppingView: View {
                     // render over the panel instead of clipping at the scroll viewport.
                     .scrollClipDisabled()
                     .scrollDisabled(overlayDrag.axis == .vertical)
+                    .accessibilityAction(named: Text("Add store item to list"), beginStoreProductSelection)
                     .onAppear {
                         if let id = selected?.id { scrollProxy.scrollTo(id, anchor: .center) }
                     }
@@ -423,6 +449,38 @@ struct StoreShoppingView: View {
                     collapse()
                 }
             }
+    }
+
+    private func beginStoreProductSelection() {
+        guard !choosingStoreProduct, storeProductDraft == nil, !browser.siteVerificationRequired,
+              browser.storeRecovery == nil, !browser.cartUndoInProgress else { return }
+        task?.cancel()
+        secondsRemaining = 0
+        manuallyPaused = undoRecord != nil
+        choosingStoreProduct = true
+        productSelectionTask = Task { @MainActor in
+            let choice = await browser.chooseStoreProduct()
+            guard !Task.isCancelled, choosingStoreProduct, scenePhase == .active else { return }
+            choosingStoreProduct = false
+            switch choice {
+            case .cancelled: resumeAfterStoreProductSelection()
+            case .manual: storeProductDraft = StoreProductDraft(name: "")
+            case .product(let name): storeProductDraft = StoreProductDraft(name: name)
+            }
+        }
+    }
+
+    private func cancelStoreProductSelection(resume: Bool = true) {
+        productSelectionTask?.cancel()
+        productSelectionTask = nil
+        browser.cancelStoreProductSelection()
+        choosingStoreProduct = false
+        if resume { resumeAfterStoreProductSelection() }
+    }
+
+    private func resumeAfterStoreProductSelection() {
+        guard scenePhase == .active else { return }
+        if let selected { browser.resumeInteraction(itemID: selected.id, searchTerm: selected.searchTerm) }
     }
 
     private var navigationControls: some View {
@@ -556,6 +614,7 @@ struct StoreShoppingView: View {
     }
 
     private func collapsedBar(bottomSafeAreaInset: CGFloat) -> some View {
+        HStack(spacing: 0) {
         Button {
             withAnimation(overlayAnimation) { isCollapsed = false }
         } label: {
@@ -578,12 +637,6 @@ struct StoreShoppingView: View {
             }
             .padding(.horizontal, 20)
             .frame(minHeight: 70)
-            .background {
-                Rectangle()
-                    .fill(.regularMaterial)
-                    .frame(height: 70 + bottomSafeAreaInset)
-                    .offset(y: bottomSafeAreaInset)
-            }
         }
         .buttonStyle(.plain)
         .simultaneousGesture(
@@ -596,6 +649,19 @@ struct StoreShoppingView: View {
         )
         .accessibilityLabel("\(selected?.name ?? "Selected item")\(secondsRemaining > 0 ? ", next item in \(secondsRemaining) seconds" : ""), Expand overlay")
         .accessibilityHint("Shows shopping controls")
+        Button(action: beginStoreProductSelection) {
+            Image(systemName: "text.badge.plus")
+                .frame(width: 44, height: 70)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add store item to list")
+        .padding(.trailing, 12)
+        }
+        .background {
+            Rectangle().fill(.regularMaterial)
+                .frame(height: 70 + bottomSafeAreaInset)
+                .offset(y: bottomSafeAreaInset)
+        }
     }
 
     private func card(_ item: GroceryItem) -> some View {
@@ -1031,6 +1097,40 @@ final class StoreBrowser: ObservableObject {
     }
 
     @Published private(set) var webView: WKWebView
+    private var productSelectionRequest: UUID?
+
+    func chooseStoreProduct() async -> StoreProductChoice {
+        // Cancel progression/cart attribution, but retain this document for resume.
+        endInteraction()
+        guard browsingActive, canPresentStore, storeRecovery == nil, !siteVerificationRequired,
+              !webView.isLoading, let url = webView.url, store.allows(url),
+              let config = store.productSelection,
+              let data = try? JSONEncoder().encode(config),
+              let object = try? JSONSerialization.jsonObject(with: data) else { return .manual }
+        let request = UUID()
+        productSelectionRequest = request
+        let view = webView
+        let generation = documentGeneration
+        let result = try? await view.callAsyncJavaScript(StoreProductSelection.script,
+            arguments: ["config": object, "hosts": store.allowedHosts,
+                        "pathPrefix": store.id == .ikeaAU ? "/au/en/" : "",
+                        "chooseLabel": String(localized: "Choose product"), "requestID": request.uuidString],
+            in: nil, contentWorld: automationWorld)
+        guard productSelectionRequest == request, !Task.isCancelled, browsingActive,
+              view === webView, documentGeneration == generation, view.url == url,
+              !siteVerificationRequired, storeRecovery == nil else { return .cancelled }
+        productSelectionRequest = nil
+        guard let value = result as? [String: Any], let name = value["name"] as? String,
+              !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, name.utf8.count <= 512 else { return .manual }
+        return .product(name)
+    }
+
+    func cancelStoreProductSelection() {
+        guard let request = productSelectionRequest else { return }
+        productSelectionRequest = nil
+        webView.callAsyncJavaScript("if (window.__listRunnerProductSelectionID === requestID) window.__listRunnerCancelProductSelection?.();",
+            arguments: ["requestID": request.uuidString], in: nil, contentWorld: automationWorld)
+    }
     @Published private(set) var preloadWebView: WKWebView?
     #if DEBUG
     @Published private(set) var preloadDebugStatus = ""
@@ -2856,6 +2956,7 @@ final class StoreBrowser: ObservableObject {
     }
 
     fileprivate func navigationStarted(_ navigation: WKNavigation) {
+        cancelStoreProductSelection()
         guard canPresentStore, storeRecovery == nil, !retiredNavigations.contains(navigation), pendingSearchTask == nil else { return }
         if navigation !== resultsScrollNavigation { cancelResultsScroll() }
         // A stale start callback from a replaced search must not reclaim ownership.
@@ -3120,6 +3221,10 @@ final class StoreBrowser: ObservableObject {
            let loginURL = URL(string: raw), store.allowsNavigation(loginURL) {
             url = loginURL
         }
+        if uiTestMode, !isLiveWebsiteProbe, store.id == .bunnings,
+           ProcessInfo.processInfo.environment["LISTRUNNER_PRODUCT_SELECTION_FIXTURE"] == "detail" {
+            url = URL(string: "https://www.bunnings.com.au/fixture-lights_p0123456")!
+        }
         #endif
         guard canPresentStore, storeRecovery == nil else { return }
         navigationPacing.requested(at: ProcessInfo.processInfo.systemUptime)
@@ -3139,11 +3244,22 @@ final class StoreBrowser: ObservableObject {
             // Deterministic UI fixtures never contact a retailer or a real account.
             let verificationFixture = ProcessInfo.processInfo.environment["LISTRUNNER_VERIFICATION_TEST_FIXTURE"] == "enabled"
             let resultsFixture = ProcessInfo.processInfo.environment["LISTRUNNER_RESULTS_SCROLL_TEST_FIXTURE"] == "enabled"
+            let productFixture = ProcessInfo.processInfo.environment["LISTRUNNER_PRODUCT_SELECTION_FIXTURE"] != nil
+                && store.id == .bunnings
             // Do not expose the interactive fixture on the initial homepage:
             // XCTest must wait for the selected item's paced search to load.
             let resumeFixture = ProcessInfo.processInfo.environment["LISTRUNNER_STORE_RESUME_TEST_FIXTURE"] != nil
                 && (!store.capabilities.search || url == latestRequestedSearchURL)
-            let html = resumeFixture ? """
+            let html = productFixture ? """
+                <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                <body style="margin:16px;font:20px -apple-system"><main id="main"><div class="container-main">
+                <h1 data-locator="product-title">2x LED lights, 75 mm</h1>
+                <div data-search-product-tile="true" style="width:170px;height:280px;background:#eee">
+                  <a href="/fixture-lights_p0123456"><p>2x LED lights, 75 mm</p></a>
+                  <button onclick="this.textContent='UNEXPECTED CART CHANGE'">Fixture cart button</button>
+                </div><p>Selection fixture loaded</p><div style="height:1200px"></div>
+                </div></main></body></html>
+                """ : resumeFixture ? """
                 <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
                 <body style="margin:20px;font-size:20px">
                 <button onclick="history.pushState({}, '', '/product/fixture');this.textContent='Fixture product opened'">Open fixture product</button>
@@ -3170,6 +3286,7 @@ final class StoreBrowser: ObservableObject {
     }
 
     func endInteraction() {
+        cancelStoreProductSelection()
         cancelResultsScroll()
         cancelLoginReplay()
         cancelPreload()
@@ -3190,6 +3307,7 @@ final class StoreBrowser: ObservableObject {
     func setBrowsingActive(_ active: Bool) {
         browsingActive = active
         if !active {
+            cancelStoreProductSelection()
             cancelResultsScroll()
             cancelPreload()
         }
