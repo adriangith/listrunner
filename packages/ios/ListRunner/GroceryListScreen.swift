@@ -274,8 +274,6 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
     var isWelcome = false
     var keyboardDismissMode: ScrollDismissesKeyboardMode = .interactively
     var onViewportChange: (CGRect) -> Void = { _ in }
-    var onManualScroll: () -> Void = {}
-    @GestureState private var isDragging = false
     @ViewBuilder let scope: () -> Scope
     @ViewBuilder let footer: () -> Footer
     @ViewBuilder let rows: () -> Rows
@@ -287,12 +285,6 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
             .listSectionSpacing(.compact)
             .scrollIndicators(isWelcome ? .hidden : .automatic, axes: .vertical)
             .scrollDismissesKeyboard(keyboardDismissMode)
-            .simultaneousGesture(DragGesture(minimumDistance: 10).updating($isDragging) { _, dragging, _ in
-                if !dragging { dragging = true }
-            })
-            .onChange(of: isDragging) { _, dragging in
-                if dragging { onManualScroll() }
-            }
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { onViewportChange($0) }
             .safeAreaInset(edge: .top, spacing: 0) {
                 if isWelcome {
@@ -503,12 +495,14 @@ private struct ProductEntrySection<AddButton: View>: View {
     var onFocus: () -> Void = {}
     var onEditorFrame: (CGRect) -> Void = { _ in }
     var onActionsFrame: (CGRect) -> Void = { _ in }
+    var onManualScroll: () -> Void = {}
     @ViewBuilder let addButton: () -> AddButton
 
     var body: some View {
         Section("Add products") {
             ProductEntryEditor(text: $text, isFocused: $isFocused, focusControl: focusControl,
-                               onSubmit: onSubmit, accessibilityIdentifier: accessibilityIdentifier)
+                               onSubmit: onSubmit, accessibilityIdentifier: accessibilityIdentifier,
+                               onManualScroll: onManualScroll)
                 .onChange(of: text) { _, value in onTextChange(value) }
                 .modifier(ProductEntryFieldStyle(tint: tint, isFocused: isFocused))
                 .simultaneousGesture(TapGesture().onEnded {
@@ -1214,14 +1208,6 @@ private struct AllItemsScreen: View {
                 listViewportFrame = frame
                 revealFocusedEntry()
                 if let id = scrollTargetItemID { scrollToAddedItem(id, using: proxy) }
-            }, onManualScroll: {
-                groupAddRequest = nil
-                entryRevealTask?.cancel()
-                entryRevealSuppressed = true
-                addedItemScrollTask?.cancel()
-                addedItemScrollTask = nil
-                scrollTargetItemID = nil
-                itemFrames.removeAll(keepingCapacity: true)
             }, scope: {
                 ListScopePicker(stores: visibleStores, selectedStoreID: nil, tint: .accentColor,
                     onChooseAllItems: {}, onChooseStore: onChooseStoreList,
@@ -1267,7 +1253,7 @@ private struct AllItemsScreen: View {
                     let heightChanged = abs(interactionGeometry.editor.height - frame.height) > 0.5
                     interactionGeometry.editor = frame
                     if heightChanged { revealFocusedEntry() }
-                }, onActionsFrame: { interactionGeometry.actions = $0 }) {
+                }, onActionsFrame: { interactionGeometry.actions = $0 }, onManualScroll: userScrolled) {
                     AllItemsAddButton(destination: destinationID, stores: visibleStores,
                          onChooseDestination: selectAddDestination,
                         canAdd: !ParsedGrocery.productEntries(in: draft).isEmpty,
@@ -1541,6 +1527,16 @@ private struct AllItemsScreen: View {
             addedItemScrollTask = nil
             scrollTargetItemID = nil
         }
+    }
+
+    private func userScrolled() {
+        groupAddRequest = nil
+        entryRevealTask?.cancel()
+        entryRevealSuppressed = true
+        addedItemScrollTask?.cancel()
+        addedItemScrollTask = nil
+        scrollTargetItemID = nil
+        itemFrames.removeAll(keepingCapacity: true)
     }
 
     @ViewBuilder
@@ -2006,6 +2002,14 @@ struct GroceryListScreen: View {
         StoreCatalogue.ordered(sessions.definitions, countryCode: nil, enabledIDs: shoppingVisibleIDs).filter { $0.id != storeID }
     }
 
+    private func userScrolled() {
+        // A deliberate scroll wins over automatic editor/item reveal.
+        cancelAddedItemScroll()
+        productEntryRevealTask?.cancel()
+        scrollTargetItemID = nil
+        itemFrames.removeAll(keepingCapacity: true)
+    }
+
     private var pendingCount: Int { items.filter { $0.status == .pending }.count }
     private var addedCount: Int { items.filter { $0.status == .added }.count }
     private var skippedCount: Int { items.filter { $0.status == .skipped }.count }
@@ -2041,12 +2045,6 @@ struct GroceryListScreen: View {
                     listViewportFrame = frame
                     revealFocusedProductEntry()
                     if let itemID = scrollTargetItemID { scrollToAddedItem(itemID, using: scrollProxy) }
-                }, onManualScroll: {
-                    // A deliberate scroll wins over automatic editor/item reveal.
-                    cancelAddedItemScroll()
-                    productEntryRevealTask?.cancel()
-                    scrollTargetItemID = nil
-                    itemFrames.removeAll(keepingCapacity: true)
                 }, scope: {
                     if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty {
                         ListScopePicker(stores: StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
@@ -2147,7 +2145,7 @@ struct GroceryListScreen: View {
                                  let heightChanged = abs(groceryInputFrame.height - frame.height) > 0.5
                                  groceryInputFrame = frame
                                  if heightChanged { revealFocusedProductEntry() }
-                        }, onActionsFrame: { productActionsFrame = $0 }) {
+                        }, onActionsFrame: { productActionsFrame = $0 }, onManualScroll: userScrolled) {
                             Button("Add Items") {
                                 addItems(keepingInputFocused: true)
                             }
@@ -3119,6 +3117,7 @@ private struct ProductEntryEditor: UIViewRepresentable {
     let focusControl: ProductEntryFocus
     let onSubmit: () -> Void
     var accessibilityIdentifier = "grocery-input"
+    var onManualScroll: () -> Void = {}
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -3137,6 +3136,7 @@ private struct ProductEntryEditor: UIViewRepresentable {
         view.accessibilityIdentifier = accessibilityIdentifier
         view.accessibilityLabel = String(localized: "Type or paste products")
         view.onWindowAttachment = { [weak coordinator = context.coordinator] view in
+            coordinator?.observeListScroll(from: view)
             coordinator?.synchronizeFocus(for: view)
         }
         view.placeholder.text = String(localized: "Tap to add products…")
@@ -3147,6 +3147,7 @@ private struct ProductEntryEditor: UIViewRepresentable {
     func updateUIView(_ view: EntryTextView, context: Context) {
         focusControl.view = view
         context.coordinator.parent = self
+        context.coordinator.observeListScroll(from: view)
         if view.text != text {
             view.text = text
             view.invalidateIntrinsicContentSize()
@@ -3157,6 +3158,7 @@ private struct ProductEntryEditor: UIViewRepresentable {
 
     static func dismantleUIView(_ view: EntryTextView, coordinator: Coordinator) {
         coordinator.isDismantled = true
+        coordinator.stopObservingListScroll()
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: EntryTextView, context: Context) -> CGSize? {
@@ -3170,7 +3172,39 @@ private struct ProductEntryEditor: UIViewRepresentable {
         var parent: ProductEntryEditor
         var isDismantled = false
         private var focusUpdateScheduled = false
+        private weak var listPan: UIPanGestureRecognizer?
         init(parent: ProductEntryEditor) { self.parent = parent }
+
+        func observeListScroll(from view: UIView) {
+            guard !isDismantled, view.window != nil else {
+                stopObservingListScroll()
+                return
+            }
+            var ancestor = view.superview
+            while let candidate = ancestor {
+                if let list = candidate as? UICollectionView {
+                    let pan = list.panGestureRecognizer
+                    guard listPan !== pan else { return }
+                    stopObservingListScroll()
+                    listPan = pan
+                    // Observe the existing native pan; a competing full-page
+                    // SwiftUI DragGesture can swallow the interactive Back edge.
+                    pan.addTarget(self, action: #selector(listDidPan(_:)))
+                    return
+                }
+                ancestor = candidate.superview
+            }
+            stopObservingListScroll()
+        }
+
+        func stopObservingListScroll() {
+            listPan?.removeTarget(self, action: #selector(listDidPan(_:)))
+            listPan = nil
+        }
+
+        @objc private func listDidPan(_ pan: UIPanGestureRecognizer) {
+            if pan.state == .began, !isDismantled { parent.onManualScroll() }
+        }
 
         func synchronizeFocus(for view: EntryTextView) {
             guard parent.isFocused != view.isFirstResponder, !focusUpdateScheduled else { return }
@@ -3225,7 +3259,7 @@ private struct ProductEntryEditor: UIViewRepresentable {
             super.didMoveToWindow()
             // A lazy List can update the editor before attaching its cell. Retry
             // the desired focus on attachment instead of waiting for a scroll.
-            if window != nil { onWindowAttachment?(self) }
+            onWindowAttachment?(self)
         }
         #if DEBUG
         static var lastFocusUpdateAnimationsEnabled: Bool?

@@ -2064,7 +2064,9 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.buttons["Actions for Coles fixture item"].exists)
         XCTAssertFalse(app.webViews.firstMatch.exists, "Opening a grocery list must not open the retailer website")
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.45))
-        start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45)))
+        start.press(forDuration: 0.05,
+                    thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45)),
+                    withVelocity: .slow, thenHoldForDuration: 0.1)
         assertAllItemsIsCurrent()
         XCTAssertFalse(app.webViews.firstMatch.exists)
     }
