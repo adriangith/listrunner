@@ -21,9 +21,13 @@ struct StoreProductSelectionBar: View {
             Text("Scroll to browse. Your store cart won’t change.")
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
-                Button("Cancel", action: onCancel)
+                Button(action: onCancel) {
+                    Text("Cancel").frame(minHeight: 44).contentShape(Rectangle())
+                }
                 Spacer()
-                Button("Enter manually", action: onManual)
+                Button(action: onManual) {
+                    Text("Enter manually").frame(minHeight: 44).contentShape(Rectangle())
+                }
             }
             .frame(minHeight: 44)
         }
@@ -52,6 +56,7 @@ struct StoreProductAddButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.primary)
+        .accessibilityLabel("Add store item to list")
         .accessibilityHint("Choose a product from the current website. Does not change the store cart.")
         .accessibilityIdentifier("add-store-product")
     }

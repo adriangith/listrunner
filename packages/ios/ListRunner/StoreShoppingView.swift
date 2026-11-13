@@ -376,11 +376,13 @@ struct StoreShoppingView: View {
                     .scrollClipDisabled()
                     .scrollDisabled(overlayDrag.axis == .vertical)
                     .overlayPreferenceValue(StoreProductRailEdges.self) { edges in
+                        if !isCollapsed {
                         GeometryReader { proxy in
                             StoreProductRailAddControls(width: proxy.size.width,
                                 leadingEnd: edges["leading"].map { proxy[$0].maxX },
                                 trailingStart: edges["trailing"].map { proxy[$0].minX },
                                 action: beginStoreProductSelection)
+                        }
                         }
                     }
                     .accessibilityAction(named: Text("Add store item to list"), beginStoreProductSelection)
@@ -666,6 +668,7 @@ struct StoreShoppingView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Add store item to list")
+        .accessibilityIdentifier("collapsed-add-store-product")
         .padding(.trailing, 12)
         }
         .background {

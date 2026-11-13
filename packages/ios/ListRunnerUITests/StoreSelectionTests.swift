@@ -3789,7 +3789,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(railAdd.isHittable, "The leading add action is exposed beside the first card")
         attachStoreProductScreenshot("Rail-end add control")
         app.buttons["Collapse overlay"].tap()
-        let add = app.buttons["Add store item to list"]
+        let add = app.buttons["collapsed-add-store-product"]
         XCTAssertTrue(add.waitForExistence(timeout: 3))
         add.tap()
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "store-product-selection-bar").firstMatch.waitForExistence(timeout: 3))

@@ -90,6 +90,12 @@ struct RecoveryTests {
         let durableWebsiteRows = try ModelContext(addData).fetch(FetchDescriptor<GroceryItem>())
         check(durableWebsiteRows.first { $0.name == websiteTitle }?.quantityAmount == 1,
               "failed website addition leaves the committed quantity unchanged")
+        try addContext.save()
+        let retriedWebsiteRows = ShoppingLists.stageAdd([ParsedGrocery(name: websiteTitle, amount: 2, unit: nil)],
+            to: .bunnings, allItems: manualRows + websiteRows + [otherStoreItem], context: addContext)
+        try addContext.save()
+        check(retriedWebsiteRows.first?.quantityAmount == 3,
+              "retrying after a failed website addition applies the requested quantity exactly once")
         let firstID = UUID(), secondID = UUID(), thirdID = UUID()
         let initialOrder = ItemPromotionOrder.promoting([firstID, secondID], in: "", existing: [firstID, secondID, thirdID])
         let updatedOrder = ItemPromotionOrder.promoting([thirdID, firstID], in: initialOrder,
