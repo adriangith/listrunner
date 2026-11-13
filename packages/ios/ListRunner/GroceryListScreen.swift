@@ -399,6 +399,17 @@ private struct StoreListInteractiveBack: UIViewControllerRepresentable {
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
             apply()
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"] != nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) { [weak self] in
+                    guard let self else { return }
+                    for installed in self.installations {
+                        let gesture = installed.gesture
+                        print("STORE_BACK settled enabled=\(gesture.isEnabled) view=\(String(describing: gesture.view)) sameDelegate=\(gesture.delegate === installed.delegate) state=\(gesture.state.rawValue)")
+                    }
+                }
+            }
+            #endif
         }
 
         override func viewDidLayoutSubviews() {
