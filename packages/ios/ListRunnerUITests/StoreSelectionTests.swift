@@ -3785,6 +3785,9 @@ final class StoreSelectionTests: XCTestCase {
         choose("Bunnings")
         app.buttons["Show Store"].tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        let railAdd = app.buttons.matching(identifier: "add-store-product").firstMatch
+        XCTAssertTrue(railAdd.isHittable, "The leading add action is exposed beside the first card")
+        attachStoreProductScreenshot("Rail-end add control")
         app.buttons["Collapse overlay"].tap()
         let add = app.buttons["Add store item to list"]
         XCTAssertTrue(add.waitForExistence(timeout: 3))
@@ -3792,10 +3795,12 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.otherElements["store-product-selection-bar"].waitForExistence(timeout: 3))
         let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
         XCTAssertTrue(shield.waitForExistence(timeout: 5))
+        attachStoreProductScreenshot("Product selection shields")
         shield.tap()
-        let name = app.textFields["store-product-name"]
+        let name = app.descendants(matching: .any).matching(identifier: "store-product-name").firstMatch
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         XCTAssertEqual(name.value as? String, "2x LED lights, 75 mm")
+        attachStoreProductScreenshot("Native product review")
         app.buttons["confirm-store-product"].tap()
         XCTAssertTrue(app.webViews.buttons["Fixture cart button"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.webViews.buttons["UNEXPECTED CART CHANGE"].exists)
@@ -3809,15 +3814,23 @@ final class StoreSelectionTests: XCTestCase {
         choose("Bunnings")
         app.buttons["Show Store"].tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
-        app.buttons["Collapse overlay"].tap()
-        app.buttons["Add store item to list"].tap()
-        let field = app.textFields["store-product-name"]
+        let railAdd = app.buttons.matching(identifier: "add-store-product").firstMatch
+        XCTAssertTrue(railAdd.isHittable)
+        railAdd.tap()
+        let field = app.descendants(matching: .any).matching(identifier: "store-product-name").firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         XCTAssertEqual(field.value as? String, "2x LED lights, 75 mm")
         XCTAssertFalse(app.webViews.buttons["Choose product: 2x LED lights, 75 mm"].exists)
         app.buttons["Cancel"].tap()
         app.buttons["Dismiss store"].tap()
         XCTAssertFalse(app.staticTexts["2x LED lights, 75 mm"].exists)
+    }
+
+    private func attachStoreProductScreenshot(_ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testCardCollapseHintSurvivesIncompleteGesturesThenClearsOnSwipe() {

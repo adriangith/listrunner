@@ -278,7 +278,8 @@ struct StoreShoppingView: View {
                 }
             }
             .onChange(of: browser.detectedAddSequence) { _, _ in
-            guard let id = browser.lastDetectedItemID,
+            guard !choosingStoreProduct, storeProductDraft == nil,
+                  let id = browser.lastDetectedItemID,
                   let item = items.first(where: { $0.id == id }) else { return }
             confirmAutomaticAdd(item)
             }
@@ -354,14 +355,16 @@ struct StoreShoppingView: View {
                 ScrollViewReader { scrollProxy in
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(alignment: .bottom, spacing: 12) {
-                            StoreProductAddButton(action: beginStoreProductSelection)
-                                .padding(.bottom, 14)
+                            Color.clear.frame(width: 88, height: 102)
+                                .anchorPreference(key: StoreProductRailEdges.self, value: .bounds) { ["leading": $0] }
+                                .accessibilityHidden(true)
                             ForEach(items) { item in
                                 card(item)
                                     .id(item.id)
                             }
-                            StoreProductAddButton(action: beginStoreProductSelection)
-                                .padding(.bottom, 14)
+                            Color.clear.frame(width: 88, height: 102)
+                                .anchorPreference(key: StoreProductRailEdges.self, value: .bounds) { ["trailing": $0] }
+                                .accessibilityHidden(true)
                         }
                         // Allow even the first and last selected cards to sit centrally.
                         .padding(.horizontal, max(0, (geometry.size.width - 160) / 2 - 100))
@@ -372,6 +375,14 @@ struct StoreShoppingView: View {
                     // render over the panel instead of clipping at the scroll viewport.
                     .scrollClipDisabled()
                     .scrollDisabled(overlayDrag.axis == .vertical)
+                    .overlayPreferenceValue(StoreProductRailEdges.self) { edges in
+                        GeometryReader { proxy in
+                            StoreProductRailAddControls(width: proxy.size.width,
+                                leadingEnd: edges["leading"].map { proxy[$0].maxX },
+                                trailingStart: edges["trailing"].map { proxy[$0].minX },
+                                action: beginStoreProductSelection)
+                        }
+                    }
                     .accessibilityAction(named: Text("Add store item to list"), beginStoreProductSelection)
                     .onAppear {
                         if let id = selected?.id { scrollProxy.scrollTo(id, anchor: .center) }
@@ -480,7 +491,7 @@ struct StoreShoppingView: View {
 
     private func resumeAfterStoreProductSelection() {
         guard scenePhase == .active else { return }
-        if let selected { browser.resumeInteraction(itemID: selected.id, searchTerm: selected.searchTerm) }
+        if let selected { browser.resumeAfterStoreProductSelection(itemID: selected.id) }
     }
 
     private var navigationControls: some View {
@@ -1098,6 +1109,17 @@ final class StoreBrowser: ObservableObject {
 
     @Published private(set) var webView: WKWebView
     private var productSelectionRequest: UUID?
+
+    func resumeAfterStoreProductSelection(itemID: UUID) {
+        // Closing a local-list composer never searches or replaces the document,
+        // even if a paced card search was cancelled when selection began.
+        guard browsingActive, canPresentStore, storeRecovery == nil, !siteVerificationRequired else { return }
+        self.itemID = itemID
+        interactionID = UUID().uuidString
+        interactionEnabled = true
+        activeCandidate = nil
+        updateIsolatedContext()
+    }
 
     func chooseStoreProduct() async -> StoreProductChoice {
         // Cancel progression/cart attribution, but retain this document for resume.

@@ -56,6 +56,45 @@ struct StoreProductAddButton: View {
     }
 }
 
+struct StoreProductRailEdges: PreferenceKey {
+    static var defaultValue: [String: Anchor<CGRect>] = [:]
+    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
+struct StoreProductRailAddControls: View {
+    let width: CGFloat
+    let leadingEnd: CGFloat?
+    let trailingStart: CGFloat?
+    let action: () -> Void
+
+    var body: some View {
+        let inset = max(0, (width - 160) / 2 - 100)
+        let leadingWidth = min(88, max(0, (leadingEnd ?? 0) - inset))
+        let trailingWidth = min(88, max(0, width - inset - (trailingStart ?? width)))
+        ZStack(alignment: .bottomLeading) {
+            // Buttons stay fixed beneath the moving rail. Clip both rendering
+            // and hit targets to the uncovered end slots, never over a card.
+            StoreProductAddButton(action: action)
+                .frame(width: leadingWidth, alignment: .leading)
+                .clipped()
+                .contentShape(Rectangle())
+                .allowsHitTesting(leadingWidth >= 44)
+                .accessibilityHidden(leadingWidth < 44)
+                .offset(x: inset)
+            StoreProductAddButton(action: action)
+                .frame(width: trailingWidth, alignment: .trailing)
+                .clipped()
+                .contentShape(Rectangle())
+                .allowsHitTesting(trailingWidth >= 44)
+                .accessibilityHidden(trailingWidth < 44)
+                .offset(x: width - inset - trailingWidth)
+        }
+        .frame(width: width, height: 222, alignment: .bottomLeading)
+    }
+}
+
 struct StoreProductReview: View {
     let storeName: String
     let initialName: String

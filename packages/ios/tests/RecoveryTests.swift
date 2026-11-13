@@ -68,7 +68,23 @@ struct RecoveryTests {
         check(savedManualRows.count == 3 && savedManualRows.allSatisfy { manualNames.contains($0.name) && $0.searchTerm == $0.name },
               "saved manual names and search terms are not rewritten by persistence")
         check(otherStoreItem.quantityAmount == 9 && otherStoreItem.name == "milk",
-              "literal manual additions leave other stores unchanged")
+               "literal manual additions leave other stores unchanged")
+        let websiteTitle = "2x LED lights, 75 mm; reverse indicator"
+        let websiteRows = ShoppingLists.stageAdd([ParsedGrocery(name: websiteTitle, amount: 1, unit: nil)],
+                                                to: .bunnings, allItems: manualRows + [otherStoreItem], context: addContext)
+        check(websiteRows.count == 1 && websiteRows[0].name == websiteTitle && websiteRows[0].searchTerm == websiteTitle
+              && websiteRows[0].quantityAmount == 1 && websiteRows[0].status == .pending,
+              "website review saves one literal product including commas, semicolons and pack-size wording")
+        try addContext.save()
+        websiteRows[0].status = .added
+        let duplicateWebsiteRows = ShoppingLists.stageAdd([ParsedGrocery(name: websiteTitle, amount: 2, unit: nil)],
+            to: .bunnings, allItems: manualRows + websiteRows + [otherStoreItem], context: addContext)
+        check(duplicateWebsiteRows.count == 1 && duplicateWebsiteRows[0].id == websiteRows[0].id
+              && duplicateWebsiteRows[0].quantityAmount == 3 && duplicateWebsiteRows[0].status == .pending,
+              "website additions reuse store-local duplicate reactivation and explicit quantity merging")
+        addContext.rollback()
+        check(websiteRows[0].quantityAmount == 1 && otherStoreItem.quantityAmount == 9,
+              "failed website addition rolls back only the newly staged transaction")
         let firstID = UUID(), secondID = UUID(), thirdID = UUID()
         let initialOrder = ItemPromotionOrder.promoting([firstID, secondID], in: "", existing: [firstID, secondID, thirdID])
         let updatedOrder = ItemPromotionOrder.promoting([thirdID, firstID], in: initialOrder,
@@ -312,8 +328,8 @@ struct RecoveryTests {
                   "IKEA snapshot contract rejects incompatible engines, foreign locales and unknown keys")
         }
         check(allProductionDefinitions.count == 33
-              && allProductionDefinitions.allSatisfy { $0.schemaVersion == 7 && $0.category != nil && $0.isConfigurationValid },
-              "all 33 production destinations use valid schema-7 categories")
+              && allProductionDefinitions.allSatisfy { [7, 8].contains($0.schemaVersion) && $0.category != nil && $0.isConfigurationValid },
+              "all 33 production destinations retain valid single categories in schemas 7 and 8")
         for definition in allProductionDefinitions {
             let roundTrip = try StoreDefinition.decodeConfiguration(from: JSONEncoder().encode(definition))
             check(roundTrip.id == definition.id && roundTrip.categories == definition.categories

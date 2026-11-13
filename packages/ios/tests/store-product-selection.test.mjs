@@ -165,5 +165,7 @@ test('native source confines reads and cancellation to the request and isolated 
   assert.match(source, /documentGeneration == generation, view.url == url/);
   assert.match(source, /contentWorld: automationWorld/);
   assert.match(source, /func endInteraction\(\) \{\s*cancelStoreProductSelection\(\)/);
+  const resume = source.split('func resumeAfterStoreProductSelection(itemID: UUID)')[1].split('func chooseStoreProduct')[0];
+  assert.doesNotMatch(resume, /beginInteraction|search\(for:|loadStoreURL/);
   assert.doesNotMatch(swift.match(/static let script[\s\S]*/)[0], /fetch\(|\.click\(|localStorage|sessionStorage|document.cookie/);
 });
