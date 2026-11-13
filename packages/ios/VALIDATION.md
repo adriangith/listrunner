@@ -1,5 +1,26 @@
 # Reusable store framework validation
 
+## Adaptive list navigation (13 November 2026)
+
+Branch `feature/list-navigation-transitions` shares one native list navigation
+stack, keeps at most one store destination above All items, and removes the
+trailing grid shortcut in favour of the compact native Back chevron. Single-store
+navigation omits the duplicate overview unless saved rows need recovery outside
+that enabled store. The current OpenPencil screen audit/shared list layout were
+consulted; no design document, retailer content or list schema was changed.
+
+Linux checks passed: **450/450** offline JavaScript tests, **46/46** Python
+contract checks, Swift syntax parsing of all five changed Swift files using the
+extracted Linux toolchain, and `git diff --check`. These do not establish SwiftUI
+type correctness or native gesture/layout behaviour.
+
+Native coverage adds seven policy assertions to `RecoveryTests.swift`, focused UI
+cases for header/menu navigation, Back history, completed/cancelled edge swipes,
+scope/draft/grouping restoration, single-store simplification, unavailable-owner
+recovery and deferred management reconciliation. The old compact-toolbar test
+now expects native leading Back instead of the trailing grid shortcut. Native
+build/runtime results will be recorded after verifying the pushed revision on Mac.
+
 ## Retailer-neutral store-list wording (13 November 2026)
 
 Branch `fix/store-page-titles` changes the populated store-list section heading

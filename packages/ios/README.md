@@ -35,6 +35,23 @@ The verifier requires every canonical JSON file (including Bunnings) to be byte-
 
 ## Current implementation
 
+### Adaptive list navigation
+
+Store lists share the root `NavigationStack` with All items. With multiple
+available enabled stores, a group header or scope-menu choice opens one store
+destination; changing stores replaces that destination, never adds Back history.
+The compact native leading Back chevron and interactive edge swipe return to
+All items. The old trailing grid shortcut is removed. Explicit scope changes
+respect Reduce Motion, and launch restores the last scope without animating.
+
+A single enabled store opens directly with no redundant overview, Back button
+or All items menu entry. Saved rows outside the enabled store (including unknown
+owners) keep All items available for recovery. Visibility changes are reconciled
+when list content returns, not underneath store management/settings. Import
+sheets retain their own stack; list data, drafts and browser sessions keep their
+existing owners. Native policy checks are in `tests/RecoveryTests.swift`; UI
+regression cases are in `ListRunnerUITests/StoreSelectionTests.swift`.
+
 ### Retailer-neutral list wording
 
 Individual store lists label their populated item section `Items` for every

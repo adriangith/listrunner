@@ -20,6 +20,11 @@ struct ShoppingRootScreen: View {
     @AppStorage("allItemsAddDestination.v1") private var allItemsAddDestination = ""
     @State private var welcomeCompletion = 0
     @State private var welcomeTransition = WelcomeCompletionTransition()
+    // A store is one level below All items, never a growing store-to-store history.
+    // nil lets the first render restore the saved scope without a launch animation.
+    @State private var listPath: [StoreID]?
+    @State private var overviewEnabled: Bool?
+    @State private var listContentVisible = false
     @State private var previewingStoreWelcome: Bool = {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("--preview-store-welcome")
@@ -42,61 +47,63 @@ struct ShoppingRootScreen: View {
         })
     }
 
+    private var overviewAvailable: Bool {
+        ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: shoppingVisibleIDs,
+                                                    itemListIDs: allItems.map(\.listID))
+    }
+
+    private var usesOverview: Bool {
+        !previewingStoreWelcome && (overviewEnabled ?? overviewAvailable)
+    }
+
+    private var navigationPath: Binding<[StoreID]> {
+        Binding(get: {
+            listPath ?? (usesOverview && !showingAllItems
+                ? [StoreID(rawValue: activeStoreID) ?? .coles] : [])
+        }, set: { path in
+            // SwiftUI writes this only when the native Back action/edge pop commits.
+            // A cancelled interactive swipe must not change the remembered scope.
+            sessions.endAllInteractions()
+            listPath = path
+            if let store = path.last { activeStoreID = store.rawValue }
+            showingAllItems = usesOverview && path.isEmpty
+        })
+    }
+
     var body: some View {
         let storeID = StoreID(rawValue: activeStoreID) ?? .coles
-        ZStack {
-        Group {
-        // A one-launch preview takes precedence without changing the saved scope.
-        if showingAllItems && !previewingStoreWelcome {
-            NavigationStack {
-            AllItemsScreen(sessions: sessions, visibility: visibility, paprikaReminders: paprikaReminders,
-                           draft: $allItemsDraft, destinationRawValue: $allItemsAddDestination,
-                            onChooseStoreList: { id in
-                                sessions.endAllInteractions()
-                                if shoppingVisibleIDs.contains(id) {
-                                    activeStoreID = id.rawValue
-                                    showingAllItems = false
-                                }
-                            }, onPromoteStore: promote)
+        NavigationStack(path: navigationPath) {
+                // A one-launch preview takes precedence without changing the saved scope.
+                Group {
+                    if usesOverview {
+                        AllItemsScreen(sessions: sessions, visibility: visibility, paprikaReminders: paprikaReminders,
+                            draft: $allItemsDraft, destinationRawValue: $allItemsAddDestination,
+                            onChooseStoreList: { selectStore($0) }, onPromoteStore: promote,
+                            onListVisibilityChange: listVisibilityChanged)
+                    } else {
+                        storeList(storeID)
+                    }
+                }
+                .navigationDestination(for: StoreID.self) { id in
+                    storeList(id)
+                        // Keep the system Back button and interactive edge gesture, with
+                        // a compact chevron alongside the existing leading scope chooser.
+                        .toolbarRole(.editor)
+                }
             }
-        } else {
-        GroceryListScreen(storeID: storeID, sessions: sessions, visibility: visibility, paprikaReminders: paprikaReminders,
-                           previewingStoreWelcome: $previewingStoreWelcome,
-                           rawInput: Binding(get: { drafts[storeID] ?? "" }, set: { drafts[storeID] = $0 }),
-                           onWelcomeStoreEnabled: { id in
-                               sessions.endAllInteractions()
-                               _ = visibility.selectionForList(current: id, definitions: sessions.definitions)
-                               // Lay out the new navigation stack without animating
-                               // its safe areas/header. Fade the captured outgoing
-                               // screen instead of interpolating live stack layout.
-                               welcomeTransition.perform(reduceMotion: reduceMotion) {
-                                    previewingStoreWelcome = false
-                                    activeStoreID = id.rawValue
-                                    showingAllItems = false
-                                    welcomeCompletion += 1
-                               }
-                            }, onSelectStore: { id in
-                                sessions.endAllInteractions()
-                                if shoppingVisibleIDs.contains(id) { activeStoreID = id.rawValue }
-                                else { showingAllItems = true }
-                            }, onSelectAllItems: {
-                                if allItemsAddDestination.isEmpty { allItemsAddDestination = storeID.rawValue }
-                                showingAllItems = true
-                           }, storeLaunchRequested: $storeLaunchRequested,
-                           importLaunchRequested: $importLaunchRequested,
-                           onPromoteStore: promote)
-        }
-        }
-            .id("\(storeID.rawValue)-\(welcomeCompletion)")
-        }
+            .id(welcomeCompletion)
             .background(WelcomeTransitionAnchor(transition: welcomeTransition))
             .sensoryFeedback(.success, trigger: welcomeCompletion)
-             .onChange(of: shoppingVisibleIDs) { previous, current in
+            .onChange(of: shoppingVisibleIDs) { previous, current in
                 // Opening management is not a choice. Keep the one-run welcome
                 // preview when backing out, and finish only on an enable action.
                 if !current.subtracting(previous).isEmpty {
                     previewingStoreWelcome = false
                 }
+            }
+            .onChange(of: overviewAvailable) { _, _ in
+                // Never replace the stack underneath Settings/Manage Stores.
+                if listContentVisible { reconcileNavigation() }
             }
             .onAppear {
                 visibility.updateNonEmptyListIDs(nonEmptyListIDs)
@@ -111,6 +118,81 @@ struct ShoppingRootScreen: View {
                 }
             }
             .onChange(of: nonEmptyListIDs) { _, ids in visibility.updateNonEmptyListIDs(ids) }
+    }
+
+    // Shared route construction for a direct single-store root and a store detail.
+    private func storeList(_ storeID: StoreID) -> some View {
+        GroceryListScreen(storeID: storeID, sessions: sessions, visibility: visibility,
+            paprikaReminders: paprikaReminders, previewingStoreWelcome: $previewingStoreWelcome,
+            rawInput: Binding(get: { drafts[storeID] ?? "" }, set: { drafts[storeID] = $0 }),
+            onWelcomeStoreEnabled: completeWelcome,
+            onSelectStore: { selectStore($0) }, onSelectAllItems: selectAllItems,
+            storeLaunchRequested: $storeLaunchRequested, importLaunchRequested: $importLaunchRequested,
+            onPromoteStore: promote, ownsNavigationStack: false,
+            offersAllItems: usesOverview, onListVisibilityChange: listVisibilityChanged)
+            .id(storeID)
+    }
+
+    private func selectStore(_ store: StoreID) {
+        guard shoppingVisibleIDs.contains(store) else { return }
+        guard showingAllItems || activeStoreID != store.rawValue else { return }
+        sessions.endAllInteractions()
+        var transaction = Transaction(animation: reduceMotion ? nil : .default)
+        transaction.disablesAnimations = reduceMotion
+        withTransaction(transaction) {
+            activeStoreID = store.rawValue
+            showingAllItems = false
+            listPath = usesOverview ? [store] : []
+        }
+    }
+
+    private func selectAllItems() {
+        guard usesOverview else { return }
+        sessions.endAllInteractions()
+        if allItemsAddDestination.isEmpty { allItemsAddDestination = activeStoreID }
+        var transaction = Transaction(animation: reduceMotion ? nil : .default)
+        transaction.disablesAnimations = reduceMotion
+        withTransaction(transaction) {
+            showingAllItems = true
+            listPath = []
+        }
+    }
+
+    private func listVisibilityChanged(_ visible: Bool) {
+        listContentVisible = visible
+        if visible { reconcileNavigation() }
+    }
+
+    private func reconcileNavigation() {
+        guard !previewingStoreWelcome else { return }
+        let available = overviewAvailable
+        guard overviewEnabled != available || (!available && showingAllItems) else { return }
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            overviewEnabled = available
+            if !available {
+                if let onlyStore = shoppingVisibleIDs.first, shoppingVisibleIDs.count == 1 {
+                    activeStoreID = onlyStore.rawValue
+                }
+                showingAllItems = false
+            }
+            listPath = available && !showingAllItems
+                ? [StoreID(rawValue: activeStoreID) ?? .coles] : []
+        }
+    }
+
+    private func completeWelcome(_ store: StoreID) {
+        sessions.endAllInteractions()
+        _ = visibility.selectionForList(current: store, definitions: sessions.definitions)
+        welcomeTransition.perform(reduceMotion: reduceMotion) {
+            previewingStoreWelcome = false
+            activeStoreID = store.rawValue
+            showingAllItems = false
+            overviewEnabled = overviewAvailable
+            listPath = overviewAvailable ? [store] : []
+            welcomeCompletion += 1
+        }
     }
 
     private func promote(_ store: StoreID, _ itemIDs: [UUID]) {
@@ -235,6 +317,21 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
     }
 }
 
+// Import sheets still own a stack; list routes share the root stack so the
+// platform supplies both the transition and cancellable interactive edge pop.
+private struct ListNavigationContainer<Content: View>: View {
+    let standalone: Bool
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        if standalone {
+            NavigationStack { content() }
+        } else {
+            content()
+        }
+    }
+}
+
 private struct ListScopePicker: View {
     let stores: [StoreDefinition]
     let selectedStoreID: StoreID?
@@ -242,15 +339,18 @@ private struct ListScopePicker: View {
     let onChooseAllItems: () -> Void
     let onChooseStore: (StoreID) -> Void
     let onManageStores: () -> Void
+    var offersAllItems = true
 
     var body: some View {
         Menu {
-            if selectedStoreID == nil {
-                Label("All items", systemImage: "checkmark")
-            } else {
-                Button(action: onChooseAllItems) { Label("All items", systemImage: "square.grid.2x2") }
+            if offersAllItems {
+                if selectedStoreID == nil {
+                    Label("All items", systemImage: "checkmark")
+                } else {
+                    Button(action: onChooseAllItems) { Label("All items", systemImage: "square.grid.2x2") }
+                }
+                Divider()
             }
-            Divider()
             ForEach(stores, id: \.id) { store in
                 Button(store.displayName) { onChooseStore(store.id) }
             }
@@ -274,19 +374,9 @@ private struct ListScopePicker: View {
 
 private struct ListPageToolbar: ToolbarContent {
     var showSettings = true
-    var onSelectAllItems: (() -> Void)?
     let onSettings: () -> Void
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            if let onSelectAllItems {
-                Button(action: onSelectAllItems) {
-                    Image(systemName: "square.grid.2x2")
-                }
-                .accessibilityLabel("All items")
-                .accessibilityIdentifier("all-items-shortcut")
-            }
-        }
         ToolbarItem(placement: .topBarTrailing) {
             if showSettings {
                 Button(action: onSettings) { Image(systemName: "gearshape") }
@@ -984,6 +1074,7 @@ private struct AllItemsScreen: View {
     @Binding var destinationRawValue: String
     let onChooseStoreList: (StoreID) -> Void
     let onPromoteStore: (StoreID, [UUID]) -> Void
+    var onListVisibilityChange: (Bool) -> Void = { _ in }
     @AppStorage("allItemsGrouping.v1") private var groupingRawValue = AllItemsGrouping.store.rawValue
     @AppStorage("allItemsRecentStoreOrder.v1") private var recentStoreOrderRawValue = ""
     @AppStorage("allItemsRecentItemOrder.v1") private var recentItemOrderRawValue = ""
@@ -1431,6 +1522,7 @@ private struct AllItemsScreen: View {
                 .interactiveDismissDisabled(paprikaReminders.importing)
         }
         .onAppear {
+            onListVisibilityChange(true)
             if destinationRawValue.isEmpty, !visibleStores.isEmpty {
                 // The root supplies the previously viewed store on first entry.
                 // Do not reach into a different defaults suite here (UI tests
@@ -1439,6 +1531,7 @@ private struct AllItemsScreen: View {
             }
         }
         .onDisappear {
+            onListVisibilityChange(false)
             if let workingStoreID, !allItems.contains(where: { $0.listID == workingStoreID.listID }) {
                 self.workingStoreID = nil
             }
@@ -1832,6 +1925,9 @@ struct GroceryListScreen: View {
     let onPromoteStore: (StoreID, [UUID]) -> Void
     let onImportCompleted: ((String) -> Void)?
     let onWelcomeStoreEnabled: (StoreID) -> Void
+    let ownsNavigationStack: Bool
+    let offersAllItems: Bool
+    let onListVisibilityChange: (Bool) -> Void
     @Binding private var rawInput: String
     @State private var routedLaunch = false
     @State private var itemToMove: GroceryItem?
@@ -1883,7 +1979,9 @@ struct GroceryListScreen: View {
           storeLaunchRequested: Binding<Bool>,
           importLaunchRequested: Binding<Bool>,
           onPromoteStore: @escaping (StoreID, [UUID]) -> Void,
-          onImportCompleted: ((String) -> Void)? = nil) {
+          onImportCompleted: ((String) -> Void)? = nil,
+          ownsNavigationStack: Bool = true, offersAllItems: Bool = true,
+          onListVisibilityChange: @escaping (Bool) -> Void = { _ in }) {
         self.storeID = storeID; self.sessions = sessions
         self.visibility = visibility
         self.paprikaReminders = paprikaReminders
@@ -1895,6 +1993,9 @@ struct GroceryListScreen: View {
         self._importLaunchRequested = importLaunchRequested
         self.onPromoteStore = onPromoteStore
         self.onImportCompleted = onImportCompleted
+        self.ownsNavigationStack = ownsNavigationStack
+        self.offersAllItems = offersAllItems
+        self.onListVisibilityChange = onListVisibilityChange
         _browser = StateObject(wrappedValue: sessions.browser(for: storeID))
     }
 
@@ -1933,7 +2034,7 @@ struct GroceryListScreen: View {
 
     var body: some View {
         ScrollViewReader { scrollProxy in
-        NavigationStack {
+        ListNavigationContainer(standalone: ownsNavigationStack) {
             ShoppingListPage(isWelcome: showingStoreWelcome,
                 keyboardDismissMode: isRevealingProductEntry ? .never : .interactively,
                 onViewportChange: { frame in
@@ -1951,7 +2052,7 @@ struct GroceryListScreen: View {
                         ListScopePicker(stores: StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
                             enabledIDs: shoppingVisibleIDs), selectedStoreID: storeID, tint: storePrimaryColor,
                             onChooseAllItems: onSelectAllItems, onChooseStore: onSelectStore,
-                            onManageStores: { showingStoreManagement = true })
+                            onManageStores: { showingStoreManagement = true }, offersAllItems: offersAllItems)
                     }
                 }, footer: {
                     if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty && !items.isEmpty {
@@ -2105,10 +2206,12 @@ struct GroceryListScreen: View {
                    selected != storeID {
                     onSelectStore(selected)
                 }
+                onListVisibilityChange(true)
             }
             .onDisappear {
                 groceryInputFocused = false
                 isListScreenVisible = false
+                onListVisibilityChange(false)
             }
             .navigationDestination(isPresented: $showingStoreManagement) {
                 StoreVisibilityScreen(sessions: sessions, visibility: visibility,
@@ -2150,8 +2253,7 @@ struct GroceryListScreen: View {
                 }
             }
             .toolbar {
-                ListPageToolbar(showSettings: !showingStoreWelcome,
-                    onSelectAllItems: showingStoreWelcome || shoppingVisibleIDs.isEmpty ? nil : onSelectAllItems) {
+                ListPageToolbar(showSettings: !showingStoreWelcome) {
                     groceryInputFocused = false
                     showingSettings = true
                 }

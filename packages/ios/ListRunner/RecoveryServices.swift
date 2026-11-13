@@ -18,15 +18,28 @@ final class LocalDataController: ObservableObject {
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent("ListRunnerUITests/" + token.uuidString)
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let defaults = UserDefaults(suiteName: "ListRunnerUITests." + token.uuidString)!
+            let navigationFixture = ProcessInfo.processInfo.environment["LISTRUNNER_NAVIGATION_TEST_FIXTURE"]
+            if let navigationFixture, ["single", "recovery"].contains(navigationFixture),
+               defaults.array(forKey: "knownStoreIDs.v1") == nil {
+                defaults.set(StoreID.allCases.map(\.rawValue), forKey: "knownStoreIDs.v1")
+                defaults.set([StoreID.coles.rawValue], forKey: "visibleStoreIDs.v1")
+                defaults.set(true, forKey: "storeSetupCompleted.v1")
+                defaults.set(StoreID.coles.rawValue, forKey: "activeStoreID")
+                // Exercise an older install that last viewed the redundant overview.
+                defaults.set(true, forKey: "allItemsScope.v1")
+            }
             let controller = LocalDataController(configuration: ModelConfiguration(url: directory.appendingPathComponent("test.store")),
                                                  diagnostics: DiagnosticStore(fileURL: directory.appendingPathComponent("diagnostics.json")), defaults: defaults)
             if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_EMPTY_LIST"] != "1",
                let context = controller.container?.mainContext,
                (try? context.fetchCount(FetchDescriptor<GroceryItem>())) == 0 {
                 context.insert(GroceryItem(name: "Coles fixture item", amount: 2, position: 0, listID: StoreID.coles.listID))
-                context.insert(GroceryItem(name: "Woolworths fixture item", amount: 1, position: 0, listID: StoreID.woolworths.listID))
-                context.insert(GroceryItem(name: "Bunnings fixture item", amount: 1, position: 0, listID: StoreID.bunnings.listID))
-                if ProcessInfo.processInfo.environment["LISTRUNNER_ALL_ITEMS_RECOVERY_TEST_FIXTURE"] == "1" {
+                if navigationFixture == nil {
+                    context.insert(GroceryItem(name: "Woolworths fixture item", amount: 1, position: 0, listID: StoreID.woolworths.listID))
+                    context.insert(GroceryItem(name: "Bunnings fixture item", amount: 1, position: 0, listID: StoreID.bunnings.listID))
+                }
+                if ProcessInfo.processInfo.environment["LISTRUNNER_ALL_ITEMS_RECOVERY_TEST_FIXTURE"] == "1"
+                    || navigationFixture == "recovery" {
                     context.insert(GroceryItem(name: "Unavailable saved item", amount: 1, position: 0, listID: StoreID.tesco.listID))
                     context.insert(GroceryItem(name: "Uncategorised saved item", amount: 1, position: 0,
                                                listID: UUID(uuidString: "00000000-0000-0000-0000-000000000099")!))

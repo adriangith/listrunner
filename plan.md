@@ -1,5 +1,11 @@
 ## ListRunner Build Specification
 
+### Adaptive list navigation (13 November 2026)
+
+* All items is the overview when more than one store is available and enabled. A store header or the top-left chooser opens the store list with the native navigation transition. Keep a single store destination above All items: choosing another store replaces that destination rather than accumulating history. The compact native Back chevron sits immediately before the store chooser, replacing the old trailing grid shortcut. Back and the cancellable leading-edge swipe return to All items, not to a previously selected store. The chooser's All items action uses the same return path. Respect Reduce Motion.
+* With only one available enabled store and no saved rows outside it, open that store's normal list directly. Hide the Back chevron, All items shortcut and All items menu entry; retain the chooser and Manage Stores. An old remembered All items scope resolves to this direct list. Keep All items accessible if rows belong to disabled, unavailable, missing or unrecognised owners, including when no stores are enabled; preserve the welcome/no-stores recovery flows.
+* Reopen the last-viewed scope on launch, without an entry animation. Do not force multi-store users onto All items on every launch. Preserve store-owned lists, drafts, aggregate grouping/destination and retailer sessions. Reconcile a changed enabled-store count only when returning to list content, not by replacing navigation underneath Settings or Manage Stores. List navigation does not open retailer websites or mutate their carts.
+
 ### Retailer-neutral list wording (13 November 2026)
 
 * Every individual store list uses `Items` as its populated-list section heading, including grocery retailers and non-grocery retailers such as Bunnings. Keep the heading hidden for empty lists. Store chooser/group accessibility hints and the no-stores message describe a shopping list; the shared product-entry accessibility label says `Type or paste products`.
