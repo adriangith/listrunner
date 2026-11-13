@@ -2190,11 +2190,22 @@ pass. Real isolated Chromium with mobile viewport and positioned body confirmed
 all four shields aligned immediately at six scroll offsets in one JavaScript
 turn, before animation-frame callbacks could reposition them. Dynamic reflow,
 selecting the second product, no retailer Add clicks and cleanup also passed.
-Mac code revision `2758ef59242a4f8a82d19ead00690256930f14fd`: generic simulator
+Mac code revision `f7235c9b8355c82fc08dff828682476102655e81`: generic simulator
 build and the complete cloud offline allowlist passed, including 1,910 native
 checks, parser/regional checks and synthetic store registration. The simulator
 app's 35 JSON + 1 JavaScript resources match canonical files byte-for-byte.
-Focused simulator scrolling/fade regression results follow after verification.
+The first six-case simulator run at `2758ef5` passed all four original paths and
+the new scrolling test: a 240-point gesture preserved shield/title offset within
+two points, and video frames showed matching motion during the drag. Selecting
+the scrolled product populated the correct review without a fixture cart change.
+Visual fading and the new wording were also correct, but the covered-control
+nonexistence assertion failed: SwiftUI retained invisible 88-point buttons in
+the accessibility tree. This was not treated as safe merely because they were
+not painted. The correction removes the Button below 44 points of exposure,
+renders only a noninteractive visual sliver while fading out, and removes the
+entire subtree at zero exposure. Exposed buttons clip their labels internally so
+their actual hit/accessibility bounds shrink with the uncovered region.
+Final six-case simulator results follow after verification.
 No new phone install or live retailer action has been performed for this
 follow-up at this point.
 
