@@ -401,6 +401,13 @@ private struct StoreListInteractiveBack: UIViewControllerRepresentable {
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
             apply()
+            // SwiftUI installs its final toolbar items after child appearance.
+            // Apply the replacement layout after that update, not just before it.
+            DispatchQueue.main.async { [weak self] in self?.apply() }
+            transitionCoordinator?.animate(alongsideTransition: nil) { [weak self] _ in
+                self?.apply()
+                DispatchQueue.main.async { [weak self] in self?.apply() }
+            }
         }
 
         override func viewDidLayoutSubviews() {
