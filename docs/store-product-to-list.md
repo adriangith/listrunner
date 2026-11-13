@@ -14,6 +14,10 @@ recognised product tiles. Tapping a shield selects that product, never clicks or
 replays the website link/Add button. A native Cancel/manual-entry bar stays visible.
 Scrolling remains possible. Reposition shields as the layout changes and re-read
 the exact tile at selection time; reject ambiguous links/names and stale tiles.
+For VoiceOver or Switch Control, grid selection falls back to the native manual
+composer: assistive activation can target an underlying website element without
+visual hit testing. Product-page reads still prefill the native review. Enabling
+either assistive technology during grid selection cancels the shields safely.
 
 Show a native review sheet with editable product name and quantity (default 1),
 the destination store, Add and Cancel. Only Add saves a Pending ListRunner item.

@@ -51,7 +51,7 @@ function fixture({detail = false} = {}) {
   const location = {href: detail ? link.href : 'https://www.bunnings.com.au/search/products?q=lights'};
   const window = {addEventListener: listen, removeEventListener: unlisten};
   const context = vm.createContext({config: structuredClone(config), hosts: ['www.bunnings.com.au'],
-    pathPrefix: '', requestID: 'test-request', chooseLabel: 'Choose product',
+    pathPrefix: '', requestID: 'test-request', chooseLabel: 'Choose product', allowGrid: true,
     window, document, location, URL, innerWidth: 402, innerHeight: 874,
     getComputedStyle: () => ({display: 'block', visibility: 'visible', opacity: '1'}),
     setInterval(fn) { timers.set(1, fn); return 1; }, clearInterval(id) { timers.delete(id); },
@@ -82,6 +82,14 @@ test('product page reads its exact heading without adding selection DOM', async 
   assert.equal(value.name, '2x LED lights, 75 mm');
   assert.equal(value.productID, '0123456');
   assert.equal(f.roots.length, 0); f.assertClean();
+});
+
+test('assistive grid activation uses native fallback without exposing website shields', async () => {
+  const grid = fixture(); grid.context.allowGrid = false;
+  assert.equal(await grid.start(), null);
+  assert.equal(grid.roots.length, 0); grid.assertClean();
+  const detail = fixture({detail: true}); detail.context.allowGrid = false;
+  assert.equal((await detail.start()).name, '2x LED lights, 75 mm'); detail.assertClean();
 });
 
 test('grid installs shields outside the tiles and consumes selection without website click', async () => {

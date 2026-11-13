@@ -208,6 +208,12 @@ struct StoreShoppingView: View {
             }
             .background(Color(uiColor: .systemBackground))
             .interactiveDismissDisabled(isTouchingOverlay)
+            .onReceive(NotificationCenter.default.publisher(for: UIAccessibility.voiceOverStatusDidChangeNotification)) { _ in
+                handleAssistiveProductSelection()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIAccessibility.switchControlStatusDidChangeNotification)) { _ in
+                handleAssistiveProductSelection()
+            }
             .sheet(item: $storeProductDraft, onDismiss: resumeAfterStoreProductSelection) { draft in
                 StoreProductReview(storeName: browser.store.displayName, initialName: draft.name,
                                    onAdd: onAddStoreProduct)
@@ -499,6 +505,13 @@ struct StoreShoppingView: View {
     private func resumeAfterStoreProductSelection() {
         guard scenePhase == .active else { return }
         if let selected { browser.resumeAfterStoreProductSelection(itemID: selected.id) }
+    }
+
+    private func handleAssistiveProductSelection() {
+        guard choosingStoreProduct,
+              UIAccessibility.isVoiceOverRunning || UIAccessibility.isSwitchControlRunning else { return }
+        cancelStoreProductSelection(resume: false)
+        storeProductDraft = StoreProductDraft(name: "")
     }
 
     private var navigationControls: some View {
@@ -1144,6 +1157,7 @@ final class StoreBrowser: ObservableObject {
         let result = try? await view.callAsyncJavaScript(StoreProductSelection.script,
             arguments: ["config": object, "hosts": store.allowedHosts,
                         "pathPrefix": store.id == .ikeaAU ? "/au/en/" : "",
+                        "allowGrid": !UIAccessibility.isVoiceOverRunning && !UIAccessibility.isSwitchControlRunning,
                         "chooseLabel": String(localized: "Choose product"), "requestID": request.uuidString],
             in: nil, contentWorld: automationWorld)
         guard productSelectionRequest == request, !Task.isCancelled, browsingActive,

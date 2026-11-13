@@ -225,6 +225,10 @@ enum StoreProductSelection {
           }
           finish(null); return;
         }
+        // Assistive activation can target a covered website control directly,
+        // bypassing visual hit testing. Use the native manual composer on grids
+        // until a dedicated accessible website-selection mode is verified.
+        if (!allowGrid) { finish(null); return; }
         root = document.createElement('div');
         root.style.cssText = 'all:initial!important;position:fixed!important;inset:0!important;z-index:2147483647!important;pointer-events:auto!important;touch-action:pan-y pinch-zoom!important;';
         // Shadow DOM avoids retailer CSS and keeps shields outside the product
