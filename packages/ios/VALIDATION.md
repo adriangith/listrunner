@@ -2184,7 +2184,12 @@ and selected identity, store isolation, durable ordering, duplicate merge/move,
 rollback/cache restoration, retry quantities and batch order. Added simulator
 coverage for left/start, right/end, right/manual fallback and All items/right,
 including retained current-card identity and store-list ordering after relaunch.
-Native build/check and simulator results follow after execution. No phone install
+Mac code revision `27762b89ff5d1dce659971313b5b7d4d20617d25`: generic simulator
+build and the complete cloud offline allowlist passed, including **1,924 native
+checks**, parser/regional checks and synthetic store registration. The built
+app's 35 JSON + 1 JavaScript resources match canonical files byte-for-byte.
+The ten-case simulator run (four new insertion cases plus the six prior feature
+regressions) is running; its results are not yet certified. No phone install
 or real retailer/cart action is part of this follow-up at this point.
 
 ### Follow-up: scrolling alignment, fade and wording
