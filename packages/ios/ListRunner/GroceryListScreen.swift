@@ -86,8 +86,7 @@ struct ShoppingRootScreen: View {
                 }
                 .navigationDestination(for: StoreID.self) { id in
                     storeList(id)
-                        // Keep the system Back button and interactive edge gesture, with
-                        // a compact chevron alongside the existing leading scope chooser.
+                        // Keep the compact editor-style navigation chrome.
                         .toolbarRole(.editor)
                 }
             }
@@ -272,6 +271,7 @@ private func entryDismissTap(_ action: @escaping (CGPoint) -> Void) -> some Gest
 
 private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
     var isWelcome = false
+    var joinsScopeControls = false
     var keyboardDismissMode: ScrollDismissesKeyboardMode = .interactively
     var onViewportChange: (CGRect) -> Void = { _ in }
     @ViewBuilder let scope: () -> Scope
@@ -301,11 +301,61 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if !isWelcome { scope() }
+                if #available(iOS 26.0, *) {
+                    ToolbarItem(placement: .topBarLeading) {
+                        if !isWelcome { scope() }
+                    }
+                    .sharedBackgroundVisibility(joinsScopeControls ? .hidden : .automatic)
+                } else {
+                    ToolbarItem(placement: .topBarLeading) {
+                        if !isWelcome { scope() }
+                    }
                 }
             }
             .toolbar(isWelcome ? .hidden : .visible, for: .navigationBar)
+    }
+}
+
+private struct StoreListScopeControl<Picker: View>: View {
+    let showsBack: Bool
+    let tint: Color
+    let onBack: () -> Void
+    @ViewBuilder let picker: () -> Picker
+
+    var body: some View {
+        HStack(spacing: 0) {
+            if showsBack {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.backward")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(tint)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Back to All items")
+                .accessibilityIdentifier("BackButton")
+            }
+            picker()
+                .frame(minHeight: showsBack ? 44 : nil)
+                .padding(.trailing, showsBack ? 10 : 0)
+        }
+        .modifier(JoinedStoreScopeChrome(joined: showsBack))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("store-navigation-control")
+    }
+}
+
+private struct JoinedStoreScopeChrome: ViewModifier {
+    let joined: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if joined, #available(iOS 26.0, *) {
+            content.buttonStyle(.plain)
+                .glassEffect(.regular.interactive(), in: .capsule)
+        } else {
+            content
+        }
     }
 }
 
@@ -324,15 +374,12 @@ private struct ListNavigationContainer<Content: View>: View {
     }
 }
 
-// Style the system Back item, rather than replacing it with a SwiftUI Button:
-// native interactive Back and its cancellation must keep their existing owner.
-private struct StoreListBackAppearance: UIViewControllerRepresentable {
-    let tint: Color
-
+// A joined toolbar control replaces only the visible Back item. Keep UIKit's
+// own interactive pop (and cancellation), scoped to this store destination.
+private struct StoreListInteractiveBack: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> Controller { Controller() }
 
     func updateUIViewController(_ controller: Controller, context: Context) {
-        controller.storeTint = UIColor(tint)
         DispatchQueue.main.async { [weak controller] in controller?.apply() }
     }
 
@@ -341,10 +388,9 @@ private struct StoreListBackAppearance: UIViewControllerRepresentable {
     }
 
     final class Controller: UIViewController {
-        var storeTint = UIColor.label
-        private weak var previousItem: UINavigationItem?
-        private var originalBack: UIBarButtonItem?
-        private let storeBack = UIBarButtonItem(title: "", style: .plain, target: nil, action: nil)
+        private weak var popGesture: UIGestureRecognizer?
+        private var wasEnabled = true
+        private let delegate = PopDelegate()
 
         override func loadView() {
             let anchor = UIView()
@@ -369,25 +415,54 @@ private struct StoreListBackAppearance: UIViewControllerRepresentable {
                 host = candidate.parent
             }
             guard let host, navigationController.topViewController === host,
-                  let index = navigationController.viewControllers.firstIndex(where: { $0 === host }), index > 0 else { return }
-            let previous = navigationController.viewControllers[index - 1].navigationItem
-            if previousItem !== previous {
+                  navigationController.viewControllers.count > 1,
+                  let gesture = navigationController.interactivePopGestureRecognizer else { return }
+            if popGesture !== gesture || gesture.delegate !== delegate {
                 restore()
-                previousItem = previous
-                originalBack = previous.backBarButtonItem
+                popGesture = gesture
+                wasEnabled = gesture.isEnabled
+                delegate.original = gesture.delegate
+                delegate.navigationController = navigationController
+                delegate.owner = host
+                gesture.delegate = delegate
             }
-            storeBack.tintColor = storeTint
-            storeBack.accessibilityLabel = String(localized: "Back to All items")
-            if #available(iOS 26.0, *) {
-                storeBack.sharesBackground = true
-            }
-            if previous.backBarButtonItem !== storeBack { previous.backBarButtonItem = storeBack }
+            gesture.isEnabled = true
         }
 
         func restore() {
-            if previousItem?.backBarButtonItem === storeBack { previousItem?.backBarButtonItem = originalBack }
-            previousItem = nil
-            originalBack = nil
+            if popGesture?.delegate === delegate {
+                popGesture?.delegate = delegate.original
+                popGesture?.isEnabled = wasEnabled
+            }
+            popGesture = nil
+            delegate.original = nil
+            delegate.navigationController = nil
+            delegate.owner = nil
+        }
+    }
+
+    final class PopDelegate: NSObject, UIGestureRecognizerDelegate {
+        weak var original: (any UIGestureRecognizerDelegate)?
+        weak var navigationController: UINavigationController?
+        weak var owner: UIViewController?
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let navigationController, let owner,
+                  navigationController.topViewController === owner,
+                  navigationController.viewControllers.count > 1,
+                  navigationController.transitionCoordinator == nil else { return false }
+            // The system's default shouldBegin rejects a hidden native Back
+            // item. Override only that gate; all other arbitration is forwarded.
+            return true
+        }
+
+        override func responds(to selector: Selector!) -> Bool {
+            super.responds(to: selector) || (original?.responds(to: selector) ?? false)
+        }
+
+        override func forwardingTarget(for selector: Selector!) -> Any? {
+            if original?.responds(to: selector) == true { return original }
+            return super.forwardingTarget(for: selector)
         }
     }
 }
@@ -2089,6 +2164,9 @@ struct GroceryListScreen: View {
         #endif
         return shoppingVisibleIDs.isEmpty && !visibility.hasCompletedStoreSetup
     }
+    private var showsJoinedBack: Bool {
+        offersAllItems && !ownsNavigationStack && !showingStoreWelcome && !shoppingVisibleIDs.isEmpty
+    }
     // The storefront configuration is the single source of truth for the
     // selected store's visual identity, including all list-screen accents.
     private var storePrimaryColor: Color {
@@ -2109,7 +2187,7 @@ struct GroceryListScreen: View {
     var body: some View {
         ScrollViewReader { scrollProxy in
         ListNavigationContainer(standalone: ownsNavigationStack) {
-            ShoppingListPage(isWelcome: showingStoreWelcome,
+            ShoppingListPage(isWelcome: showingStoreWelcome, joinsScopeControls: showsJoinedBack,
                 keyboardDismissMode: isRevealingProductEntry ? .never : .interactively,
                 onViewportChange: { frame in
                     listViewportFrame = frame
@@ -2117,10 +2195,13 @@ struct GroceryListScreen: View {
                     if let itemID = scrollTargetItemID { scrollToAddedItem(itemID, using: scrollProxy) }
                 }, scope: {
                     if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty {
-                        ListScopePicker(stores: StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
-                            enabledIDs: shoppingVisibleIDs), selectedStoreID: storeID, tint: storePrimaryColor,
-                            onChooseAllItems: onSelectAllItems, onChooseStore: onSelectStore,
-                            onManageStores: { showingStoreManagement = true }, offersAllItems: offersAllItems)
+                        StoreListScopeControl(showsBack: showsJoinedBack, tint: storePrimaryColor,
+                            onBack: onSelectAllItems) {
+                            ListScopePicker(stores: StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
+                                enabledIDs: shoppingVisibleIDs), selectedStoreID: storeID, tint: storePrimaryColor,
+                                onChooseAllItems: onSelectAllItems, onChooseStore: onSelectStore,
+                                onManageStores: { showingStoreManagement = true }, offersAllItems: offersAllItems)
+                        }
                     }
                 }, footer: {
                     if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty && !items.isEmpty {
@@ -2256,6 +2337,7 @@ struct GroceryListScreen: View {
                     }
                 }
             }
+            .navigationBarBackButtonHidden(showsJoinedBack)
             .onAppear {
                 isListScreenVisible = true
                 if storeLaunchRequested {
@@ -2378,8 +2460,8 @@ struct GroceryListScreen: View {
         }
         .tint(storePrimaryColor)
         .background {
-            if offersAllItems && !ownsNavigationStack && !showingStoreWelcome {
-                StoreListBackAppearance(tint: storePrimaryColor)
+            if showsJoinedBack {
+                StoreListInteractiveBack()
             }
         }
         #if DEBUG
