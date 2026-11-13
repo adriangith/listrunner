@@ -2197,8 +2197,23 @@ build and full cloud offline allowlist pass, including **1,924 native checks**,
 parser/regional/synthetic registration coverage and 35 JSON + 1 JavaScript resource
 byte matching. The scalar fade test executes the extracted bounded formula and
 checks endpoints, monotonicity and the half-exposure value. Twelve focused
-simulator cases are running; results are not yet certified. Evidence target:
+simulator cases ran once: **11 passed, 1 failed**. All ten prior cases and the
+duplicate/tap-to-recentre case passed. Left/right/manual/All items actual card
+midpoints were within two points of the screen midpoint while the original card
+remained active; saved order survived relaunch. The collapsed-entry case also
+passed its centre/active assertions and visibly expanded, but its final assertion
+found the hidden collapsed Add control still in the accessibility tree. Manual
+hitpoint activation did nothing; VoiceOver traversal was not certified. Rather
+than treating a transparent zero-height control as safe, the correction structurally
+omits the collapsed-bar subtree whenever expanded or in product-selection mode.
+Evidence:
 `~/Library/Developer/Xcode/StoreProductSelection-Evidence/Reveal-b0ba324/`.
+The report, screenshots, hierarchy and failure recording are also retained under
+Linux `/tmp/opencode/reveal-b0ba324/`. Faster partial fade and centred inactive
+titles were readable. The adjacent active card/action is partly off-screen during
+reveal (normal rail geometry); tapping it recentres it. Prior long active-title
+ellipsis and collapse-hint overlap remain known layout limitations.
+Correction build and retest results follow after execution.
 No phone install of this quicker-fade/reveal follow-up has been performed yet;
 the phone remains on `27762b8`.
 

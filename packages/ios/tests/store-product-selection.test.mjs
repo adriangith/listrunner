@@ -325,3 +325,11 @@ test('faster fade is bounded, full when exposed and one-quarter opacity when hal
     previous = value;
   }
 });
+
+test('expanded and product-selection modes omit the hidden collapsed-bar controls', () => {
+  const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
+  const inset = view.split('.safeAreaInset(edge: .bottom, spacing: 0) {')[1].split('VStack(spacing: 0)')[0];
+  assert.match(inset, /if isCollapsed && !choosingStoreProduct \{\s*collapsedBar/);
+  assert.match(inset, /\.frame\(height: 70\)/);
+  assert.doesNotMatch(inset, /\.opacity\(|height:.*\?.*: 0/);
+});

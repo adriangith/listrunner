@@ -162,11 +162,12 @@ struct StoreShoppingView: View {
                 // it over the retailer's page. This keeps fixed website actions
                 // (such as checkout confirmation buttons) fully reachable.
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    collapsedBar(bottomSafeAreaInset: geometry.safeAreaInsets.bottom)
-                        .opacity(isCollapsed && !choosingStoreProduct ? 1 : 0)
-                        .allowsHitTesting(isCollapsed && !choosingStoreProduct)
-                        .accessibilityHidden(!isCollapsed || choosingStoreProduct)
-                        .frame(height: isCollapsed && !choosingStoreProduct ? 70 : 0)
+                    // Omit hidden controls rather than leaving a zero-height,
+                    // transparent subtree discoverable by accessibility clients.
+                    if isCollapsed && !choosingStoreProduct {
+                        collapsedBar(bottomSafeAreaInset: geometry.safeAreaInsets.bottom)
+                            .frame(height: 70)
+                    }
                 }
 
             VStack(spacing: 0) {
