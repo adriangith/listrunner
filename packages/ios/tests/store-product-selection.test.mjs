@@ -266,7 +266,10 @@ test('native source confines reads and cancellation to the request and isolated 
 test('rail control wording and fade follow uncovered width without a delayed animation', () => {
   assert.match(swift, /Text\("Add item to your list"\)/);
   assert.match(swift, /accessibilityLabel\("Add item to your list"\)/);
-  assert.match(swift, /opacity\(Double\(leadingWidth \/ 88\)\)/);
-  assert.match(swift, /opacity\(Double\(trailingWidth \/ 88\)\)/);
+  assert.match(swift, /StoreProductRailEndControl\(uncoveredWidth: leadingWidth/);
+  assert.match(swift, /StoreProductRailEndControl\(uncoveredWidth: trailingWidth/);
+  assert.match(swift, /opacity\(Double\(uncoveredWidth \/ 88\)\)/);
+  assert.match(swift, /if uncoveredWidth >= 44/);
+  assert.match(swift, /else if uncoveredWidth > 0/);
   assert.doesNotMatch(swift, /Add store item to list/);
 });

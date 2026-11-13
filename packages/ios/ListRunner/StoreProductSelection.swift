@@ -40,25 +40,59 @@ struct StoreProductSelectionBar: View {
     }
 }
 
+struct StoreProductAddLabel: View {
+    var body: some View {
+        VStack(spacing: 7) {
+            Image(systemName: "text.badge.plus").font(.title2)
+            Text("Add item to your list")
+                .font(.caption).multilineTextAlignment(.center)
+        }
+        .frame(width: 88)
+        .frame(minHeight: 88)
+    }
+}
+
 struct StoreProductAddButton: View {
+    let width: CGFloat
+    let alignment: Alignment
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 7) {
-                Image(systemName: "text.badge.plus").font(.title2)
-                Text("Add item to your list")
-                    .font(.caption).multilineTextAlignment(.center)
-            }
-            .frame(width: 88)
-            .frame(minHeight: 88)
-            .contentShape(Rectangle())
+            // Clip the label inside the Button so its real hit/accessibility
+            // bounds shrink too, not just a wrapper around an 88-point button.
+            StoreProductAddLabel()
+                .frame(width: width, alignment: alignment)
+                .clipped()
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(.primary)
         .accessibilityLabel("Add item to your list")
         .accessibilityHint("Choose a product from the current website. Does not change the store cart.")
         .accessibilityIdentifier("add-store-product")
+    }
+}
+
+struct StoreProductRailEndControl: View {
+    let uncoveredWidth: CGFloat
+    let alignment: Alignment
+    let action: () -> Void
+
+    var body: some View {
+        if uncoveredWidth >= 44 {
+            StoreProductAddButton(width: uncoveredWidth, alignment: alignment, action: action)
+                .opacity(Double(uncoveredWidth / 88))
+        } else if uncoveredWidth > 0 {
+            // Keep the last sliver of the fade visual only. Fully covered
+            // controls have no subtree, so no invisible AX button can survive.
+            StoreProductAddLabel()
+                .frame(width: uncoveredWidth, alignment: alignment)
+                .clipped()
+                .opacity(Double(uncoveredWidth / 88))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 }
 
@@ -82,21 +116,9 @@ struct StoreProductRailAddControls: View {
         ZStack(alignment: .bottomLeading) {
             // Buttons stay fixed beneath the moving rail. Clip both rendering
             // and hit targets to the uncovered end slots, never over a card.
-            StoreProductAddButton(action: action)
-                .opacity(Double(leadingWidth / 88))
-                .frame(width: leadingWidth, alignment: .leading)
-                .clipped()
-                .contentShape(Rectangle())
-                .allowsHitTesting(leadingWidth >= 44)
-                .accessibilityHidden(leadingWidth < 44)
+            StoreProductRailEndControl(uncoveredWidth: leadingWidth, alignment: .leading, action: action)
                 .offset(x: inset)
-            StoreProductAddButton(action: action)
-                .opacity(Double(trailingWidth / 88))
-                .frame(width: trailingWidth, alignment: .trailing)
-                .clipped()
-                .contentShape(Rectangle())
-                .allowsHitTesting(trailingWidth >= 44)
-                .accessibilityHidden(trailingWidth < 44)
+            StoreProductRailEndControl(uncoveredWidth: trailingWidth, alignment: .trailing, action: action)
                 .offset(x: width - inset - trailingWidth)
         }
         .frame(width: width, height: 222, alignment: .bottomLeading)

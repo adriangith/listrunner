@@ -2190,9 +2190,13 @@ pass. Real isolated Chromium with mobile viewport and positioned body confirmed
 all four shields aligned immediately at six scroll offsets in one JavaScript
 turn, before animation-frame callbacks could reposition them. Dynamic reflow,
 selecting the second product, no retailer Add clicks and cleanup also passed.
-Native build and focused simulator scrolling/fade regression results follow after
-verification. No new phone install or live retailer action has been performed
-for this follow-up at this point.
+Mac code revision `2758ef59242a4f8a82d19ead00690256930f14fd`: generic simulator
+build and the complete cloud offline allowlist passed, including 1,910 native
+checks, parser/regional checks and synthetic store registration. The simulator
+app's 35 JSON + 1 JavaScript resources match canonical files byte-for-byte.
+Focused simulator scrolling/fade regression results follow after verification.
+No new phone install or live retailer action has been performed for this
+follow-up at this point.
 
 ### Physical iPhone installation
 
