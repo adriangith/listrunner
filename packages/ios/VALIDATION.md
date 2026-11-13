@@ -2166,6 +2166,34 @@ No new simulator UI-suite run, physical-device installation, user-list edit, rea
 Branch: `feature/add-store-product-to-list`. Implementation plan and safety contract:
 `docs/store-product-to-list.md`.
 
+### Physical iPhone installation
+
+At the user's explicit request, revision
+`d1b8e3fc9db52d9aef5a5348146593b1807bfb52` was built, signed, installed in place
+and launched on **Adrian's iPhone 17e / iOS 27.2**, device
+`00008150-001402660A9BC01C`. Desktop Xcode `RunProject` reported no build errors
+and a successful launch, reference `ab7bf7000`, PID **64476**. `devicectl`
+independently confirmed that PID running the phone's installed ListRunner app.
+The build used the clean isolated `add-store-product-to-list` Mac worktree; other
+projects/simulators were not run or changed. No test arguments/environment,
+fixtures, uninstall, data reset, import or retailer/cart actions were used on the
+phone. Existing local lists and website sessions were not cleared. Installation
+and process verification do not establish live-site/physical UI sign-off.
+
+SSH compilation initially reached signing but failed `errSecInternalComponent`;
+after the user approved Xcode MCP access, desktop Xcode signing/Run succeeded
+without changing keychain security, project signing or the shared scheme.
+The failed CLI log is `/tmp/listrunner-store-product-phone-build.log` on the Mac.
+Successful Xcode log:
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261113-163158.txt`.
+Actual signed app:
+`~/Library/Developer/Xcode/DerivedData/ListRunner-crdymsqoucncavcufdmaqyaqgufx/Build/Products/Debug-iphoneos/ListRunner.app`.
+`codesign --verify --deep --strict` passed, and its 35 JSON + 1 JavaScript resources
+match canonical files byte-for-byte. No merge, archive or TestFlight release was
+performed. Subsequent installation-evidence commits are documentation only.
+
+### Implementation checks
+
 Linux offline: all 473 JavaScript tests pass, including 23 new selection-engine
 tests and the existing retailer/cart, scrolling, inspection and release checks.
 All six `test-*.py` scripts pass (47 tests), including schema-8 preflight and
