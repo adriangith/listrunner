@@ -2191,8 +2191,16 @@ That is not represented as an all-green automated run. Evidence/report:
 and Linux `/tmp/opencode/insertion-27762b8/`. This follow-up fixes the locator and
 adds actual card-centre assertions alongside retained active-card assertions,
 collapsed-entry reveal and repeated duplicate reveal/tap-to-recentre coverage.
-New build and simulator results will be recorded after execution. No phone install
-of this quicker-fade/reveal follow-up has been performed yet.
+Code revision `b0ba32441856eb9b655f3b295b6931f61a2dd3aa`: **483 JavaScript tests**
+(33 selection/wiring/fade checks), **47 Python tests**, generic Mac simulator
+build and full cloud offline allowlist pass, including **1,924 native checks**,
+parser/regional/synthetic registration coverage and 35 JSON + 1 JavaScript resource
+byte matching. The scalar fade test executes the extracted bounded formula and
+checks endpoints, monotonicity and the half-exposure value. Twelve focused
+simulator cases are running; results are not yet certified. Evidence target:
+`~/Library/Developer/Xcode/StoreProductSelection-Evidence/Reveal-b0ba324/`.
+No phone install of this quicker-fade/reveal follow-up has been performed yet;
+the phone remains on `27762b8`.
 
 ### Follow-up: side-specific list insertion
 
