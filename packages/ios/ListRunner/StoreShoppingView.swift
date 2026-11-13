@@ -1146,7 +1146,7 @@ final class StoreBrowser: ObservableObject {
         // Cancel progression/cart attribution, but retain this document for resume.
         endInteraction()
         guard browsingActive, canPresentStore, storeRecovery == nil, !siteVerificationRequired,
-              !webView.isLoading, let url = webView.url, store.allows(url),
+              let url = webView.url, store.allows(url),
               let config = store.productSelection,
               let data = try? JSONEncoder().encode(config),
               let object = try? JSONSerialization.jsonObject(with: data) else { return .manual }
@@ -1154,6 +1154,20 @@ final class StoreBrowser: ObservableObject {
         productSelectionRequest = request
         let view = webView
         let generation = documentGeneration
+        // The heading can already be visible while WebKit still reports loading.
+        // Give that same committed document a bounded chance to finish; never
+        // navigate, reload, or follow a newer page on behalf of this request.
+        for _ in 0..<30 {
+            guard productSelectionRequest == request, !Task.isCancelled, browsingActive,
+                  view === webView, documentGeneration == generation, view.url == url,
+                  !siteVerificationRequired, storeRecovery == nil else { return .cancelled }
+            if !view.isLoading { break }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        guard !view.isLoading else {
+            productSelectionRequest = nil
+            return .manual
+        }
         let result = try? await view.callAsyncJavaScript(StoreProductSelection.script,
             arguments: ["config": object, "hosts": store.allowedHosts,
                         "pathPrefix": store.id == .ikeaAU ? "/au/en/" : "",
