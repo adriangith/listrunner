@@ -58,6 +58,9 @@ dismantling. Do not restore a full-page SwiftUI `DragGesture` just to detect
 scrolling: it competed with native edge Back in gradual-touch verification even
 when faster XCTest drags passed. Keep automatic-reveal cancellation passive and
 check both native edge navigation and keyboard/small-scroll behaviour.
+Deliberate vertical pans of at least 44 points dismiss entry focus in either
+direction; smaller repositioning drags and horizontal edge Back do not. Leaving
+All items explicitly resigns its retained editor without clearing the draft.
 
 ### Retailer-neutral list wording
 

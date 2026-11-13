@@ -164,6 +164,19 @@ last-enabled store or immediate responder readiness. Linux **450 JavaScript +
 46 Python** checks and Swift syntax checks passed again. Native/visual targeted
 reruns on this revision remain pending (`VerticalDismissal.xcresult`).
 
+The final visual checks at `73dcf09` passed all three controls on the preserved
+isolated iPhone 18 Pro/iOS 27.2 session: the previously failing 285-point upward
+gesture dismisses the keyboard without changing the draft; a 20-point vertical
+drag keeps focus/keyboard (8 points of actual content movement); and focused
+Coles edge Back returns to All items, with the exact draft retained when Coles
+is reopened. This short fixture does not establish sustained long-list scrolling.
+Evidence: `/tmp/opencode/listrunner-navigation-73dcf09/`, especially screenshot /
+hierarchy stems `ListRunner Final Gesture Retest-17_23_42_711`, `17_24_26_888`,
+`17_26_17_736`, and `17_26_43_751`. The exclusive session ended and only its own
+dedicated simulator was shut down, preserving its state. Native recovery tests
+passed **1,908 checks** again on this final app revision, and its built simulator
+app passed all **35 JSON + 1 JavaScript** canonical-resource checks again.
+
 ## Retailer-neutral store-list wording (13 November 2026)
 
 Branch `fix/store-page-titles` changes the populated store-list section heading
