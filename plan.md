@@ -1,5 +1,10 @@
 ## ListRunner Build Specification
 
+### Retailer-neutral list wording (13 November 2026)
+
+* Every individual store list uses `Items` as its populated-list section heading, including grocery retailers and non-grocery retailers such as Bunnings. Keep the heading hidden for empty lists. Store chooser/group accessibility hints and the no-stores message describe a shopping list; the shared product-entry accessibility label says `Type or paste products`.
+* This is wording only: preserve store categories, list ownership, saved items, entry/import behaviour and website sessions. Paprika-specific grocery instructions/results and the `Groceries & Home` retailer-category name remain unchanged.
+
 ### First-use card collapse hint (9 November 2026)
 
 * The expanded shopping-card view shows `Swipe cards down to collapse` floating subtly above the cards until the first successful collapse, whether by downward swipe or the existing collapse button. Keep card/control geometry and gestures unchanged; the hint does not intercept touches and remains readable over retailer content.
@@ -156,7 +161,7 @@ These newer implementation decisions supersede conflicting presentation and inte
 * The grocery input submits on Return/Enter. Pasted input can contain multiple lines and item separators include newline, comma, tab, and semicolon. Parsing occurs on submission/paste, not continuously while the user types.
 * New items, and existing duplicates reactivated by typed input, move to the front of the visible list and shopping queue in their input order. Untouched items keep their relative order.
 * In final-item Undo/Finish mode, all cards remain selectable. The active Added or Skipped card offers `Mark Pending`; selecting other cards preserves the final Undo/Finish controls until the user changes status, undoes, or finishes.
-* Clear List has a full-width 56-point hit row. Its confirmation dialog is attached to that button so the system anchors the popover to the initiating control rather than the top of the screen.
+* Clear List has a compact full-width hit row with a 44-point minimum height, allowing it to grow for larger text. Its confirmation dialog is attached to that button so the system anchors the popover to the initiating control rather than the top of the screen.
 * Woolworths remains detection-only (no cart Undo). Its quantity observation window is eight seconds to accommodate slower asynchronous web-component updates; Coles remains three seconds. This does not authorize any automated cart action. Live Woolworths verification remains a release check.
 * New design work should bring the OpenPencil mockups into alignment with this implementation. Splash-screen alternatives are exploratory and do not imply an approved launch-screen design.
 

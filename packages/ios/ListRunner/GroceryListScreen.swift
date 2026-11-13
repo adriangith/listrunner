@@ -213,20 +213,24 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
             }
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { onViewportChange($0) }
             .safeAreaInset(edge: .top, spacing: 0) {
-                HStack(alignment: .center) {
-                    Text(isWelcome ? "ListRunner" : "Your list")
-                        .font(isWelcome ? .title3.weight(.bold) : .largeTitle.weight(.bold))
-                        .foregroundStyle(.primary)
-                    Spacer(minLength: 8)
-                    scope()
+                if isWelcome {
+                    HStack {
+                        Text("ListRunner").font(.title3.weight(.bold))
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(Color(uiColor: .systemGroupedBackground))
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(Color(uiColor: .systemGroupedBackground))
             }
             .safeAreaInset(edge: .bottom, spacing: 0) { footer() }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if !isWelcome { scope() }
+                }
+            }
             .toolbar(isWelcome ? .hidden : .visible, for: .navigationBar)
     }
 }
@@ -256,29 +260,32 @@ private struct ListScopePicker: View {
         } label: {
             HStack(spacing: 6) {
                 Text(selectedStoreID?.displayName ?? "All items")
-                    .font(.system(.title3, design: .default, weight: .heavy))
+                    .font(.headline)
                     .lineLimit(1)
                 Image(systemName: "chevron.up.chevron.down").font(.caption2.weight(.black))
             }
             .foregroundStyle(tint)
             .contentShape(Rectangle())
-            .padding(.horizontal, 13)
-            .padding(.vertical, 9)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
         }
         .accessibilityIdentifier(selectedStoreID == nil ? "all-items-scope-picker" : "store-picker")
-        .accessibilityHint("Each store has its own grocery list and basket")
+        .accessibilityHint("Each store has its own shopping list and basket")
     }
 }
 
 private struct ListPageToolbar: ToolbarContent {
-    let showEdit: Bool
     var showSettings = true
+    var onSelectAllItems: (() -> Void)?
     let onSettings: () -> Void
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            if showEdit { EditButton() }
+        ToolbarItem(placement: .topBarTrailing) {
+            if let onSelectAllItems {
+                Button(action: onSelectAllItems) {
+                    Image(systemName: "square.grid.2x2")
+                }
+                .accessibilityLabel("All items")
+                .accessibilityIdentifier("all-items-shortcut")
+            }
         }
         ToolbarItem(placement: .topBarTrailing) {
             if showSettings {
@@ -622,6 +629,7 @@ private struct AllItemsShoppingFooter: View {
             .modifier(StoreLaunchButtonStyle(tint: .accentColor))
             .accessibilityIdentifier("all-items-show-store")
             .padding(.horizontal, 20).padding(.top, 8)
+            .padding(.bottom, -12)
         } else if !isTyping && hasItems {
             Button("Manage Stores", action: onManageStores)
                 .frame(maxWidth: .infinity, minHeight: 44).buttonStyle(.bordered)
@@ -691,15 +699,30 @@ private struct AllItemsGroupHeader: View {
     let group: AllItemsGroup
     let tint: Color
     let addStore: StoreID?
+    let openStore: StoreID?
+    let onOpenStore: (StoreID) -> Void
     let onAdd: (StoreID) -> Void
     var onAddFrame: (StoreID, CGRect) -> Void = { _, _ in }
 
     var body: some View {
         HStack {
-            Text(group.title)
-                .font(.subheadline.weight(.semibold))
+            if let openStore {
+                Button { onOpenStore(openStore) } label: {
+                    Text(group.title)
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
                 .accessibilityAddTraits(.isHeader)
+                .accessibilityHint("Opens the \(group.title) shopping list")
                 .accessibilityIdentifier("all-items-group-title-\(group.id)")
+            } else {
+                Text(group.title)
+                    .font(.subheadline.weight(.semibold))
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("all-items-group-title-\(group.id)")
+            }
             Spacer()
             if let addStore {
                 Button { onAdd(addStore) } label: {
@@ -995,9 +1018,7 @@ private struct AllItemsScreen: View {
     @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
 
     private var grouping: AllItemsGrouping {
-        // Reorder handles must only change positions inside an existing store list.
-        // Keep the saved grouping untouched so Done restores the user's view.
-        editMode.isEditing ? .store : (AllItemsGrouping(rawValue: groupingRawValue) ?? .store)
+        AllItemsGrouping(rawValue: groupingRawValue) ?? .store
     }
     private var usesNativeGroupRows: Bool {
         editMode.isEditing
@@ -1164,7 +1185,6 @@ private struct AllItemsScreen: View {
             Section {
                 AllItemsGroupingSwitcher(selection: Binding(
                     get: { grouping }, set: { groupingRawValue = $0.rawValue }))
-                .disabled(editMode.isEditing)
             }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
@@ -1178,8 +1198,11 @@ private struct AllItemsScreen: View {
                     AllItemsGroupCard(nativeRows: usesNativeGroupRows) {
                         AllItemsGroupHeader(group: group,
                             tint: grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary,
-                            addStore: grouping == .store && !editMode.isEditing
+                            addStore: grouping == .store
                                 ? group.storeIDs.first.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil } : nil,
+                            openStore: grouping == .store
+                                ? group.storeIDs.first.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil } : nil,
+                            onOpenStore: onChooseStoreList,
                             onAdd: { store in
                                 // Let this tap finish before moving its button.
                                 // Otherwise outside-tap dismissal can compare
@@ -1320,10 +1343,9 @@ private struct AllItemsScreen: View {
         }
         }
         .toolbar {
-            ListPageToolbar(showEdit: !allItems.isEmpty) {
+            ListPageToolbar {
                 entryFocused = false
                 entryFocus.resignFirstResponder()
-                editMode = .inactive
                 showingSettings = true
             }
         }
@@ -1944,7 +1966,9 @@ struct GroceryListScreen: View {
                         }
                         .disabled(!browser.canPresentStore || !shoppingVisibleIDs.contains(storeID))
                         .padding(.horizontal, 20).padding(.top, 8)
-                        .padding(.bottom, groceryInputFocused ? 16 : 0)
+                        // Tuck the fixed action closer to the home indicator, but
+                        // retain its comfortable keyboard clearance while editing.
+                        .padding(.bottom, groceryInputFocused ? 16 : -12)
                     }
                 }) {
                 if showingStoreWelcome {
@@ -1958,7 +1982,7 @@ struct GroceryListScreen: View {
                     ContentUnavailableView {
                         Label("No stores enabled", systemImage: "basket")
                     } description: {
-                        Text("Enable a store to see its grocery list.")
+                        Text("Enable a store to see its shopping list.")
                     } actions: {
                         Button("Manage Stores") { showingStoreManagement = true }
                             .buttonStyle(.bordered)
@@ -2056,7 +2080,10 @@ struct GroceryListScreen: View {
                             }
                         }
                     } header: {
-                        if !items.isEmpty { Text("Groceries") }
+                        if !items.isEmpty {
+                            Text("Items", comment: "Section heading for shopping-list items at any retailer, not only groceries.")
+                                .accessibilityIdentifier("store-list-items-heading")
+                        }
                     }
                 }
             }
@@ -2123,8 +2150,8 @@ struct GroceryListScreen: View {
                 }
             }
             .toolbar {
-                ListPageToolbar(showEdit: !showingStoreWelcome && !shoppingVisibleIDs.isEmpty && !items.isEmpty,
-                                showSettings: !showingStoreWelcome) {
+                ListPageToolbar(showSettings: !showingStoreWelcome,
+                    onSelectAllItems: showingStoreWelcome || shoppingVisibleIDs.isEmpty ? nil : onSelectAllItems) {
                     groceryInputFocused = false
                     showingSettings = true
                 }
@@ -3006,7 +3033,7 @@ private struct ProductEntryEditor: UIViewRepresentable {
         view.isScrollEnabled = false
         view.returnKeyType = .continue
         view.accessibilityIdentifier = accessibilityIdentifier
-        view.accessibilityLabel = String(localized: "Type or paste groceries")
+        view.accessibilityLabel = String(localized: "Type or paste products")
         view.onWindowAttachment = { [weak coordinator = context.coordinator] view in
             coordinator?.synchronizeFocus(for: view)
         }
@@ -3215,7 +3242,7 @@ private struct ClearListButton: View {
             }
             .font(.body.weight(.semibold))
             .foregroundStyle(.red)
-            .frame(maxWidth: .infinity, minHeight: 56)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

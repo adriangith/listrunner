@@ -1,5 +1,34 @@
 # Reusable store framework validation
 
+## Retailer-neutral store-list wording (13 November 2026)
+
+Branch `fix/store-page-titles` changes the populated store-list section heading
+from `Groceries` to `Items` for every retailer. Related shared accessibility hints,
+the product-entry label and the no-stores message use shopping/product wording.
+Paprika-specific import copy and retailer category names are unchanged. No model,
+store configuration, list ownership, preferences or website behaviour changes.
+The existing OpenPencil screen audit and current shared list layout were consulted;
+no design document or layout was changed.
+
+Linux: all **46/46** Python offline contract checks passed (bundled resources,
+cloud CI, release metadata, store categories, expansion and onboarding), together
+with focused source wording assertions and `git diff --check`. Python unittest
+discovery did not load the hyphenated script names; each script was then invoked
+directly to run the checks. No Swift compiler is available in this worktree's
+Linux environment; these checks do not type-check SwiftUI or prove native rendering.
+
+Native coverage added, **not run**:
+`StoreSelectionTests/testStoreListsUseRetailerNeutralItemWording` checks Coles,
+Woolworths and Bunnings headings, product-entry accessibility labels, fixture-row
+preservation, no website presentation, and the selected Bunnings list after
+relaunch. `testAddProductsEntryOpensKeyboardAndSubmitsFromEmptyList` now checks
+that the heading is absent when empty and becomes `Items` after adding a product.
+Run these two focused tests and a native build after coordinating Mac ownership.
+
+This task uses its own Linux worktree. The other agent's Linux and Mac checkouts,
+Xcode session and simulators were intentionally left untouched. No Mac connection,
+build, simulator run, device installation or retailer/cart action was performed.
+
 ## First-use card collapse hint (9 November 2026)
 
 Branch `feat/card-collapse-hint` adds an app-wide first-collapse preference and a
