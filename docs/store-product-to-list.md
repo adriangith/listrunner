@@ -2,9 +2,11 @@
 
 ## Agreed interaction
 
-The expanded shopping overlay exposes an **Add store item to list** control at
+The expanded shopping overlay exposes an **Add item to your list** control at
 either end of the card rail. Cards cover the controls while browsing the middle
-of the rail. The action is also available without horizontal scrolling through
+of the rail; each control fades with its uncovered width as the cards cover it,
+without a delayed opacity animation or a tappable area over the cards.
+The action is also available without horizontal scrolling through
 an accessibility action and the collapsed bar. Existing card selection, collapse,
 Back/Skip/Undo and retailer cart behavior remain unchanged.
 
@@ -12,7 +14,13 @@ On a recognised product page, read its explicit product heading. On a grid,
 temporarily hide the cards and place ListRunner-owned selection shields over
 recognised product tiles. Tapping a shield selects that product, never clicks or
 replays the website link/Add button. A native Cancel/manual-entry bar stays visible.
-Scrolling remains possible. Reposition shields as the layout changes and re-read
+Scrolling remains possible. Shields use document-plane absolute positioning,
+outside retailer tile/link subtrees, so ordinary page scrolling moves products
+and shields together without JavaScript chasing viewport coordinates. A separate
+transparent fixed blocker prevents unrelated website taps. Coalesce mutation,
+resize, image/font-load and nested-scroll geometry updates into animation frames;
+do not poll positions on a timer. A single 60-second deadline still bounds the mode.
+Reposition shields as the layout changes and re-read
 the exact tile at selection time; reject ambiguous links/names and stale tiles.
 For VoiceOver or Switch Control, grid selection falls back to the native manual
 composer: assistive activation can target an underlying website element without

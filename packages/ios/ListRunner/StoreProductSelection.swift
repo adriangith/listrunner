@@ -47,7 +47,7 @@ struct StoreProductAddButton: View {
         Button(action: action) {
             VStack(spacing: 7) {
                 Image(systemName: "text.badge.plus").font(.title2)
-                Text("Add store item to list")
+                Text("Add item to your list")
                     .font(.caption).multilineTextAlignment(.center)
             }
             .frame(width: 88)
@@ -56,7 +56,7 @@ struct StoreProductAddButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.primary)
-        .accessibilityLabel("Add store item to list")
+        .accessibilityLabel("Add item to your list")
         .accessibilityHint("Choose a product from the current website. Does not change the store cart.")
         .accessibilityIdentifier("add-store-product")
     }
@@ -83,6 +83,7 @@ struct StoreProductRailAddControls: View {
             // Buttons stay fixed beneath the moving rail. Clip both rendering
             // and hit targets to the uncovered end slots, never over a card.
             StoreProductAddButton(action: action)
+                .opacity(Double(leadingWidth / 88))
                 .frame(width: leadingWidth, alignment: .leading)
                 .clipped()
                 .contentShape(Rectangle())
@@ -90,6 +91,7 @@ struct StoreProductRailAddControls: View {
                 .accessibilityHidden(leadingWidth < 44)
                 .offset(x: inset)
             StoreProductAddButton(action: action)
+                .opacity(Double(trailingWidth / 88))
                 .frame(width: trailingWidth, alignment: .trailing)
                 .clipped()
                 .contentShape(Rectangle())
@@ -133,7 +135,7 @@ struct StoreProductReview: View {
                         .accessibilityIdentifier("store-product-save-error")
                 }
             }
-            .navigationTitle("Add store item")
+            .navigationTitle("Add item")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -165,22 +167,46 @@ enum StoreProductSelection {
     static let script = #"""
     window.__listRunnerCancelProductSelection?.();
     return await new Promise(resolve => {
-      let root = null, timer = null, done = false, shields = new Map();
+      let root = null, deadline = null, frame = null, done = false, needsDiscovery = false;
+      let mutations = null, sizes = null;
+      let update = null, reposition = null;
+      const shields = new Map(), observed = new Set();
       const startURL = location.href;
       const clean = value => (value || '').replace(/\s+/g, ' ').trim();
       function finish(value) {
         if (done) return;
         done = true;
-        clearInterval(timer);
+        clearTimeout(deadline);
+        if (frame !== null) cancelAnimationFrame(frame);
+        mutations?.disconnect(); sizes?.disconnect();
         root?.remove();
         window.removeEventListener('pagehide', cancel);
+        window.removeEventListener('resize', changed);
+        document.removeEventListener('scroll', scrolled, true);
+        document.removeEventListener('load', changed, true);
+        document.fonts?.removeEventListener('loadingdone', changed);
         document.removeEventListener('visibilitychange', visibility);
-        if (window.__listRunnerCancelProductSelection === cancel)
+        if (window.__listRunnerCancelProductSelection === cancel) {
           delete window.__listRunnerCancelProductSelection;
+          delete window.__listRunnerProductSelectionID;
+        }
         resolve(value);
       }
       function cancel() { finish(null); }
       function visibility() { if (document.visibilityState !== 'visible') cancel(); }
+      function changed() { schedule(true); }
+      function scrolled() { schedule(false); }
+      function schedule(discover) {
+        if (done) return;
+        needsDiscovery = needsDiscovery || discover;
+        if (frame !== null) return;
+        frame = requestAnimationFrame(() => {
+          frame = null;
+          const discover = needsDiscovery;
+          needsDiscovery = false;
+          try { if (discover) update(); else reposition(); } catch { cancel(); }
+        });
+      }
       window.__listRunnerCancelProductSelection = cancel;
       window.__listRunnerProductSelectionID = requestID;
       function visible(node) {
@@ -229,16 +255,49 @@ enum StoreProductSelection {
         // bypassing visual hit testing. Use the native manual composer on grids
         // until a dedicated accessible website-selection mode is verified.
         if (!allowGrid) { finish(null); return; }
+        if (typeof MutationObserver !== 'function' || typeof ResizeObserver !== 'function') { finish(null); return; }
         root = document.createElement('div');
-        root.style.cssText = 'all:initial!important;position:fixed!important;inset:0!important;z-index:2147483647!important;pointer-events:auto!important;touch-action:pan-y pinch-zoom!important;';
+        root.style.cssText = 'all:initial!important;position:absolute!important;left:0!important;top:0!important;width:0!important;height:0!important;overflow:visible!important;z-index:2147483647!important;pointer-events:none!important;';
         // Shadow DOM avoids retailer CSS and keeps shields outside the product
         // subtree. Underlying links, buttons and their tile handlers are not hit.
         const shadow = root.attachShadow({mode:'closed'});
         document.body.appendChild(root);
+        // Only the transparent tap-blocker is viewport-fixed. Product shields
+        // live in the document's scrolling plane, so WebKit scrolls them with
+        // their products even when JavaScript is busy or paused during a fling.
+        const blocker = document.createElement('div');
+        blocker.style.cssText = 'all:initial;position:fixed;inset:0;z-index:0;pointer-events:auto;touch-action:pan-y pinch-zoom;';
+        blocker.setAttribute('aria-hidden', 'true');
+        shadow.appendChild(blocker);
         root.addEventListener('click', event => { event.preventDefault(); event.stopImmediatePropagation(); });
-        function update() {
-          if (done) return;
-          if (location.href !== startURL || !root.isConnected || document.visibilityState !== 'visible') { cancel(); return; }
+        function current() {
+          if (done) return false;
+          if (location.href !== startURL || !root.isConnected || document.visibilityState !== 'visible') { cancel(); return false; }
+          return true;
+        }
+        function documentBox(tile) {
+          const box = tile.getBoundingClientRect(), origin = root.getBoundingClientRect();
+          // Subtract this actual containing-block origin, not an assumed body
+          // origin. Page margins and positioned body elements remain correct.
+          return {left: box.left - origin.left, top: box.top - origin.top, width: box.width, height: box.height};
+        }
+        function position(entry) {
+          const box = documentBox(entry.tile);
+          for (const key of ['left', 'top', 'width', 'height']) {
+            if (!entry.box || Math.abs(box[key] - entry.box[key]) > 0.01)
+              entry.button.style[key] = `${box[key]}px`;
+          }
+          entry.box = box;
+        }
+        reposition = () => {
+          if (!current()) return;
+          for (const entry of shields.values()) {
+            if (!visible(entry.tile)) { schedule(true); continue; }
+            position(entry);
+          }
+        };
+        update = () => {
+          if (!current()) return;
           const tiles = [...document.querySelectorAll(config.grid.containerSelector)];
           if (tiles.length > 200) { cancel(); return; }
           const retained = new Set();
@@ -247,31 +306,28 @@ enum StoreProductSelection {
             const candidate = product(tile);
             if (!candidate) continue;
             recognised++;
-            const box = tile.getBoundingClientRect();
-            if (box.bottom <= 0 || box.top >= innerHeight || box.right <= 0 || box.left >= innerWidth) continue;
             retained.add(tile);
             const previous = shields.get(tile);
             if (previous && previous.productID === candidate.productID && previous.name === candidate.name) {
-              Object.assign(previous.button.style, {left:`${box.left}px`, top:`${box.top}px`, width:`${box.width}px`, height:`${box.height}px`});
-              previous.box = box;
+              position(previous);
               continue;
             }
             previous?.button.remove();
             const button = document.createElement('button');
-            const entry = {...candidate, button, box};
+            const entry = {...candidate, tile, button, box: null};
             button.type = 'button';
             const label = document.createElement('span');
             label.textContent = chooseLabel;
             label.style.cssText = 'background:#1565c0;color:white;padding:8px 12px;border-radius:999px;box-shadow:0 2px 8px #0003;font:600 16px -apple-system,sans-serif;';
             button.appendChild(label);
             button.setAttribute('aria-label', `${chooseLabel}: ${candidate.name}`);
-            button.style.cssText = `all:initial;box-sizing:border-box;position:fixed;left:${box.left}px;top:${box.top}px;width:${box.width}px;height:${box.height}px;border:3px solid #1976d2;border-radius:12px;background:#1976d21a;display:flex;align-items:center;justify-content:center;padding:8px;touch-action:pan-y pinch-zoom;`;
+            button.style.cssText = 'all:initial;box-sizing:border-box;position:absolute;z-index:1;pointer-events:auto;border:3px solid #1976d2;border-radius:12px;background:#1976d21a;display:flex;align-items:center;justify-content:center;padding:8px;touch-action:pan-y pinch-zoom;';
             button.addEventListener('click', event => {
               event.preventDefault(); event.stopImmediatePropagation();
               if (!event.isTrusted) { cancel(); return; }
               // Recycled grid nodes must still represent the exact same product.
               const current = location.href === startURL ? product(tile) : null;
-              const rect = tile.getBoundingClientRect();
+              const rect = documentBox(tile);
               const aligned = ['left','top','width','height'].every(key => Math.abs(rect[key] - entry.box[key]) < 2);
               root.style.setProperty('display', 'none', 'important');
               const hit = event.detail === 0 || tile.contains(document.elementFromPoint(event.clientX, event.clientY));
@@ -282,18 +338,31 @@ enum StoreProductSelection {
               } else { cancel(); }
             });
             shadow.appendChild(button); shields.set(tile, entry);
+            position(entry);
+            if (!observed.has(tile)) { sizes.observe(tile); observed.add(tile); }
           }
           for (const [tile, entry] of shields) {
-            if (!retained.has(tile)) { entry.button.remove(); shields.delete(tile); }
+            if (!retained.has(tile)) {
+              entry.button.remove(); shields.delete(tile);
+              sizes.unobserve(tile); observed.delete(tile);
+            }
           }
           if (!recognised) { cancel(); }
-        }
+        };
         window.addEventListener('pagehide', cancel);
+        window.addEventListener('resize', changed);
+        document.addEventListener('scroll', scrolled, {capture: true, passive: true});
+        document.addEventListener('load', changed, true);
+        document.fonts?.addEventListener('loadingdone', changed);
         document.addEventListener('visibilitychange', visibility);
-        let ticks = 0;
-        timer = setInterval(() => {
-          if (++ticks >= 600) cancel(); else { try { update(); } catch { cancel(); } }
-        }, 100);
+        sizes = new ResizeObserver(() => schedule(true));
+        sizes.observe(document.documentElement); sizes.observe(document.body);
+        mutations = new MutationObserver(records => {
+          if (records.some(record => record.target !== root && !root.contains(record.target))) schedule(true);
+        });
+        mutations.observe(document.documentElement, {subtree: true, childList: true, attributes: true, characterData: true});
+        // A deadline bounds the mode; it never drives product positioning.
+        deadline = setTimeout(cancel, 60_000);
         update();
       } catch { finish(null); }
     });

@@ -382,7 +382,7 @@ final class StoreSelectionTests: XCTestCase {
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
         if name.contains("StoreProduct") {
-            app.launchEnvironment["LISTRUNNER_PRODUCT_SELECTION_FIXTURE"] = name.contains("Detail") ? "detail" : "grid"
+            app.launchEnvironment["LISTRUNNER_PRODUCT_SELECTION_FIXTURE"] = name.contains("Detail") ? "detail" : name.contains("Scrolling") ? "scroll" : "grid"
         }
         if name.contains("LiveStoreLogin") {
             let store = name.contains("Waitrose") ? "waitrose" : "sainsburys"
@@ -3787,10 +3787,12 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
         let railAdd = app.buttons.matching(identifier: "add-store-product").firstMatch
         XCTAssertTrue(railAdd.isHittable, "The leading add action is exposed beside the first card")
+        XCTAssertEqual(railAdd.label, "Add item to your list")
         attachStoreProductScreenshot("Rail-end add control")
         app.buttons["Collapse overlay"].tap()
         let add = app.buttons["collapsed-add-store-product"]
         XCTAssertTrue(add.waitForExistence(timeout: 3))
+        XCTAssertEqual(add.label, "Add item to your list")
         add.tap()
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "store-product-selection-bar").firstMatch.waitForExistence(timeout: 3))
         let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
@@ -3862,6 +3864,59 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Dismiss store"].tap()
         XCTAssertTrue(app.staticTexts["500 g pasta, gluten-free"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["Gluten-free"].exists)
+    }
+
+    func testStoreProductScrollingKeepsShieldsAlignedAndSelectsVisibleProduct() {
+        choose("Bunnings")
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Scrolling selection fixture"].waitForExistence(timeout: 10))
+        app.buttons["Collapse overlay"].tap()
+        app.buttons["collapsed-add-store-product"].tap()
+        let shield = app.webViews.buttons["Choose product: Scroll product 3"]
+        let title = app.webViews.staticTexts["Scroll product 3"]
+        XCTAssertTrue(shield.waitForExistence(timeout: 5))
+        XCTAssertTrue(title.exists)
+        let initialGap = shield.frame.minY - title.frame.minY
+        let initialY = title.frame.minY
+        attachStoreProductScreenshot("Document-plane shields before scroll")
+        let start = app.webViews.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.62))
+        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -240)),
+                    withVelocity: .slow, thenHoldForDuration: 0.2)
+        XCTAssertLessThan(title.frame.minY, initialY - 80, "The page must scroll beneath the shields")
+        XCTAssertEqual(shield.frame.minY - title.frame.minY, initialGap, accuracy: 2)
+        attachStoreProductScreenshot("Document-plane shields after scroll")
+        shield.tap()
+        let field = app.descendants(matching: .any).matching(identifier: "store-product-name").firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertEqual(field.value as? String, "Scroll product 3")
+        app.buttons["Cancel"].tap()
+        XCTAssertFalse(app.webViews.buttons["UNEXPECTED CART CHANGE"].exists)
+    }
+
+    func testStoreProductRailLabelAndFadeUnderCards() {
+        choose("Bunnings")
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("Tool one, Tool two, Tool three\n")
+        input.typeText("\n")
+        let first = row("Tool one", status: "Pending")
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+        first.tap()
+        let add = app.buttons.matching(identifier: "add-store-product").firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        XCTAssertEqual(add.label, "Add item to your list")
+        attachStoreProductScreenshot("Rail add fully revealed")
+        let card = app.otherElements["selected-shopping-card"]
+        XCTAssertTrue(card.exists)
+        let start = card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: -40, dy: 0)),
+                    withVelocity: .slow, thenHoldForDuration: 0.3)
+        attachStoreProductScreenshot("Rail add partially covered and fading")
+        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: -100, dy: 0)),
+                    withVelocity: .slow, thenHoldForDuration: 0.3)
+        XCTAssertTrue(app.buttons.matching(identifier: "add-store-product").firstMatch.waitForNonExistence(timeout: 3),
+                      "Covered end controls must not remain accessible or tappable over cards")
+        attachStoreProductScreenshot("Rail add hidden behind cards")
     }
 
     private func attachStoreProductScreenshot(_ name: String) {

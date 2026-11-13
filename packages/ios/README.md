@@ -37,7 +37,7 @@ The verifier requires every canonical JSON file (including Bunnings) to be byte-
 
 ### Add a store website product to the list
 
-The shopping card rail has `Add store item to list` at either end; the collapsed
+The shopping card rail has `Add item to your list` at either end; the collapsed
 bar has a plus shortcut. On Bunnings AU, a product page opens a native review;
 a grid temporarily shows tappable ListRunner shields over recognised tiles.
 Choosing a shield never clicks the store's underlying controls. Cancel/manual
@@ -46,6 +46,13 @@ a Pending item in that store's list without navigating away or changing its cart
 Commas and package sizes remain part of the literal product name. Existing local
 duplicates reactivate/merge through shared list staging. Both store-list and
 All items shopping use this flow; failed saves keep the draft.
+
+The end controls fade in proportion to the uncovered part as cards scroll over
+them. Product-selection shields are positioned in the document's scrolling plane,
+not moved by a periodic viewport-tracking timer. Browser scrolling carries them
+with the products; mutation/resize/load and nested-scroll events coalesce updates
+into animation frames. A separate transparent fixed blocker absorbs unrelated
+website taps, and a single 60-second timeout bounds selection mode.
 
 Schema 8 adds optional `productSelection` grid/detail selectors separately from
 cart capabilities, retaining schemas 2–7 and all existing automation ceilings.

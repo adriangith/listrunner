@@ -2166,6 +2166,34 @@ No new simulator UI-suite run, physical-device installation, user-list edit, rea
 Branch: `feature/add-store-product-to-list`. Implementation plan and safety contract:
 `docs/store-product-to-list.md`.
 
+### Follow-up: scrolling alignment, fade and wording
+
+The user reported shields trailing products during scrolling on their phone.
+The prior viewport-fixed shields moved on a 100 ms timer. The follow-up places
+all recognised tile shields in a zero-size, overflow-visible document-plane root,
+separate from retailer tile/link subtrees, with a viewport-fixed transparent tap
+blocker behind them. Shield coordinates are relative to the root's actual origin,
+so page margins/positioned bodies work and ordinary page scrolling moves both
+layers together without JavaScript updates. Mutation/resize/image/font-load and
+nested-scroll events coalesce geometry work into animation frames. The only
+remaining timer is the 60-second cancellation deadline; observers, pending frames
+and listeners are removed on all exits. Click-time identity/geometry/hit checks
+and native assistive-entry fallbacks remain in place.
+
+Rail controls now say **Add item to your list**, including collapsed-bar and
+accessibility actions. Their opacity follows uncovered width directly on both
+ends, while clipping/hit-test boundaries still exclude the moving cards. Native
+review uses the shorter **Add item** title.
+
+Linux: all **480 JavaScript tests** (30 selection tests) and **47 Python tests**
+pass. Real isolated Chromium with mobile viewport and positioned body confirmed
+all four shields aligned immediately at six scroll offsets in one JavaScript
+turn, before animation-frame callbacks could reposition them. Dynamic reflow,
+selecting the second product, no retailer Add clicks and cleanup also passed.
+Native build and focused simulator scrolling/fade regression results follow after
+verification. No new phone install or live retailer action has been performed
+for this follow-up at this point.
+
 ### Physical iPhone installation
 
 At the user's explicit request, revision

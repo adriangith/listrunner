@@ -11,11 +11,20 @@ const config = {
   detail: {containerSelector: 'main', titleSelector: 'h1'},
 };
 
-function fixture({detail = false} = {}) {
-  const timers = new Map(), listeners = new Map(), roots = [], created = [];
-  let now = 0;
+function fixture({detail = false, origin = {left: 0, top: 0}} = {}) {
+  const timers = new Map(), frames = new Map(), listeners = new Map(), roots = [], created = [], observers = [];
+  let serial = 0;
   function listen(name, fn) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(fn); }
   function unlisten(name, fn) { listeners.get(name)?.delete(fn); }
+  const window = {scrollX: 0, scrollY: 0, addEventListener: listen, removeEventListener: unlisten};
+  class Observer {
+    constructor(callback) { this.callback = callback; this.active = true; this.nodes = new Set(); observers.push(this); }
+    observe(node) { this.nodes.add(node); }
+    unobserve(node) { this.nodes.delete(node); }
+    disconnect() { this.active = false; this.nodes.clear(); }
+  }
+  class Mutations extends Observer {}
+  class Sizes extends Observer {}
   class Node {
     constructor(text = '') {
       this.textContent = text; this.isConnected = true; this.nodes = {};
@@ -26,7 +35,10 @@ function fixture({detail = false} = {}) {
     querySelectorAll(selector) { if (selector === '[') throw Error('CSS'); return this.nodes[selector] || []; }
     getClientRects() { return this.isConnected && !this.hidden ? [this.box] : []; }
     get innerText() { return this.textContent; }
-    getBoundingClientRect() { return {...this.box}; }
+    getBoundingClientRect() {
+      const left = this.box.left - window.scrollX, top = this.box.top - window.scrollY;
+      return {...this.box, left, top, right: left + this.box.width, bottom: top + this.box.height};
+    }
     closest() { return this.hidden ? this : null; }
     contains(node) { return node === this || this.children.includes(node); }
     remove() { this.isConnected = false; }
@@ -41,24 +53,34 @@ function fixture({detail = false} = {}) {
   const main = new Node(), heading = new Node('2x LED lights, 75 mm');
   main.nodes = {h1: [heading]};
   const document = {
-    visibilityState: 'visible', body: {appendChild(node) { roots.push(node); }},
+    visibilityState: 'visible', documentElement: new Node(),
+    body: Object.assign(new Node(), {appendChild(node) { roots.push(node); }}),
     nodes: {'.tile': [tile], main: [main]},
     querySelectorAll(selector) { if (selector === '[') throw Error('CSS'); return this.nodes[selector] || []; },
-    createElement(tag) { const node = new Node(); node.tag = tag; created.push(node); return node; },
+    createElement(tag) {
+      const node = new Node(); node.tag = tag;
+      if (tag === 'div') node.box = {...origin, width: 0, height: 0};
+      created.push(node); return node;
+    },
     addEventListener: listen, removeEventListener: unlisten,
     elementFromPoint() { return tile; },
   };
   const location = {href: detail ? link.href : 'https://www.bunnings.com.au/search/products?q=lights'};
-  const window = {addEventListener: listen, removeEventListener: unlisten};
   const context = vm.createContext({config: structuredClone(config), hosts: ['www.bunnings.com.au'],
     pathPrefix: '', requestID: 'test-request', chooseLabel: 'Choose product', allowGrid: true,
     window, document, location, URL, innerWidth: 402, innerHeight: 874,
     getComputedStyle: () => ({display: 'block', visibility: 'visible', opacity: '1'}),
-    setInterval(fn) { timers.set(1, fn); return 1; }, clearInterval(id) { timers.delete(id); },
+    MutationObserver: Mutations, ResizeObserver: Sizes,
+    requestAnimationFrame(fn) { const id = ++serial; frames.set(id, fn); return id; },
+    cancelAnimationFrame(id) { frames.delete(id); },
+    setTimeout(fn) { const id = ++serial; timers.set(id, fn); return id; }, clearTimeout(id) { timers.delete(id); },
   });
-  return {context, document, window, location, tile, title, link, heading, main, roots, timers,
+  return {context, document, window, location, tile, title, link, heading, main, roots, timers, frames, Node,
     start() { return vm.runInContext(`(async () => {${source}\n})()`, context); },
-    tick() { now++; for (const fn of [...timers.values()]) fn(); },
+    tick() { const pending = [...frames.values()]; frames.clear(); for (const fn of pending) fn(); },
+    mutate(target = tile) { for (const o of observers) if (o.active && o instanceof Mutations) o.callback([{target}]); },
+    resize() { for (const o of observers) if (o.active && o instanceof Sizes) o.callback([]); },
+    expire() { for (const fn of [...timers.values()]) fn(); },
     event(name) { for (const fn of [...(listeners.get(name) || [])]) fn(); },
     buttons() { return created.filter(n => n.tag === 'button' && n.isConnected); },
     tap(button = this.buttons()[0]) {
@@ -69,9 +91,12 @@ function fixture({detail = false} = {}) {
     },
     assertClean() {
       assert.equal(timers.size, 0);
+      assert.equal(frames.size, 0);
+      assert.ok(observers.every(o => !o.active));
       assert.ok(roots.every(root => !root.isConnected));
       assert.equal([...listeners.values()].reduce((sum, set) => sum + set.size, 0), 0);
       assert.equal(window.__listRunnerCancelProductSelection, undefined);
+      assert.equal(window.__listRunnerProductSelectionID, undefined);
     },
   };
 }
@@ -107,10 +132,69 @@ test('grid installs shields outside the tiles and consumes selection without web
 test('layout updates retain the same tappable shield and update its position', async () => {
   const f = fixture(), pending = f.start(), button = f.buttons()[0];
   f.tile.box.top = 50;
+  f.mutate();
   f.tick();
   assert.equal(f.buttons()[0], button);
   assert.equal(button.style.top, '50px');
   f.tap(); assert.ok(await pending); f.assertClean();
+});
+
+test('window scrolling needs no JavaScript position update or timer tick', async () => {
+  const f = fixture(), pending = f.start(), button = f.buttons()[0];
+  assert.match(f.roots[0].style.cssText, /position:absolute/);
+  assert.match(button.style.cssText, /position:absolute/);
+  assert.equal(button.style.top, '100px');
+  f.window.scrollY = 80; f.window.scrollX = 7;
+  assert.equal(f.tile.getBoundingClientRect().top, 20);
+  assert.equal(button.style.top, '100px', 'document-relative geometry never chases viewport scrolling');
+  assert.equal(f.frames.size, 0, 'normal scrolling stays correct before any JS callback runs');
+  f.tap(); assert.equal((await pending).name, '2x LED lights, 75 mm'); f.assertClean();
+});
+
+test('positioned body origins are measured instead of assumed to be zero', async () => {
+  const f = fixture({origin: {left: 5, top: 40}}), pending = f.start();
+  assert.equal(f.buttons()[0].style.left, '5px');
+  assert.equal(f.buttons()[0].style.top, '60px');
+  f.window.scrollY = 50;
+  f.tap(); assert.ok(await pending); f.assertClean();
+});
+
+test('nested scroll geometry is coalesced into one frame without recreating controls', async () => {
+  const f = fixture(), pending = f.start(), button = f.buttons()[0];
+  f.tile.box.top = 30;
+  for (let i = 0; i < 10; i++) f.event('scroll');
+  assert.equal(f.frames.size, 1);
+  f.tick(); assert.equal(f.buttons()[0], button); assert.equal(button.style.top, '30px');
+  f.tap(); assert.ok(await pending); f.assertClean();
+});
+
+test('resize and mutation callbacks share one frame and discover newly rendered/offscreen tiles', async () => {
+  const f = fixture(), pending = f.start(), button = f.buttons()[0];
+  const tile = new f.Node(), title = new f.Node('New product'), link = new f.Node();
+  link.href = 'https://www.bunnings.com.au/new_p2222222';
+  tile.box.top = 1200; tile.nodes = {'.title': [title], a: [link]};
+  f.document.nodes['.tile'].push(tile);
+  f.tile.box.width = 200;
+  f.resize(); f.mutate(); f.event('resize');
+  assert.equal(f.frames.size, 1);
+  f.tick(); assert.equal(f.buttons().length, 2); assert.equal(button.style.width, '200px');
+  const other = f.buttons()[1]; assert.equal(other.style.top, '1200px');
+  f.window.scrollY = 1100; f.document.elementFromPoint = () => tile;
+  f.tap(other); assert.equal((await pending).name, 'New product'); f.assertClean();
+});
+
+test('own layer mutations do not start a geometry feedback loop; pending frames cancel on exit', async () => {
+  const f = fixture(), pending = f.start();
+  f.mutate(f.roots[0]); assert.equal(f.frames.size, 0);
+  f.mutate(); assert.equal(f.frames.size, 1);
+  f.window.__listRunnerCancelProductSelection();
+  assert.equal(await pending, null); f.assertClean();
+  f.resize(); f.event('scroll'); f.tick(); f.assertClean();
+});
+
+test('missing observer support falls back without adding document controls', async () => {
+  const f = fixture(); f.context.ResizeObserver = undefined;
+  assert.equal(await f.start(), null); assert.equal(f.roots.length, 0); f.assertClean();
 });
 
 for (const [name, change] of [
@@ -131,8 +215,8 @@ for (const [name, change] of [
   ['explicit cancel', f => f.window.__listRunnerCancelProductSelection()],
   ['navigation', f => f.event('pagehide')],
   ['background', f => { f.document.visibilityState = 'hidden'; f.event('visibilitychange'); }],
-  ['timeout', f => { for (let n = 0; n < 600; n++) f.tick(); }],
-  ['root removed by site', f => { f.roots[0].remove(); f.tick(); }],
+  ['timeout', f => f.expire()],
+  ['root removed by site', f => { f.roots[0].remove(); f.mutate(f.document.body); f.tick(); }],
 ]) {
   test(`${name} removes all shields and listeners`, async () => {
     const f = fixture(), pending = f.start(); change(f);
@@ -176,4 +260,13 @@ test('native source confines reads and cancellation to the request and isolated 
   const resume = source.split('func resumeAfterStoreProductSelection(itemID: UUID)')[1].split('func chooseStoreProduct')[0];
   assert.doesNotMatch(resume, /beginInteraction|search\(for:|loadStoreURL/);
   assert.doesNotMatch(swift.match(/static let script[\s\S]*/)[0], /fetch\(|\.click\(|localStorage|sessionStorage|document.cookie/);
+  assert.doesNotMatch(swift.match(/static let script[\s\S]*/)[0], /setInterval/);
+});
+
+test('rail control wording and fade follow uncovered width without a delayed animation', () => {
+  assert.match(swift, /Text\("Add item to your list"\)/);
+  assert.match(swift, /accessibilityLabel\("Add item to your list"\)/);
+  assert.match(swift, /opacity\(Double\(leadingWidth \/ 88\)\)/);
+  assert.match(swift, /opacity\(Double\(trailingWidth \/ 88\)\)/);
+  assert.doesNotMatch(swift, /Add store item to list/);
 });

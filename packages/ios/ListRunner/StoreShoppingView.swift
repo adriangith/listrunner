@@ -391,7 +391,7 @@ struct StoreShoppingView: View {
                         }
                         }
                     }
-                    .accessibilityAction(named: Text("Add store item to list"), beginStoreProductSelection)
+                    .accessibilityAction(named: Text("Add item to your list"), beginStoreProductSelection)
                     .onAppear {
                         if let id = selected?.id { scrollProxy.scrollTo(id, anchor: .center) }
                     }
@@ -685,7 +685,7 @@ struct StoreShoppingView: View {
                 .frame(width: 44, height: 70)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Add store item to list")
+        .accessibilityLabel("Add item to your list")
         .accessibilityIdentifier("collapsed-add-store-product")
         .padding(.trailing, 12)
         }
@@ -3304,11 +3304,24 @@ final class StoreBrowser: ObservableObject {
             let resultsFixture = ProcessInfo.processInfo.environment["LISTRUNNER_RESULTS_SCROLL_TEST_FIXTURE"] == "enabled"
             let productFixture = ProcessInfo.processInfo.environment["LISTRUNNER_PRODUCT_SELECTION_FIXTURE"] != nil
                 && store.id == .bunnings
+            let scrollingProductFixture = productFixture
+                && ProcessInfo.processInfo.environment["LISTRUNNER_PRODUCT_SELECTION_FIXTURE"] == "scroll"
             // Do not expose the interactive fixture on the initial homepage:
             // XCTest must wait for the selected item's paced search to load.
             let resumeFixture = ProcessInfo.processInfo.environment["LISTRUNNER_STORE_RESUME_TEST_FIXTURE"] != nil
                 && (!store.capabilities.search || url == latestRequestedSearchURL)
-            let html = productFixture ? """
+            let html = scrollingProductFixture ? """
+                <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                <body style="position:relative;margin:16px;font:17px -apple-system"><h1>Scrolling selection fixture</h1>
+                <main style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                \((1...8).map { number in """
+                <div data-search-product-tile="true" style="height:280px;background:#eee">
+                  <a href="/scroll-product_p\(number)"><p>Scroll product \(number)</p></a>
+                  <button onclick="this.textContent='UNEXPECTED CART CHANGE'">Fixture cart button \(number)</button>
+                </div>
+                """ }.joined())
+                </main><div style="height:500px"></div></body></html>
+                """ : productFixture ? """
                 <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
                 <body style="margin:16px;font:20px -apple-system"><main id="main"><div class="container-main">
                 <h1 data-locator="product-title">2x LED lights, 75 mm</h1>
