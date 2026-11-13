@@ -374,8 +374,9 @@ private struct ListNavigationContainer<Content: View>: View {
     }
 }
 
-// A joined toolbar control replaces only the visible Back item. Keep UIKit's
-// own interactive pop (and cancellation), scoped to this store destination.
+// Replace the *drawn* Back item with the joined leading control, without setting
+// hidesBackButton. Hiding Back at the SwiftUI navigation level also suppresses
+// native interactive navigation, even if its UIKit recognizers are enabled.
 private struct StoreListInteractiveBack: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> Controller { Controller() }
 
@@ -388,7 +389,8 @@ private struct StoreListInteractiveBack: UIViewControllerRepresentable {
     }
 
     final class Controller: UIViewController {
-        private var installations: [(gesture: UIGestureRecognizer, delegate: PopDelegate, enabled: Bool)] = []
+        private weak var styledItem: UINavigationItem?
+        private var originalSupplement = true
 
         override func loadView() {
             let anchor = UIView()
@@ -399,17 +401,6 @@ private struct StoreListInteractiveBack: UIViewControllerRepresentable {
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
             apply()
-            #if DEBUG
-            if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"] != nil {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) { [weak self] in
-                    guard let self else { return }
-                    for installed in self.installations {
-                        let gesture = installed.gesture
-                        print("STORE_BACK settled enabled=\(gesture.isEnabled) view=\(String(describing: gesture.view)) sameDelegate=\(gesture.delegate === installed.delegate) state=\(gesture.state.rawValue)")
-                    }
-                }
-            }
-            #endif
         }
 
         override func viewDidLayoutSubviews() {
@@ -430,89 +421,18 @@ private struct StoreListInteractiveBack: UIViewControllerRepresentable {
             }
             guard let host, navigationController.topViewController === host,
                   navigationController.viewControllers.count > 1 else { return }
-            var gestures = [navigationController.interactivePopGestureRecognizer].compactMap { $0 }
-            if #available(iOS 26.0, *), let content = navigationController.interactiveContentPopGestureRecognizer {
-                gestures.append(content)
+            let item = host.navigationItem
+            if styledItem !== item {
+                restore()
+                styledItem = item
+                originalSupplement = item.leftItemsSupplementBackButton
             }
-            for gesture in gestures {
-                if let installed = installations.first(where: { $0.gesture === gesture }),
-                   gesture.delegate === installed.delegate {
-                    if !gesture.isEnabled, navigationController.transitionCoordinator == nil { gesture.isEnabled = true }
-                    continue
-                }
-                let delegate = PopDelegate()
-                delegate.original = gesture.delegate
-                delegate.navigationController = navigationController
-                delegate.owner = host
-                installations.append((gesture, delegate, gesture.isEnabled))
-                gesture.delegate = delegate
-                gesture.isEnabled = true
-                #if DEBUG
-                if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"] != nil {
-                    print("STORE_BACK attached \(type(of: gesture)) original=\(String(describing: delegate.original))")
-                }
-                #endif
-            }
+            if item.leftItemsSupplementBackButton { item.leftItemsSupplementBackButton = false }
         }
 
         func restore() {
-            for installed in installations.reversed() where installed.gesture.delegate === installed.delegate {
-                installed.gesture.delegate = installed.delegate.original
-                installed.gesture.isEnabled = installed.enabled
-            }
-            installations.removeAll()
-        }
-    }
-
-    final class PopDelegate: NSObject, UIGestureRecognizerDelegate {
-        weak var original: (any UIGestureRecognizerDelegate)?
-        weak var navigationController: UINavigationController?
-        weak var owner: UIViewController?
-
-        private var canPop: Bool {
-            guard let navigationController, let owner else { return false }
-            return navigationController.topViewController === owner
-                && navigationController.viewControllers.count > 1
-                && navigationController.transitionCoordinator == nil
-        }
-
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-            guard canPop, let view = gestureRecognizer.view else { return false }
-            let x = touch.location(in: view).x
-            let leadingDistance = view.effectiveUserInterfaceLayoutDirection == .rightToLeft ? view.bounds.width - x : x
-            // Hiding the separate native Back can veto touch delivery before
-            // shouldBegin. Admit only leading-edge touches on this destination;
-            // ordinary row swipes and content drags keep their existing owner.
-            return leadingDistance >= 0 && leadingDistance <= 28
-        }
-
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive event: UIEvent) -> Bool {
-            #if DEBUG
-            if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"] != nil {
-                print("STORE_BACK receiveEvent canPop=\(canPop) type=\(event.type.rawValue)")
-            }
-            #endif
-            return canPop && event.type == .touches
-        }
-
-        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            #if DEBUG
-            if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"] != nil {
-                print("STORE_BACK shouldBegin \(type(of: gestureRecognizer))")
-            }
-            #endif
-            // The system's default shouldBegin rejects a hidden native Back
-            // item. Override only that gate; all other arbitration is forwarded.
-            return canPop
-        }
-
-        override func responds(to selector: Selector!) -> Bool {
-            super.responds(to: selector) || (original?.responds(to: selector) ?? false)
-        }
-
-        override func forwardingTarget(for selector: Selector!) -> Any? {
-            if original?.responds(to: selector) == true { return original }
-            return super.forwardingTarget(for: selector)
+            styledItem?.leftItemsSupplementBackButton = originalSupplement
+            styledItem = nil
         }
     }
 }
@@ -2387,7 +2307,6 @@ struct GroceryListScreen: View {
                     }
                 }
             }
-            .navigationBarBackButtonHidden(showsJoinedBack)
             .onAppear {
                 isListScreenVisible = true
                 if storeLaunchRequested {
