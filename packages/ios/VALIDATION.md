@@ -2216,10 +2216,29 @@ ellipsis and collapse-hint overlap remain known layout limitations.
 Correction code `75d6b526f6228320de3810f3f52d9afbd04cecb9`: generic simulator
 build, all **484 JavaScript tests**, **47 Python tests**, the full cloud offline
 allowlist with **1,924 native checks**, and 35 JSON + 1 JavaScript canonical
-resource comparisons pass. A fourteen-case simulator run is active: the twelve
-reveal/fade/insertion regressions plus progress-chevron collapse/status retention
-and slow-drag collapse/re-expansion. Its results are not yet certified. Evidence
-target: `~/Library/Developer/Xcode/StoreProductSelection-Evidence/Reveal-75d6b52/`.
+resource comparisons pass. Final simulator verification at that exact code SHA:
+**14 passed, 0 failed, 0 skipped**, in one run with no retries or source/scheme
+changes. All twelve reveal/fade/insertion cases and the progress-chevron status
+retention and slow-drag collapse/re-expansion regressions passed. The previously
+failing collapsed-control absence assertion now passes; the same control remains
+available and functional when actually collapsed. New inactive cards centre within
+two points while the original item stays active, start/end order survives relaunch,
+store isolation holds, and duplicate merge/recentre does not create selection
+history. Faster fade, scrolling shields and no fixture cart changes also pass.
+
+Retained screenshots show readable centred titles/quantities and native review
+controls. Adjacent active-card cropping is the expected rail tradeoff; existing
+long active-title ellipsis and collapse-hint webpage overlap remain. The first case
+passed but took 276 seconds after an extended idle wait during first-store welcome
+setup, before the collapsed-bar checks. Its spindump is retained; cause is unknown,
+and this run is not performance sign-off.
+
+Evidence: `~/Library/Developer/Xcode/StoreProductSelection-Evidence/Reveal-75d6b52/`
+contains `REPORT.md`, `Reveal.xcresult`, logs/reports, 18 screenshots, spindump,
+suite recording and extracted collapsed/expanded frames. Linux inspection copies:
+`/tmp/opencode/reveal-75d6b52/`. Owned simulator was shut down with its state and
+evidence preserved; interaction bridge closed and worktree ownership released.
+Documentation-only commits after the code SHA do not change the implementation.
 No phone install of this quicker-fade/reveal follow-up has been performed yet;
 the phone remains on `27762b8`.
 
