@@ -3775,8 +3775,10 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testManualScrollingDoesNotTrackIdleRowFrames() {
+        choose("Coles")
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         input.typeText("scroll fixture alpha; scroll fixture bravo; scroll fixture charlie; scroll fixture delta; scroll fixture echo; scroll fixture foxtrot")
         app.buttons["Add Items"].tap()
         XCTAssertTrue(row("scroll fixture alpha", status: "Pending").waitForExistence(timeout: 5))

@@ -1518,6 +1518,8 @@ private struct AllItemsScreen: View {
         }
         .onDisappear {
             onListVisibilityChange(false)
+            entryFocused = false
+            entryFocus.resignFirstResponder()
             if let workingStoreID, !allItems.contains(where: { $0.listID == workingStoreID.listID }) {
                 self.workingStoreID = nil
             }
@@ -3173,6 +3175,7 @@ private struct ProductEntryEditor: UIViewRepresentable {
         var isDismantled = false
         private var focusUpdateScheduled = false
         private weak var listPan: UIPanGestureRecognizer?
+        private var dismissedKeyboardForPan = false
         init(parent: ProductEntryEditor) { self.parent = parent }
 
         func observeListScroll(from view: UIView) {
@@ -3203,13 +3206,23 @@ private struct ProductEntryEditor: UIViewRepresentable {
         }
 
         @objc private func listDidPan(_ pan: UIPanGestureRecognizer) {
-            guard pan.state == .began, !isDismantled else { return }
-            parent.onManualScroll()
-            // Focusing may have temporarily set .none while revealing the entry
-            // card. A user pan cancels that reveal: restore UIKit's interactive
-            // keyboard dismissal now, before the next .changed touch sample,
-            // rather than waiting for SwiftUI to deliver the cancelled task.
-            (pan.view as? UIScrollView)?.keyboardDismissMode = .interactive
+            guard !isDismantled else { return }
+            if pan.state == .began {
+                dismissedKeyboardForPan = false
+                parent.onManualScroll()
+                // Reveal can temporarily request .none. Restore native dismissal
+                // before the next touch sample, without adding a pan recognizer.
+                (pan.view as? UIScrollView)?.keyboardDismissMode = .interactive
+            }
+            guard pan.state == .changed, !dismissedKeyboardForPan, parent.isFocused else { return }
+            let translation = pan.translation(in: pan.view)
+            // Upward scrolling need not move an interactive keyboard downward.
+            // Treat a deliberate vertical scroll as dismissal in both directions,
+            // but preserve focus for small repositioning and horizontal edge Back.
+            guard abs(translation.y) >= 44, abs(translation.y) > abs(translation.x) else { return }
+            dismissedKeyboardForPan = true
+            parent.isFocused = false
+            parent.focusControl.resignFirstResponder()
         }
 
         func synchronizeFocus(for view: EntryTextView) {
