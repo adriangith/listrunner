@@ -54,6 +54,13 @@ with the products; mutation/resize/load and nested-scroll events coalesce update
 into animation frames. A separate transparent fixed blocker absorbs unrelated
 website taps, and a single 60-second timeout bounds selection mode.
 
+Left adds to the start of the browsed store list; right adds to its end. The review
+shows Position, and grid/detail/manual/assistive paths retain the captured edge.
+Matching existing rows still merge/reactivate and move to that edge; unaffected
+rows keep their relative order. The collapsed shortcut defaults to the start.
+Both ordinary store lists and All items shopping use the same store-owned ordering;
+other manual/import defaults and All items grouping rules are unchanged.
+
 Schema 8 adds optional `productSelection` grid/detail selectors separately from
 cart capabilities, retaining schemas 2–7 and all existing automation ceilings.
 Bunnings selectors have read-only public rendered evidence; other stores offer

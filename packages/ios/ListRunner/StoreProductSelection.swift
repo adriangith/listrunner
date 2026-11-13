@@ -4,6 +4,7 @@ import WebKit
 struct StoreProductDraft: Identifiable {
     let id = UUID()
     let name: String
+    let insertion: ShoppingLists.AdditionPosition
 }
 
 enum StoreProductChoice {
@@ -55,6 +56,7 @@ struct StoreProductAddLabel: View {
 struct StoreProductAddButton: View {
     let width: CGFloat
     let alignment: Alignment
+    let insertion: ShoppingLists.AdditionPosition
     let action: () -> Void
 
     var body: some View {
@@ -69,7 +71,10 @@ struct StoreProductAddButton: View {
         .buttonStyle(.plain)
         .foregroundStyle(.primary)
         .accessibilityLabel("Add item to your list")
-        .accessibilityHint("Choose a product from the current website. Does not change the store cart.")
+        .accessibilityValue(insertion == .start ? Text("Start of list") : Text("End of list"))
+        .accessibilityHint(insertion == .start
+            ? Text("Choose a product to add to the start of your list. Does not change the store cart.")
+            : Text("Choose a product to add to the end of your list. Does not change the store cart."))
         .accessibilityIdentifier("add-store-product")
     }
 }
@@ -77,11 +82,12 @@ struct StoreProductAddButton: View {
 struct StoreProductRailEndControl: View {
     let uncoveredWidth: CGFloat
     let alignment: Alignment
+    let insertion: ShoppingLists.AdditionPosition
     let action: () -> Void
 
     var body: some View {
         if uncoveredWidth >= 44 {
-            StoreProductAddButton(width: uncoveredWidth, alignment: alignment, action: action)
+            StoreProductAddButton(width: uncoveredWidth, alignment: alignment, insertion: insertion, action: action)
                 .opacity(Double(uncoveredWidth / 88))
         } else if uncoveredWidth > 0 {
             // Keep the last sliver of the fade visual only. Fully covered
@@ -107,7 +113,7 @@ struct StoreProductRailAddControls: View {
     let width: CGFloat
     let leadingEnd: CGFloat?
     let trailingStart: CGFloat?
-    let action: () -> Void
+    let action: (ShoppingLists.AdditionPosition) -> Void
 
     var body: some View {
         let inset = max(0, (width - 160) / 2 - 100)
@@ -116,9 +122,9 @@ struct StoreProductRailAddControls: View {
         ZStack(alignment: .bottomLeading) {
             // Buttons stay fixed beneath the moving rail. Clip both rendering
             // and hit targets to the uncovered end slots, never over a card.
-            StoreProductRailEndControl(uncoveredWidth: leadingWidth, alignment: .leading, action: action)
+            StoreProductRailEndControl(uncoveredWidth: leadingWidth, alignment: .leading, insertion: .start) { action(.start) }
                 .offset(x: inset)
-            StoreProductRailEndControl(uncoveredWidth: trailingWidth, alignment: .trailing, action: action)
+            StoreProductRailEndControl(uncoveredWidth: trailingWidth, alignment: .trailing, insertion: .end) { action(.end) }
                 .offset(x: width - inset - trailingWidth)
         }
         .frame(width: width, height: 222, alignment: .bottomLeading)
@@ -128,6 +134,7 @@ struct StoreProductRailAddControls: View {
 struct StoreProductReview: View {
     let storeName: String
     let initialName: String
+    let insertion: ShoppingLists.AdditionPosition
     let onAdd: (String, Int) -> Bool
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
@@ -142,6 +149,10 @@ struct StoreProductReview: View {
                     TextField("Product name", text: $name, axis: .vertical)
                         .accessibilityIdentifier("store-product-name")
                     Stepper("Quantity: \(quantity)", value: $quantity, in: 1...999)
+                    LabeledContent("Position") {
+                        insertion == .start ? Text("Start of list") : Text("End of list")
+                    }
+                    .accessibilityIdentifier("store-product-insertion")
                 } header: {
                     Text("Add to \(storeName)")
                 } footer: {

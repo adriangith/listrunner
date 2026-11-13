@@ -15,7 +15,7 @@ struct StoreShoppingView: View {
     let saveFailed: Bool
     let onSelectionChange: (UUID) -> Void
     let onStatusChange: (GroceryItem) -> Void
-    let onAddStoreProduct: (String, Int) -> Bool
+    let onAddStoreProduct: (String, Int, ShoppingLists.AdditionPosition) -> Bool
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -36,6 +36,7 @@ struct StoreShoppingView: View {
     @State private var showingCartDetectionDetails = false
     @State private var choosingStoreProduct = false
     @State private var storeProductDraft: StoreProductDraft?
+    @State private var storeProductInsertion: ShoppingLists.AdditionPosition = .start
     @State private var productSelectionTask: Task<Void, Never>?
     @GestureState private var isTouchingOverlay = false
     @GestureState(resetTransaction: Transaction(animation: .spring(response: 0.4, dampingFraction: 0.86)))
@@ -65,7 +66,7 @@ struct StoreShoppingView: View {
         }
     }
 
-    init(items: [GroceryItem], browser: StoreBrowser, initialSelectedID: UUID?, saveFailed: Bool = false, onSelectionChange: @escaping (UUID) -> Void, onStatusChange: @escaping (GroceryItem) -> Void, onAddStoreProduct: @escaping (String, Int) -> Bool) {
+    init(items: [GroceryItem], browser: StoreBrowser, initialSelectedID: UUID?, saveFailed: Bool = false, onSelectionChange: @escaping (UUID) -> Void, onStatusChange: @escaping (GroceryItem) -> Void, onAddStoreProduct: @escaping (String, Int, ShoppingLists.AdditionPosition) -> Bool) {
         self.items = items
         self.browser = browser
         self.initialSelectedID = initialSelectedID
@@ -191,7 +192,7 @@ struct StoreShoppingView: View {
                 if choosingStoreProduct {
                     StoreProductSelectionBar(onCancel: { cancelStoreProductSelection() }, onManual: {
                         cancelStoreProductSelection(resume: false)
-                        storeProductDraft = StoreProductDraft(name: "")
+                        storeProductDraft = StoreProductDraft(name: "", insertion: storeProductInsertion)
                     })
                 } else {
                 ZStack(alignment: .bottom) {
@@ -216,7 +217,9 @@ struct StoreShoppingView: View {
             }
             .sheet(item: $storeProductDraft, onDismiss: resumeAfterStoreProductSelection) { draft in
                 StoreProductReview(storeName: browser.store.displayName, initialName: draft.name,
-                                   onAdd: onAddStoreProduct)
+                                   insertion: draft.insertion, onAdd: { name, quantity in
+                                       onAddStoreProduct(name, quantity, draft.insertion)
+                                   })
                     .presentationDetents([.medium, .large])
             }
             .confirmationDialog("\(browser.store.displayName) has paused browsing", isPresented: $showingVerificationDetails,
@@ -391,7 +394,7 @@ struct StoreShoppingView: View {
                         }
                         }
                     }
-                    .accessibilityAction(named: Text("Add item to your list"), beginStoreProductSelection)
+                    .accessibilityAction(named: Text("Add item to your list")) { beginStoreProductSelection(at: .start) }
                     .onAppear {
                         if let id = selected?.id { scrollProxy.scrollTo(id, anchor: .center) }
                     }
@@ -475,12 +478,13 @@ struct StoreShoppingView: View {
             }
     }
 
-    private func beginStoreProductSelection() {
+    private func beginStoreProductSelection(at insertion: ShoppingLists.AdditionPosition) {
         guard !choosingStoreProduct, storeProductDraft == nil, !browser.siteVerificationRequired,
               browser.storeRecovery == nil, !browser.cartUndoInProgress else { return }
         task?.cancel()
         secondsRemaining = 0
         manuallyPaused = undoRecord != nil
+        storeProductInsertion = insertion
         choosingStoreProduct = true
         productSelectionTask = Task { @MainActor in
             let choice = await browser.chooseStoreProduct()
@@ -488,8 +492,8 @@ struct StoreShoppingView: View {
             choosingStoreProduct = false
             switch choice {
             case .cancelled: resumeAfterStoreProductSelection()
-            case .manual: storeProductDraft = StoreProductDraft(name: "")
-            case .product(let name): storeProductDraft = StoreProductDraft(name: name)
+            case .manual: storeProductDraft = StoreProductDraft(name: "", insertion: insertion)
+            case .product(let name): storeProductDraft = StoreProductDraft(name: name, insertion: insertion)
             }
         }
     }
@@ -511,7 +515,7 @@ struct StoreShoppingView: View {
         guard choosingStoreProduct,
               UIAccessibility.isVoiceOverRunning || UIAccessibility.isSwitchControlRunning else { return }
         cancelStoreProductSelection(resume: false)
-        storeProductDraft = StoreProductDraft(name: "")
+        storeProductDraft = StoreProductDraft(name: "", insertion: storeProductInsertion)
     }
 
     private var navigationControls: some View {
@@ -680,12 +684,13 @@ struct StoreShoppingView: View {
         )
         .accessibilityLabel("\(selected?.name ?? "Selected item")\(secondsRemaining > 0 ? ", next item in \(secondsRemaining) seconds" : ""), Expand overlay")
         .accessibilityHint("Shows shopping controls")
-        Button(action: beginStoreProductSelection) {
+        Button { beginStoreProductSelection(at: .start) } label: {
             Image(systemName: "text.badge.plus")
                 .frame(width: 44, height: 70)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Add item to your list")
+        .accessibilityValue(Text("Start of list"))
         .accessibilityIdentifier("collapsed-add-store-product")
         .padding(.trailing, 12)
         }

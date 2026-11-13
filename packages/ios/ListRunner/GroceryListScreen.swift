@@ -1095,8 +1095,8 @@ private struct AllItemsScreen: View {
                 }, onStatusChange: { item in
                     stageReminderWriteback(for: item)
                     saveChanges()
-                }, onAddStoreProduct: { name, quantity in
-                    addStoreProduct(name, quantity: quantity, to: store)
+                }, onAddStoreProduct: { name, quantity, insertion in
+                    addStoreProduct(name, quantity: quantity, to: store, insertion: insertion)
                 })
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
@@ -1346,13 +1346,14 @@ private struct AllItemsScreen: View {
         }
     }
 
-    private func addStoreProduct(_ name: String, quantity: Int, to store: StoreID) -> Bool {
+    private func addStoreProduct(_ name: String, quantity: Int, to store: StoreID,
+                                 insertion: ShoppingLists.AdditionPosition) -> Bool {
         guard !paprikaReminders.importing, !name.isEmpty, name.utf8.count <= 512,
               (1...999).contains(quantity) else { return false }
         if modelContext.hasChanges, !saveChanges() { return false }
         let entry = ParsedGrocery(name: name, amount: Double(quantity), unit: nil)
         let snapshot = ShoppingLists.AdditionSnapshot(items: allItems, store: store)
-        let promoted = ShoppingLists.stageAdd([entry], to: store, allItems: allItems, context: modelContext)
+        let promoted = ShoppingLists.stageAdd([entry], to: store, allItems: allItems, context: modelContext, insertion: insertion)
         for item in promoted { stageReminderWriteback(for: item) }
         guard saveChanges() else {
             modelContext.rollback()
@@ -2016,7 +2017,7 @@ struct GroceryListScreen: View {
         }
     }
 
-    private func addStoreProduct(_ name: String, quantity: Int) -> Bool {
+    private func addStoreProduct(_ name: String, quantity: Int, insertion: ShoppingLists.AdditionPosition) -> Bool {
         guard !paprikaReminders.importing, !name.isEmpty, name.utf8.count <= 512,
               (1...999).contains(quantity) else { return false }
         if modelContext.hasChanges {
@@ -2026,7 +2027,7 @@ struct GroceryListScreen: View {
         // This is one literal product title, not a comma-separated ingredient input.
         let entry = ParsedGrocery(name: name, amount: Double(quantity), unit: nil)
         let snapshot = ShoppingLists.AdditionSnapshot(items: allItems, store: storeID)
-        let promoted = ShoppingLists.stageAdd([entry], to: storeID, allItems: allItems, context: modelContext)
+        let promoted = ShoppingLists.stageAdd([entry], to: storeID, allItems: allItems, context: modelContext, insertion: insertion)
         for item in promoted { stageReminderWriteback(for: item) }
         saveChanges()
         guard !saveFailed else {

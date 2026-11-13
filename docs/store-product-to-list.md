@@ -10,6 +10,17 @@ The action is also available without horizontal scrolling through
 an accessibility action and the collapsed bar. Existing card selection, collapse,
 Back/Skip/Undo and retailer cart behavior remain unchanged.
 
+The left/leading control captures **Start of list**; the right/trailing control
+captures **End of list**. Preserve that choice through grid selection, direct
+detail reads, manual/assistive fallback, review and save retries. The native review
+shows its Position and the controls announce their destination edge. The collapsed
+shortcut and generic accessibility action retain the existing add-to-start default.
+An existing matching item still merges/reactivates, but moves to the chosen edge
+without creating a duplicate. Untouched items retain their relative order. The
+position applies to the browsed store's list/card queue in either list scope;
+All items grouping/category recency rules are otherwise unchanged. Typed input
+and imports retain their existing ordering defaults.
+
 On a recognised product page, read its explicit product heading. On a grid,
 temporarily hide the cards and place ListRunner-owned selection shields over
 recognised product tiles. Tapping a shield selects that product, never clicks or

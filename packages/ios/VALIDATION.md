@@ -2166,6 +2166,27 @@ No new simulator UI-suite run, physical-device installation, user-list edit, rea
 Branch: `feature/add-store-product-to-list`. Implementation plan and safety contract:
 `docs/store-product-to-list.md`.
 
+### Follow-up: side-specific list insertion
+
+The left/leading rail action captures start-of-list insertion; right/trailing
+captures end-of-list insertion. That immutable choice travels through grid/detail
+reading, manual/assistive fallback, native review and save retries. Review shows
+Position, and the controls expose Start/End of list accessibility values/hints.
+Collapsed-bar and generic accessibility shortcuts retain the existing start
+default. Both list screens pass the captured edge to shared list staging.
+Existing duplicates still merge/reactivate and move to that edge. Untouched
+rows keep their relative order, store ownership and status. Existing typed/import
+defaults, group/category recency and database/retailer schemas are unchanged.
+
+Linux: all 481 JavaScript tests (31 selection/wiring checks) and 47 Python tests
+pass. Added native tests cover both edges, preserved unrelated row order/status
+and selected identity, store isolation, durable ordering, duplicate merge/move,
+rollback/cache restoration, retry quantities and batch order. Added simulator
+coverage for left/start, right/end, right/manual fallback and All items/right,
+including retained current-card identity and store-list ordering after relaunch.
+Native build/check and simulator results follow after execution. No phone install
+or real retailer/cart action is part of this follow-up at this point.
+
 ### Follow-up: scrolling alignment, fade and wording
 
 The user reported shields trailing products during scrolling on their phone.

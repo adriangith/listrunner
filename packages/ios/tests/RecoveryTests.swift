@@ -96,6 +96,71 @@ struct RecoveryTests {
         try addContext.save()
         check(retriedWebsiteRows.first?.quantityAmount == 3,
               "retrying after a failed website addition applies the requested quantity exactly once")
+
+        for insertion in [ShoppingLists.AdditionPosition.start, .end] {
+            let container = try ShoppingLists.open(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
+            let context = container.mainContext
+            context.autosaveEnabled = false
+            let original = ["First", "Middle", "Last"].enumerated().map { index, name in
+                GroceryItem(name: name, amount: 1, position: index, listID: StoreID.bunnings.listID)
+            }
+            original[1].status = .added
+            original[2].status = .skipped
+            let foreign = GroceryItem(name: "Website product", amount: 8, position: 17, listID: StoreID.coles.listID)
+            let list = GroceryList(store: .bunnings)
+            list.selectedItemID = original[1].id
+            context.insert(list)
+            for item in original + [foreign] { context.insert(item) }
+            try context.save()
+            let inserted = ShoppingLists.stageAdd([ParsedGrocery(name: "Website product", amount: 1, unit: nil)],
+                to: .bunnings, allItems: original + [foreign], context: context, insertion: insertion)
+            let expected = insertion == .start ? inserted + original : original + inserted
+            check(expected.map(\.position) == Array(0..<4)
+                  && inserted.count == 1 && inserted[0].listID == StoreID.bunnings.listID,
+                  "website addition uses its chosen edge, contiguous positions and captured store")
+            check(original[1].status == .added && original[2].status == .skipped
+                  && list.selectedItemID == original[1].id && foreign.position == 17 && foreign.quantityAmount == 8,
+                  "edge insertion preserves other statuses, selection and foreign store rows")
+            try context.save()
+            let saved = try ModelContext(container).fetch(FetchDescriptor<GroceryItem>())
+                .filter { $0.listID == StoreID.bunnings.listID }.sorted { $0.position < $1.position }
+            check(saved.map(\.id) == expected.map(\.id), "chosen edge survives a new persistence context")
+
+            let snapshot = ShoppingLists.AdditionSnapshot(items: expected + [foreign], store: .bunnings)
+            let before = expected.map { ($0.id, $0.position, $0.statusRawValue, $0.quantityAmount) }
+            let duplicate = ShoppingLists.stageAdd([ParsedGrocery(name: "Middle", amount: 2, unit: nil)],
+                to: .bunnings, allItems: expected + [foreign], context: context, insertion: insertion)
+            let untouched = expected.filter { $0.id != original[1].id }
+            let reordered = insertion == .start ? duplicate + untouched : untouched + duplicate
+            check(duplicate.count == 1 && duplicate[0].id == original[1].id
+                  && duplicate[0].quantityAmount == 3 && duplicate[0].status == .pending
+                  && reordered.map(\.position) == Array(0..<4),
+                  "existing duplicate merges/reactivates and moves to the chosen edge without duplicating its row")
+            context.rollback()
+            snapshot.restoreAfterRollback()
+            check(zip(expected, before).allSatisfy { item, saved in
+                item.id == saved.0 && item.position == saved.1 && item.statusRawValue == saved.2 && item.quantityAmount == saved.3
+            }, "failed edge insertion restores cached quantities, statuses and order")
+            try context.save()
+            let retry = ShoppingLists.stageAdd([ParsedGrocery(name: "Middle", amount: 2, unit: nil)],
+                to: .bunnings, allItems: expected + [foreign], context: context, insertion: insertion)
+            try context.save()
+            let final = try ModelContext(container).fetch(FetchDescriptor<GroceryItem>())
+                .filter { $0.listID == StoreID.bunnings.listID }.sorted { $0.position < $1.position }
+            check(retry[0].quantityAmount == 3 && final.map(\.id) == reordered.map(\.id)
+                  && final.count == 4 && list.selectedItemID == original[1].id,
+                  "retry applies quantity once, persists edge order and keeps selected identity")
+
+            let batch = ShoppingLists.stageAdd([ParsedGrocery(name: "Batch one", amount: 1, unit: nil),
+                                               ParsedGrocery(name: "Batch two", amount: 1, unit: nil),
+                                               ParsedGrocery(name: "Batch one", amount: 1, unit: nil)],
+                to: .bunnings, allItems: try context.fetch(FetchDescriptor<GroceryItem>()),
+                context: context, insertion: insertion)
+            check(batch.count == 2 && batch.map(\.name) == ["Batch one", "Batch two"]
+                  && batch[0].quantityAmount == 2
+                  && batch.map(\.position) == (insertion == .start ? [0, 1] : [4, 5]),
+                  "explicit edge preserves batch order and merges repeated entries once")
+        }
         let firstID = UUID(), secondID = UUID(), thirdID = UUID()
         let initialOrder = ItemPromotionOrder.promoting([firstID, secondID], in: "", existing: [firstID, secondID, thirdID])
         let updatedOrder = ItemPromotionOrder.promoting([thirdID, firstID], in: initialOrder,

@@ -3866,6 +3866,91 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Gluten-free"].exists)
     }
 
+    func testStoreProductLeftAddsToStart() {
+        checkStoreProductInsertion(at: "Start of list", expectedBeforeExisting: true)
+    }
+
+    func testStoreProductRightAddsToEnd() {
+        checkStoreProductInsertion(at: "End of list", expectedBeforeExisting: false)
+    }
+
+    func testStoreProductRightManualEntryKeepsEndPosition() {
+        checkStoreProductInsertion(at: "End of list", expectedBeforeExisting: false, manual: true)
+    }
+
+    func testStoreProductAllItemsRightAddsToStoreEnd() {
+        choose("All items")
+        app.buttons["all-items-show-store"].tap()
+        app.buttons["Shop at Bunnings"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        storeProductAdd(at: "End of list").tap()
+        let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
+        XCTAssertTrue(shield.waitForExistence(timeout: 5))
+        shield.tap()
+        XCTAssertTrue(app.staticTexts["End of list"].waitForExistence(timeout: 5))
+        app.buttons["confirm-store-product"].tap()
+        XCTAssertTrue(app.buttons["Collapse overlay"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, "Item 1 of 2")
+        app.buttons["Dismiss store"].tap()
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Bunnings"].firstMatch.tap()
+        let existing = row("Bunnings fixture item", status: "Pending")
+        let added = row("2x LED lights, 75 mm", status: "Pending")
+        XCTAssertTrue(added.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(added.frame.minY, existing.frame.minY)
+        choose("Coles")
+        XCTAssertFalse(app.staticTexts["2x LED lights, 75 mm"].exists)
+    }
+
+    private func storeProductAdd(at position: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "identifier == %@ AND value == %@",
+            "add-store-product", position)).firstMatch
+    }
+
+    private func checkStoreProductInsertion(at position: String, expectedBeforeExisting: Bool, manual: Bool = false) {
+        choose("Bunnings")
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        let action = storeProductAdd(at: position)
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertTrue(action.isHittable)
+        action.tap()
+        let title = manual ? "Manual tail item" : "2x LED lights, 75 mm"
+        if manual {
+            let enter = app.buttons["Enter manually"]
+            XCTAssertTrue(enter.waitForExistence(timeout: 5))
+            enter.tap()
+        } else {
+            let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
+            XCTAssertTrue(shield.waitForExistence(timeout: 5))
+            shield.tap()
+        }
+        XCTAssertTrue(app.staticTexts[position].waitForExistence(timeout: 5))
+        if manual {
+            let field = app.descendants(matching: .any).matching(identifier: "store-product-name").firstMatch
+            field.tap()
+            field.typeText(title)
+        }
+        attachStoreProductScreenshot("Review insertion at \(position)")
+        app.buttons["confirm-store-product"].tap()
+        XCTAssertTrue(app.buttons["Collapse overlay"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["Collapse overlay"].value as? String,
+                       expectedBeforeExisting ? "Item 2 of 2" : "Item 1 of 2", "Keep the current card selected after insertion")
+        XCTAssertFalse(app.webViews.buttons["UNEXPECTED CART CHANGE"].exists)
+        app.buttons["Dismiss store"].tap()
+        let existing = row("Bunnings fixture item", status: "Pending")
+        let added = row(title, status: "Pending")
+        XCTAssertTrue(added.waitForExistence(timeout: 5))
+        XCTAssertTrue(existing.exists)
+        if expectedBeforeExisting { XCTAssertLessThan(added.frame.minY, existing.frame.minY) }
+        else { XCTAssertGreaterThan(added.frame.minY, existing.frame.minY) }
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(row(title, status: "Pending").waitForExistence(timeout: 10))
+        if expectedBeforeExisting { XCTAssertLessThan(row(title, status: "Pending").frame.minY, row("Bunnings fixture item", status: "Pending").frame.minY) }
+        else { XCTAssertGreaterThan(row(title, status: "Pending").frame.minY, row("Bunnings fixture item", status: "Pending").frame.minY) }
+    }
+
     func testStoreProductScrollingKeepsShieldsAlignedAndSelectsVisibleProduct() {
         choose("Bunnings")
         app.buttons["Show Store"].tap()

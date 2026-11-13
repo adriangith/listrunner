@@ -108,6 +108,8 @@ enum ShoppingMigration: SchemaMigrationPlan {
 enum ShoppingLists {
     static var schema: Schema { Schema(versionedSchema: ShoppingSchemaV3.self) }
 
+    enum AdditionPosition: Equatable, Sendable { case start, end }
+
     // SwiftData rollback can leave already-held @Model references showing their
     // staged values. Restore those presentation objects too, so a retry cannot
     // add its quantity twice or retain the failed transaction's promoted order.
@@ -140,7 +142,8 @@ enum ShoppingLists {
 
     @MainActor
     static func stageAdd(_ entries: [ParsedGrocery], to store: StoreID,
-                         allItems: [GroceryItem], context: ModelContext) -> [GroceryItem] {
+                         allItems: [GroceryItem], context: ModelContext,
+                         insertion: AdditionPosition = .start) -> [GroceryItem] {
         var staged = allItems.filter { $0.listID == store.listID }.sorted {
             $0.position == $1.position ? $0.id.uuidString < $1.id.uuidString : $0.position < $1.position
         }
@@ -169,7 +172,9 @@ enum ShoppingLists {
             }
         }
         let ids = Set(promoted.map(\.id))
-        for (index, item) in (promoted + staged.filter { !ids.contains($0.id) }).enumerated() { item.position = index }
+        let untouched = staged.filter { !ids.contains($0.id) }
+        let ordered = insertion == .start ? promoted + untouched : untouched + promoted
+        for (index, item) in ordered.enumerated() { item.position = index }
         return promoted
     }
 

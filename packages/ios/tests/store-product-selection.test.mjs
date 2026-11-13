@@ -273,3 +273,18 @@ test('rail control wording and fade follow uncovered width without a delayed ani
   assert.match(swift, /else if uncoveredWidth > 0/);
   assert.doesNotMatch(swift, /Add store item to list/);
 });
+
+test('rail sides capture insertion position through review, manual entry and persistence', () => {
+  assert.match(swift, /insertion: \.start\) \{ action\(\.start\) \}/);
+  assert.match(swift, /insertion: \.end\) \{ action\(\.end\) \}/);
+  assert.match(swift, /let insertion: ShoppingLists\.AdditionPosition/);
+  assert.match(swift, /LabeledContent\("Position"\)/);
+  const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
+  assert.match(view, /onAddStoreProduct\(name, quantity, draft\.insertion\)/);
+  assert.match(view, /StoreProductDraft\(name: name, insertion: insertion\)/);
+  assert.match(view, /StoreProductDraft\(name: "", insertion: storeProductInsertion\)/);
+  assert.match(view, /Button \{ beginStoreProductSelection\(at: \.start\) \} label:/);
+  const lists = readFileSync(new URL('../ListRunner/GroceryListScreen.swift', import.meta.url), 'utf8');
+  assert.match(lists, /to: store, allItems: allItems, context: modelContext, insertion: insertion/);
+  assert.match(lists, /to: storeID, allItems: allItems, context: modelContext, insertion: insertion/);
+});
