@@ -3826,6 +3826,40 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.staticTexts["2x LED lights, 75 mm"].exists)
     }
 
+    func testStoreProductAllItemsSavesToBrowsedStore() {
+        choose("All items")
+        app.buttons["all-items-show-store"].tap()
+        app.buttons["Shop at Bunnings"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        app.buttons.matching(identifier: "add-store-product").firstMatch.tap()
+        let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
+        XCTAssertTrue(shield.waitForExistence(timeout: 5))
+        shield.tap()
+        XCTAssertTrue(app.buttons["confirm-store-product"].waitForExistence(timeout: 5))
+        app.buttons["confirm-store-product"].tap()
+        app.buttons["Dismiss store"].tap()
+        choose("Bunnings")
+        XCTAssertTrue(app.staticTexts["2x LED lights, 75 mm"].waitForExistence(timeout: 5))
+        choose("Coles")
+        XCTAssertFalse(app.staticTexts["2x LED lights, 75 mm"].exists)
+    }
+
+    func testStoreProductUnconfiguredStoreKeepsManualTitleLiteral() {
+        choose("Coles")
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Store browsing fixture"].waitForExistence(timeout: 10))
+        app.buttons["Collapse overlay"].tap()
+        app.buttons["collapsed-add-store-product"].tap()
+        let field = app.descendants(matching: .any).matching(identifier: "store-product-name").firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("500 g pasta, gluten-free")
+        app.buttons["confirm-store-product"].tap()
+        app.buttons["Dismiss store"].tap()
+        XCTAssertTrue(app.staticTexts["500 g pasta, gluten-free"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Gluten-free"].exists)
+    }
+
     private func attachStoreProductScreenshot(_ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name

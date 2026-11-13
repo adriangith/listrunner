@@ -396,6 +396,11 @@ struct StoreShoppingView: View {
                             }
                         }
                     }
+                    .onChange(of: items.map(\.id)) { _, _ in
+                        // Adding/promoting a product can insert cards before the
+                        // selection. Keep that same card centred without searching.
+                        if let id = selected?.id { scrollProxy.scrollTo(id, anchor: .center) }
+                    }
                 }
             }
             .frame(height: 250)

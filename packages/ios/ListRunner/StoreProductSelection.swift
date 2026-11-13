@@ -109,6 +109,7 @@ struct StoreProductReview: View {
     @State private var name = ""
     @State private var quantity = 1
     @State private var saveFailed = false
+    @State private var submitting = false
 
     var body: some View {
         NavigationStack {
@@ -140,11 +141,16 @@ struct StoreProductReview: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
+                        guard !submitting else { return }
+                        submitting = true
                         let title = name.trimmingCharacters(in: .whitespacesAndNewlines)
                         if onAdd(title, quantity) { dismiss() }
-                        else { saveFailed = true }
+                        else {
+                            saveFailed = true
+                            submitting = false
+                        }
                     }
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || name.utf8.count > 512)
+                    .disabled(submitting || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || name.utf8.count > 512)
                     .accessibilityIdentifier("confirm-store-product")
                 }
             }
