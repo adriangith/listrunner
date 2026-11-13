@@ -2213,7 +2213,13 @@ Linux `/tmp/opencode/reveal-b0ba324/`. Faster partial fade and centred inactive
 titles were readable. The adjacent active card/action is partly off-screen during
 reveal (normal rail geometry); tapping it recentres it. Prior long active-title
 ellipsis and collapse-hint overlap remain known layout limitations.
-Correction build and retest results follow after execution.
+Correction code `75d6b526f6228320de3810f3f52d9afbd04cecb9`: generic simulator
+build, all **484 JavaScript tests**, **47 Python tests**, the full cloud offline
+allowlist with **1,924 native checks**, and 35 JSON + 1 JavaScript canonical
+resource comparisons pass. A fourteen-case simulator run is active: the twelve
+reveal/fade/insertion regressions plus progress-chevron collapse/status retention
+and slow-drag collapse/re-expansion. Its results are not yet certified. Evidence
+target: `~/Library/Developer/Xcode/StoreProductSelection-Evidence/Reveal-75d6b52/`.
 No phone install of this quicker-fade/reveal follow-up has been performed yet;
 the phone remains on `27762b8`.
 
