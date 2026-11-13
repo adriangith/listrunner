@@ -2205,9 +2205,26 @@ not painted. The correction removes the Button below 44 points of exposure,
 renders only a noninteractive visual sliver while fading out, and removes the
 entire subtree at zero exposure. Exposed buttons clip their labels internally so
 their actual hit/accessibility bounds shrink with the uncovered region.
-Final six-case simulator results follow after verification.
-No new phone install or live retailer action has been performed for this
-follow-up at this point.
+Final simulator run at code `f7235c9b8355c82fc08dff828682476102655e81`:
+**6 passed, 0 failed, 0 skipped**, in one run without retries. All four original
+entry/save/cancel/ownership cases and both scrolling/fade cases passed. Covered
+controls disappeared from the accessibility query, correcting the earlier
+nonexistence failure. Video/screenshots show progressive partial-cover fading and
+complete disappearance without painting over cards, readable new end labels and
+native title, and shields staying aligned during actual vertical scrolling.
+The scrolled product opened the correct review without a fixture cart change.
+No new layout regression was found; the prior narrow-card title ellipsis remains.
+An initial welcome/setup idle-notification delay/spindump recovered before product
+selection; its diagnostic is retained, not represented as a feature-test failure.
+
+Evidence: Mac
+`~/Library/Developer/Xcode/StoreProductSelection-Evidence/ScrollFade-f7235c9/`
+contains `Verification.md`, `Tests.xcresult`, `Tests.log`, `Summary.json`, named
+screenshots, `RailFade.mp4`, `ShieldScroll.mp4` and the full recording. Linux
+inspection copies are under `/tmp/opencode/scrollfade-f7235c9/`. The dedicated
+simulator was shut down with its state/evidence preserved. No new phone install
+or live retailer action was performed for this follow-up. Documentation-only
+commits after this code SHA do not change the tested implementation.
 
 ### Physical iPhone installation
 
