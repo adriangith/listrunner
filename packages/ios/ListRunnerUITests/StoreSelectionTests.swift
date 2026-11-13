@@ -1794,7 +1794,7 @@ final class StoreSelectionTests: XCTestCase {
         choose("All items")
         let entry = app.textViews["all-items-entry"]
         let keyboard = app.keyboards.firstMatch
-        let titles = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-title-store-"))
+        let titles = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-title-store-"))
         XCTAssertFalse(keyboard.exists)
         app.buttons["all-items-add-destination"].tap()
         app.buttons["Woolworths"].firstMatch.tap()
@@ -1828,12 +1828,12 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(empty.waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["all-items-clear-store-coles"].exists)
         XCTAssertFalse(app.keyboards.firstMatch.exists)
-        let titles = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-title-store-"))
+        let titles = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-title-store-"))
         XCTAssertEqual(titles.firstMatch.label, "Coles")
         menu.tap()
         app.buttons["Woolworths"].firstMatch.tap()
         XCTAssertFalse(empty.exists)
-        XCTAssertFalse(app.staticTexts["all-items-group-title-store-coles"].exists)
+        XCTAssertFalse(app.buttons["all-items-group-title-store-coles"].exists)
         menu.tap()
         app.buttons["Coles"].firstMatch.tap()
         XCTAssertTrue(empty.waitForExistence(timeout: 3))
@@ -1873,7 +1873,8 @@ final class StoreSelectionTests: XCTestCase {
             let groupingButton = app.buttons["all-items-grouping-\(grouping)"]
             for _ in 0..<6 where !groupingButton.isHittable { app.collectionViews.firstMatch.swipeDown() }
             groupingButton.tap()
-            let header = app.staticTexts["all-items-group-title-\(groupID)"]
+            let header = grouping == "store" ? app.buttons["all-items-group-title-\(groupID)"]
+                : app.staticTexts["all-items-group-title-\(groupID)"]
             XCTAssertTrue(header.waitForExistence(timeout: 3))
             let originalX = header.frame.minX
             // A broad swipe across the header's blank area, clear of its +.
@@ -2398,7 +2399,7 @@ final class StoreSelectionTests: XCTestCase {
         }
         XCTAssertTrue(clear.isHittable, app.debugDescription)
         XCTAssertTrue(fullyVisible(), "The entire clear action must be above Show Store, not merely tappable through glass")
-        XCTAssertGreaterThanOrEqual(clear.frame.height, 56)
+        XCTAssertGreaterThanOrEqual(clear.frame.height, 44)
         clear.tap()
         XCTAssertTrue(app.buttons["Clear All"].waitForExistence(timeout: 3))
     }

@@ -1594,7 +1594,7 @@ private struct AllItemsScreen: View {
                 // item, not to the bottom of that entire native cell.
                 let adjustment = anchor == .bottom
                     ? frame.maxY - listViewportFrame.maxY : frame.minY - listViewportFrame.minY
-                entryFocus.adjustListOffset(by: adjustment, animated: animated)
+                entryFocus.adjustListOffset(by: adjustment, animated: animated, requiresFocus: false)
             } else {
                 withAnimation(animated ? .easeInOut(duration: 0.35) : nil) { proxy.scrollTo(id, anchor: anchor) }
             }
@@ -2974,8 +2974,8 @@ private final class ProductEntryFocus {
         }
     }
 
-    func adjustListOffset(by adjustment: CGFloat, animated: Bool = true) {
-        guard let view, view.isFirstResponder else { return }
+    func adjustListOffset(by adjustment: CGFloat, animated: Bool = true, requiresFocus: Bool = true) {
+        guard let view, !requiresFocus || view.isFirstResponder else { return }
         var ancestor = view.superview
         while let candidate = ancestor {
             if let list = candidate as? UICollectionView {
