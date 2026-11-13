@@ -2102,6 +2102,23 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["all-items-grouping-category"].isSelected)
     }
 
+    func testAllItemsStoreEdgeSwipeWhileTypingPreservesStoreDraft() {
+        choose("Coles")
+        let entry = app.textViews["grocery-input"]
+        entry.tap()
+        entry.typeText("Keep store navigation draft")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.45))
+        start.press(forDuration: 0.05,
+                    thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45)),
+                    withVelocity: .slow, thenHoldForDuration: 0.1)
+        assertAllItemsIsCurrent()
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        XCTAssertEqual(entry.value as? String, "Keep store navigation draft")
+    }
+
     func testAllItemsNavigationRelaunchRestoresStoreAndBackDestination() {
         choose("Woolworths")
         app.terminate()
