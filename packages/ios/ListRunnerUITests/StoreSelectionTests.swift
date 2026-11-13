@@ -3792,7 +3792,7 @@ final class StoreSelectionTests: XCTestCase {
         let add = app.buttons["Add store item to list"]
         XCTAssertTrue(add.waitForExistence(timeout: 3))
         add.tap()
-        XCTAssertTrue(app.otherElements["store-product-selection-bar"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "store-product-selection-bar").firstMatch.waitForExistence(timeout: 3))
         let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
         XCTAssertTrue(shield.waitForExistence(timeout: 5))
         attachStoreProductScreenshot("Product selection shields")

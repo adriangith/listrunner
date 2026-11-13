@@ -31,6 +31,7 @@ struct StoreProductSelectionBar: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
         .padding(.horizontal, 12)
         .padding(.bottom, 24)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("store-product-selection-bar")
     }
 }
@@ -244,9 +245,12 @@ enum StoreProductSelection {
             const button = document.createElement('button');
             const entry = {...candidate, button, box};
             button.type = 'button';
-            button.textContent = chooseLabel;
+            const label = document.createElement('span');
+            label.textContent = chooseLabel;
+            label.style.cssText = 'background:#1565c0;color:white;padding:8px 12px;border-radius:999px;box-shadow:0 2px 8px #0003;font:600 16px -apple-system,sans-serif;';
+            button.appendChild(label);
             button.setAttribute('aria-label', `${chooseLabel}: ${candidate.name}`);
-            button.style.cssText = `all:initial;box-sizing:border-box;position:fixed;left:${box.left}px;top:${box.top}px;width:${box.width}px;height:${box.height}px;border:3px solid #1976d2;border-radius:12px;background:#1976d21a;color:#06458b;font:600 16px -apple-system,sans-serif;display:flex;align-items:flex-start;justify-content:center;padding:8px;text-shadow:0 1px white;touch-action:pan-y pinch-zoom;`;
+            button.style.cssText = `all:initial;box-sizing:border-box;position:fixed;left:${box.left}px;top:${box.top}px;width:${box.width}px;height:${box.height}px;border:3px solid #1976d2;border-radius:12px;background:#1976d21a;display:flex;align-items:center;justify-content:center;padding:8px;touch-action:pan-y pinch-zoom;`;
             button.addEventListener('click', event => {
               event.preventDefault(); event.stopImmediatePropagation();
               if (!event.isTrusted) { cancel(); return; }
