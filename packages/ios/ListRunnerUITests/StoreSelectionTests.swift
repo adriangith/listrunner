@@ -817,6 +817,17 @@ final class StoreSelectionTests: XCTestCase {
         back.tap()
     }
 
+    private func assertAllItemsIsCurrent(file: StaticString = #filePath, line: UInt = #line) {
+        // A retained/offscreen overview must not make an edge-swipe test pass.
+        let current = NSPredicate { _, _ in
+            self.app.buttons["all-items-scope-picker"].isHittable
+                && !self.app.buttons["store-picker"].exists
+        }
+        XCTAssertTrue(current.evaluate(with: nil)
+            || XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: current, object: nil)], timeout: 5) == .completed,
+            "All items must be the visible destination and the store detail must be gone", file: file, line: line)
+    }
+
     private func row(_ name: String, status: String) -> XCUIElement {
         app.buttons.matching(NSPredicate(format: "label CONTAINS[cd] %@ AND label CONTAINS[cd] %@", name, status)).firstMatch
     }
@@ -2054,7 +2065,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.webViews.firstMatch.exists, "Opening a grocery list must not open the retailer website")
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.45))
         start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45)))
-        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
+        assertAllItemsIsCurrent()
         XCTAssertFalse(app.webViews.firstMatch.exists)
     }
 
@@ -2083,7 +2094,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.45))
         start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45)))
-        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
+        assertAllItemsIsCurrent()
         XCTAssertEqual(entry.value as? String, "Keep navigation draft")
         XCTAssertEqual(app.buttons["all-items-add"].label, destination)
         XCTAssertTrue(app.buttons["all-items-grouping-category"].isSelected)
@@ -2110,6 +2121,8 @@ final class StoreSelectionTests: XCTestCase {
                     withVelocity: .slow, thenHoldForDuration: 0.3)
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["store-picker"].label.contains("Woolworths"))
+        XCTAssertTrue(app.buttons["store-picker"].isHittable)
+        XCTAssertFalse(app.buttons["all-items-scope-picker"].exists)
         app.terminate()
         app.launch()
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
@@ -2160,7 +2173,21 @@ final class StoreSelectionTests: XCTestCase {
         tapNavigationBack()
         XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
         app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        tapNavigationBack()
+        assertAllItemsIsCurrent()
+        let header = app.buttons["all-items-group-title-store-coles"]
+        for _ in 0..<6 where !header.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(header.isHittable)
+        header.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        let edge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.45))
+        edge.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.45)))
+        assertAllItemsIsCurrent()
+        app.buttons["all-items-scope-picker"].tap()
         app.buttons["Woolworths"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         app.buttons["store-picker"].tap()
         app.buttons["store-picker-manage-stores"].tap()
         setStoreVisibility("woolworths", shown: false)

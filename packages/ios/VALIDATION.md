@@ -63,6 +63,25 @@ state-during-update or repeated-navigation-update warnings. Separate visual
 inspection and broader physical-device/VoiceOver/large-text/Reduce Motion/iOS 17
 release checks are not established by this focused simulator run.
 
+### Visual follow-up and gesture cross-check
+
+At the same app revision, an isolated DeviceInteraction session on a dedicated
+iPhone 18 Pro/iOS 27.2 simulator (`54EE3311-EE11-4025-AA7B-FA6AF3A29945`)
+confirmed direct single-store Coles, the hidden All items menu entry, one→two-store
+adaptation, native chevron placement, header navigation, and one Back after
+switching stores. Settled screenshots/hierarchies showed no persistent layout
+defect or crash. The session ended and its simulator was shut down, not deleted.
+Evidence was copied to `/tmp/opencode/listrunner-navigation-13be0dd/` on Linux.
+
+Its DeviceEventSynthesize completed-edge-swipe attempts did **not** pop the store
+detail, unlike the passing XCTest gestures. No interactive-pop start was observed,
+so its cancellation attempt cannot certify cancellation either. This discrepancy
+is not treated as resolved: follow-up compares gradual multi-keyframe synthesized
+touches against ordinary Settings Back, and XCTest assertions are being tightened
+to require a hittable overview and an absent store picker after a completed pop,
+including the exact one→two-store/header path used in visual inspection. No
+production gesture workaround has been added without establishing the cause.
+
 ## Retailer-neutral store-list wording (13 November 2026)
 
 Branch `fix/store-page-titles` changes the populated store-list section heading
