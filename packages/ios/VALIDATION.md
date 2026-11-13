@@ -122,7 +122,26 @@ Test-only revision `8d67ba6a14975ae543b1d534c17f22d866f47560` adds focused-store
 keyboard/draft edge coverage and uses a deliberately slow completed header swipe.
 An eight-case native rerun also checks small repositioning scroll focus, outside
 tap/manual-scroll entry dismissal and idle row-frame tracking. Its results are
-pending; earlier passes are not presented as final-revision regression proof.
+**5/8 passed**, not a clean regression pass (`NativePanRegression.xcresult` /
+`native-pan-regression.log`). Header/aggregate-draft/cancelled edge swipes,
+one→two→one-store adaptation, and small-repositioning focus passed. Failures:
+
+* Aggregate manual upward scroll left the keyboard visible after refocusing the
+  editor. Automatic entry reveal temporarily requests `.none`; asynchronous
+  cancellation can leave that dismissal mode active at the start of a user pan.
+* The focused-store draft test observed `Keep store draftavigation ` instead of
+  the typed sentence after returning. It had no pre-navigation text assertion, so
+  this result does not locate the text change in navigation versus typing.
+* Idle-row tracking failed in shared setup while enabling Bunnings, before the
+  test body; the test did not exercise frame tracking in this run.
+
+Revision `fe7a8aba67e070723035df61fb2171f2560dd3a8` restores native interactive
+keyboard dismissal synchronously when a user pan cancels entry reveal, before
+the next touch sample. The focused-store test now waits for the keyboard before
+typing and asserts the exact input before navigation as well as after; a literal
+single-token draft avoids autocorrection ambiguity. A four-case rerun includes
+all three failed scenarios plus small-scroll focus; results remain pending. No
+assertion about keyboard dismissal, draft preservation or row tracking was removed.
 
 ## Retailer-neutral store-list wording (13 November 2026)
 
