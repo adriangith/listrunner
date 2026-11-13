@@ -52,6 +52,13 @@ sheets retain their own stack; list data, drafts and browser sessions keep their
 existing owners. Native policy checks are in `tests/RecoveryTests.swift`; UI
 regression cases are in `ListRunnerUITests/StoreSelectionTests.swift`.
 
+Manual-scroll detection observes the list's existing native collection-view pan
+through the product editor's coordinator, removing its target on detachment or
+dismantling. Do not restore a full-page SwiftUI `DragGesture` just to detect
+scrolling: it competed with native edge Back in gradual-touch verification even
+when faster XCTest drags passed. Keep automatic-reveal cancellation passive and
+check both native edge navigation and keyboard/small-scroll behaviour.
+
 ### Retailer-neutral list wording
 
 Individual store lists label their populated item section `Items` for every

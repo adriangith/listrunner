@@ -80,7 +80,49 @@ is not treated as resolved: follow-up compares gradual multi-keyframe synthesize
 touches against ordinary Settings Back, and XCTest assertions are being tightened
 to require a hittable overview and an absent store picker after a completed pop,
 including the exact one→two-store/header path used in visual inspection. No
-production gesture workaround has been added without establishing the cause.
+forced-pop gesture or native gesture-delegate override was added.
+
+The identical gradual multi-keyframe swipe subsequently failed on Coles detail
+but succeeded from Settings back to Coles. This rules out a generic synthesis
+failure; the precise UIKit arbitration cause was not inspected. The stricter
+XCTest baseline at `e36318d40a2bee008b597763dd8457a23377708f` still passed **4/4**
+with the overview hittable and the store picker absent, including the one→two-store
+path. Evidence: `GestureCrossCheck.xcresult` and `gesture-cross-check.log`.
+
+At app revision `19938399528887dedbeb9b932a5a74ec146f2664`, the shared list no
+longer installs a full-page SwiftUI manual-scroll `DragGesture`. The existing
+native `UICollectionView.panGestureRecognizer` is observed passively through the
+editor coordinator instead, retaining manual-scroll cancellation of automatic
+entry/item reveal without another competing pan recognizer. Targets are attached
+only to that editor's ancestor list and removed on detachment/dismantling. The
+native Debug simulator build-for-testing and **35 JSON + 1 JavaScript** built-resource
+verification passed at this revision.
+
+The controlled visual retest **passed** on the preserved iPhone 18 Pro simulator
+and isolated session. The identical gradual gesture now returns header-opened
+Coles to All items, with the overview picker present and the store picker absent.
+It also returns directly to All items after Coles→Woolworths switching and while
+the store editor is keyboard-focused. Reopening Coles preserves the exact draft.
+A short reversed edge drag retained Coles/draft/focus, followed by a successful
+completed swipe; still captures do not quantify interactive cancellation progress.
+Tiny repositioning drags retained focus, and normal vertical scrolling moved the
+Items heading while preserving the draft. No persistent layout defect or crash
+was seen. This before/after result supports the competing-pan explanation without
+claiming internal UIKit gesture-state inspection or animation-smoothness sign-off.
+
+Evidence: `/tmp/opencode/listrunner-navigation-1993839/` on Linux, particularly
+`ListRunner Gesture Fix Retest-16_54_13_899` (completed original gesture),
+`16_55_24_925` (after switched-store gesture), `16_57_33_091` (focused-editor
+gesture), `16_57_50_364` (restored draft), and `16_58_41_233` (vertical scroll),
+each with screenshot/hierarchy/log files. The exclusive interaction session ended;
+only its dedicated simulator was shut down, preserving its state. No retailer
+websites or account/cart actions were involved.
+
+Test-only revision `8d67ba6a14975ae543b1d534c17f22d866f47560` adds focused-store
+keyboard/draft edge coverage and uses a deliberately slow completed header swipe.
+An eight-case native rerun also checks small repositioning scroll focus, outside
+tap/manual-scroll entry dismissal and idle row-frame tracking. Its results are
+pending; earlier passes are not presented as final-revision regression proof.
 
 ## Retailer-neutral store-list wording (13 November 2026)
 
