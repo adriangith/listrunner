@@ -177,6 +177,17 @@ dedicated simulator was shut down, preserving its state. Native recovery tests
 passed **1,908 checks** again on this final app revision, and its built simulator
 app passed all **35 JSON + 1 JavaScript** canonical-resource checks again.
 
+The automated final-app rerun was **3/4 passed** (`VerticalDismissal.xcresult` /
+`vertical-dismissal.log`): aggregate outside-tap/manual-scroll keyboard dismissal,
+focused-store edge Back with exact pre/post draft assertions, and small-scroll
+focus preservation passed. The remaining idle-row-frame test again failed before
+its scroll: its expected `scroll fixture alpha` row was not found after submitting
+a long single-call batch. It did not prove a frame-tracking failure. Test-only
+revision `2df26f6a3e5f9ebf67bc6d0c6cd1dfbcc0abd5df` enters the same six names in
+short verified chunks, asserting the complete accumulated draft before Add, with
+the original row/keyboard/frame-tracking checks intact. Its focused rerun is
+pending (`VerifiedFixtureScroll.xcresult`); no production source changed for it.
+
 ## Retailer-neutral store-list wording (13 November 2026)
 
 Branch `fix/store-page-titles` changes the populated store-list section heading
