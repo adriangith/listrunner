@@ -388,9 +388,7 @@ private struct StoreListInteractiveBack: UIViewControllerRepresentable {
     }
 
     final class Controller: UIViewController {
-        private weak var popGesture: UIGestureRecognizer?
-        private var wasEnabled = true
-        private let delegate = PopDelegate()
+        private var installations: [(gesture: UIGestureRecognizer, delegate: PopDelegate, enabled: Bool)] = []
 
         override func loadView() {
             let anchor = UIView()
@@ -400,6 +398,11 @@ private struct StoreListInteractiveBack: UIViewControllerRepresentable {
 
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
+            apply()
+        }
+
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
             apply()
         }
 
@@ -415,29 +418,38 @@ private struct StoreListInteractiveBack: UIViewControllerRepresentable {
                 host = candidate.parent
             }
             guard let host, navigationController.topViewController === host,
-                  navigationController.viewControllers.count > 1,
-                  let gesture = navigationController.interactivePopGestureRecognizer else { return }
-            if popGesture !== gesture || gesture.delegate !== delegate {
-                restore()
-                popGesture = gesture
-                wasEnabled = gesture.isEnabled
+                  navigationController.viewControllers.count > 1 else { return }
+            var gestures = [navigationController.interactivePopGestureRecognizer].compactMap { $0 }
+            if #available(iOS 26.0, *), let content = navigationController.interactiveContentPopGestureRecognizer {
+                gestures.append(content)
+            }
+            for gesture in gestures {
+                if let installed = installations.first(where: { $0.gesture === gesture }),
+                   gesture.delegate === installed.delegate {
+                    if !gesture.isEnabled, navigationController.transitionCoordinator == nil { gesture.isEnabled = true }
+                    continue
+                }
+                let delegate = PopDelegate()
                 delegate.original = gesture.delegate
                 delegate.navigationController = navigationController
                 delegate.owner = host
+                installations.append((gesture, delegate, gesture.isEnabled))
                 gesture.delegate = delegate
+                gesture.isEnabled = true
+                #if DEBUG
+                if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"] != nil {
+                    print("STORE_BACK attached \(type(of: gesture)) original=\(String(describing: delegate.original))")
+                }
+                #endif
             }
-            gesture.isEnabled = true
         }
 
         func restore() {
-            if popGesture?.delegate === delegate {
-                popGesture?.delegate = delegate.original
-                popGesture?.isEnabled = wasEnabled
+            for installed in installations.reversed() where installed.gesture.delegate === installed.delegate {
+                installed.gesture.delegate = installed.delegate.original
+                installed.gesture.isEnabled = installed.enabled
             }
-            popGesture = nil
-            delegate.original = nil
-            delegate.navigationController = nil
-            delegate.owner = nil
+            installations.removeAll()
         }
     }
 
@@ -447,6 +459,11 @@ private struct StoreListInteractiveBack: UIViewControllerRepresentable {
         weak var owner: UIViewController?
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"] != nil {
+                print("STORE_BACK shouldBegin \(type(of: gestureRecognizer))")
+            }
+            #endif
             guard let navigationController, let owner,
                   navigationController.topViewController === owner,
                   navigationController.viewControllers.count > 1,
