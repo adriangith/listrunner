@@ -3203,7 +3203,13 @@ private struct ProductEntryEditor: UIViewRepresentable {
         }
 
         @objc private func listDidPan(_ pan: UIPanGestureRecognizer) {
-            if pan.state == .began, !isDismantled { parent.onManualScroll() }
+            guard pan.state == .began, !isDismantled else { return }
+            parent.onManualScroll()
+            // Focusing may have temporarily set .none while revealing the entry
+            // card. A user pan cancels that reveal: restore UIKit's interactive
+            // keyboard dismissal now, before the next .changed touch sample,
+            // rather than waiting for SwiftUI to deliver the cancelled task.
+            (pan.view as? UIScrollView)?.keyboardDismissMode = .interactive
         }
 
         func synchronizeFocus(for view: EntryTextView) {
