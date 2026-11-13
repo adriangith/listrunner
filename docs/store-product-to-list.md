@@ -4,7 +4,8 @@
 
 The expanded shopping overlay exposes an **Add item to your list** control at
 either end of the card rail. Cards cover the controls while browsing the middle
-of the rail; each control fades with its uncovered width as the cards cover it,
+of the rail; each control fades with the square of its uncovered fraction as cards
+cover it (half uncovered means 25% opacity, rather than the earlier 50%),
 without a delayed opacity animation or a tappable area over the cards.
 The action is also available without horizontal scrolling through
 an accessibility action and the collapsed bar. Existing card selection, collapse,
@@ -20,6 +21,17 @@ without creating a duplicate. Untouched items retain their relative order. The
 position applies to the browsed store's list/card queue in either list scope;
 All items grouping/category recency rules are otherwise unchanged. Typed input
 and imports retain their existing ordering defaults.
+
+After a successful save, reveal the saved product as the middle card without
+making it active. Use the persisted UUID returned by saving (including a merged
+row), not a name match or guessed index. Keep the active item, selection history,
+website search/cart attribution and shopping controls unchanged. A collapsed
+shortcut expands back to the cards to show the result. Cancelled or failed saves
+do not reveal a new product. Explicitly selecting/tapping a card resumes normal
+centring; tapping the still-active card also recentres it without changing history.
+Keep distinct edge padding for 160-point active and 145-point inactive cards so a
+new card can be exactly centred even at the start/end. Do not reorder saved items
+just to centre a card; left/start and right/end persistence still apply.
 
 On a recognised product page, read its explicit product heading. On a grid,
 temporarily hide the cards and place ListRunner-owned selection shields over
@@ -40,7 +52,8 @@ either assistive technology during grid selection cancels the shields safely.
 
 Show a native review sheet with editable product name and quantity (default 1),
 the destination store, Add and Cancel. Only Add saves a Pending ListRunner item.
-Preserve the current card, page, history and scroll position. Reuse store-local
+Preserve the active card, page, history and website scroll position; only the card
+rail reveals the successfully saved product. Reuse store-local
 duplicate merging, save-before-side-effects and store-promotion behavior. Do not
 split or ingredient-parse product names containing commas or quantities. Do not
 persist website URLs, prices, account data or image data in the shopping schema.

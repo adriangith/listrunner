@@ -3887,10 +3887,11 @@ final class StoreSelectionTests: XCTestCase {
         let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
         XCTAssertTrue(shield.waitForExistence(timeout: 5))
         shield.tap()
-        XCTAssertTrue(app.staticTexts["End of list"].waitForExistence(timeout: 5))
+        assertStoreProductPosition("End of list")
         app.buttons["confirm-store-product"].tap()
         XCTAssertTrue(app.buttons["Collapse overlay"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, "Item 1 of 2")
+        assertStoreProductCentred("2x LED lights, 75 mm")
         app.buttons["Dismiss store"].tap()
         app.buttons["all-items-scope-picker"].tap()
         app.buttons["Bunnings"].firstMatch.tap()
@@ -3905,6 +3906,27 @@ final class StoreSelectionTests: XCTestCase {
     private func storeProductAdd(at position: String) -> XCUIElement {
         app.buttons.matching(NSPredicate(format: "identifier == %@ AND value == %@",
             "add-store-product", position)).firstMatch
+    }
+
+    private func assertStoreProductPosition(_ position: String) {
+        let row = app.staticTexts["store-product-insertion"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.label.contains(position), "Review must retain the chosen insertion edge")
+    }
+
+    private func assertStoreProductCentred(_ title: String) {
+        let card = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "\(title), quantity")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        let centred = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            card.exists && abs(card.frame.midX - self.app.frame.midX) <= 2
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [centred], timeout: 5), .completed,
+                       "Saved product should be the middle card, independently of the active card")
+        let active = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@",
+            "Bunnings fixture item, quantity", ", selected")).firstMatch
+        XCTAssertTrue(active.exists, "Showing the new product must not change the active item")
+        XCTAssertFalse(card.label.contains(", selected"))
+        attachStoreProductScreenshot("New product centred, original item still active")
     }
 
     private func checkStoreProductInsertion(at position: String, expectedBeforeExisting: Bool, manual: Bool = false) {
@@ -3925,7 +3947,7 @@ final class StoreSelectionTests: XCTestCase {
             XCTAssertTrue(shield.waitForExistence(timeout: 5))
             shield.tap()
         }
-        XCTAssertTrue(app.staticTexts[position].waitForExistence(timeout: 5))
+        assertStoreProductPosition(position)
         if manual {
             let field = app.descendants(matching: .any).matching(identifier: "store-product-name").firstMatch
             field.tap()
@@ -3936,6 +3958,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["Collapse overlay"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["Collapse overlay"].value as? String,
                        expectedBeforeExisting ? "Item 2 of 2" : "Item 1 of 2", "Keep the current card selected after insertion")
+        assertStoreProductCentred(title)
         XCTAssertFalse(app.webViews.buttons["UNEXPECTED CART CHANGE"].exists)
         app.buttons["Dismiss store"].tap()
         let existing = row("Bunnings fixture item", status: "Pending")
@@ -3949,6 +3972,44 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row(title, status: "Pending").waitForExistence(timeout: 10))
         if expectedBeforeExisting { XCTAssertLessThan(row(title, status: "Pending").frame.minY, row("Bunnings fixture item", status: "Pending").frame.minY) }
         else { XCTAssertGreaterThan(row(title, status: "Pending").frame.minY, row("Bunnings fixture item", status: "Pending").frame.minY) }
+    }
+
+    func testStoreProductCollapsedAddRevealsWithoutActivating() {
+        choose("Bunnings")
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        app.buttons["Collapse overlay"].tap()
+        app.buttons["collapsed-add-store-product"].tap()
+        let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
+        XCTAssertTrue(shield.waitForExistence(timeout: 5))
+        shield.tap()
+        app.buttons["confirm-store-product"].tap()
+        assertStoreProductCentred("2x LED lights, 75 mm")
+        XCTAssertFalse(app.buttons["collapsed-add-store-product"].exists)
+    }
+
+    func testStoreProductDuplicateRevealsAgainAndTapReturnsToActiveCard() {
+        choose("Bunnings")
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        for _ in 0..<2 {
+            storeProductAdd(at: "Start of list").tap()
+            let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
+            XCTAssertTrue(shield.waitForExistence(timeout: 5))
+            shield.tap()
+            app.buttons["confirm-store-product"].tap()
+            assertStoreProductCentred("2x LED lights, 75 mm")
+        }
+        XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, "Item 2 of 2",
+                       "Duplicate merge must not create a third card or activate the merged item")
+        let active = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@",
+            "Bunnings fixture item, quantity", ", selected")).firstMatch
+        active.tap()
+        let centred = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            abs(active.frame.midX - self.app.frame.midX) <= 2
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [centred], timeout: 5), .completed)
+        XCTAssertFalse(app.buttons["Back"].isEnabled, "Visual reveals do not create selection history")
     }
 
     func testStoreProductScrollingKeepsShieldsAlignedAndSelectsVisibleProduct() {

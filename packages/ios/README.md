@@ -61,6 +61,13 @@ rows keep their relative order. The collapsed shortcut defaults to the start.
 Both ordinary store lists and All items shopping use the same store-owned ordering;
 other manual/import defaults and All items grouping rules are unchanged.
 
+On successful save, the returned item UUID is used to centre the new/merged card
+without activating it or changing the website search/current shopping item.
+Collapsed entry expands to show this reveal. Failed/cancelled saves do not reveal;
+selecting a card (or tapping the still-active card) restores normal centring.
+The Add controls now fade more quickly using the square of the uncovered fraction
+(25% opacity at half exposure), retaining the existing hit/accessibility thresholds.
+
 Schema 8 adds optional `productSelection` grid/detail selectors separately from
 cart capabilities, retaining schemas 2–7 and all existing automation ceilings.
 Bunnings selectors have read-only public rendered evidence; other stores offer

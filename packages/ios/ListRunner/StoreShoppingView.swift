@@ -15,7 +15,7 @@ struct StoreShoppingView: View {
     let saveFailed: Bool
     let onSelectionChange: (UUID) -> Void
     let onStatusChange: (GroceryItem) -> Void
-    let onAddStoreProduct: (String, Int, ShoppingLists.AdditionPosition) -> Bool
+    let onAddStoreProduct: (String, Int, ShoppingLists.AdditionPosition) -> UUID?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -37,6 +37,8 @@ struct StoreShoppingView: View {
     @State private var choosingStoreProduct = false
     @State private var storeProductDraft: StoreProductDraft?
     @State private var storeProductInsertion: ShoppingLists.AdditionPosition = .start
+    // A visual reveal only: never use this for selection, cart attribution or search.
+    @State private var storeProductRevealID: UUID?
     @State private var productSelectionTask: Task<Void, Never>?
     @GestureState private var isTouchingOverlay = false
     @GestureState(resetTransaction: Transaction(animation: .spring(response: 0.4, dampingFraction: 0.86)))
@@ -66,7 +68,7 @@ struct StoreShoppingView: View {
         }
     }
 
-    init(items: [GroceryItem], browser: StoreBrowser, initialSelectedID: UUID?, saveFailed: Bool = false, onSelectionChange: @escaping (UUID) -> Void, onStatusChange: @escaping (GroceryItem) -> Void, onAddStoreProduct: @escaping (String, Int, ShoppingLists.AdditionPosition) -> Bool) {
+    init(items: [GroceryItem], browser: StoreBrowser, initialSelectedID: UUID?, saveFailed: Bool = false, onSelectionChange: @escaping (UUID) -> Void, onStatusChange: @escaping (GroceryItem) -> Void, onAddStoreProduct: @escaping (String, Int, ShoppingLists.AdditionPosition) -> UUID?) {
         self.items = items
         self.browser = browser
         self.initialSelectedID = initialSelectedID
@@ -81,6 +83,10 @@ struct StoreShoppingView: View {
         items.first(where: { $0.id == selectedID }) ?? items.first
     }
     private var pending: [GroceryItem] { items.filter { $0.status == .pending } }
+    private var railScrollTargetID: UUID? {
+        if let id = storeProductRevealID, items.contains(where: { $0.id == id }) { return id }
+        return selected?.id
+    }
     private var isFinalConfirmation: Bool { pending.isEmpty && undoRecord != nil }
     private var collapseProgress: CGFloat {
         isCollapsed ? 1 : min(max(overlayDrag.distance, 0) / 240, 1)
@@ -218,7 +224,7 @@ struct StoreShoppingView: View {
             .sheet(item: $storeProductDraft, onDismiss: resumeAfterStoreProductSelection) { draft in
                 StoreProductReview(storeName: browser.store.displayName, initialName: draft.name,
                                    insertion: draft.insertion, onAdd: { name, quantity in
-                                       onAddStoreProduct(name, quantity, draft.insertion)
+                                       saveStoreProduct(name, quantity: quantity, insertion: draft.insertion)
                                    })
                     .presentationDetents([.medium, .large])
             }
@@ -375,8 +381,10 @@ struct StoreShoppingView: View {
                                 .anchorPreference(key: StoreProductRailEdges.self, value: .bounds) { ["trailing": $0] }
                                 .accessibilityHidden(true)
                         }
-                        // Allow even the first and last selected cards to sit centrally.
-                        .padding(.horizontal, max(0, (geometry.size.width - 160) / 2 - 100))
+                        // Inactive cards are narrower than the active card. Each
+                        // edge needs its own padding so either can centre exactly.
+                        .padding(.leading, railEndPadding(for: items.first, width: geometry.size.width))
+                        .padding(.trailing, railEndPadding(for: items.last, width: geometry.size.width))
                         .padding(.top, 5)
                         .padding(.bottom, 14)
                     }
@@ -396,7 +404,7 @@ struct StoreShoppingView: View {
                     }
                     .accessibilityAction(named: Text("Add item to your list")) { beginStoreProductSelection(at: .start) }
                     .onAppear {
-                        if let id = selected?.id { scrollProxy.scrollTo(id, anchor: .center) }
+                        if let id = railScrollTargetID { scrollProxy.scrollTo(id, anchor: .center) }
                     }
                     .onChange(of: selectedID) { _, id in
                         if let id {
@@ -406,9 +414,19 @@ struct StoreShoppingView: View {
                         }
                     }
                     .onChange(of: items.map(\.id)) { _, _ in
-                        // Adding/promoting a product can insert cards before the
-                        // selection. Keep that same card centred without searching.
-                        if let id = selected?.id { scrollProxy.scrollTo(id, anchor: .center) }
+                        // A saved UUID can arrive before SwiftData's updated query.
+                        // Reapply after layout includes the new (or merged) card.
+                        if let id = railScrollTargetID { scrollProxy.scrollTo(id, anchor: .center) }
+                    }
+                    .onChange(of: storeProductRevealID) { _, _ in
+                        if let id = railScrollTargetID { scrollProxy.scrollTo(id, anchor: .center) }
+                    }
+                    .onChange(of: storeProductDraft?.id) { _, draftID in
+                        // The rail can be rebuilt before review dismisses. Reveal
+                        // again on return, without selecting or searching the item.
+                        if draftID == nil, let id = railScrollTargetID {
+                            scrollProxy.scrollTo(id, anchor: .center)
+                        }
                     }
                 }
             }
@@ -445,6 +463,11 @@ struct StoreShoppingView: View {
                 .offset(y: bottomSafeAreaInset)
         }
         .simultaneousGesture(collapseDragGesture)
+    }
+
+    private func railEndPadding(for item: GroceryItem?, width: CGFloat) -> CGFloat {
+        let cardWidth: CGFloat = item?.id == selectedID ? 160 : 145
+        return max(0, (width - cardWidth) / 2 - 100)
     }
 
     private var collapseDragGesture: some Gesture {
@@ -485,6 +508,7 @@ struct StoreShoppingView: View {
         secondsRemaining = 0
         manuallyPaused = undoRecord != nil
         storeProductInsertion = insertion
+        storeProductRevealID = nil
         choosingStoreProduct = true
         productSelectionTask = Task { @MainActor in
             let choice = await browser.chooseStoreProduct()
@@ -509,6 +533,14 @@ struct StoreShoppingView: View {
     private func resumeAfterStoreProductSelection() {
         guard scenePhase == .active else { return }
         if let selected { browser.resumeAfterStoreProductSelection(itemID: selected.id) }
+    }
+
+    private func saveStoreProduct(_ name: String, quantity: Int,
+                                  insertion: ShoppingLists.AdditionPosition) -> Bool {
+        guard let id = onAddStoreProduct(name, quantity, insertion) else { return false }
+        storeProductRevealID = id
+        isCollapsed = false
+        return true
     }
 
     private func handleAssistiveProductSelection() {
@@ -951,6 +983,8 @@ struct StoreShoppingView: View {
     }
 
     private func select(_ item: GroceryItem, recordHistory: Bool = true) {
+        // Tapping the active card also returns the rail from a product reveal.
+        storeProductRevealID = nil
         guard item.id != selectedID else { return }
         if recordHistory, let previousID = selectedID {
             selectionHistory.append(previousID)

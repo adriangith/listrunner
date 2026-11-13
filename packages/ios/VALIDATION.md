@@ -2166,6 +2166,34 @@ No new simulator UI-suite run, physical-device installation, user-list edit, rea
 Branch: `feature/add-store-product-to-list`. Implementation plan and safety contract:
 `docs/store-product-to-list.md`.
 
+### Follow-up: quicker fade and reveal without activation
+
+The Add controls now use squared uncovered fraction rather than a linear fade:
+half exposure yields 25% opacity. Full exposure remains fully opaque, and the
+44-point interactive threshold/zero-exposure subtree removal are unchanged.
+
+Both save callbacks return the saved new/merged UUID only after persistence
+succeeds. The overlay keeps that visual-reveal target separate from `selectedID`,
+centres it on query updates and review dismissal, and expands collapsed entry to
+show it. No active-selection callback, search or cart-attribution change is made.
+Explicitly selecting a card clears the reveal; tapping the still-active card
+recentres it without adding selection history. Each rail end accounts for the
+145-point inactive versus 160-point active card when calculating centre padding.
+Saved left/start and right/end ordering remains unchanged.
+
+The preceding insertion run at `27762b8` finished with **6 passes and 4 failures**:
+all four new tests used an incorrect standalone Position-text locator. Actual
+accessibility combines it as `store-product-insertion` / `Position, End of list`
+(or Start). Manual hierarchy/screenshot follow-through confirmed left/right/manual/
+All items insertion, original-card selection, durable order and store isolation.
+That is not represented as an all-green automated run. Evidence/report:
+`~/Library/Developer/Xcode/StoreProductSelection-Evidence/Insertion-27762b8/REPORT.md`
+and Linux `/tmp/opencode/insertion-27762b8/`. This follow-up fixes the locator and
+adds actual card-centre assertions alongside retained active-card assertions,
+collapsed-entry reveal and repeated duplicate reveal/tap-to-recentre coverage.
+New build and simulator results will be recorded after execution. No phone install
+of this quicker-fade/reveal follow-up has been performed yet.
+
 ### Follow-up: side-specific list insertion
 
 The left/leading rail action captures start-of-list insertion; right/trailing
@@ -2188,8 +2216,9 @@ Mac code revision `27762b89ff5d1dce659971313b5b7d4d20617d25`: generic simulator
 build and the complete cloud offline allowlist passed, including **1,924 native
 checks**, parser/regional checks and synthetic store registration. The built
 app's 35 JSON + 1 JavaScript resources match canonical files byte-for-byte.
-The ten-case simulator run (four new insertion cases plus the six prior feature
-regressions) is running; its results are not yet certified.
+The ten-case simulator run (four new insertion cases plus six prior feature
+regressions) finished with six passes and four incorrect review-text locators;
+see the quicker-fade/reveal follow-up above for the evidence and correction.
 
 At the user's explicit request, the clean code revision
 `27762b89ff5d1dce659971313b5b7d4d20617d25` was built, signed, installed in place

@@ -85,17 +85,22 @@ struct StoreProductRailEndControl: View {
     let insertion: ShoppingLists.AdditionPosition
     let action: () -> Void
 
+    private var opacity: Double {
+        let fraction = min(1, max(0, Double(uncoveredWidth / 88)))
+        return fraction * fraction
+    }
+
     var body: some View {
         if uncoveredWidth >= 44 {
             StoreProductAddButton(width: uncoveredWidth, alignment: alignment, insertion: insertion, action: action)
-                .opacity(Double(uncoveredWidth / 88))
+                .opacity(opacity)
         } else if uncoveredWidth > 0 {
             // Keep the last sliver of the fade visual only. Fully covered
             // controls have no subtree, so no invisible AX button can survive.
             StoreProductAddLabel()
                 .frame(width: uncoveredWidth, alignment: alignment)
                 .clipped()
-                .opacity(Double(uncoveredWidth / 88))
+                .opacity(opacity)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }

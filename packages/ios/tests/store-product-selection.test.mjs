@@ -268,7 +268,8 @@ test('rail control wording and fade follow uncovered width without a delayed ani
   assert.match(swift, /accessibilityLabel\("Add item to your list"\)/);
   assert.match(swift, /StoreProductRailEndControl\(uncoveredWidth: leadingWidth/);
   assert.match(swift, /StoreProductRailEndControl\(uncoveredWidth: trailingWidth/);
-  assert.match(swift, /opacity\(Double\(uncoveredWidth \/ 88\)\)/);
+  assert.match(swift, /return fraction \* fraction/);
+  assert.match(swift, /\.opacity\(opacity\)/);
   assert.match(swift, /if uncoveredWidth >= 44/);
   assert.match(swift, /else if uncoveredWidth > 0/);
   assert.doesNotMatch(swift, /Add store item to list/);
@@ -280,11 +281,47 @@ test('rail sides capture insertion position through review, manual entry and per
   assert.match(swift, /let insertion: ShoppingLists\.AdditionPosition/);
   assert.match(swift, /LabeledContent\("Position"\)/);
   const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
-  assert.match(view, /onAddStoreProduct\(name, quantity, draft\.insertion\)/);
+  assert.match(view, /saveStoreProduct\(name, quantity: quantity, insertion: draft\.insertion\)/);
   assert.match(view, /StoreProductDraft\(name: name, insertion: insertion\)/);
   assert.match(view, /StoreProductDraft\(name: "", insertion: storeProductInsertion\)/);
   assert.match(view, /Button \{ beginStoreProductSelection\(at: \.start\) \} label:/);
   const lists = readFileSync(new URL('../ListRunner/GroceryListScreen.swift', import.meta.url), 'utf8');
   assert.match(lists, /to: store, allItems: allItems, context: modelContext, insertion: insertion/);
   assert.match(lists, /to: storeID, allItems: allItems, context: modelContext, insertion: insertion/);
+});
+
+test('successful product saves reveal their persisted UUID without changing the active item', () => {
+  const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
+  const save = view.split('private func saveStoreProduct(')[1].split('private func handleAssistiveProductSelection')[0];
+  assert.match(save, /guard let id = onAddStoreProduct\(name, quantity, insertion\) else \{ return false \}/);
+  assert.match(save, /storeProductRevealID = id/);
+  assert.match(save, /isCollapsed = false/);
+  assert.doesNotMatch(save, /selectedID\s*=|onSelectionChange|select\(|beginInteraction|searchTerm/);
+  assert.match(view, /onChange\(of: storeProductRevealID\)/);
+  assert.match(view, /onChange\(of: storeProductDraft\?\.id\)/);
+  assert.match(view, /items\.contains\(where: \{ \$0\.id == id \}\)/);
+  assert.match(view, /railEndPadding\(for: items\.first/);
+  assert.match(view, /railEndPadding\(for: items\.last/);
+  const lists = readFileSync(new URL('../ListRunner/GroceryListScreen.swift', import.meta.url), 'utf8');
+  assert.equal((lists.match(/return promoted\.first\?\.id/g) || []).length, 2,
+    'both screens return the inserted or merged identity, not a guessed name or list index');
+});
+
+test('faster fade is bounded, full when exposed and one-quarter opacity when half covered', () => {
+  // Execute the simple scalar Swift formula, not a separately copied fade curve.
+  const body = swift.match(/private var opacity: Double \{([\s\S]*?)\n    \}/)[1]
+    .replace(/let /g, 'const ').replace(/\bmin\(/g, 'Math.min(')
+    .replace(/\bmax\(/g, 'Math.max(').replace(/\bDouble\(/g, 'Number(');
+  const opacity = new Function('uncoveredWidth', body);
+  assert.equal(opacity(88), 1);
+  assert.equal(opacity(44), 0.25);
+  assert.equal(opacity(0), 0);
+  assert.equal(opacity(-10), 0);
+  assert.equal(opacity(100), 1);
+  let previous = 0;
+  for (let width = 0; width <= 88; width++) {
+    const value = opacity(width);
+    assert.ok(value >= previous && value <= width / 88 + Number.EPSILON);
+    previous = value;
+  }
 });

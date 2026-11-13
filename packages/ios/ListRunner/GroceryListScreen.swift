@@ -1347,10 +1347,10 @@ private struct AllItemsScreen: View {
     }
 
     private func addStoreProduct(_ name: String, quantity: Int, to store: StoreID,
-                                 insertion: ShoppingLists.AdditionPosition) -> Bool {
+                                 insertion: ShoppingLists.AdditionPosition) -> UUID? {
         guard !paprikaReminders.importing, !name.isEmpty, name.utf8.count <= 512,
-              (1...999).contains(quantity) else { return false }
-        if modelContext.hasChanges, !saveChanges() { return false }
+              (1...999).contains(quantity) else { return nil }
+        if modelContext.hasChanges, !saveChanges() { return nil }
         let entry = ParsedGrocery(name: name, amount: Double(quantity), unit: nil)
         let snapshot = ShoppingLists.AdditionSnapshot(items: allItems, store: store)
         let promoted = ShoppingLists.stageAdd([entry], to: store, allItems: allItems, context: modelContext, insertion: insertion)
@@ -1359,11 +1359,11 @@ private struct AllItemsScreen: View {
             modelContext.rollback()
             snapshot.restoreAfterRollback()
             pendingReminderWrites.removeAll()
-            return false
+            return nil
         }
         onPromoteStore(store, promoted.map(\.id))
         UIAccessibility.post(notification: .announcement, argument: String(localized: "Added to your \(store.displayName) list"))
-        return true
+        return promoted.first?.id
     }
 
     private func storeTint(_ id: StoreID) -> Color {
@@ -2017,12 +2017,12 @@ struct GroceryListScreen: View {
         }
     }
 
-    private func addStoreProduct(_ name: String, quantity: Int, insertion: ShoppingLists.AdditionPosition) -> Bool {
+    private func addStoreProduct(_ name: String, quantity: Int, insertion: ShoppingLists.AdditionPosition) -> UUID? {
         guard !paprikaReminders.importing, !name.isEmpty, name.utf8.count <= 512,
-              (1...999).contains(quantity) else { return false }
+              (1...999).contains(quantity) else { return nil }
         if modelContext.hasChanges {
             saveChanges()
-            guard !saveFailed else { return false }
+            guard !saveFailed else { return nil }
         }
         // This is one literal product title, not a comma-separated ingredient input.
         let entry = ParsedGrocery(name: name, amount: Double(quantity), unit: nil)
@@ -2034,11 +2034,11 @@ struct GroceryListScreen: View {
             modelContext.rollback()
             snapshot.restoreAfterRollback()
             pendingReminderWrites.removeAll()
-            return false
+            return nil
         }
         onPromoteStore(storeID, promoted.map(\.id))
         UIAccessibility.post(notification: .announcement, argument: String(localized: "Added to your \(storeID.displayName) list"))
-        return true
+        return promoted.first?.id
     }
 
     private func revealFocusedProductEntry() {
