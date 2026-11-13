@@ -2194,8 +2194,7 @@ Add → exact literal title in Bunnings, unchanged fixture cart control and abse
 from Coles. Product-page review/Cancel passed too. Screenshots show legible rail
 controls, the opaque Choose pill and native name/quantity review. Early runs caught
 and corrected accessibility locator ambiguity and a shield-label overlap; their
-failures remain in the evidence, not counted as successful Add checks. Final
-All items/manual-entry coverage is recorded below after completion.
+failures remain in the evidence, not counted as successful Add checks.
 
 At `77bce126e014272247e55e45b7dec646aef62108`, the grid save and unconfigured
 store manual-entry tests passed. The All items screenshot/hierarchy showed the
@@ -2204,7 +2203,30 @@ locator stopped its final navigation assertions. Product-page recognition fell
 back to manual in one run while the heading was visible. The chooser now waits
 at most three seconds for that same committed document to finish loading, bound
 to its exact request, web view, generation and URL; it never reloads or follows a
-new navigation. Final four-path simulator results follow after completion.
+new navigation.
+
+Final code revision `642ea5dfd0543f716bd764cb8fc885f9768dee88`: **4/4 focused
+offline UI tests passed, 0 failures, 0 skips**, in one run on the dedicated iPhone
+17 / iOS 27.2 simulator:
+
+* Grid selection → shield tap → prefilled review → Add preserves the literal
+  `2x LED lights, 75 mm`, leaves the fixture cart unchanged and saves only to
+  Bunnings, not Coles.
+* Product detail prefilled the expected title without a grid shield; Cancel did
+  not add it. The earlier empty-title failure did not recur in this final run;
+  repeated-run stability was not separately exercised.
+* All items saved a Pending row owned by Bunnings, verified it through Bunnings'
+  actual list scope and confirmed absence from Coles.
+* Unconfigured-store manual entry saved the complete literal
+  `500 g pasta, gluten-free` without splitting the comma-containing title.
+
+Final evidence: `Revision-642ea5d/FocusedTests.xcresult`, `FocusedTests.log`,
+`Summary.json`, runtime logs and rail/shield/review screenshots under the evidence
+directory below. Screenshots show legible controls and no new overlap. Existing
+card-title truncation remains unchanged. Linux screenshot copies are under
+`/tmp/opencode/store-product-642ea5d/`. The simulator was shut down after testing,
+with its data and evidence retained. Documentation-only commits after this code
+revision do not change the tested implementation.
 
 Evidence is outside Git under
 `~/Library/Developer/Xcode/StoreProductSelection-Evidence/` on the Mac, with
@@ -2229,9 +2251,9 @@ returned an empty document and Woolworths Access Denied, so neither received a
 guessed selection profile. IKEA grid readback succeeded, but detail/profile review
 is deferred. All unconfigured destinations offer manual local-list entry.
 
-Remaining: focused simulator UI check completion; live Bunnings embedded-WebKit
-grid/detail selection; VoiceOver, Dynamic Type and scrolling/reflow checks on
-device. No checkout/cart mutation is needed or authorised for selection checks.
+Remaining: live Bunnings embedded-WebKit grid/detail selection; VoiceOver, Dynamic
+Type and scrolling/reflow checks on device. No checkout/cart mutation is needed
+or authorised for selection checks.
 
 Accessibility safety boundary: VoiceOver/Switch Control use the native manual
 composer on grids, not DOM shields, because assistive activation may bypass visual
