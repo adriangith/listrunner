@@ -143,6 +143,27 @@ single-token draft avoids autocorrection ambiguity. A four-case rerun includes
 all three failed scenarios plus small-scroll focus; results remain pending. No
 assertion about keyboard dismissal, draft preservation or row tracking was removed.
 
+That four-case rerun at `fe7a8ab` passed **2/4**: focused-store edge/draft and
+small-scroll focus passed; upward-scroll keyboard dismissal still failed, and
+idle-frame coverage failed before scrolling when its submitted fixture row was
+not found. Visual inspection independently confirmed the keyboard stayed open
+despite 129 points of actual content movement. The same inspection confirmed
+the exact corrected draft before and after a successful focused edge Back.
+It also reproduced rapid text reordering **before navigation**. That separate
+typing issue is recorded for investigation; its cause and baseline status remain
+unproved, and it is not claimed as a navigation draft-loss fix.
+
+Revision `73dcf097aad51993970f14afdd35d3f097d98150` keeps the passive native pan
+observer and explicitly dismisses the editor only for a deliberate vertical pan
+of at least 44 points, with vertical movement exceeding horizontal movement.
+Small 12–20-point repositioning and horizontal edge Back do not dismiss focus.
+All items explicitly resigns its editor when leaving, so retained offscreen
+content cannot request focus back. The idle-frame test now selects Coles and
+waits for its keyboard before entering its fixture, rather than assuming the
+last-enabled store or immediate responder readiness. Linux **450 JavaScript +
+46 Python** checks and Swift syntax checks passed again. Native/visual targeted
+reruns on this revision remain pending (`VerticalDismissal.xcresult`).
+
 ## Retailer-neutral store-list wording (13 November 2026)
 
 Branch `fix/store-page-titles` changes the populated store-list section heading
