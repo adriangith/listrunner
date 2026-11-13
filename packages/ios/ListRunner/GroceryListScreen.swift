@@ -1437,8 +1437,9 @@ private struct AllItemsScreen: View {
         }
     }
 
+    @ViewBuilder
     private func groupItemRow(_ item: GroceryItem, using proxy: ScrollViewProxy) -> some View {
-        allItemRow(item, nativeSelection: !usesNativeGroupRows)
+        let row = allItemRow(item, nativeSelection: !usesNativeGroupRows)
             .padding(.horizontal, usesNativeGroupRows ? 0 : 16)
             .background(highlightedItemIDs.contains(item.id) ? Color.accentColor.opacity(0.12) : Color.clear)
             .id(item.id)
@@ -1452,14 +1453,21 @@ private struct AllItemsScreen: View {
             .onAppear {
                 if scrollTargetItemID == item.id { scrollToAddedItem(item.id, using: proxy) }
             }
-            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            .listRowBackground(highlightedItemIDs.contains(item.id)
+                ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
+            .listRowInsets(ListItemRowLayout.insets)
+        if usesNativeGroupRows {
+            row.swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button("Delete", systemImage: "trash", role: .destructive) { delete(item) }
                     .accessibilityHint("Removes this item from ListRunner only, not the store cart")
                     .accessibilityIdentifier("all-items-delete-\(item.id.uuidString)")
             }
-            .listRowBackground(highlightedItemIDs.contains(item.id)
-                ? Color.accentColor.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
-            .listRowInsets(ListItemRowLayout.insets)
+        } else {
+            // Browse items already have UITableView contextual actions. A
+            // SwiftUI swipeActions trait here bubbles up to the outer List's
+            // shared host cell, making every header swipe expose all Deletes.
+            row
+        }
     }
 
     private func revealFocusedEntry() {

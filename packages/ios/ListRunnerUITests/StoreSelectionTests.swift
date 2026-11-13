@@ -1845,6 +1845,27 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(categoryClear.frame.maxX, entryCell.frame.maxX, accuracy: 1)
     }
 
+    func testAllItemsBrowseHeaderSwipeDoesNotExposeItemDeleteActions() {
+        choose("All items")
+        for (grouping, groupID) in [("store", "store-bunnings"), ("category", "category-hardwareGarden")] {
+            let groupingButton = app.buttons["all-items-grouping-\(grouping)"]
+            for _ in 0..<6 where !groupingButton.isHittable { app.collectionViews.firstMatch.swipeDown() }
+            groupingButton.tap()
+            let header = app.staticTexts["all-items-group-title-\(groupID)"]
+            XCTAssertTrue(header.waitForExistence(timeout: 3))
+            let originalX = header.frame.minX
+            // A broad swipe across the header's blank area, clear of its +.
+            let left = header.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5))
+            left.withOffset(CGVector(dx: 240, dy: 0)).press(forDuration: 0.05, thenDragTo: left)
+            XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "Delete")).count, 0,
+                           "Header swipes must not expose the shared host cell's item actions")
+            XCTAssertEqual(header.frame.minX, originalX, accuracy: 1, "The whole group must not slide sideways")
+            XCTAssertTrue(app.staticTexts["Bunnings fixture item"].exists)
+            XCTAssertTrue(app.staticTexts["Coles fixture item"].exists)
+            XCTAssertTrue(app.staticTexts["Woolworths fixture item"].exists)
+        }
+    }
+
     func testAllItemsBrowseSwipeDeleteWorksInBothGroupings() {
         choose("All items")
         for (grouping, name) in [("store", "Coles fixture item"), ("category", "Woolworths fixture item")] {
