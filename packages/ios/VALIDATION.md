@@ -2189,8 +2189,26 @@ build and the complete cloud offline allowlist passed, including **1,924 native
 checks**, parser/regional checks and synthetic store registration. The built
 app's 35 JSON + 1 JavaScript resources match canonical files byte-for-byte.
 The ten-case simulator run (four new insertion cases plus the six prior feature
-regressions) is running; its results are not yet certified. No phone install
-or real retailer/cart action is part of this follow-up at this point.
+regressions) is running; its results are not yet certified.
+
+At the user's explicit request, the clean code revision
+`27762b89ff5d1dce659971313b5b7d4d20617d25` was built, signed, installed in place
+and launched on Adrian's physical iPhone 17e / iOS 27.2
+(`00008150-001402660A9BC01C`). Xcode workspace `workspace-MNUTaeUXRm`, scheme
+ListRunner and physical destination Adrian's iPhone were verified before
+`RunProject`: zero build errors, launch session `ab7b6d980`, PID **65171**.
+`devicectl` independently confirmed that PID running ListRunner on the phone.
+Deep strict code-signature verification and all 35 JSON + 1 JavaScript resource
+byte comparisons passed for the signed `Debug-iphoneos/ListRunner.app` under
+`~/Library/Developer/Xcode/DerivedData/ListRunner-crdymsqoucncavcufdmaqyaqgufx/`.
+Xcode log: `RunProject-Log-20261113-183826.txt` in its action artifacts.
+
+This phone update includes the scrolling/fade/wording changes and left/start,
+right/end insertion. No uninstall, data reset, test launch arguments/fixtures,
+imports or retailer/cart actions were used. The app was left running. Installation
+and launch are verified; physical visual/live-feature sign-off remains separate.
+The ongoing simulator run keeps its dedicated simulator and separate DerivedData;
+no test state or evidence was cleared for the phone install.
 
 ### Follow-up: scrolling alignment, fade and wording
 
