@@ -84,7 +84,7 @@ struct RecoveryTests {
               "website additions reuse store-local duplicate reactivation and explicit quantity merging")
         addContext.rollback()
         check(websiteRows[0].quantityAmount == 1 && otherStoreItem.quantityAmount == 9,
-              "failed website addition rolls back only the newly staged transaction")
+              "failed website addition rolls back only the newly staged transaction (product=\(String(describing: websiteRows[0].quantityAmount)), other=\(String(describing: otherStoreItem.quantityAmount)))")
         let firstID = UUID(), secondID = UUID(), thirdID = UUID()
         let initialOrder = ItemPromotionOrder.promoting([firstID, secondID], in: "", existing: [firstID, secondID, thirdID])
         let updatedOrder = ItemPromotionOrder.promoting([thirdID, firstID], in: initialOrder,
