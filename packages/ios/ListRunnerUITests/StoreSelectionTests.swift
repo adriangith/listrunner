@@ -2701,7 +2701,16 @@ final class StoreSelectionTests: XCTestCase {
         let back = app.descendants(matching: .any).matching(identifier: "BackButton")
         XCTAssertEqual(back.count, 1, "The shared capsule must retain just one native Back target")
         XCTAssertTrue(app.buttons["store-picker"].isHittable)
-        XCTAssertGreaterThanOrEqual(app.buttons["store-picker"].frame.height, 44)
+        XCTAssertGreaterThanOrEqual(back.firstMatch.frame.height, 44)
+        // UIKit exposes the visible menu label as 36 points even when its
+        // toolbar target has hit slop. Exercise the top/bottom of the 44-point
+        // capsule instead of confusing the label's AX frame with its hit area.
+        for edge in [CGFloat(0), 1] {
+            app.buttons["store-picker"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: edge))
+                .withOffset(CGVector(dx: 0, dy: edge == 0 ? -3 : 3)).tap()
+            XCTAssertTrue(app.buttons["Coles"].firstMatch.waitForExistence(timeout: 3))
+            app.buttons["Coles"].firstMatch.tap()
+        }
         let coles = XCTAttachment(screenshot: app.screenshot())
         coles.name = "Joined red Coles Back and chooser"
         coles.lifetime = .keepAlways
