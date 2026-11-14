@@ -2206,9 +2206,36 @@ hidden navigation and Add width no greater than its 88-point slot. Updated build
 and simulator results follow after execution. Correction code
 `ebc4ad99f6da6c194305f936ff23787b243ce5d4` passes generic Mac simulator build,
 all **487 JavaScript tests**, and the full cloud offline allowlist including
-**1,924 native checks**. Ten focused UI cases are retesting Cancel position and
-the added accessibility assertions; their results are not yet certified. Evidence
-target: `~/Library/Developer/Xcode/StoreProductSelection-Evidence/CancelAX-ebc4ad9/`.
+**1,924 native checks**. The final focused UI invocation completed **8 passed,
+2 failed, 0 skipped**, once without retries. All five Cancel cases and the new
+hidden-navigation/hint absence and Add-width assertions passed unchanged. Left
+save, collapsed-save reveal and duplicate reveal/active-card recentring also passed.
+Manual highlighted-product review Cancel retained cards at x=117.3 and x=287.3,
+original selection and Item 1 of 4, the same page/cart marker and no new item.
+Settled Add bounds remained 68.3 × 88 points before/after (not the previous
+402 × 250 rail-sized frame); Collapse bounds remained 44 × 44. Selection hierarchy
+contained no hidden card/Add/navigation/hint action children. An unlabelled empty
+ScrollView container remains; VoiceOver traversal is not certified.
+
+The two failed outcomes are not waived: right/end-save failed before opening the
+store because Show Store was absent, with an isolated `test.store` open warning
+(SQLite error 4618) and possible Button/PopUpButton automation mismatch. The scroll
+shield regression failed in setup because store-picker did not appear within ten
+seconds. Neither reached its feature assertions, so right-save and shield-scroll
+are **not successfully revalidated at this SHA**. Their cause remains unknown;
+investigate the retained setup/storage/automation diagnostics before another run.
+The modern result export incorrectly returned zero/unknown; retained legacy result
+metrics/issues and XCTest console agree on ten executed and two failures.
+
+Evidence: `~/Library/Developer/Xcode/StoreProductSelection-Evidence/CancelAX-ebc4ad9/REPORT.md`
+and Linux `/tmp/opencode/cancelax-ebc4ad9/REPORT.md`; complete mirror under
+`/tmp/opencode/cancelax-ebc4ad9/evidence/` includes original result bundle,
+diagnostics, logs, action-by-action manual hierarchy/screenshots and cleanup proof.
+The owned simulator was shut down with state/evidence retained; bridge closed and
+clean task worktree/DerivedData ownership released. Narrowed end-label clipping
+at a partially covered slot and existing hint/webpage overlap remain documented
+limitations, unchanged across Cancel. No physical-device installation or live-store
+validation was performed for this revision.
 No phone install of this cancellation follow-up has been performed yet.
 
 ### Follow-up: lower Add labels and requested phone update (14 November 2026)
