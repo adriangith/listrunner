@@ -44,6 +44,16 @@ The compact native leading Back chevron and interactive edge swipe return to
 All items. The old trailing grid shortcut is removed. Explicit scope changes
 respect Reduce Motion, and launch restores the last scope without animating.
 
+The store Back/chooser follow-up gives the chevron the current store colour and
+places both controls over one glass capsule, with their original separate tap
+targets. The actual native Back button stays in place; a store-scoped adapter
+sets its colour and hides only its individual background. The chooser supplies
+shared glass decoration across the compact Back target and intervening spacing;
+that decoration does not intercept touches. The original Back appearance is
+restored on leaving/dismantling. No Back replacement, navigation hiding, or gesture
+delegate override is used. Settings and single-store headers keep their ordinary
+layout. iOS 26+ uses native glass; earlier OS versions retain native controls.
+
 A single enabled store opens directly with no redundant overview, Back button
 or All items menu entry. Saved rows outside the enabled store (including unknown
 owners) keep All items available for recovery. Visibility changes are reconciled

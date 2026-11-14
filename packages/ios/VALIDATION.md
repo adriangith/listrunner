@@ -1,5 +1,113 @@
 # Reusable store framework validation
 
+## Joined store-coloured Back and chooser (13 November 2026)
+
+The user requested a store-coloured Back chevron joined visually to the chooser,
+followed by another phone build. Initial native-item prototype `32ae72b` correctly
+tinted Coles red and Woolworths green and preserved Settings/edge Back, but the
+system ignored the requested shared grouping: two separate glass shapes remained.
+That is a failed join attempt, not a delivered shared capsule. Internal evidence:
+`/tmp/opencode/listrunner-joined-back-32ae72b/`.
+
+Revision `bc8af6f9879b97596ea3368afaeeb76f488d676a` instead places separate Back
+and chooser controls inside one explicit native Liquid Glass capsule and hides
+the toolbar's redundant background for that joined item only. Store colour is
+explicit on the chevron. A scoped UIKit proxy preserves the existing interactive
+pop while the separate native Back item is hidden; it overrides only the hidden-
+Back shouldBegin gate with top-owner/stack/transition guards, forwards remaining
+arbitration, and restores the previous delegate on leaving. It introduces no
+new edge/full-screen gesture, data mutation or fixture in the normal scheme.
+Linux Swift parsing and `git diff --check` passed; native visual/build checks and
+the requested phone reinstall are pending.
+
+Visual verification at `bc8af6f` confirmed the requested single shared capsule,
+separate hit targets, Coles red/Woolworths green and unaffected Settings Back.
+The custom Back tap returned to All items, but the completed native edge swipe
+failed; that revision was **not** installed on the phone. Internal evidence:
+`/tmp/opencode/listrunner-joined-back-bc8af6f/`.
+
+Revision `929af431c11b2b017f1d338428c90adfdc82dca8` handles both of UIKit's
+native interactive-pop recognizers (edge and iOS 26+ content) with scoped proxies
+and refreshes attachment after layout, including the hidden-Back enabled state.
+Temporary Debug-only isolated-session traces identify attachment/begin callbacks;
+normal launches do not emit them. Focused real-gesture retest is pending. The
+requested physical-phone rebuild remains deferred until swipe-back is verified.
+
+The `929af43` retest still failed its completed native pop: proxies attached to
+both system recognizers, but no `shouldBegin` callback was reached. No phone
+installation occurred. Revision `c38588bdefd23e9c77d438c31d6b86bd3b6e207e`
+also scopes touch/event admission to the active store destination and the first
+28 points of its leading edge, rather than forwarding the hidden-native-Back
+touch gate. Ordinary content/row gestures remain excluded from the override.
+Native retest is pending; a shared-pill screenshot alone is not gesture sign-off.
+
+The touch-admission prototype still did not receive native callbacks. Isolated
+diagnostic revision `3fe47c6` established that both native recognizers were
+enabled, attached and still using the proxy after layout, yet never received the
+edge touch. That rules out a missing appearance callback or a simple disabled
+recognizer; it did not make the hidden-navigation approach safe.
+
+Revision `e0c983562c235daf7f7ab64d4fe3cbced5a7c5d7` removes the hidden-Back
+modifier, **all gesture delegates/overrides**, and temporary debug traces. Its
+scoped adapter only sets `leftItemsSupplementBackButton = false`, using UIKit's
+documented replacement layout for custom leading controls while leaving native
+navigation active. It restores the old flag when leaving/dismantling. The joined
+glass/colour presentation is unchanged. A focused native retest is pending before
+the requested phone installation.
+
+At `e0c9835`, completed native edge Back and reversed-then-completed gesture
+outcomes passed again, along with colours, Settings and the joined Back action.
+However, some settled store entries showed an extra native Back circle beside
+the joined capsule (two `BackButton` elements). This visual defect blocked the
+phone build. Revision `3408ee29988ceb9206ca079307e5157aa201b5c5` reapplies only
+the leading-item replacement layout after SwiftUI's final toolbar update and
+native transition completion. No gesture flags or delegates are changed; the
+duplicate-control and real-edge retest is pending.
+
+The post-transition reapplication still left two Back controls on settled entry.
+Revision `9a2f8e5ce523342a49dc5abcae7ab27c40dfc7e5` removes the replacement
+Back button entirely. It retains/tints the original native Back, hides only that
+item's individual shared background, and lets the chooser's non-hit-testing glass
+decoration extend behind the native target and gap. No navigation hiding,
+supplement-layout override or gesture-delegate change remains. A focused visual
+check must establish that the glass extension is not clipped and there is exactly
+one native Back, followed by real edge/cancel/Settings checks before installation.
+
+The extended glass at `9a2f8e5` was continuous and left exactly one native Back
+target, but composited over its chevron, making the Back area visually blank.
+Revision `9d01f1916f798ebba8a528bade5a876b27fdc834` draws a store-coloured
+decorative chevron above that material at the native target's position. The whole
+decoration remains non-hit-testing and accessibility-hidden: the original native
+Back is still the only button, owns its own tap/AX target, and retains native pop.
+Colour, one-capsule appearance, tap, actual edge/cancel and Settings checks are
+pending before phone installation. Linux Swift syntax + 9 resource checks passed.
+
+The final DeviceInteraction attempt was cancelled before returning evidence.
+After the user asked to continue, Xcode MCP tools were unavailable, so verification
+continued through a focused XCTest run on the task's dedicated iPhone 17 simulator.
+Test-only revision `940f1295d7fb18056aed2b0ff76625762dec13d4` checks one native
+Back target, chooser tap height, Coles/Woolworths/Settings appearance attachments,
+Settings return, completed/short edge outcomes and Back tap. Native source remains
+`9d01f19`. A signed phone build is prepared separately; install remains gated on
+the focused test and visual review of its retained attachments. No reset/test
+environment is used for the requested phone launch.
+
+The SSH command-line `iphoneos` build compiled but failed at signing with
+`errSecInternalComponent`; no keychain/security policy was changed and that
+unsigned build was not installed. Xcode's desktop build action was then started
+on the exact isolated task workspace, selecting **Adrian’s iPhone** explicitly
+(`iphoneos`, not the iPad); action ID `8877-0`. Its completion and signed output
+verification remain pending. CLI evidence: `joined-phone-build.log` under the
+existing task validation directory. The final focused simulator test is
+`JoinedHeaderFinal.xcresult` / `joined-header-final.log` in that directory.
+
+The focused test's SSH connection later dropped with `Timeout, server
+192.168.4.94 not responding` (exit 255), and a fresh bounded reconnect also timed
+out. This is an **unknown native test/build outcome**, not a test assertion failure
+or a passing build. Desktop build action `8877-0` could not be read back and no
+new phone installation/launch was performed or claimed. On reconnection, inspect
+the existing result bundle/log and Xcode action before starting duplicate work.
+
 ## Adaptive list navigation (13 November 2026)
 
 Branch `feature/list-navigation-transitions` shares one native list navigation

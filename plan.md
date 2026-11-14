@@ -1,5 +1,10 @@
 ## ListRunner Build Specification
 
+### Joined store Back and chooser (13 November 2026)
+
+* In multi-store list detail, the Back chevron uses the current store's primary colour and shares one continuous glass capsule with the chooser, while retaining separate Back and menu tap targets. Switching stores updates both colours. Single-store direct lists and All items keep their chooser-only header; Settings retains its ordinary Back control.
+* Keep the existing native interactive edge pop and cancellable navigation. A joined visible Back control must not add another full-screen gesture or change list/draft/browser ownership. On pre-glass OS versions, retain the compact joined layout without requiring Liquid Glass.
+
 ### Adaptive list navigation (13 November 2026)
 
 * All items is the overview when more than one store is available and enabled. A store header or the top-left chooser opens the store list with the native navigation transition. Keep a single store destination above All items: choosing another store replaces that destination rather than accumulating history. The compact native Back chevron sits immediately before the store chooser, replacing the old trailing grid shortcut. Back and the cancellable leading-edge swipe return to All items, not to a previously selected store. The chooser's All items action uses the same return path. Respect Reduce Motion.
