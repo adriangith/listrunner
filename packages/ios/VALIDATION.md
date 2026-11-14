@@ -4,8 +4,9 @@
 
 **Final outcome:** divider and single visible chevron verified on iPhone 17 /
 iOS 27.2 simulator, including light/dark appearance, native Back and interactive
-edge navigation. Both final focused tests passed in one run. This follow-up has
-**not** been installed on the physical iPhone; no merge or release was performed.
+edge navigation. Both final focused tests passed in one run. At the user's request,
+this follow-up was subsequently built, signed, installed in place and launched
+on the physical iPhone. No merge or release was performed.
 
 After the earlier phone installation, the user reported that individual-store
 headers look like two Back buttons layered together and requested a separator.
@@ -104,6 +105,37 @@ Evidence: Mac `JoinedHeaderFinal12740bd.xcresult`, `.log` and `-attachments/` un
 `/tmp/opencode/listrunner-divider-12740bd/`, including test summary, reviewed
 images/crops and provenance. No physical-device install, data reset, live retailer
 action, merge or release occurred for this follow-up.
+
+### User-requested physical iPhone update
+
+After the user approved installation, the clean isolated Mac task checkout was
+fetched and detached at exact `7c5222597579451571e98a5af768fc5b75b2fc1e` (docs-only
+after the final passing test revision). Xcode MCP identified the task workspace
+`windowtab-iTHOqiYv99` by its exact path and confirmed **Adrian’s iPhone**, iOS 27.2,
+as the eligible active destination. The shared Run scheme contained no launch
+arguments or environment variables.
+
+`RunProject(attachDebugger: false)` succeeded in 13.183 seconds with zero build
+errors, installed in place and launched normally: launch reference `8e1b41f80`,
+PID **69051**. `devicectl device info processes` independently confirmed that PID
+running the installed ListRunner bundle on iPhone
+`00008150-001402660A9BC01C`. The phone was left running the ordinary app; no reset,
+fixture launch, import, list clearing, retailer action, or signing-policy change.
+
+The RunProject log explicitly compiles the task checkout's `GroceryListScreen.swift`
+and signs its `ListRunner-agwrfyqrugvyvyeoxdnifvcrqqca/Build/Products/Debug-iphoneos/ListRunner.app`.
+Its debug-library timestamp is 14 November 23:17:21 AEDT. That actual device bundle
+passed **35 JSON + 1 JavaScript** canonical-resource verification and
+`codesign --verify --deep --strict`. The build emitted a redundant appearance-copy
+cast warning and an unused `resignFirstResponder()` result warning; this is not a
+zero-warning build claim. No new physical-device visual/interaction certification
+is claimed from installation and launch alone.
+
+Original Xcode log: `RunProject-Log-20261114-231730.txt` under the Mac's
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/`.
+Preserved copy: `divider-phone-run-7c52225.log` under
+`~/Library/Developer/ListRunnerValidation/list-navigation/`; independent process
+evidence: `divider-phone-processes.json` in the same directory.
 
 ## Joined store-coloured Back and chooser (13 November 2026)
 
