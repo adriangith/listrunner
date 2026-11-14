@@ -45,6 +45,18 @@ Disk inspection showed the Mac Data volume at **100%, only 114 MiB available**.
 No caches, simulator state or test evidence were deleted. Phone installation
 remains blocked on freeing disk space; no restored-app launch is claimed.
 
+With the user's cleanup approval, removed only this task's generated validation
+`DerivedData`, `GestureCheckDerivedData`, `JoinedHeaderDerivedData`,
+`JoinedPhoneDerivedData` and task Xcode DerivedData
+`ListRunner-agwrfyqrugvyvyeoxdnifvcrqqca`. Logs, xcresults, screenshots, simulator
+data and unrelated caches were preserved. Free space initially rose to 1,012 MiB,
+but was back to 118 MiB during retry (the task build cache had regenerated only
+70 MiB; the remaining consumption is unexplained). The clean Mac task checkout
+was updated to `f3f485adb5cf1ed12c4dece9f1cbb579ac76b511`.
+MCP again returned a missing-log error; guarded desktop build again failed to
+write DerivedData `info.plist` during preparation. No successful install/launch
+occurred. Further deletion outside the approved task-cache scope was not done.
+
 ## Joined header divider and overlapping artwork follow-up (14 November 2026)
 
 **Final outcome:** divider and single visible chevron verified on iPhone 17 /
