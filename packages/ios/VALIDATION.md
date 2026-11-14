@@ -2186,9 +2186,32 @@ exposure math including the old 12-point gap. Code
 **489 JavaScript tests**, **47 Python tests**, full cloud offline allowlist with
 **1,924 native checks**, parser/regional/synthetic-registration tests and all
 35 JSON + 1 JavaScript canonical-resource byte comparisons. Four focused UI
-cases are running: the new light/dark both-end occlusion captures, prior fade/hide
-regression and partially scrolled Cancel. Results are not yet certified. Evidence
-target: `~/Library/Developer/Xcode/StoreProductSelection-Evidence/CardOcclusion-3eb3154/`.
+cases passed **4/4, zero failed/skipped**, in one run without retries: new light/
+dark both-end occlusion captures, prior fade/hide regression and partially scrolled
+Cancel. Full-resolution screenshots, sampled video and recorded manual captures
+show the actual card body covering the label in both appearances at both ends,
+with text visible around rounded lower corners until covered. The premature hard
+grey rectangle was not reproduced; natural shadows softly darken nearby pixels.
+Some small test drags were not cumulative, so hierarchy-guided manual captures
+supplement the automated coverage rather than overstating the test gestures.
+
+Dark left partial: card starts x=86.7; Add x=21/width=65.7 ends exactly there.
+Dark right partial: card ends x=322.7; Add starts there/width=58.3. Both transparent
+targets opened selection at their reported accessibility hitpoints and Cancel
+restored identical offsets/cart markers. Covered controls disappeared from queries.
+Light automated right Add/Cancel ran; dark's conditional tap branch was skipped
+after coverage, so recorded manual dark-right activation/Cancel establishes that
+specific behavior. No new layout issue observed; existing hint/page overlap remains.
+Scope: one portrait iPhone 17 simulator/offline fixtures, not physical/live-site/
+VoiceOver or other-window-size certification.
+
+Evidence: `~/Library/Developer/Xcode/StoreProductSelection-Evidence/CardOcclusion-3eb3154/REPORT.md`
+and Linux `/tmp/opencode/occlusion-3eb3154/REPORT.md`, with complete mirror in
+`/tmp/opencode/occlusion-3eb3154/evidence/`. Retained result bundle, logs, 17 test
+screenshots, suite video, 17 recorded manual captures, pixel crops and cleanup proof.
+Owned simulator shut down and verified; state/DerivedData/evidence preserved,
+bridges closed, clean checkout/lease released. Documentation-only commits after
+the code SHA do not change the tested implementation.
 Prior right-save/scroll setup failures remain separately open, not silently rerun
 or represented as passing here. No phone installation of this occlusion follow-up
 has been performed.
