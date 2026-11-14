@@ -491,6 +491,7 @@ private struct ListScopePicker: View {
                 Image(systemName: "chevron.up.chevron.down").font(.caption2.weight(.black))
             }
             .foregroundStyle(tint)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .accessibilityIdentifier(selectedStoreID == nil ? "all-items-scope-picker" : "store-picker")
