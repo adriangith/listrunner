@@ -2181,7 +2181,13 @@ a separate recentre request so that interaction still works without selection hi
 Added UI coverage for left partial-scroll Cancel, right/end Cancel, right/manual
 review Cancel, Cancel after an earlier saved-product reveal, and collapsed Cancel.
 Each expanded case compares the pre/post card position rather than just checking
-which item is active. Build and native/simulator results follow after execution.
+which item is active. Code `f38e50272202bc47c9a70803d7a1b7fdc7afa27d` passes
+generic Mac simulator build, **486 JavaScript tests**, **47 Python tests** and
+the full cloud offline allowlist, including **1,924 native checks** and the
+parser/regional/synthetic-registration regressions. Ten focused simulator cases
+are running (the five new cancellation cases plus save/reveal/duplicate/scroll
+regressions); their result is not yet certified. Evidence target:
+`~/Library/Developer/Xcode/StoreProductSelection-Evidence/Cancel-f38e502/`.
 No phone install of this cancellation follow-up has been performed yet.
 
 ### Follow-up: lower Add labels and requested phone update (14 November 2026)
