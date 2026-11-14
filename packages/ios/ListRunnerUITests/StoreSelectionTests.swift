@@ -462,8 +462,8 @@ final class StoreSelectionTests: XCTestCase {
         if name.contains("SingleStoreNavigation") {
             app.launchEnvironment["LISTRUNNER_NAVIGATION_TEST_FIXTURE"] = name.contains("Recovery") ? "recovery" : "single"
         }
-        if name.contains("JoinedStoreHeader") {
-            app.launchEnvironment["LISTRUNNER_NAVIGATION_TEST_FIXTURE"] = "joined"
+        if name.contains("SeparateStoreHeader") {
+            app.launchEnvironment["LISTRUNNER_NAVIGATION_TEST_FIXTURE"] = "header"
         }
         if name.contains("Verification") {
             app.launchEnvironment["LISTRUNNER_VERIFICATION_TEST_FIXTURE"] = "enabled"
@@ -491,7 +491,7 @@ final class StoreSelectionTests: XCTestCase {
             app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_CATALOGUE"] = "mixed"
         }
         app.launch()
-        if name.contains("JoinedStoreHeader") { return }
+        if name.contains("SeparateStoreHeader") { return }
         if name.contains("SingleStoreNavigation") { return }
         if name.contains("FirstStoreWelcome") { return }
         if name.contains("LiveStoreCartIKEA") {
@@ -2696,17 +2696,15 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["all-items-grouping-category"].isSelected)
     }
 
-    func testJoinedStoreHeaderKeepsOneBackAndNativeNavigation() {
+    func testSeparateStoreHeaderKeepsOneBackAndNativeNavigation() {
         choose("Coles")
         let back = app.descendants(matching: .any).matching(identifier: "BackButton")
-        XCTAssertEqual(back.count, 1, "The shared capsule must retain just one native Back target")
-        XCTAssertTrue(back.firstMatch.isHittable, "Suppress only the glyph, not the native accessible Back control")
-        XCTAssertEqual(back.firstMatch.label, "Back to All items")
+        XCTAssertEqual(back.count, 1, "The separate header must retain just one native Back target")
+        XCTAssertTrue(back.firstMatch.isHittable)
+        XCTAssertFalse(back.firstMatch.label.isEmpty, "Keep the system's accessible Back label")
         XCTAssertTrue(app.buttons["store-picker"].isHittable)
         XCTAssertGreaterThanOrEqual(back.firstMatch.frame.height, 44)
-        // UIKit exposes the visible menu label as 36 points even when its
-        // toolbar target has hit slop. Exercise the top/bottom of the 44-point
-        // capsule instead of confusing the label's AX frame with its hit area.
+        // Exercise the native chooser's hit area, not just its visible label.
         for edge in [CGFloat(0), 1] {
             app.buttons["store-picker"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: edge))
                 .withOffset(CGVector(dx: 0, dy: edge == 0 ? -3 : 3)).tap()
@@ -2714,21 +2712,21 @@ final class StoreSelectionTests: XCTestCase {
             app.buttons["Coles"].firstMatch.tap()
         }
         let coles = XCTAttachment(screenshot: app.screenshot())
-        coles.name = "Joined red Coles Back and chooser"
+        coles.name = "Separate native Back and Coles chooser"
         coles.lifetime = .keepAlways
         add(coles)
 
         choose("Woolworths")
         XCTAssertEqual(back.count, 1)
         let woolworths = XCTAttachment(screenshot: app.screenshot())
-        woolworths.name = "Joined green Woolworths Back and chooser"
+        woolworths.name = "Separate native Back and Woolworths chooser"
         woolworths.lifetime = .keepAlways
         add(woolworths)
         app.buttons["Settings"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         XCTAssertEqual(back.count, 1)
         let settings = XCTAttachment(screenshot: app.screenshot())
-        settings.name = "Ordinary Settings Back after joined store header"
+        settings.name = "Ordinary Settings Back after separate store header"
         settings.lifetime = .keepAlways
         add(settings)
         tapNavigationBack()
@@ -2749,14 +2747,14 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["store-picker"].isHittable)
         XCTAssertEqual(back.count, 1)
         let cancelled = XCTAttachment(screenshot: app.screenshot())
-        cancelled.name = "Single Coles chevron and divider after short edge gesture"
+        cancelled.name = "Separate Coles header after short edge gesture"
         cancelled.lifetime = .keepAlways
         add(cancelled)
         tapNavigationBack()
         assertAllItemsIsCurrent()
     }
 
-    func testJoinedStoreHeaderDarkAppearanceAndRepeatedEntry() {
+    func testSeparateStoreHeaderDarkAppearanceAndRepeatedEntry() {
         choose("Coles")
         app.buttons["Settings"].tap()
         let appearance = app.buttons["appearance-setting"]
@@ -2778,7 +2776,7 @@ final class StoreSelectionTests: XCTestCase {
             XCTAssertTrue(app.buttons["store-picker"].isHittable)
             XCTAssertGreaterThanOrEqual(back.firstMatch.frame.height, 44)
             let header = XCTAttachment(screenshot: app.screenshot())
-            header.name = "Single \(store) chevron and divider in Dark appearance"
+            header.name = "Separate native Back and \(store) chooser in Dark appearance"
             header.lifetime = .keepAlways
             add(header)
             tapNavigationBack()
@@ -2790,7 +2788,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         app.buttons["Settings"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
-        XCTAssertEqual(back.count, 1, "Store artwork suppression must not hide Settings Back")
+        XCTAssertEqual(back.count, 1, "Settings keeps its native Back")
         let settings = XCTAttachment(screenshot: app.screenshot())
         settings.name = "Ordinary Settings Back in Dark appearance"
         settings.lifetime = .keepAlways

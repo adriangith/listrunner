@@ -1,5 +1,22 @@
 # Reusable store framework validation
 
+## Restore separate native Back and chooser (14 November 2026)
+
+The user chose to stop shared-capsule work and return to the earlier separate
+controls, deferring further exploration to a future branch. The complete
+`ListRunner/GroceryListScreen.swift` is restored byte-for-byte to `acbbe07`
+(before the first native tint/grouping experiment). This preserves adaptive
+navigation, transitions, native Back/edge pop and single-store policy, while
+removing all joined glass, overlay glyphs, indicator suppression and UIKit
+appearance code. History is preserved through a new commit, not a branch reset.
+
+The isolated two-store header fixture and focused regression tests are retained
+under neutral `header` / `SeparateStoreHeader` names. Assertions now require the
+system Back's nonempty accessible label, not the removed adapter's custom label.
+Plan/README reflect the user's superseding decision. Earlier joined-header
+results below are historical, not the current implementation. Native validation
+and phone installation of this restoration are not yet performed.
+
 ## Joined header divider and overlapping artwork follow-up (14 November 2026)
 
 **Final outcome:** divider and single visible chevron verified on iPhone 17 /

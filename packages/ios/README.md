@@ -44,20 +44,12 @@ The compact native leading Back chevron and interactive edge swipe return to
 All items. The old trailing grid shortcut is removed. Explicit scope changes
 respect Reduce Motion, and launch restores the last scope without animating.
 
-The store Back/chooser follow-up gives the chevron the current store colour and
-places both controls over one glass capsule, with their original separate tap
-targets, separated by a short subtle divider. The actual native Back button stays
-in place with its opaque tint and accessibility target. On iOS 26+, a store-scoped
-adapter hides its individual background and supplies a transparent indicator
-image/mask through destination-local navigation appearances; never make its tint
-clear, which removes Back from UIKit's accessibility tree. The chooser supplies
-shared glass and exactly one visible store-coloured chevron centred over the
-native Back target; that decoration does not intercept touches or add accessibility
-elements. Glass alone does not reliably obscure the native glyph beneath it.
-The original Back item and destination appearances are
-restored on leaving/dismantling. No Back replacement, navigation hiding, or gesture
-delegate override is used. Settings and single-store headers keep their ordinary
-layout. iOS 26+ uses native glass; earlier OS versions retain native controls.
+Back and the chooser retain their separate system backgrounds. At the user's
+request, the joined-capsule experiment was removed and `GroceryListScreen.swift`
+restored to pre-join revision `acbbe07`. There is no extended glass, decorative
+Back glyph, hidden native indicator, UIKit appearance adapter, replacement Back
+button or gesture-delegate override. Shared-capsule exploration is deferred to
+a future branch; its historical evidence remains in `VALIDATION.md` and Git.
 
 A single enabled store opens directly with no redundant overview, Back button
 or All items menu entry. Saved rows outside the enabled store (including unknown

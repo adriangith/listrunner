@@ -86,7 +86,8 @@ struct ShoppingRootScreen: View {
                 }
                 .navigationDestination(for: StoreID.self) { id in
                     storeList(id)
-                        // Keep the compact editor-style navigation chrome.
+                        // Keep the system Back button and interactive edge gesture, with
+                        // a compact chevron alongside the existing leading scope chooser.
                         .toolbarRole(.editor)
                 }
             }
@@ -271,7 +272,6 @@ private func entryDismissTap(_ action: @escaping (CGPoint) -> Void) -> some Gest
 
 private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
     var isWelcome = false
-    var joinsScopeControls = false
     var keyboardDismissMode: ScrollDismissesKeyboardMode = .interactively
     var onViewportChange: (CGRect) -> Void = { _ in }
     @ViewBuilder let scope: () -> Scope
@@ -301,78 +301,11 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if #available(iOS 26.0, *) {
-                    ToolbarItem(placement: .topBarLeading) {
-                        if !isWelcome { scope() }
-                    }
-                    .sharedBackgroundVisibility(joinsScopeControls ? .hidden : .automatic)
-                } else {
-                    ToolbarItem(placement: .topBarLeading) {
-                        if !isWelcome { scope() }
-                    }
+                ToolbarItem(placement: .topBarLeading) {
+                    if !isWelcome { scope() }
                 }
             }
             .toolbar(isWelcome ? .hidden : .visible, for: .navigationBar)
-    }
-}
-
-private struct StoreListScopeControl<Picker: View>: View {
-    let showsBack: Bool
-    let tint: Color
-    @ViewBuilder let picker: () -> Picker
-
-    var body: some View {
-        picker()
-            .frame(minHeight: showsBack ? 44 : nil)
-            .padding(.trailing, showsBack ? 10 : 0)
-        .modifier(JoinedStoreScopeChrome(joined: showsBack, tint: tint))
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("store-navigation-control")
-    }
-}
-
-private struct JoinedStoreScopeChrome: ViewModifier {
-    let joined: Bool
-    let tint: Color
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if joined, #available(iOS 26.0, *) {
-            content.buttonStyle(.plain)
-                .background {
-                    GeometryReader { geometry in
-                        // The compact native Back target is 44 points, followed
-                        // by the system's 16-point gap to leading custom items.
-                        // Extend only the decoration, never the chooser hit area.
-                        Color.clear
-                            .frame(width: geometry.size.width + 60, height: geometry.size.height)
-                            .glassEffect(.regular, in: .capsule)
-                            .overlay(alignment: .leading) {
-                                // Draw exactly one glyph above the glass. The
-                                // native item's artwork is explicitly transparent;
-                                // glass alone doesn't reliably obscure it.
-                                Image(systemName: "chevron.backward")
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(tint)
-                                    // The capsule extends 4 points beyond the
-                                    // native target; centre on that target, not
-                                    // on the capsule's leading 44 points.
-                                    .frame(width: 52, height: geometry.size.height)
-                            }
-                            .overlay(alignment: .leading) {
-                                Rectangle()
-                                    .fill(Color(uiColor: .separator))
-                                    .frame(width: 0.5, height: 20)
-                                    .padding(.leading, 52)
-                            }
-                            .frame(width: geometry.size.width, alignment: .trailing)
-                    }
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                }
-        } else {
-            content
-        }
     }
 }
 
@@ -387,133 +320,6 @@ private struct ListNavigationContainer<Content: View>: View {
             NavigationStack { content() }
         } else {
             content()
-        }
-    }
-}
-
-// Keep the actual native Back button and interactive pop. On glass OS versions
-// its indicator image is transparent, not its tint or navigation: the chooser supplies the
-// shared surface and single visible glyph. Older versions keep native artwork.
-private struct StoreListNativeBack: UIViewControllerRepresentable {
-    let tint: Color
-    func makeUIViewController(context: Context) -> Controller { Controller() }
-
-    func updateUIViewController(_ controller: Controller, context: Context) {
-        controller.storeTint = UIColor(tint)
-        DispatchQueue.main.async { [weak controller] in controller?.apply() }
-    }
-
-    static func dismantleUIViewController(_ controller: Controller, coordinator: ()) {
-        controller.restore()
-    }
-
-    final class Controller: UIViewController {
-        var storeTint = UIColor.label
-        private weak var styledItem: UINavigationItem?
-        private var originalBack: UIBarButtonItem?
-        private let storeBack = UIBarButtonItem(title: "", style: .plain, target: nil, action: nil)
-        private weak var styledDestination: UINavigationItem?
-        private var originalAppearances: [UINavigationBarAppearance?] = []
-        private var joinedAppearances: [UINavigationBarAppearance] = []
-        private let appearanceKeys: [ReferenceWritableKeyPath<UINavigationItem, UINavigationBarAppearance?>] = [
-            \.standardAppearance, \.compactAppearance, \.scrollEdgeAppearance, \.compactScrollEdgeAppearance
-        ]
-        private let transparentIndicator = UIGraphicsImageRenderer(size: CGSize(width: 13, height: 21))
-            .image { _ in }.withRenderingMode(.alwaysOriginal)
-
-        override func loadView() {
-            let anchor = UIView()
-            anchor.isUserInteractionEnabled = false
-            view = anchor
-        }
-
-        override func viewDidAppear(_ animated: Bool) {
-            super.viewDidAppear(animated)
-            apply()
-            DispatchQueue.main.async { [weak self] in self?.apply() }
-            transitionCoordinator?.animate(alongsideTransition: nil) { [weak self] _ in
-                self?.apply()
-                DispatchQueue.main.async { [weak self] in self?.apply() }
-            }
-        }
-
-        override func viewDidLayoutSubviews() {
-            super.viewDidLayoutSubviews()
-            apply()
-        }
-
-        override func viewDidDisappear(_ animated: Bool) {
-            super.viewDidDisappear(animated)
-            restore()
-        }
-
-        func apply() {
-            guard viewIfLoaded?.window != nil, let navigationController else { return }
-            var host = parent
-            while let candidate = host, !navigationController.viewControllers.contains(where: { $0 === candidate }) {
-                host = candidate.parent
-            }
-            guard let host, navigationController.topViewController === host,
-                  navigationController.viewControllers.count > 1 else { return }
-            guard let index = navigationController.viewControllers.firstIndex(where: { $0 === host }), index > 0 else { return }
-            let item = navigationController.viewControllers[index - 1].navigationItem
-            if styledItem !== item {
-                restore()
-                styledItem = item
-                originalBack = item.backBarButtonItem
-            }
-            storeBack.tintColor = storeTint
-            storeBack.accessibilityLabel = String(localized: "Back to All items")
-            if #available(iOS 26.0, *) {
-                storeBack.hidesSharedBackground = true
-                suppressIndicator(on: host.navigationItem, in: navigationController.navigationBar)
-            }
-            if item.backBarButtonItem !== storeBack { item.backBarButtonItem = storeBack }
-        }
-
-        private func suppressIndicator(on destination: UINavigationItem, in bar: UINavigationBar) {
-            // A clear tint makes UIKit omit Back from accessibility. Instead
-            // keep its ordinary tint and target, replacing only the arrow image
-            // in this destination's appearance (never a global bar appearance).
-            if styledDestination !== destination {
-                restoreIndicator()
-                styledDestination = destination
-                originalAppearances = appearanceKeys.map { destination[keyPath: $0] }
-                let fallbacks = [bar.standardAppearance, bar.compactAppearance ?? bar.standardAppearance,
-                                 bar.scrollEdgeAppearance ?? bar.standardAppearance,
-                                 bar.compactScrollEdgeAppearance ?? bar.compactAppearance ?? bar.standardAppearance]
-                joinedAppearances = zip(originalAppearances, fallbacks).map { original, fallback in
-                    let appearance = (original ?? fallback).copy() as! UINavigationBarAppearance
-                    appearance.setBackIndicatorImage(transparentIndicator, transitionMaskImage: transparentIndicator)
-                    return appearance
-                }
-            }
-            for (index, key) in appearanceKeys.enumerated() {
-                if destination[keyPath: key] !== joinedAppearances[index] {
-                    destination[keyPath: key] = joinedAppearances[index]
-                    // UINavigationItem copies appearances on assignment. Keep
-                    // that installed instance for reapply/restore ownership checks.
-                    joinedAppearances[index] = destination[keyPath: key]!
-                }
-            }
-        }
-
-        private func restoreIndicator() {
-            if let destination = styledDestination, joinedAppearances.count == appearanceKeys.count {
-                for (index, key) in appearanceKeys.enumerated() where destination[keyPath: key] === joinedAppearances[index] {
-                    destination[keyPath: key] = originalAppearances[index]
-                }
-            }
-            styledDestination = nil
-            originalAppearances = []
-            joinedAppearances = []
-        }
-
-        func restore() {
-            restoreIndicator()
-            if styledItem?.backBarButtonItem === storeBack { styledItem?.backBarButtonItem = originalBack }
-            styledItem = nil
-            originalBack = nil
         }
     }
 }
@@ -551,7 +357,6 @@ private struct ListScopePicker: View {
                 Image(systemName: "chevron.up.chevron.down").font(.caption2.weight(.black))
             }
             .foregroundStyle(tint)
-            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .accessibilityIdentifier(selectedStoreID == nil ? "all-items-scope-picker" : "store-picker")
@@ -2216,9 +2021,6 @@ struct GroceryListScreen: View {
         #endif
         return shoppingVisibleIDs.isEmpty && !visibility.hasCompletedStoreSetup
     }
-    private var showsJoinedBack: Bool {
-        offersAllItems && !ownsNavigationStack && !showingStoreWelcome && !shoppingVisibleIDs.isEmpty
-    }
     // The storefront configuration is the single source of truth for the
     // selected store's visual identity, including all list-screen accents.
     private var storePrimaryColor: Color {
@@ -2239,7 +2041,7 @@ struct GroceryListScreen: View {
     var body: some View {
         ScrollViewReader { scrollProxy in
         ListNavigationContainer(standalone: ownsNavigationStack) {
-            ShoppingListPage(isWelcome: showingStoreWelcome, joinsScopeControls: showsJoinedBack,
+            ShoppingListPage(isWelcome: showingStoreWelcome,
                 keyboardDismissMode: isRevealingProductEntry ? .never : .interactively,
                 onViewportChange: { frame in
                     listViewportFrame = frame
@@ -2247,12 +2049,10 @@ struct GroceryListScreen: View {
                     if let itemID = scrollTargetItemID { scrollToAddedItem(itemID, using: scrollProxy) }
                 }, scope: {
                     if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty {
-                        StoreListScopeControl(showsBack: showsJoinedBack, tint: storePrimaryColor) {
-                            ListScopePicker(stores: StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
-                                enabledIDs: shoppingVisibleIDs), selectedStoreID: storeID, tint: storePrimaryColor,
-                                onChooseAllItems: onSelectAllItems, onChooseStore: onSelectStore,
-                                onManageStores: { showingStoreManagement = true }, offersAllItems: offersAllItems)
-                        }
+                        ListScopePicker(stores: StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
+                            enabledIDs: shoppingVisibleIDs), selectedStoreID: storeID, tint: storePrimaryColor,
+                            onChooseAllItems: onSelectAllItems, onChooseStore: onSelectStore,
+                            onManageStores: { showingStoreManagement = true }, offersAllItems: offersAllItems)
                     }
                 }, footer: {
                     if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty && !items.isEmpty {
@@ -2509,11 +2309,6 @@ struct GroceryListScreen: View {
             }
         }
         .tint(storePrimaryColor)
-        .background {
-            if showsJoinedBack {
-                StoreListNativeBack(tint: storePrimaryColor)
-            }
-        }
         #if DEBUG
         .overlay(alignment: .topLeading) {
             if ProcessInfo.processInfo.environment["LISTRUNNER_REVEAL_TEST_FIXTURE"] == "enabled" {

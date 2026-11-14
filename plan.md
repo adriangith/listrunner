@@ -1,10 +1,9 @@
 ## ListRunner Build Specification
 
-### Joined store Back and chooser (13 November 2026)
+### Separate native Back and chooser (14 November 2026)
 
-* In multi-store list detail, the Back chevron uses the current store's primary colour and shares one continuous glass capsule with the chooser, while retaining separate Back and menu tap targets. Switching stores updates both colours. Single-store direct lists and All items keep their chooser-only header; Settings retains its ordinary Back control.
-* Separate Back and chooser with a short, subtle vertical divider inside the glass capsule. Render exactly one visible chevron: explicitly make the underlying native indicator image transparent while shared decorative artwork is used, rather than relying on the glass to cover it. Keep the native Back button's tint opaque and retain it as the only Back action/accessibility target; centre the visible glyph over that target. Scope indicator appearance to the destination and restore it on leaving.
-* Keep the existing native interactive edge pop and cancellable navigation. A joined visible Back control must not add another full-screen gesture or change list/draft/browser ownership. On pre-glass OS versions, retain the compact joined layout without requiring Liquid Glass.
+* Restore the separate system Back button and store chooser from pre-join revision `acbbe07`. Keep adaptive list navigation, native interactive edge pop, single-store simplification and draft/list/browser ownership unchanged.
+* Do not extend glass across the controls, overlay a decorative Back glyph, suppress the native indicator or modify UIKit Back appearance. Shared-capsule exploration is deferred to a future branch; the earlier joined-header requirements are superseded.
 
 ### Adaptive list navigation (13 November 2026)
 
