@@ -2181,8 +2181,17 @@ fade speed, insertion, reveal and Cancel offset behavior remain unchanged.
 Added light/dark screenshots for both rail ends at successive partial coverage,
 with bounded uncovered tap targets and continued selection/Cancel checks. Source
 and scalar checks cover behind-card layering, no label clip, card anchors and
-exposure math including the old 12-point gap. Build/visual evidence follows after
-execution. No phone installation of this occlusion follow-up has been performed.
+exposure math including the old 12-point gap. Code
+`3eb315411ceddf0aa44902e2980153712e566990` passes generic Mac simulator build,
+**489 JavaScript tests**, **47 Python tests**, full cloud offline allowlist with
+**1,924 native checks**, parser/regional/synthetic-registration tests and all
+35 JSON + 1 JavaScript canonical-resource byte comparisons. Four focused UI
+cases are running: the new light/dark both-end occlusion captures, prior fade/hide
+regression and partially scrolled Cancel. Results are not yet certified. Evidence
+target: `~/Library/Developer/Xcode/StoreProductSelection-Evidence/CardOcclusion-3eb3154/`.
+Prior right-save/scroll setup failures remain separately open, not silently rerun
+or represented as passing here. No phone installation of this occlusion follow-up
+has been performed.
 
 ### Follow-up: Cancel preserves card-rail position (14 November 2026)
 
