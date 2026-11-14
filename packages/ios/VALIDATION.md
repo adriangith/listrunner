@@ -1,5 +1,52 @@
 # Reusable store framework validation
 
+## Joined header divider and overlapping artwork follow-up (14 November 2026)
+
+After the earlier phone installation, the user reported that individual-store
+headers look like two Back buttons layered together and requested a separator.
+The old one-Back accessibility assertion only establishes one action target;
+it does **not** establish one visible chevron. The implementation drew a coloured
+chevron above glass without suppressing the native glyph beneath it. Earlier
+standard-size screenshot review did not catch the reported overlap and is not
+visual sign-off for this follow-up.
+
+Revision `2449043d07bc1671d84891d0038a65df2a46559e` explicitly makes the native
+Back item's tint transparent on iOS 26+ while retaining the native button, label,
+hit area and pop behavior. The shared decoration supplies the single visible
+store-coloured chevron, now centred over the native target rather than four
+points to its leading side, and a subtle 0.5 × 20-point adaptive separator in the
+gap before the chooser. Both decorations remain noninteractive and hidden from
+accessibility. The original back item is restored on leaving, so Settings keeps
+its normal Back; older systems retain native tinted artwork without the overlay.
+No navigation hiding, replacement button or gesture override is introduced.
+
+Linux Swift syntax parsing of the changed app/test files, all 9 bundled-resource
+regressions and `git diff --check` passed. The existing focused native-navigation
+test now retains a screenshot after a short edge gesture; a second isolated test
+covers dark-mode store switching, repeated entry and Settings restoration. Mac
+build/UI tests, light/dark visual review and actual built-resource verification
+were pending at that revision. No new physical-phone build or installation has been performed.
+
+The first native follow-up run at `2449043` failed **0/2 passed, 2 failed**:
+both tests found **zero** native `BackButton` elements after store selection.
+Exported recording frames show one visible coloured chevron and divider in
+Coles light/dark and Woolworths dark, and ordinary visible Settings Back in both
+appearances. However, a fully clear native tint makes UIKit omit the Back target
+from accessibility; static appearance alone is not a successful fix. The tests
+stopped before store Back/edge/cancellation checks and Woolworths light review.
+Built resources matched **35 JSON + 1 JavaScript**. Evidence: Mac
+`JoinedHeaderDivider2449043.xcresult` / `.log` and Linux
+`/tmp/opencode/listrunner-divider-2449043/`. No phone installation occurred.
+
+The next revision keeps the native Back item's ordinary opaque store tint and
+uses a transparent indicator image/mask in copied **destination-local** navigation
+appearances instead. The original appearances are restored only if still owned
+by the adapter; the navigation bar's shared appearances are not changed. Setter
+copy semantics are accounted for when retaining installed appearance instances.
+The native button, its accessibility and gesture behavior remain required by
+the unchanged focused tests, with explicit native hittability/label assertions.
+The follow-up native and visual verification remains pending.
+
 ## Joined store-coloured Back and chooser (13 November 2026)
 
 **Final outcome, 14 November:** requested appearance and native navigation checks

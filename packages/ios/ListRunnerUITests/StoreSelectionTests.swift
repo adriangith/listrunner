@@ -2700,6 +2700,8 @@ final class StoreSelectionTests: XCTestCase {
         choose("Coles")
         let back = app.descendants(matching: .any).matching(identifier: "BackButton")
         XCTAssertEqual(back.count, 1, "The shared capsule must retain just one native Back target")
+        XCTAssertTrue(back.firstMatch.isHittable, "Suppress only the glyph, not the native accessible Back control")
+        XCTAssertEqual(back.firstMatch.label, "Back to All items")
         XCTAssertTrue(app.buttons["store-picker"].isHittable)
         XCTAssertGreaterThanOrEqual(back.firstMatch.frame.height, 44)
         // UIKit exposes the visible menu label as 36 points even when its
@@ -2767,6 +2769,7 @@ final class StoreSelectionTests: XCTestCase {
         for store in ["Woolworths", "Coles"] {
             choose(store)
             XCTAssertEqual(back.count, 1)
+            XCTAssertTrue(back.firstMatch.isHittable)
             XCTAssertTrue(app.buttons["store-picker"].isHittable)
             XCTAssertGreaterThanOrEqual(back.firstMatch.frame.height, 44)
             let header = XCTAttachment(screenshot: app.screenshot())

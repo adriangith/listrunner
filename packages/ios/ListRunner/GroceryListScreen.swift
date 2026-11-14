@@ -392,7 +392,7 @@ private struct ListNavigationContainer<Content: View>: View {
 }
 
 // Keep the actual native Back button and interactive pop. On glass OS versions
-// its artwork is transparent, not hidden navigation: the chooser supplies the
+// its indicator image is transparent, not its tint or navigation: the chooser supplies the
 // shared surface and single visible glyph. Older versions keep native artwork.
 private struct StoreListNativeBack: UIViewControllerRepresentable {
     let tint: Color
@@ -412,6 +412,14 @@ private struct StoreListNativeBack: UIViewControllerRepresentable {
         private weak var styledItem: UINavigationItem?
         private var originalBack: UIBarButtonItem?
         private let storeBack = UIBarButtonItem(title: "", style: .plain, target: nil, action: nil)
+        private weak var styledDestination: UINavigationItem?
+        private var originalAppearances: [UINavigationBarAppearance?] = []
+        private var joinedAppearances: [UINavigationBarAppearance] = []
+        private let appearanceKeys: [ReferenceWritableKeyPath<UINavigationItem, UINavigationBarAppearance?>] = [
+            \.standardAppearance, \.compactAppearance, \.scrollEdgeAppearance, \.compactScrollEdgeAppearance
+        ]
+        private let transparentIndicator = UIGraphicsImageRenderer(size: CGSize(width: 13, height: 21))
+            .image { _ in }.withRenderingMode(.alwaysOriginal)
 
         override func loadView() {
             let anchor = UIView()
@@ -454,19 +462,55 @@ private struct StoreListNativeBack: UIViewControllerRepresentable {
                 styledItem = item
                 originalBack = item.backBarButtonItem
             }
+            storeBack.tintColor = storeTint
             storeBack.accessibilityLabel = String(localized: "Back to All items")
             if #available(iOS 26.0, *) {
-                // Never layer the native chevron beneath the decorative one:
-                // Liquid Glass can reveal/refract it, especially in transitions.
-                storeBack.tintColor = .clear
                 storeBack.hidesSharedBackground = true
-            } else {
-                storeBack.tintColor = storeTint
+                suppressIndicator(on: host.navigationItem, in: navigationController.navigationBar)
             }
             if item.backBarButtonItem !== storeBack { item.backBarButtonItem = storeBack }
         }
 
+        private func suppressIndicator(on destination: UINavigationItem, in bar: UINavigationBar) {
+            // A clear tint makes UIKit omit Back from accessibility. Instead
+            // keep its ordinary tint and target, replacing only the arrow image
+            // in this destination's appearance (never a global bar appearance).
+            if styledDestination !== destination {
+                restoreIndicator()
+                styledDestination = destination
+                originalAppearances = appearanceKeys.map { destination[keyPath: $0] }
+                let fallbacks = [bar.standardAppearance, bar.compactAppearance ?? bar.standardAppearance,
+                                 bar.scrollEdgeAppearance ?? bar.standardAppearance,
+                                 bar.compactScrollEdgeAppearance ?? bar.compactAppearance ?? bar.standardAppearance]
+                joinedAppearances = zip(originalAppearances, fallbacks).map { original, fallback in
+                    let appearance = (original ?? fallback).copy() as! UINavigationBarAppearance
+                    appearance.setBackIndicatorImage(transparentIndicator, transitionMaskImage: transparentIndicator)
+                    return appearance
+                }
+            }
+            for (index, key) in appearanceKeys.enumerated() {
+                if destination[keyPath: key] !== joinedAppearances[index] {
+                    destination[keyPath: key] = joinedAppearances[index]
+                    // UINavigationItem copies appearances on assignment. Keep
+                    // that installed instance for reapply/restore ownership checks.
+                    joinedAppearances[index] = destination[keyPath: key]!
+                }
+            }
+        }
+
+        private func restoreIndicator() {
+            if let destination = styledDestination, joinedAppearances.count == appearanceKeys.count {
+                for (index, key) in appearanceKeys.enumerated() where destination[keyPath: key] === joinedAppearances[index] {
+                    destination[keyPath: key] = originalAppearances[index]
+                }
+            }
+            styledDestination = nil
+            originalAppearances = []
+            joinedAppearances = []
+        }
+
         func restore() {
+            restoreIndicator()
             if styledItem?.backBarButtonItem === storeBack { styledItem?.backBarButtonItem = originalBack }
             styledItem = nil
             originalBack = nil
