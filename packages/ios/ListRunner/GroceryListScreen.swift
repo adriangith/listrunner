@@ -348,13 +348,22 @@ private struct JoinedStoreScopeChrome: ViewModifier {
                             .frame(width: geometry.size.width + 60, height: geometry.size.height)
                             .glassEffect(.regular, in: .capsule)
                             .overlay(alignment: .leading) {
-                                // The shared material is composited above the
-                                // native item's glyph. Draw decoration over it;
-                                // the native Back remains the sole hit/AX target.
+                                // Draw exactly one glyph above the glass. The
+                                // native item's artwork is explicitly transparent;
+                                // glass alone doesn't reliably obscure it.
                                 Image(systemName: "chevron.backward")
                                     .font(.body.weight(.semibold))
                                     .foregroundStyle(tint)
-                                    .frame(width: 44, height: geometry.size.height)
+                                    // The capsule extends 4 points beyond the
+                                    // native target; centre on that target, not
+                                    // on the capsule's leading 44 points.
+                                    .frame(width: 52, height: geometry.size.height)
+                            }
+                            .overlay(alignment: .leading) {
+                                Rectangle()
+                                    .fill(Color(uiColor: .separator))
+                                    .frame(width: 0.5, height: 20)
+                                    .padding(.leading, 52)
                             }
                             .frame(width: geometry.size.width, alignment: .trailing)
                     }
@@ -382,8 +391,9 @@ private struct ListNavigationContainer<Content: View>: View {
     }
 }
 
-// Keep the actual native Back button and interactive pop. Only its colour and
-// individual decoration change; the chooser supplies their shared glass surface.
+// Keep the actual native Back button and interactive pop. On glass OS versions
+// its artwork is transparent, not hidden navigation: the chooser supplies the
+// shared surface and single visible glyph. Older versions keep native artwork.
 private struct StoreListNativeBack: UIViewControllerRepresentable {
     let tint: Color
     func makeUIViewController(context: Context) -> Controller { Controller() }
@@ -444,9 +454,15 @@ private struct StoreListNativeBack: UIViewControllerRepresentable {
                 styledItem = item
                 originalBack = item.backBarButtonItem
             }
-            storeBack.tintColor = storeTint
             storeBack.accessibilityLabel = String(localized: "Back to All items")
-            if #available(iOS 26.0, *) { storeBack.hidesSharedBackground = true }
+            if #available(iOS 26.0, *) {
+                // Never layer the native chevron beneath the decorative one:
+                // Liquid Glass can reveal/refract it, especially in transitions.
+                storeBack.tintColor = .clear
+                storeBack.hidesSharedBackground = true
+            } else {
+                storeBack.tintColor = storeTint
+            }
             if item.backBarButtonItem !== storeBack { item.backBarButtonItem = storeBack }
         }
 

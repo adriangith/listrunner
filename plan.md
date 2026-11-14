@@ -3,6 +3,7 @@
 ### Joined store Back and chooser (13 November 2026)
 
 * In multi-store list detail, the Back chevron uses the current store's primary colour and shares one continuous glass capsule with the chooser, while retaining separate Back and menu tap targets. Switching stores updates both colours. Single-store direct lists and All items keep their chooser-only header; Settings retains its ordinary Back control.
+* Separate Back and chooser with a short, subtle vertical divider inside the glass capsule. Render exactly one visible chevron: explicitly make the underlying native glyph transparent while shared decorative artwork is used, rather than relying on the glass to cover it. Keep the native Back button as the only Back action/accessibility target and centre the visible glyph over that target.
 * Keep the existing native interactive edge pop and cancellable navigation. A joined visible Back control must not add another full-screen gesture or change list/draft/browser ownership. On pre-glass OS versions, retain the compact joined layout without requiring Liquid Glass.
 
 ### Adaptive list navigation (13 November 2026)

@@ -2746,6 +2746,47 @@ final class StoreSelectionTests: XCTestCase {
                     withVelocity: .slow, thenHoldForDuration: 0.3)
         XCTAssertTrue(app.buttons["store-picker"].isHittable)
         XCTAssertEqual(back.count, 1)
+        let cancelled = XCTAttachment(screenshot: app.screenshot())
+        cancelled.name = "Single Coles chevron and divider after short edge gesture"
+        cancelled.lifetime = .keepAlways
+        add(cancelled)
+        tapNavigationBack()
+        assertAllItemsIsCurrent()
+    }
+
+    func testJoinedStoreHeaderDarkAppearanceAndRepeatedEntry() {
+        choose("Coles")
+        app.buttons["Settings"].tap()
+        let appearance = app.buttons["appearance-setting"]
+        XCTAssertTrue(appearance.waitForExistence(timeout: 5))
+        appearance.tap()
+        app.buttons["Dark"].tap()
+        tapNavigationBack()
+
+        let back = app.descendants(matching: .any).matching(identifier: "BackButton")
+        for store in ["Woolworths", "Coles"] {
+            choose(store)
+            XCTAssertEqual(back.count, 1)
+            XCTAssertTrue(app.buttons["store-picker"].isHittable)
+            XCTAssertGreaterThanOrEqual(back.firstMatch.frame.height, 44)
+            let header = XCTAttachment(screenshot: app.screenshot())
+            header.name = "Single \(store) chevron and divider in Dark appearance"
+            header.lifetime = .keepAlways
+            add(header)
+            tapNavigationBack()
+            assertAllItemsIsCurrent()
+        }
+
+        choose("Coles")
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        XCTAssertEqual(back.count, 1, "Store artwork suppression must not hide Settings Back")
+        let settings = XCTAttachment(screenshot: app.screenshot())
+        settings.name = "Ordinary Settings Back in Dark appearance"
+        settings.lifetime = .keepAlways
+        add(settings)
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         tapNavigationBack()
         assertAllItemsIsCurrent()
     }
