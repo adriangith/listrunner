@@ -2203,7 +2203,12 @@ and hint subtrees while selecting (without removing the rail), and moves the gen
 Add shortcut from the ScrollView to the bounded Collapse overlay button. Explicit
 end buttons retain their labels/edge values. Cancellation tests now assert absent
 hidden navigation and Add width no greater than its 88-point slot. Updated build
-and simulator results follow after execution.
+and simulator results follow after execution. Correction code
+`ebc4ad99f6da6c194305f936ff23787b243ce5d4` passes generic Mac simulator build,
+all **487 JavaScript tests**, and the full cloud offline allowlist including
+**1,924 native checks**. Ten focused UI cases are retesting Cancel position and
+the added accessibility assertions; their results are not yet certified. Evidence
+target: `~/Library/Developer/Xcode/StoreProductSelection-Evidence/CancelAX-ebc4ad9/`.
 No phone install of this cancellation follow-up has been performed yet.
 
 ### Follow-up: lower Add labels and requested phone update (14 November 2026)
