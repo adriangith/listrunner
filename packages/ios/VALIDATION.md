@@ -2,6 +2,11 @@
 
 ## Joined header divider and overlapping artwork follow-up (14 November 2026)
 
+**Final outcome:** divider and single visible chevron verified on iPhone 17 /
+iOS 27.2 simulator, including light/dark appearance, native Back and interactive
+edge navigation. Both final focused tests passed in one run. This follow-up has
+**not** been installed on the physical iPhone; no merge or release was performed.
+
 After the earlier phone installation, the user reported that individual-store
 headers look like two Back buttons layered together and requested a separator.
 The old one-Back accessibility assertion only establishes one action target;
@@ -67,6 +72,38 @@ Settings entry, with an XCTest event-loop notification timeout and retained
 spindump. The available largely unsymbolicated sample does not establish the
 cause. This is not a healthy-timing sign-off; the corrected focused run must
 report whether it recurs. Final repeated-entry verification remains pending.
+
+### Final focused verification
+
+At `12740bde4f8eb3e2145f2a523d037d5491eba002` (production UI unchanged from
+`160c711`), both focused tests passed **2/2, zero failures/skips**, in one run
+without retries (120.791 seconds). `testJoinedStoreHeaderKeepsOneBackAndNativeNavigation`
+covers one hittable native Back with its proper label/height, chooser edge taps,
+Settings return, completed/short native edge gestures and Back tap afterward.
+`testJoinedStoreHeaderDarkAppearanceAndRepeatedEntry` covers repeated root entry
+into Woolworths/Coles and the final Coles → Settings → Coles → All items route.
+
+All seven full-resolution attachments and header crops were reviewed. Settled
+Coles/Woolworths light/dark headers show exactly one visible coloured chevron,
+short divider and continuous glass, with no observed duplicate glyph/shadow,
+overlap or clipping. Settings retains ordinary black/white Back. The first Coles
+light attachment caught a blurred transition; the settled post-cancellation
+attachment establishes that header. This is standard-size focused visual review,
+not a broad Dynamic Type/VoiceOver/OS/contrast certification; Woolworths' dark
+green remains subdued.
+
+The earlier Settings stall did **not** recur: initial/final dark-test Settings
+entries continued in approximately 1.2/1.4 seconds, with no idle-notification
+warnings or spindump. This does not identify the earlier stall's cause. Built and
+installed simulator bundles both match **35 JSON + 1 JavaScript**, with executable
+and debug-library hashes also matching. The dedicated task simulator was shut
+down, not deleted. Mac checkout remains clean at the exact test revision.
+
+Evidence: Mac `JoinedHeaderFinal12740bd.xcresult`, `.log` and `-attachments/` under
+`~/Library/Developer/ListRunnerValidation/list-navigation/`; Linux
+`/tmp/opencode/listrunner-divider-12740bd/`, including test summary, reviewed
+images/crops and provenance. No physical-device install, data reset, live retailer
+action, merge or release occurred for this follow-up.
 
 ## Joined store-coloured Back and chooser (13 November 2026)
 

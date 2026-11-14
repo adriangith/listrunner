@@ -46,10 +46,15 @@ respect Reduce Motion, and launch restores the last scope without animating.
 
 The store Back/chooser follow-up gives the chevron the current store colour and
 places both controls over one glass capsule, with their original separate tap
-targets. The actual native Back button stays in place; a store-scoped adapter
-sets its colour and hides only its individual background. The chooser supplies
-shared glass decoration across the compact Back target and intervening spacing;
-that decoration does not intercept touches. The original Back appearance is
+targets, separated by a short subtle divider. The actual native Back button stays
+in place with its opaque tint and accessibility target. On iOS 26+, a store-scoped
+adapter hides its individual background and supplies a transparent indicator
+image/mask through destination-local navigation appearances; never make its tint
+clear, which removes Back from UIKit's accessibility tree. The chooser supplies
+shared glass and exactly one visible store-coloured chevron centred over the
+native Back target; that decoration does not intercept touches or add accessibility
+elements. Glass alone does not reliably obscure the native glyph beneath it.
+The original Back item and destination appearances are
 restored on leaving/dismantling. No Back replacement, navigation hiding, or gesture
 delegate override is used. Settings and single-store headers keep their ordinary
 layout. iOS 26+ uses native glass; earlier OS versions retain native controls.
