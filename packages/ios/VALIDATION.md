@@ -17,6 +17,23 @@ Plan/README reflect the user's superseding decision. Earlier joined-header
 results below are historical, not the current implementation. Native validation
 and phone installation of this restoration are not yet performed.
 
+At restoration `150a11dda2a7af8b532b48b38906d7e2e6cc5cb6`, the focused native
+run completed **1/2 passed, 1 failed, zero skipped**. Dark repeated-entry testing
+passed (Coles/Woolworths, native Back and Settings). The other test failed during
+chooser-edge tapping: XCTest could not find `store-picker` while the hierarchy
+showed an open menu and a Button/PopUpButton automation-type mismatch. Cause is
+not established; its later Settings/completed-edge/cancelled-edge assertions
+were not reached. Do not treat the restoration as a clean navigation-suite pass.
+
+Reviewed full dark store/Settings screenshots, a settled light Coles recording
+frame and header crops confirm separate native Back and chooser backgrounds,
+with a gap, one Back glyph and no joined overlay. Built resources passed all
+**35 JSON + 1 JavaScript** canonical checks. The clean Mac task checkout remains
+at exact `150a11d`; the task simulator is shut down and preserved. Evidence:
+Mac `~/Library/Developer/ListRunnerValidation/list-navigation/SeparateHeader150a11d.xcresult`;
+Linux `/tmp/opencode/listrunner-separate-150a11d/SUMMARY.md`, log, attachments and
+header crops. No physical-phone installation of the restoration occurred.
+
 ## Joined header divider and overlapping artwork follow-up (14 November 2026)
 
 **Final outcome:** divider and single visible chevron verified on iPhone 17 /
