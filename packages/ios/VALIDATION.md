@@ -2,6 +2,11 @@
 
 ## Joined store-coloured Back and chooser (13 November 2026)
 
+**Final outcome, 14 November:** requested appearance and native navigation checks
+passed; the signed update was installed in place on Adrian's iPhone 17e. Automatic
+launch was denied because the phone was locked. Unlock and open ListRunner to use
+the installed update. No resets, test data, retailer actions, merge or release.
+
 The user requested a store-coloured Back chevron joined visually to the chooser,
 followed by another phone build. Initial native-item prototype `32ae72b` correctly
 tinted Coles red and Woolworths green and preserved Settings/edge Back, but the
@@ -107,6 +112,67 @@ out. This is an **unknown native test/build outcome**, not a test assertion fail
 or a passing build. Desktop build action `8877-0` could not be read back and no
 new phone installation/launch was performed or claimed. On reconnection, inspect
 the existing result bundle/log and Xcode action before starting duplicate work.
+
+On reconnect, the original simulator run was still stuck in onboarding after the
+connection/sleep interruption; only its exact `xcodebuild` PID was interrupted.
+An isolated Debug-only joined-header fixture now starts with two enabled stores
+and known rows, avoiding unrelated management navigation. At `67988c6`, the
+focused test reached the store header with one Back, but stopped on the chooser's
+36-point accessible label area. Revision `6eae8fa3a106be547befc37af80379b6fd21b1e1`
+sets the 44-point minimum on the menu label itself, not only its outer container.
+That focused rerun is `JoinedHeaderTarget44.xcresult` / `joined-header-target44.log`.
+
+Desktop Xcode build action `8877-1` completed **succeeded**, confirming desktop
+signing works without changing keychain policy. After the label correction,
+desktop action `8877-2` was started for the explicitly selected iPhone. Final
+test/visual review, signed-output verification and installation remain pending.
+
+The menu's AX label remained 36 points despite the label minimum; the test now
+checks actual taps just outside that label at the top/bottom of the 44-point
+capsule, rather than equating visible-label bounds with UIKit's full hit area.
+This focused run is `JoinedHeaderHitTargets.xcresult` at test-only `603d2bb`.
+
+Readback of desktop build `8877-2` revealed Xcode AppleScript resolved the two
+same-named project documents to the canonical checkout instead of the task when
+using a returned workspace specifier. **That success is not task-build proof**;
+neither its output nor any other app was installed. A timestamp/path check caught
+the stale task bundle before installation. The next build uses a literal workspace
+index guarded by an exact path assertion, including destination/scheme selection;
+action `8877-3` was issued. Its result/log must be read through that same guarded
+index and show the task source/build paths before any install.
+
+### Final verification and installation
+
+At `603d2bb478895b750d4a92caf411975fe5f31894` (production UI last changed at
+`6eae8fa3a106be547befc37af80379b6fd21b1e1`), the focused joined-header test
+passed **1/1 with zero failures**, including one native Back, chooser taps above
+and below its visible label, store switching, Settings return, completed edge pop,
+short-edge retained-store outcome and native Back tap. `JoinedHeaderHitTargets.xcresult`
+and `joined-header-hit-targets.log` record the final run (48.8 seconds).
+
+All three retained screenshots were visually reviewed: a visible red Coles
+chevron/chooser and green Woolworths chevron/chooser over one continuous capsule,
+without an extra Back control; Settings retains its ordinary black native Back.
+Evidence is under `joined-header-attachments/` on the Mac and
+`/tmp/opencode/listrunner-joined-header-final/{coles,woolworths,settings}.png` on
+Linux. This is focused standard-size light-mode verification, not broad
+accessibility/OS/appearance sign-off or a rerun of the separate typing issue.
+
+Guarded desktop Xcode action `8877-3` succeeded. Its saved build log explicitly
+references the task checkout and the task `ListRunner-agwrfyqrugvyvyeoxdnifvcrqqca`
+DerivedData; the built dylib timestamp is 14 November 21:19:21 AEDT. That actual
+`Debug-iphoneos/ListRunner.app` passed **35 JSON + 1 JavaScript** canonical-resource
+verification and `codesign --verify --deep --strict`.
+
+`devicectl device install app` then succeeded on the available physical iPhone 17e,
+UDID `00008150-001402660A9BC01C`, in place with the same bundle ID. Installation
+evidence is `joined-phone-install.json` under the task validation directory.
+No uninstall, local-data reset or fixture environment was used. A subsequent
+normal launch (with all `DEVICECTL_CHILD_` variables stripped and no arguments)
+was denied with **Locked**; `joined-phone-launch.json` records it. The update is
+installed, but no successful launch/PID is claimed. The user may unlock and open
+ListRunner normally. The separately tracked input issue and blocked broader
+scrolling test remain unchanged.
 
 ## Adaptive list navigation (13 November 2026)
 
