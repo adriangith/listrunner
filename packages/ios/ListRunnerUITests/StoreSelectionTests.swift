@@ -462,6 +462,9 @@ final class StoreSelectionTests: XCTestCase {
         if name.contains("SingleStoreNavigation") {
             app.launchEnvironment["LISTRUNNER_NAVIGATION_TEST_FIXTURE"] = name.contains("Recovery") ? "recovery" : "single"
         }
+        if name.contains("JoinedStoreHeader") {
+            app.launchEnvironment["LISTRUNNER_NAVIGATION_TEST_FIXTURE"] = "joined"
+        }
         if name.contains("Verification") {
             app.launchEnvironment["LISTRUNNER_VERIFICATION_TEST_FIXTURE"] = "enabled"
         }
@@ -488,6 +491,7 @@ final class StoreSelectionTests: XCTestCase {
             app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_CATALOGUE"] = "mixed"
         }
         app.launch()
+        if name.contains("JoinedStoreHeader") { return }
         if name.contains("SingleStoreNavigation") { return }
         if name.contains("FirstStoreWelcome") { return }
         if name.contains("LiveStoreCartIKEA") {
