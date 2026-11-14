@@ -2166,6 +2166,24 @@ No new simulator UI-suite run, physical-device installation, user-list edit, rea
 Branch: `feature/add-store-product-to-list`. Implementation plan and safety contract:
 `docs/store-product-to-list.md`.
 
+### Follow-up: Cancel preserves card-rail position (14 November 2026)
+
+Highlighted-product selection previously removed the expanded rail and rebuilt it
+on Cancel, causing its onAppear to centre the active item. It also cleared a prior
+product reveal through a handler that recentered on the active item. The correction
+keeps the same rail mounted, visually hidden and noninteractive during selection;
+the presentation slot is zero-height so the native selection bar remains in place.
+End Add controls are structurally omitted while selecting. Clearing a prior reveal
+does not scroll, and dismissing a cancelled review does not centre the active card.
+Successful saves still reveal the persisted product. Explicit active-card taps use
+a separate recentre request so that interaction still works without selection history.
+
+Added UI coverage for left partial-scroll Cancel, right/end Cancel, right/manual
+review Cancel, Cancel after an earlier saved-product reveal, and collapsed Cancel.
+Each expanded case compares the pre/post card position rather than just checking
+which item is active. Build and native/simulator results follow after execution.
+No phone install of this cancellation follow-up has been performed yet.
+
 ### Follow-up: lower Add labels and requested phone update (14 November 2026)
 
 The user requested lower Add controls and installation of the latest changes.

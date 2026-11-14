@@ -3878,6 +3878,95 @@ final class StoreSelectionTests: XCTestCase {
         checkStoreProductInsertion(at: "End of list", expectedBeforeExisting: false, manual: true)
     }
 
+    func testStoreProductCancelRestoresPartiallyScrolledLeftRail() {
+        checkStoreProductCancelPosition(at: "Start of list")
+    }
+
+    func testStoreProductCancelRestoresRightRail() {
+        checkStoreProductCancelPosition(at: "End of list")
+    }
+
+    func testStoreProductManualReviewCancelRestoresRightRail() {
+        checkStoreProductCancelPosition(at: "End of list", manualReview: true)
+    }
+
+    private func checkStoreProductCancelPosition(at position: String, manualReview: Bool = false) {
+        choose("Bunnings")
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("Tool one, Tool two, Tool three\n")
+        input.typeText("\n")
+        let first = row("Tool one", status: "Pending")
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+        first.tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        let rail = app.scrollViews["shopping-card-rail"]
+        XCTAssertTrue(rail.waitForExistence(timeout: 5))
+        let active = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@",
+            "Tool one, quantity", ", selected")).firstMatch
+        if position == "Start of list" {
+            let start = active.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: -30, dy: 0)),
+                        withVelocity: .slow, thenHoldForDuration: 0.3)
+        } else {
+            for _ in 0..<3 {
+                if storeProductAdd(at: position).isHittable { break }
+                rail.swipeLeft()
+            }
+        }
+        let add = storeProductAdd(at: position)
+        XCTAssertTrue(add.isHittable)
+        let before = active.frame.minX
+        let progress = app.buttons["Collapse overlay"].value as? String
+        attachStoreProductScreenshot("Rail position before Add at \(position)")
+        add.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["store-product-selection-bar"].waitForExistence(timeout: 5))
+        if manualReview {
+            app.buttons["Enter manually"].tap()
+            assertStoreProductPosition(position)
+        }
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        XCTAssertTrue(active.exists)
+        XCTAssertEqual(active.frame.minX, before, accuracy: 2,
+                       "Cancel must restore the exact offset, not centre the active card")
+        XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, progress)
+        XCTAssertFalse(app.webViews.buttons["UNEXPECTED CART CHANGE"].exists)
+        attachStoreProductScreenshot("Same rail position after Cancel at \(position)")
+    }
+
+    func testStoreProductCancelKeepsPreviouslyRevealedProductCentred() {
+        choose("Bunnings")
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        storeProductAdd(at: "Start of list").tap()
+        let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
+        XCTAssertTrue(shield.waitForExistence(timeout: 5))
+        shield.tap()
+        app.buttons["confirm-store-product"].tap()
+        assertStoreProductCentred("2x LED lights, 75 mm")
+        let product = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "2x LED lights, 75 mm, quantity")).firstMatch
+        let before = product.frame.minX
+        storeProductAdd(at: "Start of list").tap()
+        XCTAssertTrue(shield.waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(product.waitForExistence(timeout: 5))
+        XCTAssertEqual(product.frame.minX, before, accuracy: 2)
+        assertStoreProductCentred("2x LED lights, 75 mm")
+    }
+
+    func testStoreProductCancelKeepsCollapsedBarCollapsed() {
+        choose("Bunnings")
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        app.buttons["Collapse overlay"].tap()
+        app.buttons["collapsed-add-store-product"].tap()
+        XCTAssertTrue(app.webViews.buttons["Choose product: 2x LED lights, 75 mm"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.buttons["collapsed-add-store-product"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Collapse overlay"].exists)
+    }
+
     func testStoreProductAllItemsRightAddsToStoreEnd() {
         choose("All items")
         app.buttons["all-items-show-store"].tap()

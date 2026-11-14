@@ -39,6 +39,7 @@ struct StoreShoppingView: View {
     @State private var storeProductInsertion: ShoppingLists.AdditionPosition = .start
     // A visual reveal only: never use this for selection, cart attribution or search.
     @State private var storeProductRevealID: UUID?
+    @State private var activeCardRecentreRequest = 0
     @State private var productSelectionTask: Task<Void, Never>?
     @GestureState private var isTouchingOverlay = false
     @GestureState(resetTransaction: Transaction(animation: .spring(response: 0.4, dampingFraction: 0.86)))
@@ -201,17 +202,18 @@ struct StoreShoppingView: View {
                         cancelStoreProductSelection(resume: false)
                         storeProductDraft = StoreProductDraft(name: "", insertion: storeProductInsertion)
                     })
-                } else {
+                }
+                // Keep the same ScrollView alive while choosing a product. A
+                // rebuilt rail loses its exact offset and recentres on Cancel.
                 ZStack(alignment: .bottom) {
                     expandedPanel(bottomSafeAreaInset: geometry.safeAreaInsets.bottom)
                         .offset(y: reduceMotion ? 0 : 250 * collapseProgress)
                         .offset(y: entranceNudge)
-                        .opacity(1 - collapseProgress)
-                        .allowsHitTesting(!isCollapsed)
-                        .accessibilityHidden(isCollapsed)
+                        .opacity(choosingStoreProduct ? 0 : 1 - collapseProgress)
+                        .allowsHitTesting(!isCollapsed && !choosingStoreProduct)
+                        .accessibilityHidden(isCollapsed || choosingStoreProduct)
                 }
-                .frame(height: isCollapsed ? 0 : 330, alignment: .bottom)
-                }
+                .frame(height: isCollapsed || choosingStoreProduct ? 0 : 330, alignment: .bottom)
                 }
             }
             .background(Color(uiColor: .systemBackground))
@@ -393,8 +395,9 @@ struct StoreShoppingView: View {
                     // render over the panel instead of clipping at the scroll viewport.
                     .scrollClipDisabled()
                     .scrollDisabled(overlayDrag.axis == .vertical)
+                    .accessibilityIdentifier("shopping-card-rail")
                     .overlayPreferenceValue(StoreProductRailEdges.self) { edges in
-                        if !isCollapsed {
+                        if !isCollapsed && !choosingStoreProduct {
                         GeometryReader { proxy in
                             StoreProductRailAddControls(width: proxy.size.width,
                                 leadingEnd: edges["leading"].map { proxy[$0].maxX },
@@ -420,12 +423,17 @@ struct StoreShoppingView: View {
                         if let id = railScrollTargetID { scrollProxy.scrollTo(id, anchor: .center) }
                     }
                     .onChange(of: storeProductRevealID) { _, _ in
-                        if let id = railScrollTargetID { scrollProxy.scrollTo(id, anchor: .center) }
+                        // Clearing a stale reveal when Add starts must not move
+                        // a rail the user has scrolled independently of selection.
+                        if let id = storeProductRevealID { scrollProxy.scrollTo(id, anchor: .center) }
+                    }
+                    .onChange(of: activeCardRecentreRequest) { _, _ in
+                        if let id = selected?.id { scrollProxy.scrollTo(id, anchor: .center) }
                     }
                     .onChange(of: storeProductDraft?.id) { _, draftID in
                         // The rail can be rebuilt before review dismisses. Reveal
                         // again on return, without selecting or searching the item.
-                        if draftID == nil, let id = railScrollTargetID {
+                        if draftID == nil, let id = storeProductRevealID {
                             scrollProxy.scrollTo(id, anchor: .center)
                         }
                     }
@@ -986,7 +994,10 @@ struct StoreShoppingView: View {
     private func select(_ item: GroceryItem, recordHistory: Bool = true) {
         // Tapping the active card also returns the rail from a product reveal.
         storeProductRevealID = nil
-        guard item.id != selectedID else { return }
+        guard item.id != selectedID else {
+            activeCardRecentreRequest += 1
+            return
+        }
         if recordHistory, let previousID = selectedID {
             selectionHistory.append(previousID)
         }

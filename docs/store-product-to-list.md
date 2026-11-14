@@ -35,6 +35,13 @@ Keep distinct edge padding for 160-point active and 145-point inactive cards so 
 new card can be exactly centred even at the start/end. Do not reorder saved items
 just to centre a card; left/start and right/end persistence still apply.
 
+Entering highlighted-product selection hides the existing rail without destroying
+its ScrollView. Cancel (including manual-review Cancel) reveals the same horizontal
+offset, not the active-card centre, and preserves collapsed/expanded state. Clearing
+an old saved-product reveal on entry must not issue a scroll. Only successful saves
+reveal the saved card; cancelling after a previous reveal keeps the user's current
+rail position. Active item, website page and list data remain unchanged.
+
 On a recognised product page, read its explicit product heading. On a grid,
 temporarily hide the cards and place ListRunner-owned selection shields over
 recognised product tiles. Tapping a shield selects that product, never clicks or
