@@ -2692,6 +2692,51 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["all-items-grouping-category"].isSelected)
     }
 
+    func testJoinedStoreHeaderKeepsOneBackAndNativeNavigation() {
+        choose("Coles")
+        let back = app.descendants(matching: .any).matching(identifier: "BackButton")
+        XCTAssertEqual(back.count, 1, "The shared capsule must retain just one native Back target")
+        XCTAssertTrue(app.buttons["store-picker"].isHittable)
+        XCTAssertGreaterThanOrEqual(app.buttons["store-picker"].frame.height, 44)
+        let coles = XCTAttachment(screenshot: app.screenshot())
+        coles.name = "Joined red Coles Back and chooser"
+        coles.lifetime = .keepAlways
+        add(coles)
+
+        choose("Woolworths")
+        XCTAssertEqual(back.count, 1)
+        let woolworths = XCTAttachment(screenshot: app.screenshot())
+        woolworths.name = "Joined green Woolworths Back and chooser"
+        woolworths.lifetime = .keepAlways
+        add(woolworths)
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        XCTAssertEqual(back.count, 1)
+        let settings = XCTAttachment(screenshot: app.screenshot())
+        settings.name = "Ordinary Settings Back after joined store header"
+        settings.lifetime = .keepAlways
+        add(settings)
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertEqual(back.count, 1)
+
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.45))
+        start.press(forDuration: 0.05,
+                    thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45)),
+                    withVelocity: .slow, thenHoldForDuration: 0.1)
+        assertAllItemsIsCurrent()
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        start.press(forDuration: 0.1,
+                    thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.45)),
+                    withVelocity: .slow, thenHoldForDuration: 0.3)
+        XCTAssertTrue(app.buttons["store-picker"].isHittable)
+        XCTAssertEqual(back.count, 1)
+        tapNavigationBack()
+        assertAllItemsIsCurrent()
+    }
+
     func testCompactTopBarUsesLeadingBackInsteadOfTrailingGridShortcut() {
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["all-items-shortcut"].exists)
