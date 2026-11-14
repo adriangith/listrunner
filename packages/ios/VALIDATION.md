@@ -2186,8 +2186,24 @@ generic Mac simulator build, **486 JavaScript tests**, **47 Python tests** and
 the full cloud offline allowlist, including **1,924 native checks** and the
 parser/regional/synthetic-registration regressions. Ten focused simulator cases
 are running (the five new cancellation cases plus save/reveal/duplicate/scroll
-regressions); their result is not yet certified. Evidence target:
+regressions) passed **10/10, zero failed/skipped**, in one run with no retries.
+Manual highlighted-product review Cancel retained visible cards at x=130 and
+x=300 before/after (zero horizontal movement), original active/progress unchanged
+and fixture page/cart marker unchanged. Evidence:
 `~/Library/Developer/Xcode/StoreProductSelection-Evidence/Cancel-f38e502/`.
+Report/attachments/hierarchies/video also retained under Linux
+`/tmp/opencode/cancel-f38e502/`. One intermediate blank fallback-review recapture
+had no established cause or recorded explanatory action; an explicit hidden-card
+touch probe did not reproduce it. This is not presented as assistive sign-off.
+
+Inspection found remaining accessibility defects despite passing Cancel behavior:
+the generic Add action on the ScrollView reported rail-sized bounds, and hidden
+navigation/hint nodes survived during selection. The correction removes navigation
+and hint subtrees while selecting (without removing the rail), and moves the generic
+Add shortcut from the ScrollView to the bounded Collapse overlay button. Explicit
+end buttons retain their labels/edge values. Cancellation tests now assert absent
+hidden navigation and Add width no greater than its 88-point slot. Updated build
+and simulator results follow after execution.
 No phone install of this cancellation follow-up has been performed yet.
 
 ### Follow-up: lower Add labels and requested phone update (14 November 2026)

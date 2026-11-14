@@ -363,7 +363,9 @@ struct StoreShoppingView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
 
-                navigationControls
+                // Keep the rail mounted, but don't retain hidden actionable
+                // navigation nodes over the product-selection bar.
+                if !choosingStoreProduct { navigationControls }
             }
             .frame(height: 220)
             .offset(y: -upwardOverlayPull)
@@ -395,7 +397,6 @@ struct StoreShoppingView: View {
                     // render over the panel instead of clipping at the scroll viewport.
                     .scrollClipDisabled()
                     .scrollDisabled(overlayDrag.axis == .vertical)
-                    .accessibilityIdentifier("shopping-card-rail")
                     .overlayPreferenceValue(StoreProductRailEdges.self) { edges in
                         if !isCollapsed && !choosingStoreProduct {
                         GeometryReader { proxy in
@@ -406,7 +407,6 @@ struct StoreShoppingView: View {
                         }
                         }
                     }
-                    .accessibilityAction(named: Text("Add item to your list")) { beginStoreProductSelection(at: .start) }
                     .onAppear {
                         if let id = railScrollTargetID { scrollProxy.scrollTo(id, anchor: .center) }
                     }
@@ -441,7 +441,7 @@ struct StoreShoppingView: View {
             }
             .frame(height: 250)
             .overlay(alignment: .top) {
-                if !hasCollapsedShoppingCards && !isCollapsed && !items.isEmpty {
+                if !hasCollapsedShoppingCards && !isCollapsed && !choosingStoreProduct && !items.isEmpty {
                     CardCollapseHint()
                         .padding(.horizontal, 20)
                         // Lay out the entire label above the carousel rather
@@ -766,6 +766,9 @@ struct StoreShoppingView: View {
                     .accessibilityLabel("Collapse overlay")
                     .accessibilityValue("Item \(position) of \(items.count)")
                     .accessibilityHint("Hides shopping controls and shows the compact bar")
+                    // Put the shortcut on a real, bounded control rather than
+                    // giving the entire ScrollView an Add accessibility action.
+                    .accessibilityAction(named: Text("Add item to your list")) { beginStoreProductSelection(at: .start) }
                 }
             }
             .frame(height: current ? 15 : 13)

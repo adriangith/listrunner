@@ -3900,7 +3900,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(first.waitForExistence(timeout: 5))
         first.tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
-        let rail = app.scrollViews["shopping-card-rail"]
+        let rail = app.scrollViews.containing(.button, identifier: "Collapse overlay").firstMatch
         XCTAssertTrue(rail.waitForExistence(timeout: 5))
         let active = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@",
             "Tool one, quantity", ", selected")).firstMatch
@@ -3921,12 +3921,17 @@ final class StoreSelectionTests: XCTestCase {
         attachStoreProductScreenshot("Rail position before Add at \(position)")
         add.tap()
         XCTAssertTrue(app.descendants(matching: .any)["store-product-selection-bar"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Back"].exists)
+        XCTAssertFalse(app.buttons["Skip"].exists)
+        XCTAssertFalse(app.buttons["Reload product search"].exists)
+        XCTAssertFalse(app.staticTexts["card-collapse-hint"].exists)
         if manualReview {
             app.buttons["Enter manually"].tap()
             assertStoreProductPosition(position)
         }
         app.buttons["Cancel"].tap()
         XCTAssertTrue(add.waitForExistence(timeout: 5))
+        XCTAssertLessThanOrEqual(add.frame.width, 88.5, "Add must not report the whole rail as its target")
         XCTAssertTrue(active.exists)
         XCTAssertEqual(active.frame.minX, before, accuracy: 2,
                        "Cancel must restore the exact offset, not centre the active card")

@@ -356,3 +356,13 @@ test('Cancel retains the mounted rail and does not scroll when clearing a previo
   const cancel = view.split('private func cancelStoreProductSelection')[1].split('private func resumeAfterStoreProductSelection')[0];
   assert.doesNotMatch(cancel, /scrollTo|selectedID\s*=|select\(/);
 });
+
+test('selection omits navigation/hint subtrees and Add shortcut belongs to a bounded control', () => {
+  const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
+  assert.match(view, /if !choosingStoreProduct \{ navigationControls \}/);
+  assert.match(view, /!hasCollapsedShoppingCards && !isCollapsed && !choosingStoreProduct/);
+  const rail = view.split('private func expandedPanel')[1].split('private func railEndPadding')[0];
+  assert.doesNotMatch(rail, /accessibilityAction\(named: Text\("Add item to your list"\)/);
+  const card = view.split('private func card(_ item: GroceryItem)')[1].split('private func cardBackground')[0];
+  assert.match(card, /accessibilityAction\(named: Text\("Add item to your list"\)/);
+});
