@@ -34,6 +34,17 @@ Mac `~/Library/Developer/ListRunnerValidation/list-navigation/SeparateHeader150a
 Linux `/tmp/opencode/listrunner-separate-150a11d/SUMMARY.md`, log, attachments and
 header crops. No physical-phone installation of the restoration occurred.
 
+On 15 November the user requested the restored build on the physical iPhone.
+The clean Mac task checkout was synchronized to exact
+`e585182f37d9d50c7d86a53825ede6e4fc331030`; Adrian's iPhone was eligible on
+iOS 27.2.1 and the Run scheme had no enabled arguments/environment entries.
+Xcode MCP RunProject returned a missing-log error, not a verified install.
+A subsequent desktop build through workspace index 1, guarded by exact task
+path, failed during preparation: Xcode could not write DerivedData `info.plist`.
+Disk inspection showed the Mac Data volume at **100%, only 114 MiB available**.
+No caches, simulator state or test evidence were deleted. Phone installation
+remains blocked on freeing disk space; no restored-app launch is claimed.
+
 ## Joined header divider and overlapping artwork follow-up (14 November 2026)
 
 **Final outcome:** divider and single visible chevron verified on iPhone 17 /
