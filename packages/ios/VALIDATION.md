@@ -2166,6 +2166,15 @@ No new simulator UI-suite run, physical-device installation, user-list edit, rea
 Branch: `feature/add-store-product-to-list`. Implementation plan and safety contract:
 `docs/store-product-to-list.md`.
 
+### Follow-up: lower Add labels and requested phone update (14 November 2026)
+
+The user requested lower Add controls and installation of the latest changes.
+Both ends share a label with 24 points of top padding, weighting the icon/text
+downward while preserving the bottom-aligned end slots and avoiding the navigation
+row. Squared fade, clipping, minimum interactive width and insertion semantics
+are unchanged. Build/visual verification and the requested in-place phone install
+will be recorded after execution; the phone currently remains on `27762b8`.
+
 ### Follow-up: quicker fade and reveal without activation
 
 The Add controls now use squared uncovered fraction rather than a linear fade:

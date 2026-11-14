@@ -48,6 +48,9 @@ struct StoreProductAddLabel: View {
             Text("Add item to your list")
                 .font(.caption).multilineTextAlignment(.center)
         }
+        // Weight the label toward the lower half of its slot without shifting
+        // the button's bottom edge into the Back/Skip navigation row.
+        .padding(.top, 24)
         .frame(width: 88)
         .frame(minHeight: 88)
     }

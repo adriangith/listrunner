@@ -333,3 +333,12 @@ test('expanded and product-selection modes omit the hidden collapsed-bar control
   assert.match(inset, /\.frame\(height: 70\)/);
   assert.doesNotMatch(inset, /\.opacity\(|height:.*\?.*: 0/);
 });
+
+test('both rail Add labels sit lower without moving the slots into navigation controls', () => {
+  const label = swift.split('struct StoreProductAddLabel: View {')[1].split('struct StoreProductAddButton')[0];
+  assert.match(label, /\.padding\(\.top, 24\)/);
+  assert.match(label, /\.frame\(minHeight: 88\)/);
+  const rail = swift.split('struct StoreProductRailAddControls: View {')[1].split('struct StoreProductReview')[0];
+  assert.match(rail, /height: 222, alignment: \.bottomLeading/);
+  assert.doesNotMatch(rail, /offset\([^)]*y:/);
+});

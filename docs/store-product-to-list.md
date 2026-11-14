@@ -7,6 +7,8 @@ either end of the card rail. Cards cover the controls while browsing the middle
 of the rail; each control fades with the square of its uncovered fraction as cards
 cover it (half uncovered means 25% opacity, rather than the earlier 50%),
 without a delayed opacity animation or a tappable area over the cards.
+Both end labels have 24 points of top padding, weighting the icon/text lower in
+their slots while keeping the slot bottom clear of the Back/Skip navigation row.
 The action is also available without horizontal scrolling through
 an accessibility action and the collapsed bar. Existing card selection, collapse,
 Back/Skip/Undo and retailer cart behavior remain unchanged.
