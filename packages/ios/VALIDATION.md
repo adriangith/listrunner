@@ -2172,8 +2172,42 @@ The user requested lower Add controls and installation of the latest changes.
 Both ends share a label with 24 points of top padding, weighting the icon/text
 downward while preserving the bottom-aligned end slots and avoiding the navigation
 row. Squared fade, clipping, minimum interactive width and insertion semantics
-are unchanged. Build/visual verification and the requested in-place phone install
-will be recorded after execution; the phone currently remains on `27762b8`.
+are unchanged.
+
+Code `1ef80966159f74a8484caf77f7677726afb53c49`: generic simulator build and all
+**485 JavaScript tests** pass. Three focused simulator cases (rail label/fade,
+left/start and right/end) passed once, **3 passed, 0 failed, 0 skipped**, with no
+edits or retries. Full-resolution comparison against `75d6b52` shows both icons
+and text exactly **36 pixels / 12 points lower**, complete and readable, with
+approximately 25 points of clear space before the navigation row and no painted
+overlap with Back/Skip/Reload. Fade/covered-control removal, centre-without-active
+selection, saved ordering and relaunch checks remain passing. This focused run
+does not replace the preceding 14-case result at `75d6b52`; only label padding
+changed. Xcode approval blocked fresh bridge hierarchy capture during verification;
+XCTest activity trees/screenshots and explicit simulator commands were used, with
+no manual coordinate interactions. Evidence:
+`~/Library/Developer/Xcode/StoreProductSelection-Evidence/LowerLabels-1ef8096/REPORT.md`
+with result bundle, seven screenshots, before/after crops and recording; Linux
+copies `/tmp/opencode/lowerlabels-1ef8096/`. Dedicated simulator shut down and
+state/evidence preserved; ownership released.
+
+After the user approved Xcode access, the same clean code revision was built,
+signed, installed in place and launched on the physical iPhone 17e / iOS 27.2
+(`00008150-001402660A9BC01C`). Verified task workspace `workspace-4P7oJMPUPA`,
+ListRunner scheme and physical Adrian's iPhone destination before `RunProject`:
+zero build errors, launch session `71fa05b00`, PID **68773** independently confirmed
+running ListRunner by `devicectl`. Deep strict signature verification and all
+35 JSON + 1 JavaScript canonical-resource comparisons passed for the signed app
+under `~/Library/Developer/Xcode/DerivedData/ListRunner-crdymsqoucncavcufdmaqyaqgufx/Build/Products/Debug-iphoneos/`.
+Xcode action log: `RunProject-Log-20261114-223636.txt`.
+
+The phone now includes quicker fade, new/merged-product centring without changing
+the active item, hidden collapsed-control removal and the lower Add labels, as
+well as left/start and right/end insertion. No uninstall, data reset, test launch
+arguments/fixtures, imports or retailer/cart actions were used. The app was left
+running. Install/launch are verified; physical visual/live-store and assistive
+release sign-off remain separate. Later documentation-only commits do not change
+the installed implementation.
 
 ### Follow-up: quicker fade and reveal without activation
 
