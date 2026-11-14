@@ -68,6 +68,10 @@ selecting a card (or tapping the still-active card) restores normal centring.
 The Add controls now fade more quickly using the square of the uncovered fraction
 (25% opacity at half exposure), retaining the existing hit/accessibility thresholds.
 
+The labels paint behind the card rail at full width, so real rounded cards—not a
+rectangular label crop or spacer boundary—cover them. Fade and separate transparent
+tap regions follow the actual first/last card edges; taps remain outside the cards.
+
 Schema 8 adds optional `productSelection` grid/detail selectors separately from
 cart capabilities, retaining schemas 2–7 and all existing automation ceilings.
 Bunnings selectors have read-only public rendered evidence; other stores offer

@@ -376,14 +376,18 @@ struct StoreShoppingView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(alignment: .bottom, spacing: 12) {
                             Color.clear.frame(width: 88, height: 102)
-                                .anchorPreference(key: StoreProductRailEdges.self, value: .bounds) { ["leading": $0] }
                                 .accessibilityHidden(true)
                             ForEach(items) { item in
                                 card(item)
                                     .id(item.id)
+                                    .anchorPreference(key: StoreProductRailEdges.self, value: .bounds) { anchor in
+                                        var edges: [String: Anchor<CGRect>] = [:]
+                                        if item.id == items.first?.id { edges["leading"] = anchor }
+                                        if item.id == items.last?.id { edges["trailing"] = anchor }
+                                        return edges
+                                    }
                             }
                             Color.clear.frame(width: 88, height: 102)
-                                .anchorPreference(key: StoreProductRailEdges.self, value: .bounds) { ["trailing": $0] }
                                 .accessibilityHidden(true)
                         }
                         // Inactive cards are narrower than the active card. Each
@@ -397,12 +401,21 @@ struct StoreShoppingView: View {
                     // render over the panel instead of clipping at the scroll viewport.
                     .scrollClipDisabled()
                     .scrollDisabled(overlayDrag.axis == .vertical)
+                    .backgroundPreferenceValue(StoreProductRailEdges.self) { edges in
+                        if !isCollapsed && !choosingStoreProduct {
+                            GeometryReader { proxy in
+                                StoreProductRailAddLabels(layout: StoreProductRailLayout(width: proxy.size.width,
+                                    leadingCardMinX: edges["leading"].map { proxy[$0].minX },
+                                    trailingCardMaxX: edges["trailing"].map { proxy[$0].maxX }))
+                            }
+                        }
+                    }
                     .overlayPreferenceValue(StoreProductRailEdges.self) { edges in
                         if !isCollapsed && !choosingStoreProduct {
                         GeometryReader { proxy in
-                            StoreProductRailAddControls(width: proxy.size.width,
-                                leadingEnd: edges["leading"].map { proxy[$0].maxX },
-                                trailingStart: edges["trailing"].map { proxy[$0].minX },
+                            StoreProductRailAddControls(layout: StoreProductRailLayout(width: proxy.size.width,
+                                leadingCardMinX: edges["leading"].map { proxy[$0].minX },
+                                trailingCardMaxX: edges["trailing"].map { proxy[$0].maxX }),
                                 action: beginStoreProductSelection)
                         }
                         }

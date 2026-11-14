@@ -58,17 +58,15 @@ struct StoreProductAddLabel: View {
 
 struct StoreProductAddButton: View {
     let width: CGFloat
-    let alignment: Alignment
     let insertion: ShoppingLists.AdditionPosition
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            // Clip the label inside the Button so its real hit/accessibility
-            // bounds shrink too, not just a wrapper around an 88-point button.
-            StoreProductAddLabel()
-                .frame(width: width, alignment: alignment)
-                .clipped()
+            // Interaction only. The full label is drawn behind the cards, not
+            // cropped inside this shrinking, rectangular tap/accessibility slot.
+            Color.clear
+                .frame(width: width, height: 88)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -84,9 +82,18 @@ struct StoreProductAddButton: View {
 
 struct StoreProductRailEndControl: View {
     let uncoveredWidth: CGFloat
-    let alignment: Alignment
     let insertion: ShoppingLists.AdditionPosition
     let action: () -> Void
+
+    var body: some View {
+        if uncoveredWidth >= 44 {
+            StoreProductAddButton(width: uncoveredWidth, insertion: insertion, action: action)
+        }
+    }
+}
+
+struct StoreProductRailEndLabel: View {
+    let uncoveredWidth: CGFloat
 
     private var opacity: Double {
         let fraction = min(1, max(0, Double(uncoveredWidth / 88)))
@@ -94,19 +101,38 @@ struct StoreProductRailEndControl: View {
     }
 
     var body: some View {
-        if uncoveredWidth >= 44 {
-            StoreProductAddButton(width: uncoveredWidth, alignment: alignment, insertion: insertion, action: action)
-                .opacity(opacity)
-        } else if uncoveredWidth > 0 {
-            // Keep the last sliver of the fade visual only. Fully covered
-            // controls have no subtree, so no invisible AX button can survive.
+        if uncoveredWidth > 0 {
+            // No rectangular crop: the actual rounded card paints over this
+            // full-width label. Fade remains proportional to real card coverage.
             StoreProductAddLabel()
-                .frame(width: uncoveredWidth, alignment: alignment)
-                .clipped()
                 .opacity(opacity)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
         }
+    }
+}
+
+struct StoreProductRailLayout {
+    let width: CGFloat
+    let leadingCardMinX: CGFloat?
+    let trailingCardMaxX: CGFloat?
+
+    var inset: CGFloat { max(0, (width - 160) / 2 - 100) }
+    var leadingWidth: CGFloat { min(88, max(0, (leadingCardMinX ?? inset) - inset)) }
+    var trailingWidth: CGFloat { min(88, max(0, width - inset - (trailingCardMaxX ?? (width - inset)))) }
+}
+
+struct StoreProductRailAddLabels: View {
+    let layout: StoreProductRailLayout
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            StoreProductRailEndLabel(uncoveredWidth: layout.leadingWidth)
+                .offset(x: layout.inset)
+            StoreProductRailEndLabel(uncoveredWidth: layout.trailingWidth)
+                .offset(x: layout.width - layout.inset - 88)
+        }
+        .frame(width: layout.width, height: 222, alignment: .bottomLeading)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -118,24 +144,19 @@ struct StoreProductRailEdges: PreferenceKey {
 }
 
 struct StoreProductRailAddControls: View {
-    let width: CGFloat
-    let leadingEnd: CGFloat?
-    let trailingStart: CGFloat?
+    let layout: StoreProductRailLayout
     let action: (ShoppingLists.AdditionPosition) -> Void
 
     var body: some View {
-        let inset = max(0, (width - 160) / 2 - 100)
-        let leadingWidth = min(88, max(0, (leadingEnd ?? 0) - inset))
-        let trailingWidth = min(88, max(0, width - inset - (trailingStart ?? width)))
         ZStack(alignment: .bottomLeading) {
-            // Buttons stay fixed beneath the moving rail. Clip both rendering
-            // and hit targets to the uncovered end slots, never over a card.
-            StoreProductRailEndControl(uncoveredWidth: leadingWidth, alignment: .leading, insertion: .start) { action(.start) }
-                .offset(x: inset)
-            StoreProductRailEndControl(uncoveredWidth: trailingWidth, alignment: .trailing, insertion: .end) { action(.end) }
-                .offset(x: width - inset - trailingWidth)
+            // Only the transparent hit regions sit above the rail. They end at
+            // the actual card bounds, so none of a card becomes an Add target.
+            StoreProductRailEndControl(uncoveredWidth: layout.leadingWidth, insertion: .start) { action(.start) }
+                .offset(x: layout.inset)
+            StoreProductRailEndControl(uncoveredWidth: layout.trailingWidth, insertion: .end) { action(.end) }
+                .offset(x: layout.width - layout.inset - layout.trailingWidth)
         }
-        .frame(width: width, height: 222, alignment: .bottomLeading)
+        .frame(width: layout.width, height: 222, alignment: .bottomLeading)
     }
 }
 

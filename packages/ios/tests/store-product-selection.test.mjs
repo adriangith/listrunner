@@ -266,12 +266,12 @@ test('native source confines reads and cancellation to the request and isolated 
 test('rail control wording and fade follow uncovered width without a delayed animation', () => {
   assert.match(swift, /Text\("Add item to your list"\)/);
   assert.match(swift, /accessibilityLabel\("Add item to your list"\)/);
-  assert.match(swift, /StoreProductRailEndControl\(uncoveredWidth: leadingWidth/);
-  assert.match(swift, /StoreProductRailEndControl\(uncoveredWidth: trailingWidth/);
+  assert.match(swift, /StoreProductRailEndControl\(uncoveredWidth: layout\.leadingWidth/);
+  assert.match(swift, /StoreProductRailEndControl\(uncoveredWidth: layout\.trailingWidth/);
   assert.match(swift, /return fraction \* fraction/);
   assert.match(swift, /\.opacity\(opacity\)/);
   assert.match(swift, /if uncoveredWidth >= 44/);
-  assert.match(swift, /else if uncoveredWidth > 0/);
+  assert.match(swift, /if uncoveredWidth > 0/);
   assert.doesNotMatch(swift, /Add store item to list/);
 });
 
@@ -365,4 +365,38 @@ test('selection omits navigation/hint subtrees and Add shortcut belongs to a bou
   assert.doesNotMatch(rail, /accessibilityAction\(named: Text\("Add item to your list"\)/);
   const card = view.split('private func card(_ item: GroceryItem)')[1].split('private func cardBackground')[0];
   assert.match(card, /accessibilityAction\(named: Text\("Add item to your list"\)/);
+});
+
+test('full Add labels paint behind real cards; only uncovered transparent hit slots are overlaid', () => {
+  const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
+  const background = view.split('.backgroundPreferenceValue(StoreProductRailEdges.self)')[1].split('.overlayPreferenceValue')[0];
+  assert.match(background, /StoreProductRailAddLabels/);
+  assert.match(background, /leadingCardMinX: edges\["leading"\]\.map \{ proxy\[\$0\]\.minX \}/);
+  assert.match(background, /trailingCardMaxX: edges\["trailing"\]\.map \{ proxy\[\$0\]\.maxX \}/);
+  const labels = swift.split('struct StoreProductRailAddLabels: View')[1].split('struct StoreProductRailEdges')[0];
+  assert.match(labels, /allowsHitTesting\(false\)/);
+  assert.match(labels, /accessibilityHidden\(true\)/);
+  const label = swift.split('struct StoreProductRailEndLabel: View')[1].split('struct StoreProductRailLayout')[0];
+  assert.doesNotMatch(label, /\.clipped\(|\.mask\(|frame\(width: uncoveredWidth/);
+  const button = swift.split('struct StoreProductAddButton: View')[1].split('struct StoreProductRailEndControl')[0];
+  assert.match(button, /Color\.clear\s*\.frame\(width: width, height: 88\)/);
+  assert.doesNotMatch(button, /StoreProductAddLabel\(\)/);
+  assert.match(view, /if item\.id == items\.first\?\.id \{ edges\["leading"\] = anchor \}/);
+  assert.match(view, /if item\.id == items\.last\?\.id \{ edges\["trailing"\] = anchor \}/);
+});
+
+test('exposed widths follow card body edges without the old twelve-point spacer gap', () => {
+  function formula(name) {
+    const expression = swift.match(new RegExp(`var ${name}: CGFloat \\{ (.*?) \\}`))[1]
+      .replace(/\bmin\(/g, 'Math.min(').replace(/\bmax\(/g, 'Math.max(');
+    return new Function('width', 'inset', 'leadingCardMinX', 'trailingCardMaxX', `return ${expression}`);
+  }
+  const leading = formula('leadingWidth'), trailing = formula('trailingWidth');
+  for (const exposure of [0, 20, 44, 70, 88, 100]) {
+    assert.equal(leading(402, 21, 21 + exposure, null), Math.min(88, exposure));
+    assert.equal(trailing(402, 21, null, 402 - 21 - exposure), Math.min(88, exposure));
+  }
+  assert.equal(leading(402, 21, null, null), 0);
+  assert.equal(trailing(402, 21, null, null), 0);
+  assert.equal(leading(402, 21, 91, null), 70, 'no early cut at spacer edge x=79');
 });

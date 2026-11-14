@@ -2166,6 +2166,24 @@ No new simulator UI-suite run, physical-device installation, user-list edit, rea
 Branch: `feature/add-store-product-to-list`. Implementation plan and safety contract:
 `docs/store-product-to-list.md`.
 
+### Follow-up: cards occlude Add labels, not an early grey strip (15 November 2026)
+
+The user supplied a dark-mode phone screenshot showing the label cut off ahead of
+the moving card. The previous label was clipped to its shrinking tap slot, whose
+anchor was a spacer ending 12 points before the card. That exposed the grey panel
+in a rectangular strip before the actual card reached it. The correction paints
+full-width, noninteractive/AX-hidden labels behind the ScrollView and leaves only
+transparent uncovered tap/accessibility slots above it. First/last actual card
+bounds now drive exposure and squared fade. No label clip, replacement grey cover
+or card-spacer gap determines visual occlusion. Card geometry, label lowering,
+fade speed, insertion, reveal and Cancel offset behavior remain unchanged.
+
+Added light/dark screenshots for both rail ends at successive partial coverage,
+with bounded uncovered tap targets and continued selection/Cancel checks. Source
+and scalar checks cover behind-card layering, no label clip, card anchors and
+exposure math including the old 12-point gap. Build/visual evidence follows after
+execution. No phone installation of this occlusion follow-up has been performed.
+
 ### Follow-up: Cancel preserves card-rail position (14 November 2026)
 
 Highlighted-product selection previously removed the expanded rail and rebuilt it

@@ -7,6 +7,12 @@ either end of the card rail. Cards cover the controls while browsing the middle
 of the rail; each control fades with the square of its uncovered fraction as cards
 cover it (half uncovered means 25% opacity, rather than the earlier 50%),
 without a delayed opacity animation or a tappable area over the cards.
+Paint the full-width labels behind the card rail, with no rectangular label clip
+or cover panel. The actual rounded card must be what covers the label. Measure
+exposure from the first/last card body, not the spacer that ends 12 points before
+it. Separate transparent tap/accessibility targets sit above the rail only in the
+uncovered region (minimum 44 points); visible labels are noninteractive and hidden
+from accessibility. Fully covered controls have no actionable subtree.
 Both end labels have 24 points of top padding, weighting the icon/text lower in
 their slots while keeping the slot bottom clear of the Back/Skip navigation row.
 The action is also available without horizontal scrolling through

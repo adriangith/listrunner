@@ -4159,6 +4159,71 @@ final class StoreSelectionTests: XCTestCase {
         attachStoreProductScreenshot("Rail add hidden behind cards")
     }
 
+    func testStoreProductCardOcclusionLight() {
+        checkStoreProductCardOcclusion(appearance: "Light")
+    }
+
+    func testStoreProductCardOcclusionDark() {
+        checkStoreProductCardOcclusion(appearance: "Dark")
+    }
+
+    private func checkStoreProductCardOcclusion(appearance: String) {
+        choose("Bunnings")
+        app.buttons["Settings"].tap()
+        let picker = app.buttons["appearance-setting"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        picker.tap()
+        app.buttons[appearance].tap()
+        tapNavigationBack()
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("Tool one, Tool two, Tool three\n")
+        input.typeText("\n")
+        let first = row("Tool one", status: "Pending")
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+        first.tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        let rail = app.scrollViews.containing(.button, identifier: "Collapse overlay").firstMatch
+        let left = storeProductAdd(at: "Start of list")
+        XCTAssertTrue(left.waitForExistence(timeout: 5))
+        XCTAssertTrue(left.isHittable)
+        attachStoreProductScreenshot("\(appearance) left fully exposed")
+        let active = app.otherElements["selected-shopping-card"]
+        for step in 1...2 {
+            let start = active.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: -15, dy: 0)),
+                        withVelocity: .slow, thenHoldForDuration: 0.3)
+            attachStoreProductScreenshot("\(appearance) left card covers label step \(step)")
+            if left.exists {
+                XCTAssertLessThanOrEqual(left.frame.maxX, active.frame.minX + 2,
+                                         "Only the uncovered region can be an Add target")
+                XCTAssertLessThanOrEqual(left.frame.width, 88.5)
+            }
+        }
+        let right = storeProductAdd(at: "End of list")
+        for _ in 0..<4 {
+            if right.isHittable { break }
+            rail.swipeLeft()
+        }
+        XCTAssertTrue(right.isHittable)
+        attachStoreProductScreenshot("\(appearance) right fully exposed")
+        let last = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bunnings fixture item, quantity")).firstMatch
+        XCTAssertTrue(last.isHittable)
+        for step in 1...2 {
+            let start = last.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 15, dy: 0)),
+                        withVelocity: .slow, thenHoldForDuration: 0.3)
+            attachStoreProductScreenshot("\(appearance) right card covers label step \(step)")
+            if right.exists { XCTAssertLessThanOrEqual(right.frame.width, 88.5) }
+        }
+        if right.isHittable {
+            right.tap()
+            XCTAssertTrue(app.webViews.buttons["Choose product: 2x LED lights, 75 mm"].waitForExistence(timeout: 5))
+            app.buttons["Cancel"].tap()
+        }
+        XCTAssertFalse(app.webViews.buttons["UNEXPECTED CART CHANGE"].exists)
+    }
+
     private func attachStoreProductScreenshot(_ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name
