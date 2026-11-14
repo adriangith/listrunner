@@ -2764,10 +2764,15 @@ final class StoreSelectionTests: XCTestCase {
         appearance.tap()
         app.buttons["Dark"].tap()
         tapNavigationBack()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        tapNavigationBack()
+        assertAllItemsIsCurrent()
 
         let back = app.descendants(matching: .any).matching(identifier: "BackButton")
         for store in ["Woolworths", "Coles"] {
-            choose(store)
+            app.buttons["all-items-scope-picker"].tap()
+            app.buttons[store].firstMatch.tap()
+            XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
             XCTAssertEqual(back.count, 1)
             XCTAssertTrue(back.firstMatch.isHittable)
             XCTAssertTrue(app.buttons["store-picker"].isHittable)
@@ -2780,7 +2785,9 @@ final class StoreSelectionTests: XCTestCase {
             assertAllItemsIsCurrent()
         }
 
-        choose("Coles")
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         app.buttons["Settings"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         XCTAssertEqual(back.count, 1, "Store artwork suppression must not hide Settings Back")

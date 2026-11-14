@@ -45,7 +45,28 @@ by the adapter; the navigation bar's shared appearances are not changed. Setter
 copy semantics are accounted for when retaining installed appearance instances.
 The native button, its accessibility and gesture behavior remain required by
 the unchanged focused tests, with explicit native hittability/label assertions.
-The follow-up native and visual verification remains pending.
+At `160c71103448b83fd8e9248231f26fd0881a8ce9`, the original focused native
+navigation test passed, including native Back count/hittability/label, chooser
+edge taps, Settings return, completed edge pop, short-edge cancellation and Back
+tap afterward. The pair was **1/2 passed**, not clean: the new dark test returned
+to All items after its first store, then incorrectly called the store-only
+`choose` helper. Its failure hierarchy shows the correct All items overview.
+The test flow now explicitly opens `all-items-scope-picker` for each repeated
+entry, without weakening assertions or changing production code.
+
+Reviewed settled frames show one visible chevron/divider/continuous capsule for
+Coles and Woolworths in light and dark, and after the short edge gesture; Settings
+Back remains ordinary and visible in both appearances. Woolworths green in dark
+appearance is subdued (existing branding; contrast is not certified). Built and
+installed simulator bundles passed **35 JSON + 1 JavaScript** checks. Evidence:
+Mac `JoinedHeaderIndicator160c711.xcresult` / `.log`, Linux
+`/tmp/opencode/listrunner-divider-160c711/`.
+
+The dark test also incurred roughly 195 seconds of idle waiting on initial
+Settings entry, with an XCTest event-loop notification timeout and retained
+spindump. The available largely unsymbolicated sample does not establish the
+cause. This is not a healthy-timing sign-off; the corrected focused run must
+report whether it recurs. Final repeated-entry verification remains pending.
 
 ## Joined store-coloured Back and chooser (13 November 2026)
 
