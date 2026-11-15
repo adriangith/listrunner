@@ -1,5 +1,130 @@
 # Reusable store framework validation
 
+## Filter capsule installed on physical iPhone (16 November 2026)
+
+At the user's request, built/signed/installed in place and launched branch
+`feat/all-items-filter-capsule` at exact revision
+`23dd06a748806b4d81ff9dc28013d225b845124f`. The isolated Mac checkout was clean
+at that revision; shared Run had no enabled arguments or environment overrides.
+After user approval, Xcode workspace `workspace-8MCQ1TN4u6` resolved to
+`/Users/adrianzafir/Projects/listrunner-worktrees/all-items-filter-capsule/packages/ios/ListRunner.xcodeproj`,
+with scheme ListRunner and eligible physical **Adrian’s iPhone**, iOS 27.2.1.
+
+`RunProject(attachDebugger: false)` succeeded with **zero build errors** in
+14.728 seconds, launch reference `bad1f9500`, PID **15218**. `devicectl` independently
+confirmed that process on iPhone 17e `00008150-001402660A9BC01C`. Build log
+`RunProject-Log-20261116-065544.txt` explicitly compiles GroceryListScreen from
+the task checkout. The actual signed app under
+`~/Library/Developer/Xcode/DerivedData/ListRunner-exnodkcxejscmrbwjmqohiedgidl/Build/Products/Debug-iphoneos/ListRunner.app`
+was freshly modified at 06:55:37 +1100, passed deep/strict signature verification,
+and contains all **35 JSON + 1 JavaScript** resources byte-identical to sources.
+The existing unused `resignFirstResponder()` result warning remains; no source
+fix was made for it.
+
+Ordinary app left running. No uninstall/reset, test fixtures, list edits, imports,
+retailer/cart/account actions, merge or release occurred. This verifies the
+signed build/install/launch, not manual phone visual/accessibility sign-off;
+the focused simulator results below remain the UI-test evidence.
+
+## All items Filter and Settings capsule (15 November 2026)
+
+Branch `feat/all-items-filter-capsule` replaces the scrolling grouping switcher
+with a native Filter menu before Settings in a single `ToolbarItemGroup`. The
+system provides the shared Liquid Glass background on iOS 26+; earlier systems
+keep standard toolbar styling. Individual store screens and the separate native
+Back/scope chooser are unchanged. The existing OpenPencil audit and current
+shared layout were consulted; no design document was changed.
+
+The menu uses the existing persisted grouping, with a native checked Picker and
+an accessible label that includes the current grouping. Choosing a grouping
+resigns editor focus without clearing its draft/destination. Grouping is disabled during editing,
+with a setter guard; Settings remains enabled. Updated existing grouping UI
+tests to use the menu and added toolbar target, standard/largest-text and
+store-scope checks. The shared-page test now requires Filter/Settings to remain
+pinned while entry content scrolls.
+
+### Final focused verification — passed
+
+At exact revision `013333e441ccd8ee0d4c1a72a7d16c74ee90a62a`, the native build
+and **all 4/4 focused UI tests passed in one run**, with parallel testing
+disabled and no retries, on the dedicated iPhone 18 Pro / iOS 27.2 simulator:
+
+* `testAllItemsFilterToolbarHasAccessibleTargetsAndSelection`
+* `testAllItemsFilterToolbarAtAccessibilityTextSize`
+* `testAllItemsSettingsReturnsToScopeAndDraft`
+* `testAllItemsSharedPageKeepsOnlyHeaderPinned`
+
+Sixteen successful edge activations cover Filter and Settings at ±21.5 points
+on both axes, at normal and largest accessibility text sizes. Screenshots confirm
+one continuous native glass capsule, aligned/unclipped, and By category checked
+after reopening the menu at both sizes. Tests also verify accessible grouping
+labels, Settings scope/draft/destination restoration, pinned toolbar controls and
+Filter's absence after navigating to Coles. This is focused fixture validation,
+not a full suite, iOS 17 runtime or manual VoiceOver/Switch Control sign-off.
+
+Final evidence: Mac
+`~/Library/Logs/ListRunner-AllItemsFilter/013333e/FocusedTests.xcresult`,
+`focused-tests.log` and five screenshot attachments; Linux PNGs/manifest at
+`/tmp/opencode/listrunner-all-items-filter-013333e/`. Task checkout remained
+clean at the tested SHA. Task simulator `D44C6953-DAC1-4AE1-8543-F9B186E63D00`
+was shut down with its state/evidence preserved. No physical-phone installation,
+live retailer actions, merge or release occurred. The unrelated largest-text
+summary/placeholder truncation and floating Show Store overlap remain as noted
+below; this toolbar work does not resolve or certify them.
+
+### Earlier attempts and corrections
+
+Initial Mac verification at `fc2d6209551bbeeee9b7468bb7ef5bb6dacd7f4d`:
+native build succeeded, but **1/4 focused UI tests passed** on an isolated iPhone
+18 Pro / iOS 27.2 simulator. The pinned-header test passed. Both toolbar tests
+and Settings restoration stopped because the native menu exposed an empty
+accessibility value. Screenshots confirm one continuous shared glass capsule,
+the checked By store menu and functional category selection, not the later
+unreached assertions. The follow-up puts grouping into the accessible label
+instead. Preserve this label-based announcement when
+changing native toolbar menus, since `accessibilityValue` was not forwarded by
+the tested iOS 27.2 toolbar.
+
+Initial evidence: Mac
+`~/Library/Logs/ListRunner-AllItemsFilter/fc2d620/FocusedTests.xcresult` and
+`attachments/{normal-toolbar,largest-text-toolbar,filter-menu,category-toolbar}.png`;
+Linux copies: `/tmp/opencode/listrunner-all-items-filter-fc2d620/`.
+Largest-text captures also show existing summary/placeholder truncation and a
+large floating Show Store control over lower content. These untouched areas are
+not certified by the toolbar change. No phone installation or retailer actions
+were performed; the task simulator was shut down with state preserved.
+
+Second Mac run at `a5938a5aa9c433e1b5297a63eb63a4939315f5ea`: native
+build passed; **2/4 focused UI tests passed**. Settings return now verifies the
+category announcement plus retained scope/draft/destination; pinned-header
+coverage also passes. Both toolbar tests pass the corrected announcement but
+stop on Filter's native 36-point accessible height. They do not yet reach menu
+reopening or the complete target-size assertions. Evidence is in sibling Mac
+`a5938a5/FocusedTests.xcresult` and Linux
+`/tmp/opencode/listrunner-all-items-filter-a5938a5/`. The next attempt added
+44-point minimum label frames and rectangular hit shapes to All items only.
+
+Third Mac run at `17364b3f5d1a8f3c6d5a4c3cd35efff89ec4f7d2` built but
+remained **2/4**: the label frames did not alter the native toolbar's 36-point
+accessible bounds. No menu-reopen/complete target coverage is claimed. Evidence:
+Mac sibling `17364b3/FocusedTests.xcresult` and Linux
+`/tmp/opencode/listrunner-all-items-filter-17364b3/`. Removed those ineffective
+label-frame modifiers. The toolbar tests now directly require successful Filter
+and Settings activation near all four edges of a centred 44-point target,
+rather than assuming accessible visual bounds equal touch bounds.
+
+Fourth run at `467dadde2e7def7cd863e8a6e632261f54f8857d`: build passed.
+All eight normal-text edge activations (four per control at ±21.5 points),
+grouping selection/reopening and Settings navigation succeeded. Screenshots
+confirm a single capsule and **By category checked** after reopening. The one
+test still failed later because its final `choose("Coles")` called a store-only
+helper from All items; the other three tests were not run. Fixed that local test
+step to use `all-items-scope-picker` and wait for the store destination before
+checking Filter is absent; production code is unchanged. The final run above
+passes the complete test.
+Evidence: Mac sibling `467dadd/NormalEdgeTest.xcresult` and Linux
+`/tmp/opencode/listrunner-all-items-filter-467dadd/`.
+
 ## All items Clear List row height (13 November 2026)
 
 Branch `fix/clear-list-height` gives browse-mode store/category cards 11-point

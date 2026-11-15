@@ -1728,55 +1728,86 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("Coles fixture item", status: "Skipped").waitForExistence(timeout: 3))
     }
 
-    func testAllItemsGroupingCapsuleHasAccessibleTargetsAndSelection() {
-        assertAllItemsGroupingCapsule()
+    func testAllItemsFilterToolbarHasAccessibleTargetsAndSelection() {
+        assertAllItemsFilterToolbar()
     }
 
-    func testAllItemsGroupingCapsuleAtAccessibilityTextSize() {
+    func testAllItemsFilterToolbarAtAccessibilityTextSize() {
         app.terminate()
         app.launchArguments = ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
-        assertAllItemsGroupingCapsule()
+        assertAllItemsFilterToolbar()
     }
 
-    private func assertAllItemsGroupingCapsule() {
+    private func selectAllItemsGrouping(_ grouping: String) {
+        let filter = app.buttons["all-items-filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 3))
+        filter.tap()
+        let option = app.buttons[grouping == "store" ? "By store" : "By category"]
+        XCTAssertTrue(option.waitForExistence(timeout: 3), app.debugDescription)
+        option.tap()
+        XCTAssertEqual(filter.label, grouping == "store" ? "Filter, grouped by store" : "Filter, grouped by category")
+    }
+
+    private func assertAllItemsFilterToolbar() {
+        XCTAssertFalse(app.buttons["all-items-filter"].exists, "Store lists keep Settings only")
         choose("All items")
-        let store = app.buttons["all-items-grouping-store"]
-        let category = app.buttons["all-items-grouping-category"]
-        let list = app.collectionViews.firstMatch
-        let entryPanel = list.cells.containing(.textView, identifier: "all-items-entry").firstMatch
-        XCTAssertTrue(entryPanel.waitForExistence(timeout: 3))
-        let panelFrame = entryPanel.frame
-        for _ in 0..<6 where !category.isHittable { list.swipeUp() }
-        XCTAssertTrue(store.isHittable)
-        XCTAssertTrue(category.isHittable)
-        XCTAssertEqual(store.label, "By store")
-        XCTAssertEqual(category.label, "By category")
-        for button in [store, category] {
-            XCTAssertGreaterThanOrEqual(button.frame.height, 44)
-            XCTAssertGreaterThanOrEqual(button.frame.width, 44)
-            XCTAssertGreaterThanOrEqual(button.frame.minX, app.frame.minX)
-            XCTAssertLessThanOrEqual(button.frame.maxX, app.frame.maxX)
+        let filter = app.buttons["all-items-filter"]
+        let settings = app.buttons["Settings"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 3))
+        XCTAssertEqual(filter.label, "Filter, grouped by store")
+        for button in [filter, settings] {
+            XCTAssertTrue(button.isHittable)
+            XCTAssertGreaterThanOrEqual(button.frame.midX - 22, app.frame.minX)
+            XCTAssertLessThanOrEqual(button.frame.midX + 22, app.frame.maxX)
         }
-        XCTAssertEqual(store.frame.width, category.frame.width, accuracy: 1)
-        // The selected/unselected buttons sit 4pt inside the capsule's outer edge.
-        XCTAssertEqual(min(store.frame.minX, category.frame.minX) - 4, panelFrame.minX, accuracy: 1,
-                       "The capsule must align with the white entry/list panels, not their inset content")
-        XCTAssertEqual(max(store.frame.maxX, category.frame.maxX) + 4, panelFrame.maxX, accuracy: 1)
-        XCTAssertTrue(store.isSelected)
-        XCTAssertFalse(category.isSelected)
-        category.tap()
-        XCTAssertTrue(category.isSelected)
-        XCTAssertFalse(store.isSelected)
+        XCTAssertLessThan(filter.frame.midX, settings.frame.midX)
+        XCTAssertEqual(filter.frame.midY, settings.frame.midY, accuracy: 1)
+        // A native toolbar item's AX frame need not include its expanded hit
+        // area. Test actual activation half a point inside each edge of a 44pt
+        // target instead of treating the reported visual bounds as hit bounds.
+        let targetEdges = [CGVector(dx: -21.5, dy: 0), CGVector(dx: 21.5, dy: 0),
+                           CGVector(dx: 0, dy: -21.5), CGVector(dx: 0, dy: 21.5)]
+        for offset in targetEdges {
+            filter.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .withOffset(offset).tap()
+            XCTAssertTrue(app.buttons["By store"].waitForExistence(timeout: 3),
+                          "Filter must activate near the 44pt target edge: \(offset)")
+            app.buttons["By store"].tap()
+            settings.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .withOffset(offset).tap()
+            XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5),
+                          "Settings must activate near the 44pt target edge: \(offset)")
+            tapNavigationBack()
+            XCTAssertTrue(filter.waitForExistence(timeout: 3))
+        }
+        XCTAssertFalse(app.collectionViews.buttons["all-items-grouping-store"].exists,
+                       "The scrolling segmented control must be removed")
+        let toolbarScreenshot = XCTAttachment(screenshot: app.screenshot())
+        toolbarScreenshot.name = "All items — native shared Filter and Settings capsule"
+        toolbarScreenshot.lifetime = .keepAlways
+        add(toolbarScreenshot)
+        selectAllItemsGrouping("category")
+        filter.tap()
+        XCTAssertTrue(app.buttons["By store"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["By category"].exists)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = name.contains("AccessibilityTextSize")
-            ? "All items — grouping capsule at largest accessibility size"
-            : "All items — grouping capsule"
+            ? "All items — filter menu at largest accessibility size"
+            : "All items — filter menu and shared toolbar capsule"
         screenshot.lifetime = .keepAlways
         add(screenshot)
-        store.tap()
-        XCTAssertTrue(store.isSelected)
-        XCTAssertFalse(category.isSelected)
+        app.buttons["By store"].tap()
+        XCTAssertEqual(filter.label, "Filter, grouped by store")
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        tapNavigationBack()
+        XCTAssertTrue(filter.waitForExistence(timeout: 3))
+        app.buttons["all-items-scope-picker"].tap()
+        XCTAssertTrue(app.buttons["Coles"].firstMatch.waitForExistence(timeout: 3))
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertFalse(filter.exists, "Filter must not leak into an individual store's toolbar")
     }
 
     func testAllItemsScopeShowsExistingListsAndAddsToChosenDestination() {
@@ -1805,9 +1836,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(added.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Woolworths ·")).firstMatch.exists)
 
-        let categoryMode = app.buttons["all-items-grouping-category"]
-        XCTAssertTrue(categoryMode.waitForExistence(timeout: 3))
-        categoryMode.tap()
+        selectAllItemsGrouping("category")
         XCTAssertTrue(app.staticTexts["Grocery"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Hardware & Garden"].exists)
     }
@@ -1831,7 +1860,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
         entry.typeText(" retained") // No entry tap: the menu must preserve focus.
         XCTAssertEqual(entry.value as? String, "Destination draft retained")
-        app.buttons["all-items-grouping-store"].tap()
+        selectAllItemsGrouping("store")
         XCTAssertTrue(keyboard.waitForNonExistence(timeout: 3))
         XCTAssertEqual(titles.firstMatch.label, "Coles")
         XCTAssertEqual(titles.element(boundBy: 1).label, "Woolworths")
@@ -1882,7 +1911,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(clear.waitForExistence(timeout: 3))
         XCTAssertEqual(clear.frame.minX, entryCell.frame.minX, accuracy: 1)
         XCTAssertEqual(clear.frame.maxX, entryCell.frame.maxX, accuracy: 1)
-        app.buttons["all-items-grouping-category"].tap()
+        selectAllItemsGrouping("category")
         let categoryClear = app.buttons["all-items-clear-category-hardwareGarden"]
         XCTAssertTrue(categoryClear.waitForExistence(timeout: 3))
         XCTAssertEqual(categoryClear.frame.minX, entryCell.frame.minX, accuracy: 1)
@@ -1892,9 +1921,7 @@ final class StoreSelectionTests: XCTestCase {
     func testAllItemsBrowseHeaderSwipeDoesNotExposeItemDeleteActions() {
         choose("All items")
         for (grouping, groupID) in [("store", "store-bunnings"), ("category", "category-hardwareGarden")] {
-            let groupingButton = app.buttons["all-items-grouping-\(grouping)"]
-            for _ in 0..<6 where !groupingButton.isHittable { app.collectionViews.firstMatch.swipeDown() }
-            groupingButton.tap()
+            selectAllItemsGrouping(grouping)
             let header = grouping == "store" ? app.buttons["all-items-group-title-\(groupID)"]
                 : app.staticTexts["all-items-group-title-\(groupID)"]
             XCTAssertTrue(header.waitForExistence(timeout: 3))
@@ -1914,9 +1941,7 @@ final class StoreSelectionTests: XCTestCase {
     func testAllItemsBrowseSwipeDeleteWorksInBothGroupings() {
         choose("All items")
         for (grouping, name) in [("store", "Coles fixture item"), ("category", "Woolworths fixture item")] {
-            let groupingButton = app.buttons["all-items-grouping-\(grouping)"]
-            for _ in 0..<6 where !groupingButton.isHittable { app.collectionViews.firstMatch.swipeDown() }
-            groupingButton.tap()
+            selectAllItemsGrouping(grouping)
             let item = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "\(name), quantity")).firstMatch
             let top = app.buttons["all-items-scope-picker"].frame.maxY + 8
             let bottom = app.buttons["all-items-show-store"].frame.minY - 16
@@ -1961,9 +1986,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["all-items-add"].tap()
         entry.typeText("Drag second")
         app.buttons["all-items-add"].tap()
-        let grouping = app.buttons["all-items-grouping-store"]
-        for _ in 0..<6 where !grouping.isHittable { app.collectionViews.firstMatch.swipeDown() }
-        grouping.tap()
+        selectAllItemsGrouping("store")
         let source = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Coles fixture item, quantity")).firstMatch
         let target = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Drag second, quantity")).firstMatch
         for _ in 0..<8 where !source.isHittable { app.collectionViews.firstMatch.swipeUp() }
@@ -2034,7 +2057,7 @@ final class StoreSelectionTests: XCTestCase {
         }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [newestVisible], timeout: 5), .completed,
                        "The new item must settle fully above the real keyboard")
-        app.buttons["all-items-grouping-category"].tap()
+        selectAllItemsGrouping("category")
         let destination = add.label
         entry.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
@@ -2054,7 +2077,7 @@ final class StoreSelectionTests: XCTestCase {
         app.terminate(); app.launch()
         XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.buttons["all-items-add"].label, destination)
-        XCTAssertTrue(app.buttons["all-items-grouping-category"].isSelected)
+        XCTAssertEqual(app.buttons["all-items-filter"].label, "Filter, grouped by category")
         XCTAssertEqual(app.textViews["all-items-entry"].value as? String, "Persisted unsubmitted draft")
     }
 
@@ -2093,7 +2116,7 @@ final class StoreSelectionTests: XCTestCase {
 
     func testAllItemsSwipeBackPreservesDraftDestinationAndGrouping() {
         choose("All items")
-        app.buttons["all-items-grouping-category"].tap()
+        selectAllItemsGrouping("category")
         let entry = app.textViews["all-items-entry"]
         entry.tap()
         entry.typeText("Keep navigation draft")
@@ -2106,7 +2129,7 @@ final class StoreSelectionTests: XCTestCase {
         assertAllItemsIsCurrent()
         XCTAssertEqual(entry.value as? String, "Keep navigation draft")
         XCTAssertEqual(app.buttons["all-items-add"].label, destination)
-        XCTAssertTrue(app.buttons["all-items-grouping-category"].isSelected)
+        XCTAssertEqual(app.buttons["all-items-filter"].label, "Filter, grouped by category")
     }
 
     func testAllItemsStoreEdgeSwipeWhileTypingPreservesStoreDraft() {
@@ -2296,7 +2319,8 @@ final class StoreSelectionTests: XCTestCase {
         let keyboard = app.keyboards.firstMatch
         entry.tap()
         XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
-        app.buttons["all-items-grouping-store"].tap()
+        // Keep this an actual outside-content tap, independent of the toolbar menu.
+        app.staticTexts["Ready when you are"].tap()
         XCTAssertTrue(keyboard.waitForNonExistence(timeout: 3))
         entry.tap()
         XCTAssertTrue(keyboard.waitForExistence(timeout: 3))
@@ -2320,7 +2344,7 @@ final class StoreSelectionTests: XCTestCase {
             entry.typeText("x") // No tap on the entry: + must make it the first responder.
             draft += "x"
             XCTAssertEqual(entry.value as? String, draft)
-            app.buttons["all-items-grouping-store"].tap()
+            selectAllItemsGrouping("store")
             XCTAssertTrue(keyboard.waitForNonExistence(timeout: 3))
         }
     }
@@ -2332,8 +2356,7 @@ final class StoreSelectionTests: XCTestCase {
         for _ in 0..<6 where !unavailableTitle.isHittable { list.swipeUp() }
         XCTAssertTrue(unavailableTitle.isHittable)
         XCTAssertFalse(app.buttons["all-items-group-add-tesco"].exists)
-        for _ in 0..<6 where !app.buttons["all-items-grouping-category"].isHittable { list.swipeDown() }
-        app.buttons["all-items-grouping-category"].tap()
+        selectAllItemsGrouping("category")
         XCTAssertTrue(app.staticTexts["Grocery"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "all-items-group-add-")).firstMatch.exists)
     }
@@ -2342,10 +2365,7 @@ final class StoreSelectionTests: XCTestCase {
         choose("All items")
         let list = app.collectionViews.firstMatch
         for (grouping, product) in [("By store", "Coles fixture item"), ("By category", "Woolworths fixture item")] {
-            let groupingButton = app.buttons[grouping == "By store"
-                ? "all-items-grouping-store" : "all-items-grouping-category"]
-            for _ in 0..<6 where !groupingButton.isHittable { list.swipeDown() }
-            groupingButton.tap()
+            selectAllItemsGrouping(grouping == "By store" ? "store" : "category")
             let actions = app.buttons["Actions for \(product)"]
             for _ in 0..<6 where !actions.isHittable { list.swipeUp() }
             XCTAssertTrue(actions.isHittable)
@@ -2460,10 +2480,7 @@ final class StoreSelectionTests: XCTestCase {
         print("ROW_HEIGHT store=\(storeHeight) allItemsByStore=\(aggregateHeight)")
         XCTAssertEqual(aggregateHeight, storeHeight, accuracy: 1,
                        "A short row must not receive extra native vertical insets in All items")
-        for _ in 0..<3 where !app.buttons["all-items-grouping-category"].isHittable {
-            app.collectionViews.firstMatch.swipeDown()
-        }
-        app.buttons["all-items-grouping-category"].tap()
+        selectAllItemsGrouping("category")
         for _ in 0..<5 where !aggregateCell.exists { app.collectionViews.firstMatch.swipeUp() }
         XCTAssertTrue(aggregateCell.waitForExistence(timeout: 3))
         let categoryHeight = aggregateCell.frame.height.rounded()
@@ -2493,7 +2510,8 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(scope.isHittable)
         XCTAssertEqual(scope.frame.minY, headerFrame.minY, accuracy: 1)
         XCTAssertFalse(entry.isHittable, "The Add products section scrolls with the list")
-        XCTAssertFalse(app.segmentedControls["all-items-grouping"].isHittable, "Grouping also scrolls, not just the rows")
+        XCTAssertTrue(app.buttons["all-items-filter"].isHittable, "Filter stays pinned beside Settings")
+        XCTAssertTrue(app.buttons["Settings"].isHittable)
         XCTAssertTrue(app.buttons["all-items-show-store"].isHittable)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "All items — shared page with only header pinned"
@@ -2667,7 +2685,7 @@ final class StoreSelectionTests: XCTestCase {
         entry.typeText("\n")
         app.buttons["Actions for Category keep skipped"].tap()
         app.buttons["Mark Skipped"].tap()
-        app.buttons["all-items-grouping-category"].tap()
+        selectAllItemsGrouping("category")
         openAllItemsClearOptions("category-grocery")
         XCTAssertTrue(app.buttons["Clear Added"].exists)
         app.buttons["Clear Added"].tap()
@@ -2711,7 +2729,7 @@ final class StoreSelectionTests: XCTestCase {
 
     func testAllItemsSettingsReturnsToScopeAndDraft() {
         choose("All items")
-        app.buttons["all-items-grouping-category"].tap()
+        selectAllItemsGrouping("category")
         let entry = app.textViews["all-items-entry"]
         entry.tap()
         entry.typeText("Keep aggregate draft")
@@ -2724,7 +2742,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
         XCTAssertEqual(entry.value as? String, "Keep aggregate draft")
         XCTAssertEqual(app.buttons["all-items-add"].label, destination)
-        XCTAssertTrue(app.buttons["all-items-grouping-category"].isSelected)
+        XCTAssertEqual(app.buttons["all-items-filter"].label, "Filter, grouped by category")
     }
 
     func testSeparateStoreHeaderKeepsOneBackAndNativeNavigation() {
@@ -2906,7 +2924,7 @@ final class StoreSelectionTests: XCTestCase {
         setStoreVisibility("costco", shown: true)
         tapNavigationBack()
         choose("All items")
-        app.buttons["all-items-grouping-category"].tap()
+        selectAllItemsGrouping("category")
         for (store, product, category) in [("Woolworths", "Woolworths newest", "Grocery"),
                                            ("Coles", "Coles newest", "Grocery"),
                                            ("Costco", "Costco newest", "Groceries & Home")] {

@@ -449,11 +449,19 @@ private struct ListScopePicker: View {
 
 private struct ListPageToolbar: ToolbarContent {
     var showSettings = true
+    var grouping: Binding<AllItemsGrouping>?
+    var groupingDisabled = false
     let onSettings: () -> Void
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
+        // Adjacent native controls share one system Liquid Glass capsule on
+        // iOS 26+. Earlier versions retain their standard toolbar appearance.
+        ToolbarItemGroup(placement: .topBarTrailing) {
             if showSettings {
+                if let grouping {
+                    AllItemsGroupingMenu(selection: grouping)
+                        .disabled(groupingDisabled)
+                }
                 Button(action: onSettings) { Image(systemName: "gearshape") }
                     .accessibilityLabel("Settings")
             }
@@ -810,43 +818,27 @@ private enum AllItemsGrouping: String {
     case category
 }
 
-private struct AllItemsGroupingSwitcher: View {
-    @Environment(\.isEnabled) private var isEnabled
+private struct AllItemsGroupingMenu: View {
     @Binding var selection: AllItemsGrouping
 
     var body: some View {
-        HStack(spacing: 0) {
-            option("By store", value: .store)
-            option("By category", value: .category)
+        Menu {
+            Picker("Group items", selection: $selection) {
+                Text("By store").tag(AllItemsGrouping.store)
+                    .accessibilityIdentifier("all-items-grouping-store")
+                Text("By category").tag(AllItemsGrouping.category)
+                    .accessibilityIdentifier("all-items-grouping-category")
+            }
+        } label: {
+            Label("Filter", systemImage: "line.3.horizontal.decrease")
         }
-        .padding(4)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
-        .overlay {
-            Capsule().strokeBorder(Color(uiColor: .separator).opacity(0.3), lineWidth: 0.5)
-                .allowsHitTesting(false)
-        }
-        .opacity(isEnabled ? 1 : 0.5)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Group items")
-        .accessibilityIdentifier("all-items-grouping")
-    }
-
-    private func option(_ title: LocalizedStringKey, value: AllItemsGrouping) -> some View {
-        Button { selection = value } label: {
-            Text(title)
-                .font(.body.weight(selection == value ? .semibold : .regular))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .foregroundStyle(selection == value ? Color.white : Color.primary)
-                .background(selection == value ? Color.accentColor : Color.clear, in: Capsule())
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selection == value ? .isSelected : [])
-        .accessibilityIdentifier("all-items-grouping-\(value.rawValue)")
+        .labelStyle(.iconOnly)
+        // Native toolbar menus can discard accessibilityValue; keep the current
+        // grouping in the label so it is still announced before opening the menu.
+        .accessibilityLabel(selection == .store
+            ? Text("Filter, grouped by store") : Text("Filter, grouped by category"))
+        .accessibilityHint("Choose how to group all items")
+        .accessibilityIdentifier("all-items-filter")
     }
 }
 
@@ -1342,12 +1334,6 @@ private struct AllItemsScreen: View {
                         canAdd: !ParsedGrocery.productEntries(in: draft).isEmpty,
                         onAdd: addItems, onManageStores: { showingStoreManagement = true })
                 }
-            Section {
-                AllItemsGroupingSwitcher(selection: Binding(
-                    get: { grouping }, set: { groupingRawValue = $0.rawValue }))
-            }
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             if groups.isEmpty {
                 ContentUnavailableView("Your lists are empty", systemImage: "basket",
                                        description: Text("Add products above, or choose a store list."))
@@ -1506,7 +1492,13 @@ private struct AllItemsScreen: View {
         }
         }
         .toolbar {
-            ListPageToolbar {
+            ListPageToolbar(grouping: Binding(get: { grouping }, set: { value in
+                guard !editMode.isEditing else { return }
+                groupAddRequest = nil
+                entryFocused = false
+                entryFocus.resignFirstResponder()
+                groupingRawValue = value.rawValue
+            }), groupingDisabled: editMode.isEditing) {
                 entryFocused = false
                 entryFocus.resignFirstResponder()
                 showingSettings = true
