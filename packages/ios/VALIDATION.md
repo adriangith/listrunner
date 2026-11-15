@@ -68,6 +68,32 @@ The iPhone was then absent from both eligible and incompatible Xcode destination
 the iPad was not used as a substitute. The disk blocker is resolved, but phone
 installation now awaits reconnection. No restored-app install/launch is claimed.
 
+### Restoration installed on physical iPhone (15 November)
+
+After reconnection and the user's renewed build request, the clean Mac task
+checkout was synchronized to exact `23197726fd03a43de8e2ceee398fb01698ae6ab5`
+(documentation-only after restoration source `150a11d`). Xcode identified the
+correct task workspace `windowtab-iTHOqiYv99` and eligible active Adrian's iPhone
+on iOS 27.2.1. The Run scheme had no enabled launch arguments/environment entries.
+`RunProject(attachDebugger: false)` succeeded with zero build errors, launch
+reference `8e1cd9380`, PID **6184**. Independent `devicectl` process inspection
+confirmed PID 6184 running ListRunner on device `00008150-001402660A9BC01C`.
+
+The RunProject log references the task checkout. Actual signed device app under
+`ListRunner-agwrfyqrugvyvyeoxdnifvcrqqca/Build/Products/Debug-iphoneos/` passed
+**35 JSON + 1 JavaScript** canonical-resource checks and deep/strict codesign
+verification. The cached debug library timestamp is 15 November 10:15:54;
+`nm` independently confirms all three joined-header adapter types are absent
+from that binary, and source remains byte-identical to pre-join `acbbe07`.
+No forced rebuild or fresh physical UI regression run is claimed.
+
+Evidence preserved under Mac `~/Library/Developer/ListRunnerValidation/list-navigation/`:
+`separate-phone-run-2319772.log` (original `RunProject-Log-20261115-135812.txt`)
+and `separate-phone-processes-2319772.json`. The ordinary app was left running;
+no uninstall, data reset, fixtures, imports, retailer actions, merge or release.
+The earlier simulator chooser-edge test limitation remains unchanged. Installation
+and launch do not constitute new physical-device visual/accessibility sign-off.
+
 ## Joined header divider and overlapping artwork follow-up (14 November 2026)
 
 **Final outcome:** divider and single visible chevron verified on iPhone 17 /
