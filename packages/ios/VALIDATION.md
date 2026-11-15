@@ -2166,6 +2166,36 @@ No new simulator UI-suite run, physical-device installation, user-list edit, rea
 Branch: `feature/add-store-product-to-list`. Implementation plan and safety contract:
 `docs/store-product-to-list.md`.
 
+### Existing live preview updated in place (15 November 2026)
+
+At the user's request, preview simulator **ListRunner Two Bunnings Cards**
+(`0796AC93-DCD5-452B-B6DE-7B9D8B27F84A`, iPhone 17 / iOS 27.2) was upgraded
+in place from the existing verified product at
+`3c2a19cb11d03f0c093c0a7f3fd625c550f8dca1`. No duplicate device, rebuild,
+uninstall, reset, test flags or fixture environment was used. Both source and
+installed signatures passed, executable/debug-library hashes matched and all
+35 JSON + 1 JavaScript resource comparisons passed. Normal launch succeeded with
+PID **58493**. The task checkout remained clean at the exact implementation SHA.
+
+Pre-install hierarchy and list inspection already showed **one saved item**:
+Hoselink Evolve, quantity 1, Pending, Item 1 of 1. Shade umbrella was absent before
+the update. The upgrade preserved that actual state without reconstructing the
+previously prepared two-item sample, adding/deleting/editing rows or attributing
+the earlier state change to the installer. Dark appearance and ordinary preferences
+were retained. The same simulator was left booted with expanded one-card rail over
+the actual live Bunnings results for Hoselink Evolve. A screenshot taken after
+closing the bridge confirms the app remained running. Native Simulator.app GUI
+window opening remains unverified. No physical-phone or retailer cart/login/
+checkout actions, other-device or source changes occurred.
+
+Evidence: Mac
+`~/Library/Developer/Xcode/StoreProductSelection-Evidence/TwoBunningsPreview/Latest-3c2a19c/`;
+Linux `/tmp/opencode/two-bunnings-preview/LATEST.md` and
+`two-bunnings-cards-latest.png` (the screenshot truthfully shows one card despite
+the retained filename). Only the small screenshot/report were copied to Linux;
+full evidence remains on Mac. Later documentation-only commits do not change the
+installed implementation.
+
 ### Follow-up: one-card directional Add reveal (15 November 2026)
 
 The user approved one visible Add end for a one-card rail: left/start initially,
