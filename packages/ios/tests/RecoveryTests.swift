@@ -15,6 +15,20 @@ struct RecoveryTests {
         }
 
         let resources = URL(fileURLWithPath: CommandLine.arguments[1])
+        check(!ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [.coles], itemListIDs: []),
+              "one empty enabled store needs no duplicate overview")
+        check(!ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [.coles], itemListIDs: [StoreID.coles.listID]),
+              "one populated enabled store opens its ordinary list directly")
+        check(ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [.coles, .woolworths], itemListIDs: []),
+              "multiple enabled stores offer the overview even with empty lists")
+        check(ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [.coles], itemListIDs: [StoreID.woolworths.listID]),
+              "a disabled or unavailable owner's rows keep All items accessible")
+        check(ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [.coles], itemListIDs: [nil, UUID()]),
+              "missing and unknown owners cannot be hidden by single-store navigation")
+        check(ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [], itemListIDs: [StoreID.coles.listID]),
+              "saved lists remain reachable with no enabled stores")
+        check(!ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [], itemListIDs: []),
+              "a fresh or empty no-stores state has no redundant overview")
         let reorderA = UUID(), reorderB = UUID(), reorderC = UUID(), foreignID = UUID()
         let reorderInput = [reorderA, reorderB, reorderC]
         check(ShoppingLists.reorderedIDs(reorderInput, moving: [reorderC], before: reorderA)

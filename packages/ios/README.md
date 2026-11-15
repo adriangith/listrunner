@@ -35,6 +35,44 @@ The verifier requires every canonical JSON file (including Bunnings) to be byte-
 
 ## Current implementation
 
+### Adaptive list navigation
+
+Store lists share the root `NavigationStack` with All items. With multiple
+available enabled stores, a group header or scope-menu choice opens one store
+destination; changing stores replaces that destination, never adds Back history.
+The compact native leading Back chevron and interactive edge swipe return to
+All items. The old trailing grid shortcut is removed. Explicit scope changes
+respect Reduce Motion, and launch restores the last scope without animating.
+
+Back and the chooser retain their separate system backgrounds. At the user's
+request, the joined-capsule experiment was removed and `GroceryListScreen.swift`
+restored to pre-join revision `acbbe07`. There is no extended glass, decorative
+Back glyph, hidden native indicator, UIKit appearance adapter, replacement Back
+button or gesture-delegate override. Shared-capsule exploration is deferred to
+a future branch; its historical evidence remains in `VALIDATION.md` and Git.
+The subsequent colour-only adjustment uses `StoreListBackTint` to supply the
+native Back item's store tint and accessible label while on store detail,
+restoring the original item on leaving. It does not change navigation-bar
+appearances, background sharing, indicator artwork or gesture delegates.
+
+A single enabled store opens directly with no redundant overview, Back button
+or All items menu entry. Saved rows outside the enabled store (including unknown
+owners) keep All items available for recovery. Visibility changes are reconciled
+when list content returns, not underneath store management/settings. Import
+sheets retain their own stack; list data, drafts and browser sessions keep their
+existing owners. Native policy checks are in `tests/RecoveryTests.swift`; UI
+regression cases are in `ListRunnerUITests/StoreSelectionTests.swift`.
+
+Manual-scroll detection observes the list's existing native collection-view pan
+through the product editor's coordinator, removing its target on detachment or
+dismantling. Do not restore a full-page SwiftUI `DragGesture` just to detect
+scrolling: it competed with native edge Back in gradual-touch verification even
+when faster XCTest drags passed. Keep automatic-reveal cancellation passive and
+check both native edge navigation and keyboard/small-scroll behaviour.
+Deliberate vertical pans of at least 44 points dismiss entry focus in either
+direction; smaller repositioning drags and horizontal edge Back do not. Leaving
+All items explicitly resigns its retained editor without clearing the draft.
+
 ### Retailer-neutral list wording
 
 Individual store lists label their populated item section `Items` for every

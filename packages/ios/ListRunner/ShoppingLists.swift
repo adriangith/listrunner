@@ -1,6 +1,19 @@
 import Foundation
 import SwiftData
 
+enum ShoppingListNavigationPolicy {
+    static func offersAllItems(enabledStoreIDs: Set<StoreID>, itemListIDs: [UUID?]) -> Bool {
+        if enabledStoreIDs.count > 1 { return true }
+        let accessibleLists = Set(enabledStoreIDs.map(\.listID))
+        // nil and unrecognised owners are recovery items too. Never hide them
+        // just because only one (or no) retailer can currently be shopped.
+        return itemListIDs.contains { id in
+            guard let id else { return true }
+            return !accessibleLists.contains(id)
+        }
+    }
+}
+
 // Sidecar preference metadata uses immutable item UUIDs; existing SwiftData
 // records and their migration contract remain untouched. Unknown historical
 // rows have no fabricated addition time and use their deterministic list order.

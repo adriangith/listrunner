@@ -1,5 +1,685 @@
 # Reusable store framework validation
 
+## Earlier native Back tint setup (15 November 2026)
+
+User confirmed the separate tint works but reported a momentary black chevron
+before colour appears. At requested revision
+`f95d67ed9c357a5ecbff4673c6e346a4e167663f`, initialize the adapter's colour at
+creation, apply synchronously on updates/parent attachment and in `viewWillAppear`,
+and remove the window-attachment prerequisite that prevented preappearance
+setup. Retain `viewDidAppear` as fallback, stack/top-owner guards and original-item
+restoration. No changes to glass, indicator artwork, navigation or gestures.
+
+Linux Swift parse, 9 resource regressions and diff checks passed. Clean Mac task
+checkout received exact revision via Git. User requested phone only: **no simulator
+run**. Correct task workspace Xcode RunProject built/signed/installed/launched on
+Adrian's iPhone / iOS 27.2.1, zero build errors, 9.349 seconds, launch reference
+`8cbd80d80`, PID **6328** independently confirmed by devicectl. Device bundle's
+35 JSON + 1 JavaScript resources and strict deep signature verification passed;
+build log references the task source. Evidence in Mac validation directory:
+`early-tint-phone-run-f95d67e.log` (original `RunProject-Log-20261115-140631.txt`)
+and `early-tint-phone-processes.json`. Ordinary app left running; no reset,
+fixtures, retailer actions, merge or release. The timing change is installed,
+but elimination of the transient black frame awaits the user's phone observation;
+build/launch alone does not verify frame-by-frame appearance.
+
+The user subsequently reviewed the installed update and confirmed "Looks good
+to me", accepting the earlier-tint behavior on their phone. This is user visual
+acceptance, not a new automated gesture/accessibility regression run.
+
+## Separate native Back tint, physical-phone only (15 November 2026)
+
+At the user's request, colour-only revision
+`11c3daecdd5aadc17d0c6ec82d8abc4edf25b5d8` supplies the store tint to the native
+Back item via scoped `StoreListBackTint`. The previous navigation item's Back
+configuration is restored on leaving/dismantling; Settings keeps its ordinary
+configuration. No shared backgrounds, glass extensions, indicator suppression,
+decorative chevrons or gesture overrides were added. Controls remain separate.
+
+Linux Swift parsing, 9 resource regressions and diff checks passed. The clean
+Mac task checkout received the exact revision via Git. Xcode MCP selected task
+workspace `windowtab-iTHOqiYv99`, active eligible Adrian's iPhone / iOS 27.2.1.
+Run scheme had no enabled arguments/environment. `RunProject(attachDebugger:false)`
+built/signed/installed/launched successfully with zero build errors in 14.663s,
+launch reference `8e1b42d00`, PID **6263** independently confirmed by `devicectl`.
+Build log explicitly references the task's `GroceryListScreen.swift`.
+
+Actual device bundle passed **35 JSON + 1 JavaScript** canonical checks and
+deep/strict codesign verification. Evidence in Mac
+`~/Library/Developer/ListRunnerValidation/list-navigation/`:
+`separate-tint-phone-run-11c3dae.log` (original `RunProject-Log-20261115-140158.txt`)
+and `separate-tint-phone-processes.json`. No simulator was run, as requested.
+No new automated UI/physical visual/gesture sign-off is claimed from build and
+launch alone. Ordinary app left running; no uninstall/reset/fixtures/imports,
+retailer actions, merge or release.
+
+## Restore separate native Back and chooser (14 November 2026)
+
+The user chose to stop shared-capsule work and return to the earlier separate
+controls, deferring further exploration to a future branch. The complete
+`ListRunner/GroceryListScreen.swift` is restored byte-for-byte to `acbbe07`
+(before the first native tint/grouping experiment). This preserves adaptive
+navigation, transitions, native Back/edge pop and single-store policy, while
+removing all joined glass, overlay glyphs, indicator suppression and UIKit
+appearance code. History is preserved through a new commit, not a branch reset.
+
+The isolated two-store header fixture and focused regression tests are retained
+under neutral `header` / `SeparateStoreHeader` names. Assertions now require the
+system Back's nonempty accessible label, not the removed adapter's custom label.
+Plan/README reflect the user's superseding decision. Earlier joined-header
+results below are historical, not the current implementation. Native validation
+and phone installation of this restoration are not yet performed.
+
+At restoration `150a11dda2a7af8b532b48b38906d7e2e6cc5cb6`, the focused native
+run completed **1/2 passed, 1 failed, zero skipped**. Dark repeated-entry testing
+passed (Coles/Woolworths, native Back and Settings). The other test failed during
+chooser-edge tapping: XCTest could not find `store-picker` while the hierarchy
+showed an open menu and a Button/PopUpButton automation-type mismatch. Cause is
+not established; its later Settings/completed-edge/cancelled-edge assertions
+were not reached. Do not treat the restoration as a clean navigation-suite pass.
+
+Reviewed full dark store/Settings screenshots, a settled light Coles recording
+frame and header crops confirm separate native Back and chooser backgrounds,
+with a gap, one Back glyph and no joined overlay. Built resources passed all
+**35 JSON + 1 JavaScript** canonical checks. The clean Mac task checkout remains
+at exact `150a11d`; the task simulator is shut down and preserved. Evidence:
+Mac `~/Library/Developer/ListRunnerValidation/list-navigation/SeparateHeader150a11d.xcresult`;
+Linux `/tmp/opencode/listrunner-separate-150a11d/SUMMARY.md`, log, attachments and
+header crops. No physical-phone installation of the restoration occurred.
+
+On 15 November the user requested the restored build on the physical iPhone.
+The clean Mac task checkout was synchronized to exact
+`e585182f37d9d50c7d86a53825ede6e4fc331030`; Adrian's iPhone was eligible on
+iOS 27.2.1 and the Run scheme had no enabled arguments/environment entries.
+Xcode MCP RunProject returned a missing-log error, not a verified install.
+A subsequent desktop build through workspace index 1, guarded by exact task
+path, failed during preparation: Xcode could not write DerivedData `info.plist`.
+Disk inspection showed the Mac Data volume at **100%, only 114 MiB available**.
+No caches, simulator state or test evidence were deleted. Phone installation
+remains blocked on freeing disk space; no restored-app launch is claimed.
+
+With the user's cleanup approval, removed only this task's generated validation
+`DerivedData`, `GestureCheckDerivedData`, `JoinedHeaderDerivedData`,
+`JoinedPhoneDerivedData` and task Xcode DerivedData
+`ListRunner-agwrfyqrugvyvyeoxdnifvcrqqca`. Logs, xcresults, screenshots, simulator
+data and unrelated caches were preserved. Free space initially rose to 1,012 MiB,
+but was back to 118 MiB during retry (the task build cache had regenerated only
+70 MiB; the remaining consumption is unexplained). The clean Mac task checkout
+was updated to `f3f485adb5cf1ed12c4dece9f1cbb579ac76b511`.
+MCP again returned a missing-log error; guarded desktop build again failed to
+write DerivedData `info.plist` during preparation. No successful install/launch
+occurred. Further deletion outside the approved task-cache scope was not done.
+
+The user subsequently approved removal of the two old device-support folders:
+`iPhone18,5 27.2 (24B119)` and `iPhone14,5 27.2 (24B119)` under
+`~/Library/Developer/Xcode/iOS DeviceSupport/`. Exact directory/symlink checks
+preceded deletion. Recovered **13.35 GiB**, leaving **13.63 GiB free** immediately
+afterward; `iPhone18,5 27.2.1 (24B156)` was verified preserved. No other support
+folders, source, evidence or simulator data were removed.
+The clean Mac task checkout was synced to `4f28440be00db73f5aba6ed873f65f5b4cb180ef`.
+The iPhone was then absent from both eligible and incompatible Xcode destinations;
+the iPad was not used as a substitute. The disk blocker is resolved, but phone
+installation now awaits reconnection. No restored-app install/launch is claimed.
+
+### Restoration installed on physical iPhone (15 November)
+
+After reconnection and the user's renewed build request, the clean Mac task
+checkout was synchronized to exact `23197726fd03a43de8e2ceee398fb01698ae6ab5`
+(documentation-only after restoration source `150a11d`). Xcode identified the
+correct task workspace `windowtab-iTHOqiYv99` and eligible active Adrian's iPhone
+on iOS 27.2.1. The Run scheme had no enabled launch arguments/environment entries.
+`RunProject(attachDebugger: false)` succeeded with zero build errors, launch
+reference `8e1cd9380`, PID **6184**. Independent `devicectl` process inspection
+confirmed PID 6184 running ListRunner on device `00008150-001402660A9BC01C`.
+
+The RunProject log references the task checkout. Actual signed device app under
+`ListRunner-agwrfyqrugvyvyeoxdnifvcrqqca/Build/Products/Debug-iphoneos/` passed
+**35 JSON + 1 JavaScript** canonical-resource checks and deep/strict codesign
+verification. The cached debug library timestamp is 15 November 10:15:54;
+`nm` independently confirms all three joined-header adapter types are absent
+from that binary, and source remains byte-identical to pre-join `acbbe07`.
+No forced rebuild or fresh physical UI regression run is claimed.
+
+Evidence preserved under Mac `~/Library/Developer/ListRunnerValidation/list-navigation/`:
+`separate-phone-run-2319772.log` (original `RunProject-Log-20261115-135812.txt`)
+and `separate-phone-processes-2319772.json`. The ordinary app was left running;
+no uninstall, data reset, fixtures, imports, retailer actions, merge or release.
+The earlier simulator chooser-edge test limitation remains unchanged. Installation
+and launch do not constitute new physical-device visual/accessibility sign-off.
+
+## Joined header divider and overlapping artwork follow-up (14 November 2026)
+
+**Final outcome:** divider and single visible chevron verified on iPhone 17 /
+iOS 27.2 simulator, including light/dark appearance, native Back and interactive
+edge navigation. Both final focused tests passed in one run. At the user's request,
+this follow-up was subsequently built, signed, installed in place and launched
+on the physical iPhone. No merge or release was performed.
+
+After the earlier phone installation, the user reported that individual-store
+headers look like two Back buttons layered together and requested a separator.
+The old one-Back accessibility assertion only establishes one action target;
+it does **not** establish one visible chevron. The implementation drew a coloured
+chevron above glass without suppressing the native glyph beneath it. Earlier
+standard-size screenshot review did not catch the reported overlap and is not
+visual sign-off for this follow-up.
+
+Revision `2449043d07bc1671d84891d0038a65df2a46559e` explicitly makes the native
+Back item's tint transparent on iOS 26+ while retaining the native button, label,
+hit area and pop behavior. The shared decoration supplies the single visible
+store-coloured chevron, now centred over the native target rather than four
+points to its leading side, and a subtle 0.5 × 20-point adaptive separator in the
+gap before the chooser. Both decorations remain noninteractive and hidden from
+accessibility. The original back item is restored on leaving, so Settings keeps
+its normal Back; older systems retain native tinted artwork without the overlay.
+No navigation hiding, replacement button or gesture override is introduced.
+
+Linux Swift syntax parsing of the changed app/test files, all 9 bundled-resource
+regressions and `git diff --check` passed. The existing focused native-navigation
+test now retains a screenshot after a short edge gesture; a second isolated test
+covers dark-mode store switching, repeated entry and Settings restoration. Mac
+build/UI tests, light/dark visual review and actual built-resource verification
+were pending at that revision. No new physical-phone build or installation has been performed.
+
+The first native follow-up run at `2449043` failed **0/2 passed, 2 failed**:
+both tests found **zero** native `BackButton` elements after store selection.
+Exported recording frames show one visible coloured chevron and divider in
+Coles light/dark and Woolworths dark, and ordinary visible Settings Back in both
+appearances. However, a fully clear native tint makes UIKit omit the Back target
+from accessibility; static appearance alone is not a successful fix. The tests
+stopped before store Back/edge/cancellation checks and Woolworths light review.
+Built resources matched **35 JSON + 1 JavaScript**. Evidence: Mac
+`JoinedHeaderDivider2449043.xcresult` / `.log` and Linux
+`/tmp/opencode/listrunner-divider-2449043/`. No phone installation occurred.
+
+The next revision keeps the native Back item's ordinary opaque store tint and
+uses a transparent indicator image/mask in copied **destination-local** navigation
+appearances instead. The original appearances are restored only if still owned
+by the adapter; the navigation bar's shared appearances are not changed. Setter
+copy semantics are accounted for when retaining installed appearance instances.
+The native button, its accessibility and gesture behavior remain required by
+the unchanged focused tests, with explicit native hittability/label assertions.
+At `160c71103448b83fd8e9248231f26fd0881a8ce9`, the original focused native
+navigation test passed, including native Back count/hittability/label, chooser
+edge taps, Settings return, completed edge pop, short-edge cancellation and Back
+tap afterward. The pair was **1/2 passed**, not clean: the new dark test returned
+to All items after its first store, then incorrectly called the store-only
+`choose` helper. Its failure hierarchy shows the correct All items overview.
+The test flow now explicitly opens `all-items-scope-picker` for each repeated
+entry, without weakening assertions or changing production code.
+
+Reviewed settled frames show one visible chevron/divider/continuous capsule for
+Coles and Woolworths in light and dark, and after the short edge gesture; Settings
+Back remains ordinary and visible in both appearances. Woolworths green in dark
+appearance is subdued (existing branding; contrast is not certified). Built and
+installed simulator bundles passed **35 JSON + 1 JavaScript** checks. Evidence:
+Mac `JoinedHeaderIndicator160c711.xcresult` / `.log`, Linux
+`/tmp/opencode/listrunner-divider-160c711/`.
+
+The dark test also incurred roughly 195 seconds of idle waiting on initial
+Settings entry, with an XCTest event-loop notification timeout and retained
+spindump. The available largely unsymbolicated sample does not establish the
+cause. This is not a healthy-timing sign-off; the corrected focused run must
+report whether it recurs. Final repeated-entry verification remains pending.
+
+### Final focused verification
+
+At `12740bde4f8eb3e2145f2a523d037d5491eba002` (production UI unchanged from
+`160c711`), both focused tests passed **2/2, zero failures/skips**, in one run
+without retries (120.791 seconds). `testJoinedStoreHeaderKeepsOneBackAndNativeNavigation`
+covers one hittable native Back with its proper label/height, chooser edge taps,
+Settings return, completed/short native edge gestures and Back tap afterward.
+`testJoinedStoreHeaderDarkAppearanceAndRepeatedEntry` covers repeated root entry
+into Woolworths/Coles and the final Coles → Settings → Coles → All items route.
+
+All seven full-resolution attachments and header crops were reviewed. Settled
+Coles/Woolworths light/dark headers show exactly one visible coloured chevron,
+short divider and continuous glass, with no observed duplicate glyph/shadow,
+overlap or clipping. Settings retains ordinary black/white Back. The first Coles
+light attachment caught a blurred transition; the settled post-cancellation
+attachment establishes that header. This is standard-size focused visual review,
+not a broad Dynamic Type/VoiceOver/OS/contrast certification; Woolworths' dark
+green remains subdued.
+
+The earlier Settings stall did **not** recur: initial/final dark-test Settings
+entries continued in approximately 1.2/1.4 seconds, with no idle-notification
+warnings or spindump. This does not identify the earlier stall's cause. Built and
+installed simulator bundles both match **35 JSON + 1 JavaScript**, with executable
+and debug-library hashes also matching. The dedicated task simulator was shut
+down, not deleted. Mac checkout remains clean at the exact test revision.
+
+Evidence: Mac `JoinedHeaderFinal12740bd.xcresult`, `.log` and `-attachments/` under
+`~/Library/Developer/ListRunnerValidation/list-navigation/`; Linux
+`/tmp/opencode/listrunner-divider-12740bd/`, including test summary, reviewed
+images/crops and provenance. No physical-device install, data reset, live retailer
+action, merge or release occurred for this follow-up.
+
+### User-requested physical iPhone update
+
+After the user approved installation, the clean isolated Mac task checkout was
+fetched and detached at exact `7c5222597579451571e98a5af768fc5b75b2fc1e` (docs-only
+after the final passing test revision). Xcode MCP identified the task workspace
+`windowtab-iTHOqiYv99` by its exact path and confirmed **Adrian’s iPhone**, iOS 27.2,
+as the eligible active destination. The shared Run scheme contained no launch
+arguments or environment variables.
+
+`RunProject(attachDebugger: false)` succeeded in 13.183 seconds with zero build
+errors, installed in place and launched normally: launch reference `8e1b41f80`,
+PID **69051**. `devicectl device info processes` independently confirmed that PID
+running the installed ListRunner bundle on iPhone
+`00008150-001402660A9BC01C`. The phone was left running the ordinary app; no reset,
+fixture launch, import, list clearing, retailer action, or signing-policy change.
+
+The RunProject log explicitly compiles the task checkout's `GroceryListScreen.swift`
+and signs its `ListRunner-agwrfyqrugvyvyeoxdnifvcrqqca/Build/Products/Debug-iphoneos/ListRunner.app`.
+Its debug-library timestamp is 14 November 23:17:21 AEDT. That actual device bundle
+passed **35 JSON + 1 JavaScript** canonical-resource verification and
+`codesign --verify --deep --strict`. The build emitted a redundant appearance-copy
+cast warning and an unused `resignFirstResponder()` result warning; this is not a
+zero-warning build claim. No new physical-device visual/interaction certification
+is claimed from installation and launch alone.
+
+Original Xcode log: `RunProject-Log-20261114-231730.txt` under the Mac's
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/`.
+Preserved copy: `divider-phone-run-7c52225.log` under
+`~/Library/Developer/ListRunnerValidation/list-navigation/`; independent process
+evidence: `divider-phone-processes.json` in the same directory.
+
+## Joined store-coloured Back and chooser (13 November 2026)
+
+**Final outcome, 14 November:** requested appearance and native navigation checks
+passed; the signed update was installed in place on Adrian's iPhone 17e. Automatic
+launch was denied because the phone was locked. Unlock and open ListRunner to use
+the installed update. No resets, test data, retailer actions, merge or release.
+
+The user requested a store-coloured Back chevron joined visually to the chooser,
+followed by another phone build. Initial native-item prototype `32ae72b` correctly
+tinted Coles red and Woolworths green and preserved Settings/edge Back, but the
+system ignored the requested shared grouping: two separate glass shapes remained.
+That is a failed join attempt, not a delivered shared capsule. Internal evidence:
+`/tmp/opencode/listrunner-joined-back-32ae72b/`.
+
+Revision `bc8af6f9879b97596ea3368afaeeb76f488d676a` instead places separate Back
+and chooser controls inside one explicit native Liquid Glass capsule and hides
+the toolbar's redundant background for that joined item only. Store colour is
+explicit on the chevron. A scoped UIKit proxy preserves the existing interactive
+pop while the separate native Back item is hidden; it overrides only the hidden-
+Back shouldBegin gate with top-owner/stack/transition guards, forwards remaining
+arbitration, and restores the previous delegate on leaving. It introduces no
+new edge/full-screen gesture, data mutation or fixture in the normal scheme.
+Linux Swift parsing and `git diff --check` passed; native visual/build checks and
+the requested phone reinstall are pending.
+
+Visual verification at `bc8af6f` confirmed the requested single shared capsule,
+separate hit targets, Coles red/Woolworths green and unaffected Settings Back.
+The custom Back tap returned to All items, but the completed native edge swipe
+failed; that revision was **not** installed on the phone. Internal evidence:
+`/tmp/opencode/listrunner-joined-back-bc8af6f/`.
+
+Revision `929af431c11b2b017f1d338428c90adfdc82dca8` handles both of UIKit's
+native interactive-pop recognizers (edge and iOS 26+ content) with scoped proxies
+and refreshes attachment after layout, including the hidden-Back enabled state.
+Temporary Debug-only isolated-session traces identify attachment/begin callbacks;
+normal launches do not emit them. Focused real-gesture retest is pending. The
+requested physical-phone rebuild remains deferred until swipe-back is verified.
+
+The `929af43` retest still failed its completed native pop: proxies attached to
+both system recognizers, but no `shouldBegin` callback was reached. No phone
+installation occurred. Revision `c38588bdefd23e9c77d438c31d6b86bd3b6e207e`
+also scopes touch/event admission to the active store destination and the first
+28 points of its leading edge, rather than forwarding the hidden-native-Back
+touch gate. Ordinary content/row gestures remain excluded from the override.
+Native retest is pending; a shared-pill screenshot alone is not gesture sign-off.
+
+The touch-admission prototype still did not receive native callbacks. Isolated
+diagnostic revision `3fe47c6` established that both native recognizers were
+enabled, attached and still using the proxy after layout, yet never received the
+edge touch. That rules out a missing appearance callback or a simple disabled
+recognizer; it did not make the hidden-navigation approach safe.
+
+Revision `e0c983562c235daf7f7ab64d4fe3cbced5a7c5d7` removes the hidden-Back
+modifier, **all gesture delegates/overrides**, and temporary debug traces. Its
+scoped adapter only sets `leftItemsSupplementBackButton = false`, using UIKit's
+documented replacement layout for custom leading controls while leaving native
+navigation active. It restores the old flag when leaving/dismantling. The joined
+glass/colour presentation is unchanged. A focused native retest is pending before
+the requested phone installation.
+
+At `e0c9835`, completed native edge Back and reversed-then-completed gesture
+outcomes passed again, along with colours, Settings and the joined Back action.
+However, some settled store entries showed an extra native Back circle beside
+the joined capsule (two `BackButton` elements). This visual defect blocked the
+phone build. Revision `3408ee29988ceb9206ca079307e5157aa201b5c5` reapplies only
+the leading-item replacement layout after SwiftUI's final toolbar update and
+native transition completion. No gesture flags or delegates are changed; the
+duplicate-control and real-edge retest is pending.
+
+The post-transition reapplication still left two Back controls on settled entry.
+Revision `9a2f8e5ce523342a49dc5abcae7ab27c40dfc7e5` removes the replacement
+Back button entirely. It retains/tints the original native Back, hides only that
+item's individual shared background, and lets the chooser's non-hit-testing glass
+decoration extend behind the native target and gap. No navigation hiding,
+supplement-layout override or gesture-delegate change remains. A focused visual
+check must establish that the glass extension is not clipped and there is exactly
+one native Back, followed by real edge/cancel/Settings checks before installation.
+
+The extended glass at `9a2f8e5` was continuous and left exactly one native Back
+target, but composited over its chevron, making the Back area visually blank.
+Revision `9d01f1916f798ebba8a528bade5a876b27fdc834` draws a store-coloured
+decorative chevron above that material at the native target's position. The whole
+decoration remains non-hit-testing and accessibility-hidden: the original native
+Back is still the only button, owns its own tap/AX target, and retains native pop.
+Colour, one-capsule appearance, tap, actual edge/cancel and Settings checks are
+pending before phone installation. Linux Swift syntax + 9 resource checks passed.
+
+The final DeviceInteraction attempt was cancelled before returning evidence.
+After the user asked to continue, Xcode MCP tools were unavailable, so verification
+continued through a focused XCTest run on the task's dedicated iPhone 17 simulator.
+Test-only revision `940f1295d7fb18056aed2b0ff76625762dec13d4` checks one native
+Back target, chooser tap height, Coles/Woolworths/Settings appearance attachments,
+Settings return, completed/short edge outcomes and Back tap. Native source remains
+`9d01f19`. A signed phone build is prepared separately; install remains gated on
+the focused test and visual review of its retained attachments. No reset/test
+environment is used for the requested phone launch.
+
+The SSH command-line `iphoneos` build compiled but failed at signing with
+`errSecInternalComponent`; no keychain/security policy was changed and that
+unsigned build was not installed. Xcode's desktop build action was then started
+on the exact isolated task workspace, selecting **Adrian’s iPhone** explicitly
+(`iphoneos`, not the iPad); action ID `8877-0`. Its completion and signed output
+verification remain pending. CLI evidence: `joined-phone-build.log` under the
+existing task validation directory. The final focused simulator test is
+`JoinedHeaderFinal.xcresult` / `joined-header-final.log` in that directory.
+
+The focused test's SSH connection later dropped with `Timeout, server
+192.168.4.94 not responding` (exit 255), and a fresh bounded reconnect also timed
+out. This is an **unknown native test/build outcome**, not a test assertion failure
+or a passing build. Desktop build action `8877-0` could not be read back and no
+new phone installation/launch was performed or claimed. On reconnection, inspect
+the existing result bundle/log and Xcode action before starting duplicate work.
+
+On reconnect, the original simulator run was still stuck in onboarding after the
+connection/sleep interruption; only its exact `xcodebuild` PID was interrupted.
+An isolated Debug-only joined-header fixture now starts with two enabled stores
+and known rows, avoiding unrelated management navigation. At `67988c6`, the
+focused test reached the store header with one Back, but stopped on the chooser's
+36-point accessible label area. Revision `6eae8fa3a106be547befc37af80379b6fd21b1e1`
+sets the 44-point minimum on the menu label itself, not only its outer container.
+That focused rerun is `JoinedHeaderTarget44.xcresult` / `joined-header-target44.log`.
+
+Desktop Xcode build action `8877-1` completed **succeeded**, confirming desktop
+signing works without changing keychain policy. After the label correction,
+desktop action `8877-2` was started for the explicitly selected iPhone. Final
+test/visual review, signed-output verification and installation remain pending.
+
+The menu's AX label remained 36 points despite the label minimum; the test now
+checks actual taps just outside that label at the top/bottom of the 44-point
+capsule, rather than equating visible-label bounds with UIKit's full hit area.
+This focused run is `JoinedHeaderHitTargets.xcresult` at test-only `603d2bb`.
+
+Readback of desktop build `8877-2` revealed Xcode AppleScript resolved the two
+same-named project documents to the canonical checkout instead of the task when
+using a returned workspace specifier. **That success is not task-build proof**;
+neither its output nor any other app was installed. A timestamp/path check caught
+the stale task bundle before installation. The next build uses a literal workspace
+index guarded by an exact path assertion, including destination/scheme selection;
+action `8877-3` was issued. Its result/log must be read through that same guarded
+index and show the task source/build paths before any install.
+
+### Final verification and installation
+
+At `603d2bb478895b750d4a92caf411975fe5f31894` (production UI last changed at
+`6eae8fa3a106be547befc37af80379b6fd21b1e1`), the focused joined-header test
+passed **1/1 with zero failures**, including one native Back, chooser taps above
+and below its visible label, store switching, Settings return, completed edge pop,
+short-edge retained-store outcome and native Back tap. `JoinedHeaderHitTargets.xcresult`
+and `joined-header-hit-targets.log` record the final run (48.8 seconds).
+
+All three retained screenshots were visually reviewed: a visible red Coles
+chevron/chooser and green Woolworths chevron/chooser over one continuous capsule,
+without an extra Back control; Settings retains its ordinary black native Back.
+Evidence is under `joined-header-attachments/` on the Mac and
+`/tmp/opencode/listrunner-joined-header-final/{coles,woolworths,settings}.png` on
+Linux. This is focused standard-size light-mode verification, not broad
+accessibility/OS/appearance sign-off or a rerun of the separate typing issue.
+
+Guarded desktop Xcode action `8877-3` succeeded. Its saved build log explicitly
+references the task checkout and the task `ListRunner-agwrfyqrugvyvyeoxdnifvcrqqca`
+DerivedData; the built dylib timestamp is 14 November 21:19:21 AEDT. That actual
+`Debug-iphoneos/ListRunner.app` passed **35 JSON + 1 JavaScript** canonical-resource
+verification and `codesign --verify --deep --strict`.
+
+`devicectl device install app` then succeeded on the available physical iPhone 17e,
+UDID `00008150-001402660A9BC01C`, in place with the same bundle ID. Installation
+evidence is `joined-phone-install.json` under the task validation directory.
+No uninstall, local-data reset or fixture environment was used. A subsequent
+normal launch (with all `DEVICECTL_CHILD_` variables stripped and no arguments)
+was denied with **Locked**; `joined-phone-launch.json` records it. The update is
+installed, but no successful launch/PID is claimed. The user may unlock and open
+ListRunner normally. The separately tracked input issue and blocked broader
+scrolling test remain unchanged.
+
+## Adaptive list navigation (13 November 2026)
+
+Branch `feature/list-navigation-transitions` shares one native list navigation
+stack, keeps at most one store destination above All items, and removes the
+trailing grid shortcut in favour of the compact native Back chevron. Single-store
+navigation omits the duplicate overview unless saved rows need recovery outside
+that enabled store. The current OpenPencil screen audit/shared list layout were
+consulted; no design document, retailer content or list schema was changed.
+
+Linux checks passed: **450/450** offline JavaScript tests, **46/46** Python
+contract checks, Swift syntax parsing of all five changed Swift files using the
+extracted Linux toolchain, and `git diff --check`. These do not establish SwiftUI
+type correctness or native gesture/layout behaviour.
+
+Native coverage adds seven policy assertions to `RecoveryTests.swift`, focused UI
+cases for header/menu navigation, Back history, completed/cancelled edge swipes,
+scope/draft/grouping restoration, single-store simplification, unavailable-owner
+recovery and deferred management reconciliation. The old compact-toolbar test
+now expects native leading Back instead of the trailing grid shortcut. Native
+UI runtime results are recorded separately below.
+
+### Native build and service checks
+
+The pushed revision `13be0dd41d4664fabe946d00fe87fa9d9fd467fc` was fetched into
+the clean detached Mac checkout
+`/Users/adrianzafir/Projects/listrunner-worktrees/list-navigation-transitions`.
+Xcode 27.2 Debug simulator `build-for-testing` passed for arm64 and x86_64;
+`run-recovery-tests.sh` passed **1,908 checks**, including the seven navigation
+policy assertions. The built app passed canonical byte-for-byte verification of
+all **35 JSON + 1 JavaScript** resources. Build warnings are the existing unused
+`resignFirstResponder()` result and skipped unused App Intents metadata extraction.
+
+Build output and test evidence are outside the checkout under
+`~/Library/Developer/ListRunnerValidation/list-navigation/`. The main Mac checkout
+stays on `main` with its unrelated untracked Xcode Cloud directory preserved.
+Focused XCTest UI checks use a newly created dedicated iPhone 17/iOS 27.2 simulator
+`2C1F2373-74C2-4F29-A053-F9FD798BEA8B`, never the user's existing booted simulator.
+No physical-device installation or retailer/cart action was performed.
+
+### Focused native UI results
+
+All **11/11** selected XCTest UI cases passed, with **zero failures**, at the same
+app revision on that dedicated iPhone 17/iOS 27.2 simulator. Coverage includes:
+
+* Store header → the correct store-only list → completed native edge swipe back.
+* Chooser store switches → one Back to All items, with no store-to-store history.
+* Completed swipe preserving aggregate draft, add destination and category grouping.
+* Cancelled edge swipe preserving the store scope, including after relaunch.
+* Relaunch restoration of both a store detail and All items.
+* Compact leading native Back placement, without the old trailing grid shortcut.
+* Settings return preserving scope/draft and the existing first-store welcome flow.
+* Single-store direct launch (including an older remembered All items scope),
+  hidden redundant overview/menu entry and preserved Manage Stores access.
+* Single-store access to unavailable/unknown-owner recovery rows.
+* One→two→one-store adaptation only after returning from management, without
+  dismissing the management screen when its store count changes.
+
+Evidence: `NavigationTests.xcresult` and `tests.log` in the validation directory
+above (709.5 seconds of tests). The completed console log contains no SwiftUI
+state-during-update or repeated-navigation-update warnings. Separate visual
+inspection and broader physical-device/VoiceOver/large-text/Reduce Motion/iOS 17
+release checks are not established by this focused simulator run.
+
+### Visual follow-up and gesture cross-check
+
+At the same app revision, an isolated DeviceInteraction session on a dedicated
+iPhone 18 Pro/iOS 27.2 simulator (`54EE3311-EE11-4025-AA7B-FA6AF3A29945`)
+confirmed direct single-store Coles, the hidden All items menu entry, one→two-store
+adaptation, native chevron placement, header navigation, and one Back after
+switching stores. Settled screenshots/hierarchies showed no persistent layout
+defect or crash. The session ended and its simulator was shut down, not deleted.
+Evidence was copied to `/tmp/opencode/listrunner-navigation-13be0dd/` on Linux.
+
+Its DeviceEventSynthesize completed-edge-swipe attempts did **not** pop the store
+detail, unlike the passing XCTest gestures. No interactive-pop start was observed,
+so its cancellation attempt cannot certify cancellation either. This discrepancy
+is not treated as resolved: follow-up compares gradual multi-keyframe synthesized
+touches against ordinary Settings Back, and XCTest assertions are being tightened
+to require a hittable overview and an absent store picker after a completed pop,
+including the exact one→two-store/header path used in visual inspection. No
+forced-pop gesture or native gesture-delegate override was added.
+
+The identical gradual multi-keyframe swipe subsequently failed on Coles detail
+but succeeded from Settings back to Coles. This rules out a generic synthesis
+failure; the precise UIKit arbitration cause was not inspected. The stricter
+XCTest baseline at `e36318d40a2bee008b597763dd8457a23377708f` still passed **4/4**
+with the overview hittable and the store picker absent, including the one→two-store
+path. Evidence: `GestureCrossCheck.xcresult` and `gesture-cross-check.log`.
+
+At app revision `19938399528887dedbeb9b932a5a74ec146f2664`, the shared list no
+longer installs a full-page SwiftUI manual-scroll `DragGesture`. The existing
+native `UICollectionView.panGestureRecognizer` is observed passively through the
+editor coordinator instead, retaining manual-scroll cancellation of automatic
+entry/item reveal without another competing pan recognizer. Targets are attached
+only to that editor's ancestor list and removed on detachment/dismantling. The
+native Debug simulator build-for-testing and **35 JSON + 1 JavaScript** built-resource
+verification passed at this revision.
+
+The controlled visual retest **passed** on the preserved iPhone 18 Pro simulator
+and isolated session. The identical gradual gesture now returns header-opened
+Coles to All items, with the overview picker present and the store picker absent.
+It also returns directly to All items after Coles→Woolworths switching and while
+the store editor is keyboard-focused. Reopening Coles preserves the exact draft.
+A short reversed edge drag retained Coles/draft/focus, followed by a successful
+completed swipe; still captures do not quantify interactive cancellation progress.
+Tiny repositioning drags retained focus, and normal vertical scrolling moved the
+Items heading while preserving the draft. No persistent layout defect or crash
+was seen. This before/after result supports the competing-pan explanation without
+claiming internal UIKit gesture-state inspection or animation-smoothness sign-off.
+
+Evidence: `/tmp/opencode/listrunner-navigation-1993839/` on Linux, particularly
+`ListRunner Gesture Fix Retest-16_54_13_899` (completed original gesture),
+`16_55_24_925` (after switched-store gesture), `16_57_33_091` (focused-editor
+gesture), `16_57_50_364` (restored draft), and `16_58_41_233` (vertical scroll),
+each with screenshot/hierarchy/log files. The exclusive interaction session ended;
+only its dedicated simulator was shut down, preserving its state. No retailer
+websites or account/cart actions were involved.
+
+Test-only revision `8d67ba6a14975ae543b1d534c17f22d866f47560` adds focused-store
+keyboard/draft edge coverage and uses a deliberately slow completed header swipe.
+An eight-case native rerun also checks small repositioning scroll focus, outside
+tap/manual-scroll entry dismissal and idle row-frame tracking. Its results are
+**5/8 passed**, not a clean regression pass (`NativePanRegression.xcresult` /
+`native-pan-regression.log`). Header/aggregate-draft/cancelled edge swipes,
+one→two→one-store adaptation, and small-repositioning focus passed. Failures:
+
+* Aggregate manual upward scroll left the keyboard visible after refocusing the
+  editor. Automatic entry reveal temporarily requests `.none`; asynchronous
+  cancellation can leave that dismissal mode active at the start of a user pan.
+* The focused-store draft test observed `Keep store draftavigation ` instead of
+  the typed sentence after returning. It had no pre-navigation text assertion, so
+  this result does not locate the text change in navigation versus typing.
+* Idle-row tracking failed in shared setup while enabling Bunnings, before the
+  test body; the test did not exercise frame tracking in this run.
+
+Revision `fe7a8aba67e070723035df61fb2171f2560dd3a8` restores native interactive
+keyboard dismissal synchronously when a user pan cancels entry reveal, before
+the next touch sample. The focused-store test now waits for the keyboard before
+typing and asserts the exact input before navigation as well as after; a literal
+single-token draft avoids autocorrection ambiguity. A four-case rerun includes
+all three failed scenarios plus small-scroll focus; results remain pending. No
+assertion about keyboard dismissal, draft preservation or row tracking was removed.
+
+That four-case rerun at `fe7a8ab` passed **2/4**: focused-store edge/draft and
+small-scroll focus passed; upward-scroll keyboard dismissal still failed, and
+idle-frame coverage failed before scrolling when its submitted fixture row was
+not found. Visual inspection independently confirmed the keyboard stayed open
+despite 129 points of actual content movement. The same inspection confirmed
+the exact corrected draft before and after a successful focused edge Back.
+It also reproduced rapid text reordering **before navigation**. That separate
+typing issue is recorded for investigation; its cause and baseline status remain
+unproved, and it is not claimed as a navigation draft-loss fix.
+
+Revision `73dcf097aad51993970f14afdd35d3f097d98150` keeps the passive native pan
+observer and explicitly dismisses the editor only for a deliberate vertical pan
+of at least 44 points, with vertical movement exceeding horizontal movement.
+Small 12–20-point repositioning and horizontal edge Back do not dismiss focus.
+All items explicitly resigns its editor when leaving, so retained offscreen
+content cannot request focus back. The idle-frame test now selects Coles and
+waits for its keyboard before entering its fixture, rather than assuming the
+last-enabled store or immediate responder readiness. Linux **450 JavaScript +
+46 Python** checks and Swift syntax checks passed again. Native/visual targeted
+reruns on this revision remain pending (`VerticalDismissal.xcresult`).
+
+The final visual checks at `73dcf09` passed all three controls on the preserved
+isolated iPhone 18 Pro/iOS 27.2 session: the previously failing 285-point upward
+gesture dismisses the keyboard without changing the draft; a 20-point vertical
+drag keeps focus/keyboard (8 points of actual content movement); and focused
+Coles edge Back returns to All items, with the exact draft retained when Coles
+is reopened. This short fixture does not establish sustained long-list scrolling.
+Evidence: `/tmp/opencode/listrunner-navigation-73dcf09/`, especially screenshot /
+hierarchy stems `ListRunner Final Gesture Retest-17_23_42_711`, `17_24_26_888`,
+`17_26_17_736`, and `17_26_43_751`. The exclusive session ended and only its own
+dedicated simulator was shut down, preserving its state. Native recovery tests
+passed **1,908 checks** again on this final app revision, and its built simulator
+app passed all **35 JSON + 1 JavaScript** canonical-resource checks again.
+
+The automated final-app rerun was **3/4 passed** (`VerticalDismissal.xcresult` /
+`vertical-dismissal.log`): aggregate outside-tap/manual-scroll keyboard dismissal,
+focused-store edge Back with exact pre/post draft assertions, and small-scroll
+focus preservation passed. The remaining idle-row-frame test again failed before
+its scroll: its expected `scroll fixture alpha` row was not found after submitting
+a long single-call batch. It did not prove a frame-tracking failure. Test-only
+revision `2df26f6a3e5f9ebf67bc6d0c6cd1dfbcc0abd5df` enters the same six names in
+short verified chunks, asserting the complete accumulated draft before Add, with
+the original row/keyboard/frame-tracking checks intact. Its focused rerun is
+pending (`VerifiedFixtureScroll.xcresult`); no production source changed for it.
+
+That focused rerun failed at its **first pre-submission input assertion**:
+typing `scroll` produced `scrll`. No Add or manual-scroll action ran, so it remains
+blocked on the separately recorded rapid-input issue, not a demonstrated failure
+of idle row-frame tracking. Evidence: `VerifiedFixtureScroll.xcresult` and
+`verified-fixture-scroll.log`. Do not describe the final regression run as fully
+green: final-app keyboard/edge/small-scroll checks passed **3/4**, final visual
+checks passed **3/3**, and idle-row tracking remains unverified. The production
+navigation revision remains `73dcf097aad51993970f14afdd35d3f097d98150`; later
+changes are test/documentation-only. No physical-device install, merge or release
+was performed. The typing issue's relationship to the unchanged baseline has not
+been established and is a separate follow-up, not silently waived validation.
+
+The user chose to finish the navigation task for review and track the typing
+issue separately. Keep the blocked idle-row-frame check with that follow-up;
+this is not approval to merge, install on a phone or call the full suite green.
+
+### User-requested iPhone installation
+
+The user subsequently explicitly requested building on their phone instead of
+continuing the simulator preview. Xcode opened the clean isolated task checkout
+at `1bbcb424716798124bca2d37e6c33dd2868c6115`, selected **Adrian’s iPhone**
+(physical device, iOS 27.2), and `RunProject(attachDebugger: false)` built, signed,
+installed in place and launched ListRunner successfully with **zero build errors**,
+PID **65470**. Production source is unchanged from `73dcf09`. The normal shared
+scheme has no fixture environment or launch arguments; no reset, import, list
+clear or retailer/cart action was performed. Existing app data was not removed.
+
+The actual `Debug-iphoneos/ListRunner.app` passed **35 JSON + 1 JavaScript**
+canonical-resource verification and `codesign --verify --deep --strict`.
+Xcode log: `RunProject-Log-20261113-192608.txt` under
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/`.
+This verifies installation/launch, not a new physical UI-test run. The separately
+recorded input issue remains open; no merge or release was performed.
+
 ## Retailer-neutral store-list wording (13 November 2026)
 
 Branch `fix/store-page-titles` changes the populated store-list section heading

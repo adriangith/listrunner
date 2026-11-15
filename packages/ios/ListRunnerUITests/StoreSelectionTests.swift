@@ -459,6 +459,12 @@ final class StoreSelectionTests: XCTestCase {
         if name.contains("AllItemsUnavailable") {
             app.launchEnvironment["LISTRUNNER_ALL_ITEMS_RECOVERY_TEST_FIXTURE"] = "1"
         }
+        if name.contains("SingleStoreNavigation") {
+            app.launchEnvironment["LISTRUNNER_NAVIGATION_TEST_FIXTURE"] = name.contains("Recovery") ? "recovery" : "single"
+        }
+        if name.contains("SeparateStoreHeader") {
+            app.launchEnvironment["LISTRUNNER_NAVIGATION_TEST_FIXTURE"] = "header"
+        }
         if name.contains("Verification") {
             app.launchEnvironment["LISTRUNNER_VERIFICATION_TEST_FIXTURE"] = "enabled"
         }
@@ -485,6 +491,8 @@ final class StoreSelectionTests: XCTestCase {
             app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_CATALOGUE"] = "mixed"
         }
         app.launch()
+        if name.contains("SeparateStoreHeader") { return }
+        if name.contains("SingleStoreNavigation") { return }
         if name.contains("FirstStoreWelcome") { return }
         if name.contains("LiveStoreCartIKEA") {
             // Set up IKEA directly from welcome. Ordinary management can be a
@@ -811,6 +819,17 @@ final class StoreSelectionTests: XCTestCase {
         let back = app.descendants(matching: .any).matching(identifier: "BackButton").firstMatch
         XCTAssertTrue(back.waitForExistence(timeout: 5), app.debugDescription)
         back.tap()
+    }
+
+    private func assertAllItemsIsCurrent(file: StaticString = #filePath, line: UInt = #line) {
+        // A retained/offscreen overview must not make an edge-swipe test pass.
+        let current = NSPredicate { _, _ in
+            self.app.buttons["all-items-scope-picker"].isHittable
+                && !self.app.buttons["store-picker"].exists
+        }
+        XCTAssertTrue(current.evaluate(with: nil)
+            || XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: current, object: nil)], timeout: 5) == .completed,
+            "All items must be the visible destination and the store detail must be gone", file: file, line: line)
     }
 
     private func row(_ name: String, status: String) -> XCUIElement {
@@ -2048,8 +2067,160 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["Actions for Woolworths fixture item"].exists)
         XCTAssertFalse(app.buttons["Actions for Coles fixture item"].exists)
         XCTAssertFalse(app.webViews.firstMatch.exists, "Opening a grocery list must not open the retailer website")
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.45))
+        start.press(forDuration: 0.05,
+                    thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45)),
+                    withVelocity: .slow, thenHoldForDuration: 0.1)
+        assertAllItemsIsCurrent()
+        XCTAssertFalse(app.webViews.firstMatch.exists)
+    }
+
+    func testAllItemsChooserSwitchesStoresWithoutBuildingBackHistory() {
         choose("All items")
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        choose("Woolworths")
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Woolworths"))
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5),
+                      "One Back must return to the overview, not the previous store")
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "BackButton").firstMatch.exists)
+    }
+
+    func testAllItemsSwipeBackPreservesDraftDestinationAndGrouping() {
+        choose("All items")
+        app.buttons["all-items-grouping-category"].tap()
+        let entry = app.textViews["all-items-entry"]
+        entry.tap()
+        entry.typeText("Keep navigation draft")
+        let destination = app.buttons["all-items-add"].label
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.45))
+        start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45)))
+        assertAllItemsIsCurrent()
+        XCTAssertEqual(entry.value as? String, "Keep navigation draft")
+        XCTAssertEqual(app.buttons["all-items-add"].label, destination)
+        XCTAssertTrue(app.buttons["all-items-grouping-category"].isSelected)
+    }
+
+    func testAllItemsStoreEdgeSwipeWhileTypingPreservesStoreDraft() {
+        choose("Coles")
+        let entry = app.textViews["grocery-input"]
+        entry.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        let draft = "NavigationDraft1993839"
+        entry.typeText(draft)
+        XCTAssertEqual(entry.value as? String, draft, "Verify the input before exercising navigation")
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.45))
+        start.press(forDuration: 0.05,
+                    thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45)),
+                    withVelocity: .slow, thenHoldForDuration: 0.1)
+        assertAllItemsIsCurrent()
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        XCTAssertEqual(entry.value as? String, draft)
+    }
+
+    func testAllItemsNavigationRelaunchRestoresStoreAndBackDestination() {
+        choose("Woolworths")
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Woolworths"))
+        tapNavigationBack()
         XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+    }
+
+    func testAllItemsCancelledEdgeSwipeKeepsStoreAndRememberedScope() {
+        choose("Woolworths")
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.45))
+        start.press(forDuration: 0.1,
+                    thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.45)),
+                    withVelocity: .slow, thenHoldForDuration: 0.3)
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Woolworths"))
+        XCTAssertTrue(app.buttons["store-picker"].isHittable)
+        XCTAssertFalse(app.buttons["all-items-scope-picker"].exists)
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Woolworths"))
+    }
+
+    func testSingleStoreNavigationHidesDuplicateOverviewAndRestoresDirectList() {
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Coles"))
+        XCTAssertTrue(app.buttons["Actions for Coles fixture item"].exists)
+        XCTAssertFalse(app.buttons["all-items-scope-picker"].exists)
+        XCTAssertFalse(app.buttons["all-items-shortcut"].exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "BackButton").firstMatch.exists)
+        app.buttons["store-picker"].tap()
+        XCTAssertFalse(app.buttons["All items"].exists)
+        XCTAssertTrue(app.buttons["store-picker-manage-stores"].exists)
+        app.buttons["Coles"].firstMatch.tap()
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["all-items-scope-picker"].exists)
+    }
+
+    func testSingleStoreNavigationRecoveryKeepsUnavailableAndUnknownOwnersReachable() {
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
+        for title in ["Unavailable saved item", "Uncategorised saved item"] {
+            let row = app.buttons["Actions for \(title)"]
+            for _ in 0..<6 where !row.isHittable { app.collectionViews.firstMatch.swipeUp() }
+            XCTAssertTrue(row.exists, "Recovery rows must not disappear with only one enabled store")
+        }
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
+    }
+
+    func testSingleStoreNavigationAdaptsOnlyAfterReturningFromManagement() {
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
+        app.buttons["store-picker"].tap()
+        app.buttons["store-picker-manage-stores"].tap()
+        setStoreVisibility("woolworths", shown: true)
+        XCTAssertTrue(app.tables["manage-stores-table"].exists,
+                      "Enabling a second store must not replace the open management screen")
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Woolworths"))
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        tapNavigationBack()
+        assertAllItemsIsCurrent()
+        let header = app.buttons["all-items-group-title-store-coles"]
+        for _ in 0..<6 where !header.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(header.isHittable)
+        header.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        let edge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.45))
+        edge.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.45)))
+        assertAllItemsIsCurrent()
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Woolworths"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        app.buttons["store-picker"].tap()
+        app.buttons["store-picker-manage-stores"].tap()
+        setStoreVisibility("woolworths", shown: false)
+        XCTAssertTrue(app.tables["manage-stores-table"].exists)
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["store-picker"].label.contains("Coles"))
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "BackButton").firstMatch.exists)
     }
 
     func testAllItemsGroupAddSelectsStorePreservesDraftAndFocusesEntry() {
@@ -2525,20 +2696,122 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["all-items-grouping-category"].isSelected)
     }
 
-    func testCompactTopBarOpensAllItemsWithoutEditControl() {
+    func testSeparateStoreHeaderKeepsOneBackAndNativeNavigation() {
+        choose("Coles")
+        let back = app.descendants(matching: .any).matching(identifier: "BackButton")
+        XCTAssertEqual(back.count, 1, "The separate header must retain just one native Back target")
+        XCTAssertTrue(back.firstMatch.isHittable)
+        XCTAssertFalse(back.firstMatch.label.isEmpty, "Keep the system's accessible Back label")
+        XCTAssertTrue(app.buttons["store-picker"].isHittable)
+        XCTAssertGreaterThanOrEqual(back.firstMatch.frame.height, 44)
+        // Exercise the native chooser's hit area, not just its visible label.
+        for edge in [CGFloat(0), 1] {
+            app.buttons["store-picker"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: edge))
+                .withOffset(CGVector(dx: 0, dy: edge == 0 ? -3 : 3)).tap()
+            XCTAssertTrue(app.buttons["Coles"].firstMatch.waitForExistence(timeout: 3))
+            app.buttons["Coles"].firstMatch.tap()
+        }
+        let coles = XCTAttachment(screenshot: app.screenshot())
+        coles.name = "Separate native Back and Coles chooser"
+        coles.lifetime = .keepAlways
+        add(coles)
+
+        choose("Woolworths")
+        XCTAssertEqual(back.count, 1)
+        let woolworths = XCTAttachment(screenshot: app.screenshot())
+        woolworths.name = "Separate native Back and Woolworths chooser"
+        woolworths.lifetime = .keepAlways
+        add(woolworths)
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        XCTAssertEqual(back.count, 1)
+        let settings = XCTAttachment(screenshot: app.screenshot())
+        settings.name = "Ordinary Settings Back after separate store header"
+        settings.lifetime = .keepAlways
+        add(settings)
+        tapNavigationBack()
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["all-items-shortcut"].isHittable)
+        XCTAssertEqual(back.count, 1)
+
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.45))
+        start.press(forDuration: 0.05,
+                    thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45)),
+                    withVelocity: .slow, thenHoldForDuration: 0.1)
+        assertAllItemsIsCurrent()
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        start.press(forDuration: 0.1,
+                    thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.45)),
+                    withVelocity: .slow, thenHoldForDuration: 0.3)
+        XCTAssertTrue(app.buttons["store-picker"].isHittable)
+        XCTAssertEqual(back.count, 1)
+        let cancelled = XCTAttachment(screenshot: app.screenshot())
+        cancelled.name = "Separate Coles header after short edge gesture"
+        cancelled.lifetime = .keepAlways
+        add(cancelled)
+        tapNavigationBack()
+        assertAllItemsIsCurrent()
+    }
+
+    func testSeparateStoreHeaderDarkAppearanceAndRepeatedEntry() {
+        choose("Coles")
+        app.buttons["Settings"].tap()
+        let appearance = app.buttons["appearance-setting"]
+        XCTAssertTrue(appearance.waitForExistence(timeout: 5))
+        appearance.tap()
+        app.buttons["Dark"].tap()
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        tapNavigationBack()
+        assertAllItemsIsCurrent()
+
+        let back = app.descendants(matching: .any).matching(identifier: "BackButton")
+        for store in ["Woolworths", "Coles"] {
+            app.buttons["all-items-scope-picker"].tap()
+            app.buttons[store].firstMatch.tap()
+            XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+            XCTAssertEqual(back.count, 1)
+            XCTAssertTrue(back.firstMatch.isHittable)
+            XCTAssertTrue(app.buttons["store-picker"].isHittable)
+            XCTAssertGreaterThanOrEqual(back.firstMatch.frame.height, 44)
+            let header = XCTAttachment(screenshot: app.screenshot())
+            header.name = "Separate native Back and \(store) chooser in Dark appearance"
+            header.lifetime = .keepAlways
+            add(header)
+            tapNavigationBack()
+            assertAllItemsIsCurrent()
+        }
+
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        XCTAssertEqual(back.count, 1, "Settings keeps its native Back")
+        let settings = XCTAttachment(screenshot: app.screenshot())
+        settings.name = "Ordinary Settings Back in Dark appearance"
+        settings.lifetime = .keepAlways
+        add(settings)
+        tapNavigationBack()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        tapNavigationBack()
+        assertAllItemsIsCurrent()
+    }
+
+    func testCompactTopBarUsesLeadingBackInsteadOfTrailingGridShortcut() {
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["all-items-shortcut"].exists)
+        let back = app.descendants(matching: .any).matching(identifier: "BackButton").firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
         let settings = app.buttons["Settings"]
         XCTAssertTrue(settings.isHittable)
         XCTAssertEqual(app.buttons["store-picker"].frame.midY, settings.frame.midY, accuracy: 2)
-        XCTAssertEqual(app.buttons["all-items-shortcut"].frame.midY, settings.frame.midY, accuracy: 2)
-        XCTAssertLessThan(app.buttons["store-picker"].frame.midX, app.buttons["all-items-shortcut"].frame.midX)
-        XCTAssertLessThan(app.buttons["all-items-shortcut"].frame.maxX, settings.frame.minX)
-        XCTAssertGreaterThan(app.buttons["all-items-shortcut"].frame.midX, app.frame.midX)
+        XCTAssertLessThan(back.frame.midX, app.buttons["store-picker"].frame.midX)
         XCTAssertFalse(app.buttons["Edit"].exists)
         XCTAssertFalse(app.staticTexts["Your list"].exists)
 
-        app.buttons["all-items-shortcut"].tap()
+        back.tap()
         XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["all-items-scope-picker"].frame.midY, settings.frame.midY, accuracy: 2)
         XCTAssertFalse(app.buttons["Edit"].exists)
@@ -3609,9 +3882,20 @@ final class StoreSelectionTests: XCTestCase {
     }
 
     func testManualScrollingDoesNotTrackIdleRowFrames() {
+        choose("Coles")
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
-        input.typeText("scroll fixture alpha; scroll fixture bravo; scroll fixture charlie; scroll fixture delta; scroll fixture echo; scroll fixture foxtrot")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        var draft = ""
+        for name in ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"] {
+            // Verify batch setup independently of the rapid text-input issue:
+            // this test must reach scrolling with all six exact fixture names.
+            for chunk in [draft.isEmpty ? "scroll" : "; scroll", " fixture", " \(name)"] {
+                input.typeText(chunk)
+                draft += chunk
+                XCTAssertEqual(input.value as? String, draft, "Fixture input must be exact before submitting")
+            }
+        }
         app.buttons["Add Items"].tap()
         XCTAssertTrue(row("scroll fixture alpha", status: "Pending").waitForExistence(timeout: 5))
         input.typeText("\n") // Empty Return dismisses the keyboard without adding a row.
