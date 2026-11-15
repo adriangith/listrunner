@@ -543,6 +543,37 @@ test('card buttons use contact-local tap recognition without competing with mult
   assert.match(view, /\.simultaneousGesture\(TapGesture\(\)\.onEnded \{ select\(item\) \}\)/);
 });
 
+test('only the multi-card rail receives immediate content touches with scoped lifecycle cleanup', () => {
+  const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
+  assert.match(view, /\.padding\(\.bottom, 14\)\s*\.background\(StoreCardRailTouchHandling\(enabled: items\.count > 1\)\)/);
+  const anchor = view.split('private final class StoreCardRailTouchAnchor: UIView {')[1].split('private final class StoreCardRailTouchObserver')[0];
+  assert.match(anchor, /isUserInteractionEnabled = false/);
+  assert.match(anchor, /accessibilityElementsHidden = true/);
+  assert.match(anchor, /guard enabled, window != nil else \{ detach\(\); return \}/);
+  assert.match(anchor, /var ancestor = superview[\s\S]*ancestor = view\.superview/);
+  assert.match(anchor, /guard rail !== scrollView else \{ return \}/);
+  assert.match(anchor, /originalTouchDelay = scrollView\.delaysContentTouches\s*scrollView\.delaysContentTouches = false/);
+  for (const property of ['cancelsTouchesInView', 'delaysTouchesBegan', 'delaysTouchesEnded']) {
+    assert.ok(anchor.includes(`observer.${property} = false`));
+  }
+  const detach = anchor.split('func detach() {')[1];
+  assert.match(detach, /rail\.removeGestureRecognizer\(observer\)/);
+  assert.match(detach, /rail\.delaysContentTouches = originalTouchDelay/);
+  assert.match(view, /static func dismantleUIView\([\s\S]*?view\.detach\(\)/);
+  assert.doesNotMatch(anchor, /UIApplication|connectedScenes|WKWebView|\.delegate =|panGestureRecognizer\.(isEnabled|delegate)/);
+});
+
+test('touch-down interrupts rail motion at its visible offset without becoming a tap or pan recognizer', () => {
+  const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
+  const observer = view.split('private final class StoreCardRailTouchObserver: UIGestureRecognizer {')[1].split('struct StoreShoppingView: View')[0];
+  assert.match(observer, /override func touchesBegan/);
+  assert.match(observer, /if let rail, !rail\.isDragging/);
+  assert.match(observer, /let visibleOffset = rail\.layer\.presentation\(\)\?\.bounds\.origin \?\? rail\.contentOffset/);
+  assert.match(observer, /rail\.setContentOffset\(visibleOffset, animated: false\)/);
+  assert.match(observer, /state = \.failed/);
+  assert.doesNotMatch(observer, /state = \.(began|changed|ended|recognized)|trigger\(|primaryAction\(|markAdded\(|markPending\(|Task|asyncAfter|sleep|removeAllAnimations/);
+});
+
 test('interactive pull fades through zero and elastic displacement has increasing resistance', () => {
   const helper = swift.split('enum StoreProductSingleCardReveal {')[1].split('struct StoreProductRailAddLabels')[0];
   const body = helper.match(/static func pullValue\(origin: CGFloat, horizontal: CGFloat\) -> CGFloat \{([\s\S]*?)\n    \}/)[1]

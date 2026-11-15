@@ -61,6 +61,15 @@ starts scrolling. Dragging from any part of a card must remain available to the
 multi-card rail without changing item status; background card taps also use
 contact-local tap recognition.
 
+For multiple cards, a passive UIKit anchor inside the rail content disables
+`delaysContentTouches` on that enclosing UIScrollView only. A non-cancelling,
+non-delaying touch-down observer stops remaining deceleration/animated scrolling
+at the presented offset, then fails immediately so the same contact continues
+to the normal tap/pan recognizers. It never performs a card action or changes
+selection on touch-down. Remove the observer and restore the prior touch-delay
+setting on detach or return to a single card. Do not change the retailer web
+view's scroll policy or replace ScrollView's delegate/pan recognizer.
+
 The left/leading control captures **Start of list**; the right/trailing control
 captures **End of list**. Preserve that choice through grid selection, direct
 detail reads, manual/assistive fallback, review and save retries. The native review

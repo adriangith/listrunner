@@ -24,6 +24,99 @@ private struct StoreCardTapButtonStyle: PrimitiveButtonStyle {
     }
 }
 
+// Scope UIKit touch policy to the card rail, not the retailer WKWebView or any
+// other scroll view. A new contact interrupts momentum without consuming the
+// contact that the card's normal tap recognizer needs.
+private struct StoreCardRailTouchHandling: UIViewRepresentable {
+    let enabled: Bool
+
+    func makeUIView(context: Context) -> StoreCardRailTouchAnchor {
+        StoreCardRailTouchAnchor()
+    }
+
+    func updateUIView(_ view: StoreCardRailTouchAnchor, context: Context) {
+        view.enabled = enabled
+        view.attachIfNeeded()
+    }
+
+    static func dismantleUIView(_ view: StoreCardRailTouchAnchor, coordinator: ()) {
+        view.detach()
+    }
+}
+
+private final class StoreCardRailTouchAnchor: UIView {
+    var enabled = false
+    private weak var rail: UIScrollView?
+    private var originalTouchDelay: Bool?
+    private var observer: StoreCardRailTouchObserver?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        isAccessibilityElement = false
+        accessibilityElementsHidden = true
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        attachIfNeeded()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        attachIfNeeded()
+    }
+
+    func attachIfNeeded() {
+        guard enabled, window != nil else { detach(); return }
+        var ancestor = superview
+        while let view = ancestor, !(view is UIScrollView) { ancestor = view.superview }
+        guard let scrollView = ancestor as? UIScrollView else { detach(); return }
+        guard rail !== scrollView else { return }
+        detach()
+        rail = scrollView
+        originalTouchDelay = scrollView.delaysContentTouches
+        scrollView.delaysContentTouches = false
+        let observer = StoreCardRailTouchObserver(target: nil, action: nil)
+        observer.rail = scrollView
+        observer.cancelsTouchesInView = false
+        observer.delaysTouchesBegan = false
+        observer.delaysTouchesEnded = false
+        scrollView.addGestureRecognizer(observer)
+        self.observer = observer
+    }
+
+    func detach() {
+        if let rail {
+            if let observer { rail.removeGestureRecognizer(observer) }
+            if let originalTouchDelay, !rail.delaysContentTouches {
+                rail.delaysContentTouches = originalTouchDelay
+            }
+        }
+        observer = nil
+        originalTouchDelay = nil
+        rail = nil
+    }
+}
+
+private final class StoreCardRailTouchObserver: UIGestureRecognizer {
+    weak var rail: UIScrollView?
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        if let rail, !rail.isDragging {
+            // Include animated scrollTo as well as deceleration. Freeze at the
+            // presented offset, never jump to an animation's destination.
+            let visibleOffset = rail.layer.presentation()?.bounds.origin ?? rail.contentOffset
+            rail.setContentOffset(visibleOffset, animated: false)
+        }
+        // This is only a touch-down observer, not a competing tap or pan.
+        // Fail immediately so native scrolling and card tap recognition proceed.
+        state = .failed
+    }
+}
+
 struct StoreShoppingView: View {
     // The controls and card carousel retain their existing geometry. Only the
     // material surface is shorter, so selected cards continue to overlap it at
@@ -430,6 +523,7 @@ struct StoreShoppingView: View {
                         .padding(.trailing, railEndPadding(for: items.last, width: geometry.size.width))
                         .padding(.top, 5)
                         .padding(.bottom, 14)
+                        .background(StoreCardRailTouchHandling(enabled: items.count > 1))
                     }
                     // Cards intentionally overlap the panel edge; let their shadows
                     // render over the panel instead of clipping at the scroll viewport.

@@ -1,5 +1,26 @@
 # Reusable store framework validation
 
+## Accepting taps during remaining rail motion (15 November 2026)
+
+User clarified that intentional Mark Added/Mark Pending taps are still rejected
+while the cards are visibly moving after finger lift. Removing the custom latch
+did not address this remaining motion-related case. Added a scoped passive UIKit
+anchor inside the multi-card HStack. It finds only its enclosing UIScrollView,
+disables delayed content touches and installs a touch-down observer with all
+touch cancellation/delay flags false. On a new contact, if no drag is active,
+it interrupts deceleration/animated scrolling at the presented bounds offset,
+not the animation destination, then immediately fails. The contact remains
+available to native tap/pan recognition; no action fires on touch-down and no
+new child button drag is installed. Single-card mode detaches the observer;
+detach/unmount also restores the prior touch-delay setting. No global lookup,
+scroll delegate replacement, retailer web-view change, timer or cooldown.
+
+Added source/lifecycle checks for scoped ancestor lookup, multi-card-only
+installation, no-touch-consumption flags, presented-offset interruption,
+immediate failure and observer/settings cleanup. Physical build/install results
+follow; these checks do not certify UIKit event ordering or on-phone interaction.
+No simulator builds/tests are being run, per the user's phone-feedback workflow.
+
 ## Post-swipe button responsiveness follow-up (15 November 2026)
 
 User reported that multi-card swiping is now good but Mark Added remains
