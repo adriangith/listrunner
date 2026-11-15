@@ -52,8 +52,13 @@ in any direction cancels the contact permanently, even if it returns to its
 origin. Retain this latch across GestureState's release reset and clear it only
 on a new contact. Ordinary taps trigger on release without an added delay;
 explicit accessible activation bypasses stale physical-contact cancellation.
-The recognizer runs simultaneously with parent rail/panel gestures so dragging
-from a button still scrolls/pulls rather than changing item status.
+Track that contact in the existing panel gesture and share its latch with the
+card buttons. Buttons use tap recognition only and yield to the rail's native
+pan. Do not attach zero-distance drags inside card button styles: even a
+`simultaneousGesture` there can claim the active card's surface before ScrollView
+starts scrolling. Dragging from any part of a card must remain available to the
+multi-card rail without changing item status; background card taps use the same
+cancellation latch.
 
 The left/leading control captures **Start of list**; the right/trailing control
 captures **End of list**. Preserve that choice through grid selection, direct

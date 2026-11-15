@@ -1,5 +1,26 @@
 # Reusable store framework validation
 
+## Multi-card swipe regression follow-up (15 November 2026)
+
+User confirmed that the single-card pull now feels good, but multi-card swiping
+was blocked on the active card and worked only on the lower non-button portion
+of inactive cards. The new per-button zero-distance drag recognizers were
+competing with native ScrollView pan recognition despite `simultaneousGesture`.
+Removed those child drags. Primitive card buttons now recognize taps only;
+the already-existing panel drag maintains one shared eight-point cancellation
+latch. Status, name, collapse and card-background taps consult that latch, while
+explicit accessible button activation stays independent. Retain cancellation
+through release/return-to-origin; reset only on the next contact.
+
+Single-card reveal/displacement/animation code is unchanged. Multi-card rail
+scrolling, positions, selection, persistence and retailer/cart actions are not
+otherwise modified. Regression checks now prohibit child DragGesture or
+high-priority gesture installation in the button style and require shared
+panel tracking and guarded taps. **502 JavaScript tests passed** and
+`git diff --check` passed. No simulator build/tests are being run, consistent
+with the user's phone-only feedback workflow. Physical build/install evidence
+follows; source checks alone do not prove native pan arbitration.
+
 ## Card drag cancellation and fast-flick follow-through (15 November 2026)
 
 User reported that dragging from Mark Added/Mark Pending still activated the
