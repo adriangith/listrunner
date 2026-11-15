@@ -42,6 +42,23 @@ Compact local browser evidence: `/tmp/opencode/coles-live-grid.json` and
 simulator UI suite was performed for this configuration change. Live embedded
 WebKit behaviour remains to be tried on the user's phone after installation.
 
+### Coles-enabled phone update (15 November 2026)
+
+At the user's request, updated the clean Mac task checkout to pushed revision
+`7a915ba48406634842058696130321359bd5bed8` and ran the ListRunner scheme in
+`workspace-4WDbDRuQjn` on Adrian's physical iPhone 17e
+(`00008150-001402660A9BC01C`, iOS 27.2.1). Xcode `RunProject` reported zero build
+errors and successful launch, reference `bad9bea00`, PID **9457**, independently
+confirmed by `devicectl`. Log: `RunProject-Log-20261115-202424.txt`.
+
+Verified the signed `Debug-iphoneos/ListRunner.app` with deep/strict codesign;
+all 36 bundled JSON/JS resources match that checkout byte-for-byte, including
+Coles schema 8 and its dedicated grid/detail selection rules. Installed in place,
+without uninstall/reset, test flags/fixtures, list edits or retailer actions.
+Other Xcode workspaces and preview simulators were left untouched. App left
+running for user testing; this is build/install/launch evidence, not live Coles
+WebKit interaction sign-off.
+
 ## Retailer-neutral store-list wording (13 November 2026)
 
 Branch `fix/store-page-titles` changes the populated store-list section heading
