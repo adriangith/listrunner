@@ -1758,13 +1758,29 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(filter.label, "Filter, grouped by store")
         for button in [filter, settings] {
             XCTAssertTrue(button.isHittable)
-            XCTAssertGreaterThanOrEqual(button.frame.height, 44)
-            XCTAssertGreaterThanOrEqual(button.frame.width, 44)
-            XCTAssertGreaterThanOrEqual(button.frame.minX, app.frame.minX)
-            XCTAssertLessThanOrEqual(button.frame.maxX, app.frame.maxX)
+            XCTAssertGreaterThanOrEqual(button.frame.midX - 22, app.frame.minX)
+            XCTAssertLessThanOrEqual(button.frame.midX + 22, app.frame.maxX)
         }
         XCTAssertLessThan(filter.frame.midX, settings.frame.midX)
         XCTAssertEqual(filter.frame.midY, settings.frame.midY, accuracy: 1)
+        // A native toolbar item's AX frame need not include its expanded hit
+        // area. Test actual activation half a point inside each edge of a 44pt
+        // target instead of treating the reported visual bounds as hit bounds.
+        let targetEdges = [CGVector(dx: -21.5, dy: 0), CGVector(dx: 21.5, dy: 0),
+                           CGVector(dx: 0, dy: -21.5), CGVector(dx: 0, dy: 21.5)]
+        for offset in targetEdges {
+            filter.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .withOffset(offset).tap()
+            XCTAssertTrue(app.buttons["By store"].waitForExistence(timeout: 3),
+                          "Filter must activate near the 44pt target edge: \(offset)")
+            app.buttons["By store"].tap()
+            settings.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .withOffset(offset).tap()
+            XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5),
+                          "Settings must activate near the 44pt target edge: \(offset)")
+            tapNavigationBack()
+            XCTAssertTrue(filter.waitForExistence(timeout: 3))
+        }
         XCTAssertFalse(app.collectionViews.buttons["all-items-grouping-store"].exists,
                        "The scrolling segmented control must be removed")
         let toolbarScreenshot = XCTAttachment(screenshot: app.screenshot())

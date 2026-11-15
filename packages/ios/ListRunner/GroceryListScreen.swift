@@ -462,13 +462,8 @@ private struct ListPageToolbar: ToolbarContent {
                     AllItemsGroupingMenu(selection: grouping)
                         .disabled(groupingDisabled)
                 }
-                Button(action: onSettings) {
-                    Image(systemName: "gearshape")
-                        .frame(minWidth: grouping == nil ? nil : 44,
-                               minHeight: grouping == nil ? nil : 44)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel("Settings")
+                Button(action: onSettings) { Image(systemName: "gearshape") }
+                    .accessibilityLabel("Settings")
             }
         }
     }
@@ -836,8 +831,6 @@ private struct AllItemsGroupingMenu: View {
             }
         } label: {
             Label("Filter", systemImage: "line.3.horizontal.decrease")
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
         }
         .labelStyle(.iconOnly)
         // Native toolbar menus can discard accessibilityValue; keep the current

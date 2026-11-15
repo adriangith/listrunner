@@ -48,6 +48,16 @@ reopening or the complete target-size assertions. Evidence is in sibling Mac
 now have explicit 44-point minimum frames and rectangular hit shapes; the
 single-store Settings label retains its intrinsic size. Final rerun is pending.
 
+Third Mac run at `17364b3f5d1a8f3c6d5a4c3cd35efff89ec4f7d2` built but
+remained **2/4**: the label frames did not alter the native toolbar's 36-point
+accessible bounds. No menu-reopen/complete target coverage is claimed. Evidence:
+Mac sibling `17364b3/FocusedTests.xcresult` and Linux
+`/tmp/opencode/listrunner-all-items-filter-17364b3/`. Removed those ineffective
+label-frame modifiers. The toolbar tests now directly require successful Filter
+and Settings activation near all four edges of a centred 44-point target,
+rather than assuming accessible visual bounds equal touch bounds. This actual
+hit-region check and the rest of the focused tests are pending.
+
 ## All items Clear List row height (13 November 2026)
 
 Branch `fix/clear-list-height` gives browse-mode store/category cards 11-point
