@@ -24,7 +24,7 @@ and Settings restoration stopped because the native menu exposed an empty
 accessibility value. Screenshots confirm one continuous shared glass capsule,
 the checked By store menu and functional category selection, not the later
 unreached assertions. The follow-up puts grouping into the accessible label
-instead; native rerun is pending. Preserve this label-based announcement when
+instead. Preserve this label-based announcement when
 changing native toolbar menus, since `accessibilityValue` was not forwarded by
 the tested iOS 27.2 toolbar.
 
@@ -36,6 +36,17 @@ Largest-text captures also show existing summary/placeholder truncation and a
 large floating Show Store control over lower content. These untouched areas are
 not certified by the toolbar change. No phone installation or retailer actions
 were performed; the task simulator was shut down with state preserved.
+
+Second Mac run at `a5938a5aa9c433e1b5297a63eb63a4939315f5ea`: native
+build passed; **2/4 focused UI tests passed**. Settings return now verifies the
+category announcement plus retained scope/draft/destination; pinned-header
+coverage also passes. Both toolbar tests pass the corrected announcement but
+stop on Filter's native 36-point accessible height. They do not yet reach menu
+reopening or the complete target-size assertions. Evidence is in sibling Mac
+`a5938a5/FocusedTests.xcresult` and Linux
+`/tmp/opencode/listrunner-all-items-filter-a5938a5/`. Both All items toolbar labels
+now have explicit 44-point minimum frames and rectangular hit shapes; the
+single-store Settings label retains its intrinsic size. Final rerun is pending.
 
 ## All items Clear List row height (13 November 2026)
 
