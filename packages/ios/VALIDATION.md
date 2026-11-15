@@ -1,5 +1,28 @@
 # Reusable store framework validation
 
+## Earlier native Back tint setup (15 November 2026)
+
+User confirmed the separate tint works but reported a momentary black chevron
+before colour appears. At requested revision
+`f95d67ed9c357a5ecbff4673c6e346a4e167663f`, initialize the adapter's colour at
+creation, apply synchronously on updates/parent attachment and in `viewWillAppear`,
+and remove the window-attachment prerequisite that prevented preappearance
+setup. Retain `viewDidAppear` as fallback, stack/top-owner guards and original-item
+restoration. No changes to glass, indicator artwork, navigation or gestures.
+
+Linux Swift parse, 9 resource regressions and diff checks passed. Clean Mac task
+checkout received exact revision via Git. User requested phone only: **no simulator
+run**. Correct task workspace Xcode RunProject built/signed/installed/launched on
+Adrian's iPhone / iOS 27.2.1, zero build errors, 9.349 seconds, launch reference
+`8cbd80d80`, PID **6328** independently confirmed by devicectl. Device bundle's
+35 JSON + 1 JavaScript resources and strict deep signature verification passed;
+build log references the task source. Evidence in Mac validation directory:
+`early-tint-phone-run-f95d67e.log` (original `RunProject-Log-20261115-140631.txt`)
+and `early-tint-phone-processes.json`. Ordinary app left running; no reset,
+fixtures, retailer actions, merge or release. The timing change is installed,
+but elimination of the transient black frame awaits the user's phone observation;
+build/launch alone does not verify frame-by-frame appearance.
+
 ## Separate native Back tint, physical-phone only (15 November 2026)
 
 At the user's request, colour-only revision
