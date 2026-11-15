@@ -17,9 +17,20 @@ scroll delegate replacement, retailer web-view change, timer or cooldown.
 
 Added source/lifecycle checks for scoped ancestor lookup, multi-card-only
 installation, no-touch-consumption flags, presented-offset interruption,
-immediate failure and observer/settings cleanup. Physical build/install results
-follow; these checks do not certify UIKit event ordering or on-phone interaction.
-No simulator builds/tests are being run, per the user's phone-feedback workflow.
+immediate failure and observer/settings cleanup. **504 JavaScript tests passed**
+and `git diff --check` passed. No simulator builds/tests were run.
+
+Built and installed `1de0d393ba947899b580c98d62dad31db646d1ea` from the clean Mac
+task checkout via `workspace-4WDbDRuQjn` / ListRunner / Adrian's physical iPhone
+17e (`00008150-001402660A9BC01C`, iOS 27.2.1). BuildProject succeeded with zero
+errors and compiled StoreShoppingView.swift. RunProject launched successfully,
+zero errors, reference `bad8e3a80`, PID **9804**, independently confirmed via
+devicectl. Deep/strict codesign passed for the built phone app. Logs:
+`BuildProject-Log-20261115-205534.txt` and `RunProject-Log-20261115-205552.txt`.
+Updated in place without reset/uninstall, test flags/fixtures, list edits or
+retailer actions. App left running for user testing. Source/build/launch checks
+do not certify anchor attachment, UIKit event ordering or moving-rail interaction
+on the phone; those remain pending user feedback.
 
 ## Post-swipe button responsiveness follow-up (15 November 2026)
 
