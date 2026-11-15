@@ -2187,8 +2187,39 @@ gestures, Cancel retention, unchanged active/history/cart markers, dark appearan
 and duplicate retention. Existing single-item right-add tests now explicitly reveal
 that end before using it; left/right saved-order and one-to-two coverage remain.
 Scalar/source tests cover thresholds/direction and matching visual/target gating.
-Build and simulator results follow after execution. No physical-phone update or
-changes to the user's separate live two-card preview have been performed.
+
+Code `3c2a19cb11d03f0c093c0a7f3fd625c550f8dca1`: generic Mac simulator build,
+**491 JavaScript tests**, **47 Python tests**, full cloud offline allowlist with
+**1,924 native checks**, parser/regional/synthetic registration tests and built
+35 JSON + 1 JavaScript canonical-resource comparisons pass. Final focused UI run:
+**10 passed, 0 failed, 0 skipped**, once with no retries/edits/weakened assertions.
+Light and dark cases confirm exactly one label/button: initial left/start, left
+swipe right/end, right swipe left/start; tiny and vertical gestures retain the side.
+Cancel and one-card duplicate saves retain it; active Item 1 of 1, Back history and
+fixture cart markers remain unchanged. Right/manual/All items additions, one-to-two
+transition, saved order/relaunch, inactive-product centring, dark multi-card native
+scrolling/occlusion and duplicate recentring passed.
+
+Full-resolution screenshots and sampled video show the card following horizontal
+input then returning to centre while the Add slots stay fixed. No simultaneous
+single-card labels or premature grey clipping strip was observed. Existing long
+active-title ellipsis and hint/page overlap remain. Brief vertical press/settling
+motion was visible; no persistent horizontal control drift was observed. The first
+All items case passed after a long idle wait/spindump, not performance sign-off.
+Reduce Motion, assistive custom-action invocation, end-side collapse/reopen and
+two-to-one deletion were not exercised by these ten cases; no broad certification
+of those paths is implied. Earlier CancelAX setup/storage root cause remains open;
+passing changed-code/helpers here does not establish that it is resolved.
+
+Evidence: `~/Library/Developer/Xcode/StoreProductSelection-Evidence/SingleCard-3c2a19c/REPORT.md`
+and Linux `/tmp/opencode/singlecard-3c2a19c/REPORT.md`, with result/logs, 21 PNGs,
+six named light/dark state shots, activity trees, motion samples and spindump.
+Full suite recording remains on Mac; Linux holds a passthrough gesture clip because
+full-video transfer exceeded available Linux space. Only the dedicated test
+simulator was shut down, state/DerivedData/evidence retained, clean checkout lease
+released; no bridge was needed. No physical-phone update or changes to the user's
+separate live two-card preview `0796AC93-DCD5-452B-B6DE-7B9D8B27F84A` were performed.
+Documentation-only commits after the code SHA do not alter the tested implementation.
 
 ### Follow-up: cards occlude Add labels, not an early grey strip (15 November 2026)
 
