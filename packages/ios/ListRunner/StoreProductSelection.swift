@@ -114,10 +114,19 @@ struct StoreProductRailLayout {
     let width: CGFloat
     let leadingCardMinX: CGFloat?
     let trailingCardMaxX: CGFloat?
+    // Nil means a normal multi-card rail, where either end may be exposed.
+    let singleCardSide: ShoppingLists.AdditionPosition?
 
     var inset: CGFloat { max(0, (width - 160) / 2 - 100) }
     var leadingWidth: CGFloat { min(88, max(0, (leadingCardMinX ?? inset) - inset)) }
     var trailingWidth: CGFloat { min(88, max(0, width - inset - (trailingCardMaxX ?? (width - inset)))) }
+}
+
+enum StoreProductSingleCardReveal {
+    static func position(horizontal: CGFloat, vertical: CGFloat) -> ShoppingLists.AdditionPosition? {
+        guard abs(horizontal) >= 24, abs(horizontal) > abs(vertical) * 1.25 else { return nil }
+        return horizontal > 0 ? .start : .end
+    }
 }
 
 struct StoreProductRailAddLabels: View {
@@ -125,10 +134,14 @@ struct StoreProductRailAddLabels: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            StoreProductRailEndLabel(uncoveredWidth: layout.leadingWidth)
-                .offset(x: layout.inset)
-            StoreProductRailEndLabel(uncoveredWidth: layout.trailingWidth)
-                .offset(x: layout.width - layout.inset - 88)
+            if layout.singleCardSide != .end {
+                StoreProductRailEndLabel(uncoveredWidth: layout.leadingWidth)
+                    .offset(x: layout.inset)
+            }
+            if layout.singleCardSide != .start {
+                StoreProductRailEndLabel(uncoveredWidth: layout.trailingWidth)
+                    .offset(x: layout.width - layout.inset - 88)
+            }
         }
         .frame(width: layout.width, height: 222, alignment: .bottomLeading)
         .allowsHitTesting(false)
@@ -151,10 +164,14 @@ struct StoreProductRailAddControls: View {
         ZStack(alignment: .bottomLeading) {
             // Only the transparent hit regions sit above the rail. They end at
             // the actual card bounds, so none of a card becomes an Add target.
-            StoreProductRailEndControl(uncoveredWidth: layout.leadingWidth, insertion: .start) { action(.start) }
-                .offset(x: layout.inset)
-            StoreProductRailEndControl(uncoveredWidth: layout.trailingWidth, insertion: .end) { action(.end) }
-                .offset(x: layout.width - layout.inset - layout.trailingWidth)
+            if layout.singleCardSide != .end {
+                StoreProductRailEndControl(uncoveredWidth: layout.leadingWidth, insertion: .start) { action(.start) }
+                    .offset(x: layout.inset)
+            }
+            if layout.singleCardSide != .start {
+                StoreProductRailEndControl(uncoveredWidth: layout.trailingWidth, insertion: .end) { action(.end) }
+                    .offset(x: layout.width - layout.inset - layout.trailingWidth)
+            }
         }
         .frame(width: layout.width, height: 222, alignment: .bottomLeading)
     }

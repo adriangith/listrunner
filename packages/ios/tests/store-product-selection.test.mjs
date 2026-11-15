@@ -400,3 +400,38 @@ test('exposed widths follow card body edges without the old twelve-point spacer 
   assert.equal(trailing(402, 21, null, null), 0);
   assert.equal(leading(402, 21, 91, null), 70, 'no early cut at spacer edge x=79');
 });
+
+test('single-card direction requires intentional horizontal movement, not tiny/vertical gestures', () => {
+  const source = swift.split('enum StoreProductSingleCardReveal {')[1].split('struct StoreProductRailAddLabels')[0];
+  const condition = source.match(/guard (.*?) else \{ return nil \}/)[1]
+    .replace(/, /g, ' && ').replace(/\babs\(/g, 'Math.abs(');
+  const direction = source.match(/return (horizontal > 0 \? \.start : \.end)/)[1]
+    .replace(/\.start/g, '"start"').replace(/\.end/g, '"end"');
+  const position = new Function('horizontal', 'vertical', `return (${condition}) ? (${direction}) : null`);
+  assert.equal(position(24, 0), 'start');
+  assert.equal(position(-24, 0), 'end');
+  for (const dx of [-23, -12, 0, 12, 23]) assert.equal(position(dx, 0), null);
+  assert.equal(position(40, 50), null);
+  assert.equal(position(-40, -50), null);
+  assert.equal(position(50, 40), null, 'diagonal boundary is not an intentional horizontal swipe');
+  assert.equal(position(-60, 20), 'end');
+});
+
+test('single-card side gates visuals and targets together, without selecting or affecting multi-card scrolling', () => {
+  const labels = swift.split('struct StoreProductRailAddLabels: View')[1].split('struct StoreProductRailEdges')[0];
+  const controls = swift.split('struct StoreProductRailAddControls: View')[1].split('struct StoreProductReview')[0];
+  for (const source of [labels, controls]) {
+    assert.match(source, /if layout\.singleCardSide != \.end/);
+    assert.match(source, /if layout\.singleCardSide != \.start/);
+  }
+  const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
+  assert.match(view, /singleCardAddPosition: ShoppingLists\.AdditionPosition = \.start/);
+  assert.equal((view.match(/singleCardSide: items\.count == 1 \? singleCardAddPosition : nil/g) || []).length, 2);
+  assert.match(view, /scrollDisabled\(items\.count == 1 \|\| overlayDrag\.axis == \.vertical\)/);
+  const change = view.split('.onChanged { value in')[1].split('.onEnded')[0];
+  assert.match(change, /items\.count == 1/);
+  assert.match(change, /singleCardAddPosition = position/);
+  assert.doesNotMatch(change, /selectedID\s*=|onSelectionChange|select\(|beginInteraction|searchTerm|\.position\s*=/);
+  assert.match(view, /Button\("Show Add at start of list"\)/);
+  assert.match(view, /Button\("Show Add at end of list"\)/);
+});

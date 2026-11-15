@@ -3878,6 +3878,84 @@ final class StoreSelectionTests: XCTestCase {
         checkStoreProductInsertion(at: "End of list", expectedBeforeExisting: false, manual: true)
     }
 
+    func testStoreProductSingleCardShowsOnlyLastSwipedSide() {
+        checkStoreProductSingleCardSides()
+    }
+
+    func testStoreProductSingleCardSidesDark() {
+        choose("Bunnings")
+        app.buttons["Settings"].tap()
+        let picker = app.buttons["appearance-setting"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        picker.tap()
+        app.buttons["Dark"].tap()
+        tapNavigationBack()
+        checkStoreProductSingleCardSides()
+    }
+
+    private func checkStoreProductSingleCardSides() {
+        choose("Bunnings")
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        let left = storeProductAdd(at: "Start of list")
+        let right = storeProductAdd(at: "End of list")
+        XCTAssertTrue(left.isHittable)
+        XCTAssertFalse(right.exists)
+        XCTAssertEqual(app.buttons.matching(identifier: "add-store-product").count, 1)
+        attachStoreProductScreenshot("Single card initially reveals only left Add")
+        swipeSingleStoreProductCard(dx: -70)
+        XCTAssertTrue(right.waitForExistence(timeout: 3))
+        XCTAssertTrue(right.isHittable)
+        XCTAssertFalse(left.exists)
+        XCTAssertEqual(app.buttons.matching(identifier: "add-store-product").count, 1)
+        attachStoreProductScreenshot("Single card left swipe reveals only right Add")
+        right.tap()
+        XCTAssertTrue(app.webViews.buttons["Choose product: 2x LED lights, 75 mm"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(right.waitForExistence(timeout: 3))
+        XCTAssertFalse(left.exists, "Cancel keeps the last revealed side")
+        swipeSingleStoreProductCard(dx: 12)
+        swipeSingleStoreProductCard(dx: 0, dy: -30)
+        XCTAssertTrue(right.exists, "Tiny or vertical gestures must not switch sides")
+        XCTAssertFalse(left.exists)
+        swipeSingleStoreProductCard(dx: 70)
+        XCTAssertTrue(left.waitForExistence(timeout: 3))
+        XCTAssertFalse(right.exists)
+        XCTAssertEqual(app.buttons.matching(identifier: "add-store-product").count, 1)
+        XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, "Item 1 of 1")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@",
+            "Bunnings fixture item, quantity", ", selected")).firstMatch.exists)
+        XCTAssertFalse(app.buttons["Back"].isEnabled)
+        XCTAssertFalse(app.webViews.buttons["UNEXPECTED CART CHANGE"].exists)
+        attachStoreProductScreenshot("Single card right swipe restores only left Add")
+    }
+
+    private func swipeSingleStoreProductCard(dx: CGFloat, dy: CGFloat = 0) {
+        let card = app.otherElements["selected-shopping-card"]
+        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        let start = card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: dx, dy: dy)),
+                    withVelocity: .slow, thenHoldForDuration: 0.2)
+    }
+
+    func testStoreProductSingleCardDuplicateRetainsRevealedSide() {
+        choose("Bunnings")
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        revealStoreProductAdd(at: "End of list").tap()
+        app.buttons["Enter manually"].tap()
+        let field = app.descendants(matching: .any).matching(identifier: "store-product-name").firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("Bunnings fixture item")
+        app.buttons["confirm-store-product"].tap()
+        XCTAssertTrue(storeProductAdd(at: "End of list").waitForExistence(timeout: 5))
+        XCTAssertFalse(storeProductAdd(at: "Start of list").exists)
+        XCTAssertEqual(app.buttons.matching(identifier: "add-store-product").count, 1)
+        XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, "Item 1 of 1")
+        XCTAssertFalse(app.buttons["Back"].isEnabled)
+    }
+
     func testStoreProductCancelRestoresPartiallyScrolledLeftRail() {
         checkStoreProductCancelPosition(at: "Start of list")
     }
@@ -3977,7 +4055,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["all-items-show-store"].tap()
         app.buttons["Shop at Bunnings"].tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
-        storeProductAdd(at: "End of list").tap()
+        revealStoreProductAdd(at: "End of list").tap()
         let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
         XCTAssertTrue(shield.waitForExistence(timeout: 5))
         shield.tap()
@@ -4000,6 +4078,16 @@ final class StoreSelectionTests: XCTestCase {
     private func storeProductAdd(at position: String) -> XCUIElement {
         app.buttons.matching(NSPredicate(format: "identifier == %@ AND value == %@",
             "add-store-product", position)).firstMatch
+    }
+
+    private func revealStoreProductAdd(at position: String) -> XCUIElement {
+        let action = storeProductAdd(at: position)
+        if !action.isHittable {
+            swipeSingleStoreProductCard(dx: position == "Start of list" ? 70 : -70)
+        }
+        XCTAssertTrue(action.waitForExistence(timeout: 3))
+        XCTAssertTrue(action.isHittable)
+        return action
     }
 
     private func assertStoreProductPosition(_ position: String) {
@@ -4027,7 +4115,7 @@ final class StoreSelectionTests: XCTestCase {
         choose("Bunnings")
         app.buttons["Show Store"].tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
-        let action = storeProductAdd(at: position)
+        let action = revealStoreProductAdd(at: position)
         XCTAssertTrue(action.waitForExistence(timeout: 5))
         XCTAssertTrue(action.isHittable)
         action.tap()

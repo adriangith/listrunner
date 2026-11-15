@@ -19,6 +19,21 @@ The action is also available without horizontal scrolling through
 an accessibility action and the collapsed bar. Existing card selection, collapse,
 Back/Skip/Undo and retailer cart behavior remain unchanged.
 
+With exactly one card, show only one end Add control at a time. Initially expose
+left/start. An intentional rightward drag exposes left/start; a leftward drag
+exposes right/end. Remember that side for the shopping view, including after
+Cancel or collapse/expand. Require at least 24 points of predominantly horizontal
+movement (horizontal > 1.25 × vertical) before switching; tiny and vertical drags
+do not switch. The card follows horizontal movement up to 56 points and settles
+back without becoming a new selection or changing order/search/history. Reduce
+Motion suppresses that extra card displacement. Hidden-side labels and buttons
+have no subtree, so both cannot briefly coexist through a crossfade. Bounded
+Collapse-control accessibility actions can reveal either side without a drag.
+Two or more cards retain the existing native-scrolling/two-end layout; adding a
+second distinct product automatically returns to that layout. Returning from
+multiple cards to one starts at left/start again. Duplicate merging that leaves
+one card keeps the last revealed side.
+
 The left/leading control captures **Start of list**; the right/trailing control
 captures **End of list**. Preserve that choice through grid selection, direct
 detail reads, manual/assistive fallback, review and save retries. The native review

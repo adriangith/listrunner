@@ -72,6 +72,11 @@ The labels paint behind the card rail at full width, so real rounded cards—not
 rectangular label crop or spacer boundary—cover them. Fade and separate transparent
 tap regions follow the actual first/last card edges; taps remain outside the cards.
 
+A one-card rail shows only left/start Add initially. Drag right to expose left/start
+or left to expose right/end; the last side remains available until a deliberate
+opposite drag. Tiny/vertical movement does not switch it, Cancel retains it, and
+the card stays active. Two or more cards keep the usual scrolling/two-end layout.
+
 Schema 8 adds optional `productSelection` grid/detail selectors separately from
 cart capabilities, retaining schemas 2–7 and all existing automation ceilings.
 Bunnings selectors have read-only public rendered evidence; other stores offer

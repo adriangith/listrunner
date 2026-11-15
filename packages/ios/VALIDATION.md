@@ -2166,6 +2166,30 @@ No new simulator UI-suite run, physical-device installation, user-list edit, rea
 Branch: `feature/add-store-product-to-list`. Implementation plan and safety contract:
 `docs/store-product-to-list.md`.
 
+### Follow-up: one-card directional Add reveal (15 November 2026)
+
+The user approved one visible Add end for a one-card rail: left/start initially,
+rightward drag reveals left/start and leftward drag right/end. Per-view side state
+persists through Cancel/collapse/expand and duplicate saves. At least 24 points of
+predominantly horizontal movement (horizontal > 1.25 × vertical) is required;
+tiny/vertical gestures retain the last side. Native scrolling is disabled only
+for the single-card case, which otherwise has no scroll range. The card follows
+the drag up to 56 points then settles; Reduce Motion omits this extra movement.
+Neither side change nor visual displacement selects/searches/reorders an item.
+Both label and tap layers gate the same side structurally—no overlapping crossfade.
+Two or more cards receive no side filter and retain native scrolling; a second
+distinct addition restores that layout automatically, while a merged one-card
+addition retains its side. A transition from multiple cards to one resets left.
+Bounded Collapse-button accessibility actions can reveal either side without drag.
+
+Added UI cases cover default/left/right direction, one-button count, tiny/vertical
+gestures, Cancel retention, unchanged active/history/cart markers, dark appearance,
+and duplicate retention. Existing single-item right-add tests now explicitly reveal
+that end before using it; left/right saved-order and one-to-two coverage remain.
+Scalar/source tests cover thresholds/direction and matching visual/target gating.
+Build and simulator results follow after execution. No physical-phone update or
+changes to the user's separate live two-card preview have been performed.
+
 ### Follow-up: cards occlude Add labels, not an early grey strip (15 November 2026)
 
 The user supplied a dark-mode phone screenshot showing the label cut off ahead of

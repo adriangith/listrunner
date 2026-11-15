@@ -40,6 +40,7 @@ struct StoreShoppingView: View {
     // A visual reveal only: never use this for selection, cart attribution or search.
     @State private var storeProductRevealID: UUID?
     @State private var activeCardRecentreRequest = 0
+    @State private var singleCardAddPosition: ShoppingLists.AdditionPosition = .start
     @State private var productSelectionTask: Task<Void, Never>?
     @GestureState private var isTouchingOverlay = false
     @GestureState(resetTransaction: Transaction(animation: .spring(response: 0.4, dampingFraction: 0.86)))
@@ -49,6 +50,7 @@ struct StoreShoppingView: View {
         enum Axis { case undecided, horizontal, vertical }
         var axis: Axis = .undecided
         var distance: CGFloat = 0
+        var horizontalDistance: CGFloat = 0
     }
 
     private struct NavigationRightActionEdgeKey: PreferenceKey {
@@ -380,6 +382,11 @@ struct StoreShoppingView: View {
                             ForEach(items) { item in
                                 card(item)
                                     .id(item.id)
+                                    // A one-card rail has no native scroll range.
+                                    // Follow an intentional horizontal drag without
+                                    // changing the active item or saved position.
+                                    .offset(x: items.count == 1 && !reduceMotion
+                                        ? min(56, max(-56, overlayDrag.horizontalDistance)) : 0)
                                     .anchorPreference(key: StoreProductRailEdges.self, value: .bounds) { anchor in
                                         var edges: [String: Anchor<CGRect>] = [:]
                                         if item.id == items.first?.id { edges["leading"] = anchor }
@@ -400,13 +407,14 @@ struct StoreShoppingView: View {
                     // Cards intentionally overlap the panel edge; let their shadows
                     // render over the panel instead of clipping at the scroll viewport.
                     .scrollClipDisabled()
-                    .scrollDisabled(overlayDrag.axis == .vertical)
+                    .scrollDisabled(items.count == 1 || overlayDrag.axis == .vertical)
                     .backgroundPreferenceValue(StoreProductRailEdges.self) { edges in
                         if !isCollapsed && !choosingStoreProduct {
                             GeometryReader { proxy in
                                 StoreProductRailAddLabels(layout: StoreProductRailLayout(width: proxy.size.width,
                                     leadingCardMinX: edges["leading"].map { proxy[$0].minX },
-                                    trailingCardMaxX: edges["trailing"].map { proxy[$0].maxX }))
+                                    trailingCardMaxX: edges["trailing"].map { proxy[$0].maxX },
+                                    singleCardSide: items.count == 1 ? singleCardAddPosition : nil))
                             }
                         }
                     }
@@ -415,7 +423,8 @@ struct StoreShoppingView: View {
                         GeometryReader { proxy in
                             StoreProductRailAddControls(layout: StoreProductRailLayout(width: proxy.size.width,
                                 leadingCardMinX: edges["leading"].map { proxy[$0].minX },
-                                trailingCardMaxX: edges["trailing"].map { proxy[$0].maxX }),
+                                trailingCardMaxX: edges["trailing"].map { proxy[$0].maxX },
+                                singleCardSide: items.count == 1 ? singleCardAddPosition : nil),
                                 action: beginStoreProductSelection)
                         }
                         }
@@ -434,6 +443,9 @@ struct StoreShoppingView: View {
                         // A saved UUID can arrive before SwiftData's updated query.
                         // Reapply after layout includes the new (or merged) card.
                         if let id = railScrollTargetID { scrollProxy.scrollTo(id, anchor: .center) }
+                    }
+                    .onChange(of: items.count) { previous, count in
+                        if previous != 1 && count == 1 { singleCardAddPosition = .start }
                     }
                     .onChange(of: storeProductRevealID) { _, _ in
                         // Clearing a stale reveal when Add starts must not move
@@ -509,7 +521,18 @@ struct StoreShoppingView: View {
                 }
                 if drag.axis == .vertical {
                     drag.distance = translation.height
+                } else if drag.axis == .horizontal {
+                    drag.horizontalDistance = translation.width
                 }
+            }
+            .onChanged { value in
+                guard items.count == 1, !isCollapsed, !choosingStoreProduct,
+                      overlayDrag.axis != .vertical,
+                      let position = StoreProductSingleCardReveal.position(
+                        horizontal: value.translation.width, vertical: value.translation.height) else { return }
+                // Only one side exists at a time. No crossfade can briefly
+                // expose both buttons; tiny/vertical movements keep the last side.
+                singleCardAddPosition = position
             }
             .onEnded { value in
                 // SwiftUI can reset GestureState before delivering onEnded.
@@ -782,6 +805,12 @@ struct StoreShoppingView: View {
                     // Put the shortcut on a real, bounded control rather than
                     // giving the entire ScrollView an Add accessibility action.
                     .accessibilityAction(named: Text("Add item to your list")) { beginStoreProductSelection(at: .start) }
+                    .accessibilityActions {
+                        if items.count == 1 {
+                            Button("Show Add at start of list") { singleCardAddPosition = .start }
+                            Button("Show Add at end of list") { singleCardAddPosition = .end }
+                        }
+                    }
                 }
             }
             .frame(height: current ? 15 : 13)
