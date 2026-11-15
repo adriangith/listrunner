@@ -16,8 +16,18 @@ configuration are unchanged.
 Replaced obsolete custom-latch tests with recognized-tap callback and source
 checks requiring no retained cancellation state, cooldown or child drag and
 preserving disabled/accessibility handling. **502 JavaScript tests passed**;
-`git diff --check` passed. No simulator builds/tests. Physical phone build/install
-evidence follows; immediate post-swipe interaction remains for user assessment.
+`git diff --check` passed. No simulator builds/tests.
+
+Built and installed `eb3e462497ccbbb79b3c68c8170553abbcf0d688` from the clean Mac
+task checkout via `workspace-4WDbDRuQjn` / ListRunner / Adrian's physical iPhone
+17e (`00008150-001402660A9BC01C`, iOS 27.2.1). BuildProject passed with zero errors
+and compiled both changed Swift files. RunProject launched successfully with
+zero errors, reference `bad754000`, PID **9707**, independently confirmed via
+devicectl. Built phone app passed deep/strict codesign verification. Logs:
+`BuildProject-Log-20261115-204631.txt` and `RunProject-Log-20261115-204641.txt`.
+Installed in place without reset/uninstall, test flags/fixtures, list edits or
+retailer actions; app left running. Immediate post-swipe interaction remains for
+user assessment, not certified by source/build checks.
 
 ## Multi-card swipe regression follow-up (15 November 2026)
 
