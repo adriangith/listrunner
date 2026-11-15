@@ -17,6 +17,37 @@ tests to use the menu and added toolbar target, standard/largest-text and
 store-scope checks. The shared-page test now requires Filter/Settings to remain
 pinned while entry content scrolls.
 
+### Final focused verification — passed
+
+At exact revision `013333e441ccd8ee0d4c1a72a7d16c74ee90a62a`, the native build
+and **all 4/4 focused UI tests passed in one run**, with parallel testing
+disabled and no retries, on the dedicated iPhone 18 Pro / iOS 27.2 simulator:
+
+* `testAllItemsFilterToolbarHasAccessibleTargetsAndSelection`
+* `testAllItemsFilterToolbarAtAccessibilityTextSize`
+* `testAllItemsSettingsReturnsToScopeAndDraft`
+* `testAllItemsSharedPageKeepsOnlyHeaderPinned`
+
+Sixteen successful edge activations cover Filter and Settings at ±21.5 points
+on both axes, at normal and largest accessibility text sizes. Screenshots confirm
+one continuous native glass capsule, aligned/unclipped, and By category checked
+after reopening the menu at both sizes. Tests also verify accessible grouping
+labels, Settings scope/draft/destination restoration, pinned toolbar controls and
+Filter's absence after navigating to Coles. This is focused fixture validation,
+not a full suite, iOS 17 runtime or manual VoiceOver/Switch Control sign-off.
+
+Final evidence: Mac
+`~/Library/Logs/ListRunner-AllItemsFilter/013333e/FocusedTests.xcresult`,
+`focused-tests.log` and five screenshot attachments; Linux PNGs/manifest at
+`/tmp/opencode/listrunner-all-items-filter-013333e/`. Task checkout remained
+clean at the tested SHA. Task simulator `D44C6953-DAC1-4AE1-8543-F9B186E63D00`
+was shut down with its state/evidence preserved. No physical-phone installation,
+live retailer actions, merge or release occurred. The unrelated largest-text
+summary/placeholder truncation and floating Show Store overlap remain as noted
+below; this toolbar work does not resolve or certify them.
+
+### Earlier attempts and corrections
+
 Initial Mac verification at `fc2d6209551bbeeee9b7468bb7ef5bb6dacd7f4d`:
 native build succeeded, but **1/4 focused UI tests passed** on an isolated iPhone
 18 Pro / iOS 27.2 simulator. The pinned-header test passed. Both toolbar tests
@@ -63,7 +94,8 @@ confirm a single capsule and **By category checked** after reopening. The one
 test still failed later because its final `choose("Coles")` called a store-only
 helper from All items; the other three tests were not run. Fixed that local test
 step to use `all-items-scope-picker` and wait for the store destination before
-checking Filter is absent; production code is unchanged. Final rerun pending.
+checking Filter is absent; production code is unchanged. The final run above
+passes the complete test.
 Evidence: Mac sibling `467dadd/NormalEdgeTest.xcresult` and Linux
 `/tmp/opencode/listrunner-all-items-filter-467dadd/`.
 
