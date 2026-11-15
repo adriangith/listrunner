@@ -57,6 +57,17 @@ MCP again returned a missing-log error; guarded desktop build again failed to
 write DerivedData `info.plist` during preparation. No successful install/launch
 occurred. Further deletion outside the approved task-cache scope was not done.
 
+The user subsequently approved removal of the two old device-support folders:
+`iPhone18,5 27.2 (24B119)` and `iPhone14,5 27.2 (24B119)` under
+`~/Library/Developer/Xcode/iOS DeviceSupport/`. Exact directory/symlink checks
+preceded deletion. Recovered **13.35 GiB**, leaving **13.63 GiB free** immediately
+afterward; `iPhone18,5 27.2.1 (24B156)` was verified preserved. No other support
+folders, source, evidence or simulator data were removed.
+The clean Mac task checkout was synced to `4f28440be00db73f5aba6ed873f65f5b4cb180ef`.
+The iPhone was then absent from both eligible and incompatible Xcode destinations;
+the iPad was not used as a substitute. The disk blocker is resolved, but phone
+installation now awaits reconnection. No restored-app install/launch is claimed.
+
 ## Joined header divider and overlapping artwork follow-up (14 November 2026)
 
 **Final outcome:** divider and single visible chevron verified on iPhone 17 /
