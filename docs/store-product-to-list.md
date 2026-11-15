@@ -30,6 +30,11 @@ points (horizontal > 1.25 × vertical) to keep the new side; shorter pulls sprin
 back to the previous side. The card uses elastic displacement
 `84 × translation / (abs(translation) + 84)`, with increasing resistance rather
 than a hard clamp, then settles centrally without selecting/reordering/searching.
+Card displacement still follows the finger directly, but the signed Add reveal
+retargets a 0.22-second smooth catch-up animation (0.12-second ease-out for Reduce
+Motion). This leaves visible follow-through after a fast flick rather than
+traversing the whole fade in one input frame. The 36/64-point values are reveal
+targets, not an instruction to skip intermediate rendered frames.
 Both label and hit layers interpolate the same signed fade-through-zero value,
 including during spring settling; never paint two sides simultaneously. A fading
 side has an actionable subtree only once at least half visible and 44 points wide.
@@ -40,6 +45,15 @@ Two or more cards retain the existing native-scrolling/two-end layout; adding a
 second distinct product automatically returns to that layout. Returning from
 multiple cards to one starts at left/start again. Duplicate merging that leaves
 one card keeps the last revealed side.
+
+Card status, name-selection and collapse buttons use a shared primitive button
+style instead of the default permissive press. Eight points of total movement
+in any direction cancels the contact permanently, even if it returns to its
+origin. Retain this latch across GestureState's release reset and clear it only
+on a new contact. Ordinary taps trigger on release without an added delay;
+explicit accessible activation bypasses stale physical-contact cancellation.
+The recognizer runs simultaneously with parent rail/panel gestures so dragging
+from a button still scrolls/pulls rather than changing item status.
 
 The left/leading control captures **Start of list**; the right/trailing control
 captures **End of list**. Preserve that choice through grid selection, direct

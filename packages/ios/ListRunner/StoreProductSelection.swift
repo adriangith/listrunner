@@ -121,6 +121,18 @@ struct StoreProductRailLayout {
     var trailingWidth: CGFloat { min(88, max(0, width - inset - (trailingCardMaxX ?? (width - inset)))) }
 }
 
+// Contact bookkeeping, not rendered state. Keep the cancellation latch alive
+// after GestureState resets, until the next contact explicitly begins.
+final class StoreCardPressTracking {
+    private(set) var cancelled = false
+
+    func begin() { cancelled = false }
+
+    func move(horizontal: CGFloat, vertical: CGFloat) {
+        if horizontal * horizontal + vertical * vertical >= 64 { cancelled = true }
+    }
+}
+
 enum StoreProductSingleCardReveal {
     static func position(horizontal: CGFloat, vertical: CGFloat) -> ShoppingLists.AdditionPosition? {
         guard abs(horizontal) >= 64, abs(horizontal) > abs(vertical) * 1.25 else { return nil }

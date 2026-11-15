@@ -3,6 +3,37 @@ import UIKit
 import WebKit
 import OSLog
 
+private struct StoreCardTapButtonStyle: PrimitiveButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var press = StoreCardPressTracking()
+    @GestureState private var touching = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(Rectangle())
+            // Replace the permissive default button press, rather than adding
+            // a second recognizer alongside its still-active native action.
+            // Simultaneous recognition preserves rail scrolling/panel dragging.
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                    .updating($touching) { value, touching, _ in
+                        if !touching { press.begin() }
+                        touching = true
+                        press.move(horizontal: value.translation.width, vertical: value.translation.height)
+                    }
+                    .onEnded { value in
+                        press.move(horizontal: value.translation.width, vertical: value.translation.height)
+                        guard isEnabled, !press.cancelled else { return }
+                        configuration.trigger()
+                    }
+            )
+            // Assistive activation is a deliberate action, not a
+            // continuation of the last physical drag's cancellation latch.
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { if isEnabled { configuration.trigger() } }
+    }
+}
+
 struct StoreShoppingView: View {
     // The controls and card carousel retain their existing geometry. Only the
     // material surface is shorter, so selected cards continue to overlap it at
@@ -542,12 +573,11 @@ struct StoreShoppingView: View {
                       abs(value.translation.width) > abs(value.translation.height) * 1.25 else { return }
                 let origin = singleCardPullOrigin ?? (singleCardAddPosition == .start ? CGFloat(-1) : CGFloat(1))
                 singleCardPullOrigin = origin
-                // Follow the finger with no time-based animation while held.
-                // The signed value fades the old side to zero before the new
-                // side appears; the committed side changes only on release.
-                var transaction = Transaction(animation: nil)
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
+                // The card still follows the finger directly. Give only the
+                // signed Add reveal a short catch-up so a fast flick cannot
+                // traverse its entire fade in a single input frame. Retarget
+                // from the current presentation; do not restart from an edge.
+                withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.22)) {
                     singleCardPullValue = StoreProductSingleCardReveal.pullValue(
                         origin: origin, horizontal: value.translation.width)
                 }
@@ -830,7 +860,7 @@ struct StoreShoppingView: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(StoreCardTapButtonStyle())
                     .accessibilityLabel("Collapse overlay")
                     .accessibilityValue("Item \(position) of \(items.count)")
                     .accessibilityHint("Hides shopping controls and shows the compact bar")
@@ -864,7 +894,7 @@ struct StoreShoppingView: View {
                 .frame(height: current ? 86 : 62, alignment: .top)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(StoreCardTapButtonStyle())
             .accessibilityLabel("\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(current ? ", selected" : "")")
             .accessibilityAddTraits(current ? .isSelected : [])
 
@@ -880,7 +910,7 @@ struct StoreShoppingView: View {
                         .foregroundStyle(item.status == .added ? addedStatusAccent : .white)
                         .background(item.status == .added ? Color.white : addedStatusAccent, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(StoreCardTapButtonStyle())
                 .accessibilityHint(item.status == .added
                     ? (secondsRemaining > 0
                         ? "Stop automatic progression. Continue with Next when ready."

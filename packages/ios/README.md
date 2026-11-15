@@ -78,10 +78,16 @@ opposite drag. Tiny/vertical movement does not switch it, Cancel retains it, and
 the card stays active. Two or more cards keep the usual scrolling/two-end layout.
 
 Side changes use a resisted pull with a gradual fade through zero, not an instant
-swap. Pull at least 64 predominantly horizontal points and release to keep the
+swap. A short 0.22-second label catch-up keeps fast flicks visibly gradual while
+the card still follows the finger directly. Pull at least 64 predominantly
+horizontal points and release to keep the
 new side; a shorter pull springs back. The card's resistance increases with the
 pull distance, while Add controls remain in their fixed slots. Reduce Motion uses
 a short fade without extra card displacement or spring bounce.
+
+Dragging eight points or more from a card's status, name or collapse button
+cancels that press for the rest of the contact, including when dragged back to
+the starting point. A fresh tap and explicit accessible activation remain available.
 
 Schema 8 adds optional `productSelection` grid/detail selectors separately from
 cart capabilities, retaining schemas 2–7 and all existing automation ceilings.

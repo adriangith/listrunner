@@ -507,11 +507,43 @@ test('single-card side gates visuals and targets together, without selecting or 
   const change = view.split('.onChanged { value in')[1].split('.onEnded')[0];
   assert.match(change, /items\.count == 1/);
   assert.match(change, /singleCardPullValue = StoreProductSingleCardReveal\.pullValue/);
-  assert.match(change, /transaction\.disablesAnimations = true/);
+  assert.match(change, /withAnimation\(reduceMotion \? \.easeOut\(duration: 0\.12\) : \.smooth\(duration: 0\.22\)\)/);
+  assert.doesNotMatch(change, /disablesAnimations = true|withTransaction/);
   assert.doesNotMatch(change, /singleCardAddPosition =(?!=)/);
   assert.doesNotMatch(change, /selectedID\s*=|onSelectionChange|select\(|beginInteraction|searchTerm|\.position\s*=/);
   assert.match(view, /Button\("Show Add at start of list"\)/);
   assert.match(view, /Button\("Show Add at end of list"\)/);
+});
+
+test('card contact cancels at eight points in any direction and stays cancelled after returning to origin', () => {
+  const tracker = swift.split('final class StoreCardPressTracking {')[1].split('enum StoreProductSingleCardReveal')[0];
+  const begin = new Function(tracker.match(/func begin\(\) \{ (.*?) \}/)[1].replace(/\bcancelled\b/g, 'this.cancelled'));
+  const move = new Function('horizontal', 'vertical', tracker.match(/func move\(horizontal: CGFloat, vertical: CGFloat\) \{([\s\S]*?)\n    \}/)[1]
+    .replace(/if (.*?) \{/g, 'if ($1) {').replace(/\bcancelled\b/g, 'this.cancelled'));
+  for (const [dx, dy] of [[8, 0], [-8, 0], [0, 8], [0, -8], [6, 6], [-40, 0], [100, 0]]) {
+    const state = {};
+    begin.call(state); move.call(state, 0, 0); move.call(state, dx, dy);
+    assert.equal(state.cancelled, true);
+    move.call(state, 0, 0);
+    assert.equal(state.cancelled, true, 'returning to the starting point cannot reactivate the press');
+    begin.call(state); move.call(state, 3, 4);
+    assert.equal(state.cancelled, false, 'next real tap is immediately available');
+  }
+});
+
+test('card buttons replace default press recognition, preserve parent drags and keep explicit accessible activation', () => {
+  const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
+  const style = view.split('private struct StoreCardTapButtonStyle: PrimitiveButtonStyle {')[1].split('struct StoreShoppingView: View')[0];
+  assert.match(style, /@State private var press = StoreCardPressTracking\(\)/);
+  assert.match(style, /\.simultaneousGesture\([\s\S]*DragGesture\(minimumDistance: 0, coordinateSpace: \.global\)/);
+  assert.match(style, /if !touching \{ press\.begin\(\) \}/);
+  const release = style.split('.onEnded { value in')[1].split('.accessibilityAction')[0];
+  assert.match(release, /press\.move[\s\S]*guard isEnabled, !press\.cancelled else \{ return \}[\s\S]*configuration\.trigger\(\)/);
+  assert.doesNotMatch(release, /press\.begin\(|touching/);
+  assert.match(style, /\.accessibilityAddTraits\(\.isButton\)/);
+  assert.match(style, /\.accessibilityAction \{ if isEnabled \{ configuration\.trigger\(\) \} \}/);
+  assert.equal((view.match(/\.buttonStyle\(StoreCardTapButtonStyle\(\)\)/g) || []).length, 3,
+    'status, card selection and collapse all reject drags');
 });
 
 test('interactive pull fades through zero and elastic displacement has increasing resistance', () => {

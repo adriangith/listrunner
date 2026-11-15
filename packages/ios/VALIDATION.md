@@ -1,5 +1,32 @@
 # Reusable store framework validation
 
+## Card drag cancellation and fast-flick follow-through (15 November 2026)
+
+User reported that dragging from Mark Added/Mark Pending still activated the
+button and that fast single-card pulls looked like instantaneous side switches.
+Replaced the default press recognizer on card status, name and collapse controls
+with one shared primitive button style. Contact movement of eight points in any
+direction latches cancellation until the next contact, including after returning
+to the origin and after GestureState resets before onEnded. Ordinary taps trigger
+immediately on release; explicit accessible activation triggers independently of
+the physical-contact latch. Simultaneous recognition retains parent rail/panel
+drag handling; no status/persistence/cart code was changed.
+
+Only the signed Add-label/target reveal now retargets a 0.22-second smooth
+catch-up while dragging (0.12-second ease-out for Reduce Motion). Card geometry
+still follows the finger directly with elastic resistance. Fast flicks leave
+visible follow-through instead of skipping from -1 to +1 in one input frame;
+release retains spring settling/64-point commit and short-pull rollback. Both
+visual/hit layers keep per-frame clamping and the same signed value so the sides
+cannot paint simultaneously.
+
+Linux: **502 JavaScript tests passed**, including cancellation/return-to-origin,
+fresh-contact reset, button wiring/accessibility and animated reveal source checks;
+focused product-selection suite **52/52**, `git diff --check` passed. At the user's
+explicit request, **no simulator build or simulator tests** are being run. Physical
+phone build/install evidence follows after execution; gesture feel remains for
+the user to assess directly on their phone.
+
 ## Coles local-list product selection (15 November 2026)
 
 Enabled the existing schema-8 `productSelection` engine for Coles only. Search,
