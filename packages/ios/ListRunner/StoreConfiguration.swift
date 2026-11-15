@@ -429,7 +429,7 @@ struct StoreLoginReplay {
 struct StoreDefinition: Codable {
     private enum CodingKeys: String, CodingKey, CaseIterable {
         case schemaVersion, automationSchemaVersion, id, displayName, serviceArea, homepage, allowedHosts
-        case search, addedColor, brandColors, categories, category, capabilities, cart
+        case search, addedColor, brandColors, categories, category, capabilities, cart, productSelection
     }
 
     struct ServiceArea: Codable {
@@ -528,6 +528,21 @@ struct StoreDefinition: Codable {
         }
         var snapshot: Snapshot? = nil
     }
+    // Explicit public page elements, independent of cart automation permissions.
+    struct ProductSelection: Codable {
+        struct Grid: Codable {
+            let containerSelector: String
+            let titleSelector: String
+            let linkSelector: String
+        }
+        struct Detail: Codable {
+            let containerSelector: String
+            let titleSelector: String
+        }
+        let productURLPattern: String
+        let grid: Grid
+        let detail: Detail
+    }
     struct AddedColor: Codable {
         let red: Int
         let green: Int
@@ -551,6 +566,7 @@ struct StoreDefinition: Codable {
     var category: StoreCategory? = nil
     var capabilities: Capabilities
     let cart: Cart?
+    var productSelection: ProductSelection? = nil
 
     init(schemaVersion: Int, id: StoreID, displayName: String, serviceArea: ServiceArea,
          homepage: URL, allowedHosts: [String], search: Search, addedColor: AddedColor,
@@ -577,14 +593,15 @@ struct StoreDefinition: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
         let hasCategories = schemaVersion == 6
-        let hasCategory = schemaVersion == 7
+        let hasCategory = schemaVersion >= 7
         let hasAutomationSchemaVersion = schemaVersion >= 6
-        guard [2, 3, 4, 5, 6, 7].contains(schemaVersion) else { throw ConfigurationError.invalid }
+        guard [2, 3, 4, 5, 6, 7, 8].contains(schemaVersion) else { throw ConfigurationError.invalid }
         var expectedKeys = Set(CodingKeys.allCases.map(\.stringValue))
         if !hasCategories { expectedKeys.remove(CodingKeys.categories.rawValue) }
         if !hasCategory { expectedKeys.remove(CodingKeys.category.rawValue) }
         if !hasAutomationSchemaVersion { expectedKeys.remove(CodingKeys.automationSchemaVersion.rawValue) }
         if !container.contains(.brandColors) { expectedKeys.remove(CodingKeys.brandColors.rawValue) }
+        if schemaVersion < 8 || !container.contains(.productSelection) { expectedKeys.remove(CodingKeys.productSelection.rawValue) }
         guard Set(container.allKeys.map(\.stringValue)) == expectedKeys else {
             throw ConfigurationError.invalid
         }
@@ -615,6 +632,7 @@ struct StoreDefinition: Codable {
         guard !hasCategory || (category.map(StoreCategory.currentCases.contains) == true && categories.isEmpty) else { throw ConfigurationError.invalid }
         capabilities = try container.decode(Capabilities.self, forKey: .capabilities)
         cart = try container.decodeIfPresent(Cart.self, forKey: .cart)
+        productSelection = try container.decodeIfPresent(ProductSelection.self, forKey: .productSelection)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -632,7 +650,8 @@ struct StoreDefinition: Codable {
         try container.encode(addedColor, forKey: .addedColor)
         try container.encodeIfPresent(brandColors, forKey: .brandColors)
         if schemaVersion == 6 { try container.encode(categories, forKey: .categories) }
-        if schemaVersion == 7 { try container.encode(category, forKey: .category) }
+        if schemaVersion >= 7 { try container.encode(category, forKey: .category) }
+        try container.encodeIfPresent(productSelection, forKey: .productSelection)
         try container.encode(capabilities, forKey: .capabilities)
         // The wire contract requires the cart key even for browsing-only stores.
         try container.encode(cart, forKey: .cart)
@@ -651,11 +670,11 @@ struct StoreDefinition: Codable {
     func validate() throws {
         let countries = serviceArea.countryCodes
         let supportedCountryCodes = Set(Locale.Region.isoRegions.map(\.identifier))
-        guard [2, 3, 4, 5, 6, 7].contains(schemaVersion),
+        guard [2, 3, 4, 5, 6, 7, 8].contains(schemaVersion),
               (schemaVersion == 6
                 ? (!categories.isEmpty && Set(categories).isSubset(of: StoreCategory.legacyCases)
                     && Set(categories).count == categories.count && [2, 3, 4, 5].contains(automationSchemaVersion))
-                : schemaVersion == 7
+                : schemaVersion >= 7
                     ? (category.map(StoreCategory.currentCases.contains) == true && categories.isEmpty && [2, 3, 4, 5].contains(automationSchemaVersion))
                     : (category == nil && categories.isEmpty && automationSchemaVersion == schemaVersion)),
               displayName == id.displayName,
@@ -684,6 +703,17 @@ struct StoreDefinition: Codable {
         if let offset = search.resultsTopOffset {
             guard search.resultsSelector != nil, offset.isFinite, (0...500).contains(offset)
             else { throw ConfigurationError.invalid }
+        }
+        if let selection = productSelection {
+            guard schemaVersion == 8, selection.productURLPattern.utf8.count <= 512,
+                  try NSRegularExpression(pattern: selection.productURLPattern).numberOfCaptureGroups == 1
+            else { throw ConfigurationError.invalid }
+            for selector in [selection.grid.containerSelector, selection.grid.titleSelector,
+                             selection.grid.linkSelector, selection.detail.containerSelector,
+                             selection.detail.titleSelector] {
+                guard !selector.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      selector.utf8.count <= 1_024 else { throw ConfigurationError.invalid }
+            }
         }
         if let cart {
             // Snapshot verification is a separately reviewed engine, not a way
@@ -915,7 +945,7 @@ struct StoreDefinition: Codable {
         try rejectDuplicateKeys(in: data)
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                hasOnlyKeys(root, ["schemaVersion", "automationSchemaVersion", "id", "displayName", "serviceArea", "homepage", "allowedHosts",
-                                  "search", "addedColor", "brandColors", "categories", "category", "capabilities", "cart"]),
+                                  "search", "addedColor", "brandColors", "categories", "category", "capabilities", "cart", "productSelection"]),
               hasOnlyKeys(root["serviceArea"] as? [String: Any], ["countryCodes"]),
               hasOnlyKeys(root["search"] as? [String: Any], ["strategy", "template", "resultsSelector", "resultsTopOffset"]),
               hasOnlyKeys(root["addedColor"] as? [String: Any], ["red", "green", "blue"]),
@@ -927,6 +957,13 @@ struct StoreDefinition: Codable {
             || !hasOnlyKeys(colors["primary"] as? [String: Any], ["red", "green", "blue"])
             || !hasOnlyKeys(colors["highlight"] as? [String: Any], ["red", "green", "blue"])) {
             throw ConfigurationError.invalid
+        }
+        if let selection = root["productSelection"] {
+            guard let object = selection as? [String: Any],
+                  hasOnlyKeys(object, ["productURLPattern", "grid", "detail"]),
+                  hasOnlyKeys(object["grid"] as? [String: Any], ["containerSelector", "titleSelector", "linkSelector"]),
+                  hasOnlyKeys(object["detail"] as? [String: Any], ["containerSelector", "titleSelector"])
+            else { throw ConfigurationError.invalid }
         }
         if let cart = root["cart"] as? [String: Any],
            !hasOnlyKeys(cart, ["strategy", "identityStrategy", "tileSelector", "linkSelector", "productURLPattern",

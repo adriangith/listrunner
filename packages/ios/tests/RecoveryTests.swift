@@ -15,6 +15,20 @@ struct RecoveryTests {
         }
 
         let resources = URL(fileURLWithPath: CommandLine.arguments[1])
+        check(!ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [.coles], itemListIDs: []),
+              "one empty enabled store needs no duplicate overview")
+        check(!ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [.coles], itemListIDs: [StoreID.coles.listID]),
+              "one populated enabled store opens its ordinary list directly")
+        check(ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [.coles, .woolworths], itemListIDs: []),
+              "multiple enabled stores offer the overview even with empty lists")
+        check(ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [.coles], itemListIDs: [StoreID.woolworths.listID]),
+              "a disabled or unavailable owner's rows keep All items accessible")
+        check(ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [.coles], itemListIDs: [nil, UUID()]),
+              "missing and unknown owners cannot be hidden by single-store navigation")
+        check(ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [], itemListIDs: [StoreID.coles.listID]),
+              "saved lists remain reachable with no enabled stores")
+        check(!ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [], itemListIDs: []),
+              "a fresh or empty no-stores state has no redundant overview")
         let reorderA = UUID(), reorderB = UUID(), reorderC = UUID(), foreignID = UUID()
         let reorderInput = [reorderA, reorderB, reorderC]
         check(ShoppingLists.reorderedIDs(reorderInput, moving: [reorderC], before: reorderA)
@@ -81,7 +95,99 @@ struct RecoveryTests {
         check(savedManualRows.count == 3 && savedManualRows.allSatisfy { manualNames.contains($0.name) && $0.searchTerm == $0.name },
               "saved manual names and search terms are not rewritten by persistence")
         check(otherStoreItem.quantityAmount == 9 && otherStoreItem.name == "milk",
-              "literal manual additions leave other stores unchanged")
+               "literal manual additions leave other stores unchanged")
+        let websiteTitle = "2x LED lights, 75 mm; reverse indicator"
+        let websiteRows = ShoppingLists.stageAdd([ParsedGrocery(name: websiteTitle, amount: 1, unit: nil)],
+                                                to: .bunnings, allItems: manualRows + [otherStoreItem], context: addContext)
+        check(websiteRows.count == 1 && websiteRows[0].name == websiteTitle && websiteRows[0].searchTerm == websiteTitle
+              && websiteRows[0].quantityAmount == 1 && websiteRows[0].status == .pending,
+              "website review saves one literal product including commas, semicolons and pack-size wording")
+        try addContext.save()
+        let websiteSnapshot = ShoppingLists.AdditionSnapshot(items: manualRows + websiteRows + [otherStoreItem], store: .bunnings)
+        websiteRows[0].status = .added
+        let duplicateWebsiteRows = ShoppingLists.stageAdd([ParsedGrocery(name: websiteTitle, amount: 2, unit: nil)],
+            to: .bunnings, allItems: manualRows + websiteRows + [otherStoreItem], context: addContext)
+        check(duplicateWebsiteRows.count == 1 && duplicateWebsiteRows[0].id == websiteRows[0].id
+              && duplicateWebsiteRows[0].quantityAmount == 3 && duplicateWebsiteRows[0].status == .pending,
+              "website additions reuse store-local duplicate reactivation and explicit quantity merging")
+        addContext.rollback()
+        websiteSnapshot.restoreAfterRollback()
+        check(websiteRows[0].quantityAmount == 1 && otherStoreItem.quantityAmount == 9,
+              "failed website addition restores cached model references as well as its durable transaction")
+        let durableWebsiteRows = try ModelContext(addData).fetch(FetchDescriptor<GroceryItem>())
+        check(durableWebsiteRows.first { $0.name == websiteTitle }?.quantityAmount == 1,
+              "failed website addition leaves the committed quantity unchanged")
+        try addContext.save()
+        let retriedWebsiteRows = ShoppingLists.stageAdd([ParsedGrocery(name: websiteTitle, amount: 2, unit: nil)],
+            to: .bunnings, allItems: manualRows + websiteRows + [otherStoreItem], context: addContext)
+        try addContext.save()
+        check(retriedWebsiteRows.first?.quantityAmount == 3,
+              "retrying after a failed website addition applies the requested quantity exactly once")
+
+        for insertion in [ShoppingLists.AdditionPosition.start, .end] {
+            let container = try ShoppingLists.open(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
+            let context = container.mainContext
+            context.autosaveEnabled = false
+            let original = ["First", "Middle", "Last"].enumerated().map { index, name in
+                GroceryItem(name: name, amount: 1, position: index, listID: StoreID.bunnings.listID)
+            }
+            original[1].status = .added
+            original[2].status = .skipped
+            let foreign = GroceryItem(name: "Website product", amount: 8, position: 17, listID: StoreID.coles.listID)
+            let list = GroceryList(store: .bunnings)
+            list.selectedItemID = original[1].id
+            context.insert(list)
+            for item in original + [foreign] { context.insert(item) }
+            try context.save()
+            let inserted = ShoppingLists.stageAdd([ParsedGrocery(name: "Website product", amount: 1, unit: nil)],
+                to: .bunnings, allItems: original + [foreign], context: context, insertion: insertion)
+            let expected = insertion == .start ? inserted + original : original + inserted
+            check(expected.map(\.position) == Array(0..<4)
+                  && inserted.count == 1 && inserted[0].listID == StoreID.bunnings.listID,
+                  "website addition uses its chosen edge, contiguous positions and captured store")
+            check(original[1].status == .added && original[2].status == .skipped
+                  && list.selectedItemID == original[1].id && foreign.position == 17 && foreign.quantityAmount == 8,
+                  "edge insertion preserves other statuses, selection and foreign store rows")
+            try context.save()
+            let saved = try ModelContext(container).fetch(FetchDescriptor<GroceryItem>())
+                .filter { $0.listID == StoreID.bunnings.listID }.sorted { $0.position < $1.position }
+            check(saved.map(\.id) == expected.map(\.id), "chosen edge survives a new persistence context")
+
+            let snapshot = ShoppingLists.AdditionSnapshot(items: expected + [foreign], store: .bunnings)
+            let before = expected.map { ($0.id, $0.position, $0.statusRawValue, $0.quantityAmount) }
+            let duplicate = ShoppingLists.stageAdd([ParsedGrocery(name: "Middle", amount: 2, unit: nil)],
+                to: .bunnings, allItems: expected + [foreign], context: context, insertion: insertion)
+            let untouched = expected.filter { $0.id != original[1].id }
+            let reordered = insertion == .start ? duplicate + untouched : untouched + duplicate
+            check(duplicate.count == 1 && duplicate[0].id == original[1].id
+                  && duplicate[0].quantityAmount == 3 && duplicate[0].status == .pending
+                  && reordered.map(\.position) == Array(0..<4),
+                  "existing duplicate merges/reactivates and moves to the chosen edge without duplicating its row")
+            context.rollback()
+            snapshot.restoreAfterRollback()
+            check(zip(expected, before).allSatisfy { item, saved in
+                item.id == saved.0 && item.position == saved.1 && item.statusRawValue == saved.2 && item.quantityAmount == saved.3
+            }, "failed edge insertion restores cached quantities, statuses and order")
+            try context.save()
+            let retry = ShoppingLists.stageAdd([ParsedGrocery(name: "Middle", amount: 2, unit: nil)],
+                to: .bunnings, allItems: expected + [foreign], context: context, insertion: insertion)
+            try context.save()
+            let final = try ModelContext(container).fetch(FetchDescriptor<GroceryItem>())
+                .filter { $0.listID == StoreID.bunnings.listID }.sorted { $0.position < $1.position }
+            check(retry[0].quantityAmount == 3 && final.map(\.id) == reordered.map(\.id)
+                  && final.count == 4 && list.selectedItemID == original[1].id,
+                  "retry applies quantity once, persists edge order and keeps selected identity")
+
+            let batch = ShoppingLists.stageAdd([ParsedGrocery(name: "Batch one", amount: 1, unit: nil),
+                                               ParsedGrocery(name: "Batch two", amount: 1, unit: nil),
+                                               ParsedGrocery(name: "Batch one", amount: 1, unit: nil)],
+                to: .bunnings, allItems: try context.fetch(FetchDescriptor<GroceryItem>()),
+                context: context, insertion: insertion)
+            check(batch.count == 2 && batch.map(\.name) == ["Batch one", "Batch two"]
+                  && batch[0].quantityAmount == 2
+                  && batch.map(\.position) == (insertion == .start ? [0, 1] : [4, 5]),
+                  "explicit edge preserves batch order and merges repeated entries once")
+        }
         let firstID = UUID(), secondID = UUID(), thirdID = UUID()
         let initialOrder = ItemPromotionOrder.promoting([firstID, secondID], in: "", existing: [firstID, secondID, thirdID])
         let updatedOrder = ItemPromotionOrder.promoting([thirdID, firstID], in: initialOrder,
@@ -94,8 +200,18 @@ struct RecoveryTests {
         for code in [nil, "", "ZZ", "Australia", "123"] as [String?] {
             check(ShoppingCountry.validated(code) == nil, "invalid/missing region suggestions do not guess a country")
         }
-        let configData = try Data(contentsOf: resources.appendingPathComponent("coles.json"))
-        let coles = try JSONDecoder().decode(StoreDefinition.self, from: configData)
+        let colesData = try Data(contentsOf: resources.appendingPathComponent("coles.json"))
+        let coles = try StoreDefinition.decodeConfiguration(from: colesData)
+        check(coles.schemaVersion == 8
+              && coles.productSelection?.grid.titleSelector == "a[href*=\"/product/\"] h2.product__title"
+              && coles.productSelection?.detail.titleSelector == "h1[data-testid=\"title\"]"
+              && coles.automationSchemaVersion == 2,
+              "bundled Coles enables explicit grid/detail selection without upgrading cart automation")
+        // Keep schema-7 compatibility fixtures independent of the bundled profile.
+        var legacyColes = try JSONSerialization.jsonObject(with: colesData) as! [String: Any]
+        legacyColes["schemaVersion"] = 7
+        legacyColes.removeValue(forKey: "productSelection")
+        let configData = try JSONSerialization.data(withJSONObject: legacyColes)
         func resultsConfig(_ fields: [String: Any]) throws -> StoreDefinition {
             var root = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
             var search = root["search"] as! [String: Any]
@@ -132,8 +248,36 @@ struct RecoveryTests {
         }
         let woolworths = try JSONDecoder().decode(StoreDefinition.self, from: Data(contentsOf: resources.appendingPathComponent("woolworths.json")))
         let bunnings = try JSONDecoder().decode(StoreDefinition.self, from: Data(contentsOf: resources.appendingPathComponent("bunnings.json")))
-        check(coles.schemaVersion == 7 && coles.category == .grocery && coles.categories.isEmpty,
-              "Coles schema-7 single category decodes as typed metadata")
+        var selectionObject = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
+        selectionObject["schemaVersion"] = 8
+        selectionObject["productSelection"] = [
+            "productURLPattern": "/product/[^/]+-(\\d+)$",
+            "grid": ["containerSelector": ".tile", "titleSelector": ".title", "linkSelector": "a[href]"],
+            "detail": ["containerSelector": "main", "titleSelector": "h1"]
+        ]
+        let selectionDefinition = try StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: selectionObject))
+        check(selectionDefinition.schemaVersion == 8 && selectionDefinition.productSelection?.grid.containerSelector == ".tile"
+              && selectionDefinition.automationSchemaVersion == coles.automationSchemaVersion,
+              "schema 8 adds explicit product selection without upgrading cart automation")
+        let selectionRoundTrip = try StoreDefinition.decodeConfiguration(from: JSONEncoder().encode(selectionDefinition))
+        check(selectionRoundTrip.productSelection?.detail.titleSelector == "h1", "product selection round-trips")
+        for version in [2, 6, 7] {
+            var invalid = selectionObject
+            invalid["schemaVersion"] = version
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: invalid))) == nil,
+                  "old schema cannot smuggle product selection rules")
+        }
+        for bad in [NSNull(), "main", ["productURLPattern": "(", "grid": [:], "detail": [:]],
+                    ["productURLPattern": "(x)", "grid": ["containerSelector": ".tile", "titleSelector": "", "linkSelector": "a"],
+                     "detail": ["containerSelector": "main", "titleSelector": "h1"]]] as [Any] {
+            var invalid = selectionObject
+            invalid["productSelection"] = bad
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: invalid))) == nil,
+                  "malformed product selection fails closed")
+        }
+        let schema7 = try StoreDefinition.decodeConfiguration(from: configData)
+        check(schema7.schemaVersion == 7 && schema7.category == .grocery && schema7.categories.isEmpty,
+              "legacy Coles schema-7 single category decodes as typed metadata")
         var schema6Object = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
         schema6Object["schemaVersion"] = 6
         schema6Object.removeValue(forKey: "category")
@@ -192,6 +336,7 @@ struct RecoveryTests {
             object.removeValue(forKey: "categories")
             object.removeValue(forKey: "category")
             object.removeValue(forKey: "automationSchemaVersion")
+            object.removeValue(forKey: "productSelection")
             let legacyData = try JSONSerialization.data(withJSONObject: object)
             let legacy = try StoreDefinition.decodeConfiguration(from: legacyData)
             check(legacy.schemaVersion == legacyVersion && legacy.categories.isEmpty && legacy.isConfigurationValid,
@@ -297,8 +442,8 @@ struct RecoveryTests {
                   "IKEA snapshot contract rejects incompatible engines, foreign locales and unknown keys")
         }
         check(allProductionDefinitions.count == 33
-              && allProductionDefinitions.allSatisfy { $0.schemaVersion == 7 && $0.category != nil && $0.isConfigurationValid },
-              "all 33 production destinations use valid schema-7 categories")
+              && allProductionDefinitions.allSatisfy { [7, 8].contains($0.schemaVersion) && $0.category != nil && $0.isConfigurationValid },
+              "all 33 production destinations retain valid single categories in schemas 7 and 8")
         for definition in allProductionDefinitions {
             let roundTrip = try StoreDefinition.decodeConfiguration(from: JSONEncoder().encode(definition))
             check(roundTrip.id == definition.id && roundTrip.categories == definition.categories
@@ -848,7 +993,7 @@ struct RecoveryTests {
               && kmart.cart?.profiles?.map(\.identity) == [.cardLink, .pageURL]
               && kmart.cart?.profiles?.allSatisfy({ $0.confirmation == .productReceipt }) == true,
               "Kmart declares independent grid/detail identities using a shared receipt engine")
-        check(coles.schemaVersion == 7 && coles.cart?.profiles == nil
+        check(coles.automationSchemaVersion == 2 && coles.cart?.profiles == nil
               && woolworths.cart?.profiles == nil && bunnings.cart?.profiles == nil,
               "legacy version-2 stores keep their existing detector rules")
         func rejectsProfile(_ mutate: (inout [String: Any]) -> Void) -> Bool {

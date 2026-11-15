@@ -19,6 +19,20 @@ spec.loader.exec_module(tool)
 
 
 class OnboardingTests(unittest.TestCase):
+    def test_product_selection_schema8_contract(self):
+        config = json.loads((tool.RESOURCES / 'coles.json').read_text())
+        config['schemaVersion'] = 8
+        selection = {'productURLPattern': r'/product/[^/]+-(\d+)$',
+                     'grid': {'containerSelector': '.tile', 'titleSelector': '.name', 'linkSelector': 'a[href]'},
+                     'detail': {'containerSelector': 'main', 'titleSelector': 'h1'}}
+        config['productSelection'] = selection
+        self.assertEqual(tool.validate(config), [])
+        for bad in [None, {}, dict(selection, extra='script'), dict(selection, productURLPattern='('),
+                    dict(selection, productURLPattern='no-capture'),
+                    dict(selection, grid=dict(selection['grid'], titleSelector=''))]:
+            self.assertTrue(tool.validate(dict(config, productSelection=bad)))
+        self.assertTrue(tool.validate(dict(config, schemaVersion=7)))
+
     def args(self, output):
         return argparse.Namespace(id='exampleAU', name='Example', country='AU',
             homepage='https://shop.example/au/', host=['shop.example'],
@@ -77,12 +91,13 @@ class OnboardingTests(unittest.TestCase):
                 self.assertTrue(tool.validate(changed))
         for value in [None, True, 1, 6, '2']:
             self.assertTrue(tool.validate(dict(config, automationSchemaVersion=value)))
-        legacy = {k: v for k, v in config.items() if k not in {'category', 'automationSchemaVersion'}}
+        legacy = {k: v for k, v in config.items() if k not in {'category', 'automationSchemaVersion', 'productSelection'}}
         legacy['schemaVersion'] = 2
         self.assertEqual(tool.validate(legacy), [])
         self.assertTrue(tool.validate(dict(legacy, category='grocery')))
         schema6 = dict(config, schemaVersion=6, categories=['grocery'], category=None)
         schema6.pop('category')
+        schema6.pop('productSelection', None)
         self.assertEqual(tool.validate(schema6), [])
 
     def test_invalid_capability_types(self):

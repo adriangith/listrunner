@@ -20,6 +20,11 @@ struct ShoppingRootScreen: View {
     @AppStorage("allItemsAddDestination.v1") private var allItemsAddDestination = ""
     @State private var welcomeCompletion = 0
     @State private var welcomeTransition = WelcomeCompletionTransition()
+    // A store is one level below All items, never a growing store-to-store history.
+    // nil lets the first render restore the saved scope without a launch animation.
+    @State private var listPath: [StoreID]?
+    @State private var overviewEnabled: Bool?
+    @State private var listContentVisible = false
     @State private var previewingStoreWelcome: Bool = {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("--preview-store-welcome")
@@ -42,61 +47,63 @@ struct ShoppingRootScreen: View {
         })
     }
 
+    private var overviewAvailable: Bool {
+        ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: shoppingVisibleIDs,
+                                                    itemListIDs: allItems.map(\.listID))
+    }
+
+    private var usesOverview: Bool {
+        !previewingStoreWelcome && (overviewEnabled ?? overviewAvailable)
+    }
+
+    private var navigationPath: Binding<[StoreID]> {
+        Binding(get: {
+            listPath ?? (usesOverview && !showingAllItems
+                ? [StoreID(rawValue: activeStoreID) ?? .coles] : [])
+        }, set: { path in
+            // SwiftUI writes this only when the native Back action/edge pop commits.
+            // A cancelled interactive swipe must not change the remembered scope.
+            sessions.endAllInteractions()
+            listPath = path
+            if let store = path.last { activeStoreID = store.rawValue }
+            showingAllItems = usesOverview && path.isEmpty
+        })
+    }
+
     var body: some View {
         let storeID = StoreID(rawValue: activeStoreID) ?? .coles
-        ZStack {
-        Group {
-        // A one-launch preview takes precedence without changing the saved scope.
-        if showingAllItems && !previewingStoreWelcome {
-            NavigationStack {
-            AllItemsScreen(sessions: sessions, visibility: visibility, paprikaReminders: paprikaReminders,
-                           draft: $allItemsDraft, destinationRawValue: $allItemsAddDestination,
-                            onChooseStoreList: { id in
-                                sessions.endAllInteractions()
-                                if shoppingVisibleIDs.contains(id) {
-                                    activeStoreID = id.rawValue
-                                    showingAllItems = false
-                                }
-                            }, onPromoteStore: promote)
+        NavigationStack(path: navigationPath) {
+                // A one-launch preview takes precedence without changing the saved scope.
+                Group {
+                    if usesOverview {
+                        AllItemsScreen(sessions: sessions, visibility: visibility, paprikaReminders: paprikaReminders,
+                            draft: $allItemsDraft, destinationRawValue: $allItemsAddDestination,
+                            onChooseStoreList: { selectStore($0) }, onPromoteStore: promote,
+                            onListVisibilityChange: listVisibilityChanged)
+                    } else {
+                        storeList(storeID)
+                    }
+                }
+                .navigationDestination(for: StoreID.self) { id in
+                    storeList(id)
+                        // Keep the system Back button and interactive edge gesture, with
+                        // a compact chevron alongside the existing leading scope chooser.
+                        .toolbarRole(.editor)
+                }
             }
-        } else {
-        GroceryListScreen(storeID: storeID, sessions: sessions, visibility: visibility, paprikaReminders: paprikaReminders,
-                           previewingStoreWelcome: $previewingStoreWelcome,
-                           rawInput: Binding(get: { drafts[storeID] ?? "" }, set: { drafts[storeID] = $0 }),
-                           onWelcomeStoreEnabled: { id in
-                               sessions.endAllInteractions()
-                               _ = visibility.selectionForList(current: id, definitions: sessions.definitions)
-                               // Lay out the new navigation stack without animating
-                               // its safe areas/header. Fade the captured outgoing
-                               // screen instead of interpolating live stack layout.
-                               welcomeTransition.perform(reduceMotion: reduceMotion) {
-                                    previewingStoreWelcome = false
-                                    activeStoreID = id.rawValue
-                                    showingAllItems = false
-                                    welcomeCompletion += 1
-                               }
-                            }, onSelectStore: { id in
-                                sessions.endAllInteractions()
-                                if shoppingVisibleIDs.contains(id) { activeStoreID = id.rawValue }
-                                else { showingAllItems = true }
-                            }, onSelectAllItems: {
-                                if allItemsAddDestination.isEmpty { allItemsAddDestination = storeID.rawValue }
-                                showingAllItems = true
-                           }, storeLaunchRequested: $storeLaunchRequested,
-                           importLaunchRequested: $importLaunchRequested,
-                           onPromoteStore: promote)
-        }
-        }
-            .id("\(storeID.rawValue)-\(welcomeCompletion)")
-        }
+            .id(welcomeCompletion)
             .background(WelcomeTransitionAnchor(transition: welcomeTransition))
             .sensoryFeedback(.success, trigger: welcomeCompletion)
-             .onChange(of: shoppingVisibleIDs) { previous, current in
+            .onChange(of: shoppingVisibleIDs) { previous, current in
                 // Opening management is not a choice. Keep the one-run welcome
                 // preview when backing out, and finish only on an enable action.
                 if !current.subtracting(previous).isEmpty {
                     previewingStoreWelcome = false
                 }
+            }
+            .onChange(of: overviewAvailable) { _, _ in
+                // Never replace the stack underneath Settings/Manage Stores.
+                if listContentVisible { reconcileNavigation() }
             }
             .onAppear {
                 visibility.updateNonEmptyListIDs(nonEmptyListIDs)
@@ -111,6 +118,81 @@ struct ShoppingRootScreen: View {
                 }
             }
             .onChange(of: nonEmptyListIDs) { _, ids in visibility.updateNonEmptyListIDs(ids) }
+    }
+
+    // Shared route construction for a direct single-store root and a store detail.
+    private func storeList(_ storeID: StoreID) -> some View {
+        GroceryListScreen(storeID: storeID, sessions: sessions, visibility: visibility,
+            paprikaReminders: paprikaReminders, previewingStoreWelcome: $previewingStoreWelcome,
+            rawInput: Binding(get: { drafts[storeID] ?? "" }, set: { drafts[storeID] = $0 }),
+            onWelcomeStoreEnabled: completeWelcome,
+            onSelectStore: { selectStore($0) }, onSelectAllItems: selectAllItems,
+            storeLaunchRequested: $storeLaunchRequested, importLaunchRequested: $importLaunchRequested,
+            onPromoteStore: promote, ownsNavigationStack: false,
+            offersAllItems: usesOverview, onListVisibilityChange: listVisibilityChanged)
+            .id(storeID)
+    }
+
+    private func selectStore(_ store: StoreID) {
+        guard shoppingVisibleIDs.contains(store) else { return }
+        guard showingAllItems || activeStoreID != store.rawValue else { return }
+        sessions.endAllInteractions()
+        var transaction = Transaction(animation: reduceMotion ? nil : .default)
+        transaction.disablesAnimations = reduceMotion
+        withTransaction(transaction) {
+            activeStoreID = store.rawValue
+            showingAllItems = false
+            listPath = usesOverview ? [store] : []
+        }
+    }
+
+    private func selectAllItems() {
+        guard usesOverview else { return }
+        sessions.endAllInteractions()
+        if allItemsAddDestination.isEmpty { allItemsAddDestination = activeStoreID }
+        var transaction = Transaction(animation: reduceMotion ? nil : .default)
+        transaction.disablesAnimations = reduceMotion
+        withTransaction(transaction) {
+            showingAllItems = true
+            listPath = []
+        }
+    }
+
+    private func listVisibilityChanged(_ visible: Bool) {
+        listContentVisible = visible
+        if visible { reconcileNavigation() }
+    }
+
+    private func reconcileNavigation() {
+        guard !previewingStoreWelcome else { return }
+        let available = overviewAvailable
+        guard overviewEnabled != available || (!available && showingAllItems) else { return }
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            overviewEnabled = available
+            if !available {
+                if let onlyStore = shoppingVisibleIDs.first, shoppingVisibleIDs.count == 1 {
+                    activeStoreID = onlyStore.rawValue
+                }
+                showingAllItems = false
+            }
+            listPath = available && !showingAllItems
+                ? [StoreID(rawValue: activeStoreID) ?? .coles] : []
+        }
+    }
+
+    private func completeWelcome(_ store: StoreID) {
+        sessions.endAllInteractions()
+        _ = visibility.selectionForList(current: store, definitions: sessions.definitions)
+        welcomeTransition.perform(reduceMotion: reduceMotion) {
+            previewingStoreWelcome = false
+            activeStoreID = store.rawValue
+            showingAllItems = false
+            overviewEnabled = overviewAvailable
+            listPath = overviewAvailable ? [store] : []
+            welcomeCompletion += 1
+        }
     }
 
     private func promote(_ store: StoreID, _ itemIDs: [UUID]) {
@@ -192,8 +274,6 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
     var isWelcome = false
     var keyboardDismissMode: ScrollDismissesKeyboardMode = .interactively
     var onViewportChange: (CGRect) -> Void = { _ in }
-    var onManualScroll: () -> Void = {}
-    @GestureState private var isDragging = false
     @ViewBuilder let scope: () -> Scope
     @ViewBuilder let footer: () -> Footer
     @ViewBuilder let rows: () -> Rows
@@ -205,12 +285,6 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
             .listSectionSpacing(.compact)
             .scrollIndicators(isWelcome ? .hidden : .automatic, axes: .vertical)
             .scrollDismissesKeyboard(keyboardDismissMode)
-            .simultaneousGesture(DragGesture(minimumDistance: 10).updating($isDragging) { _, dragging, _ in
-                if !dragging { dragging = true }
-            })
-            .onChange(of: isDragging) { _, dragging in
-                if dragging { onManualScroll() }
-            }
             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { onViewportChange($0) }
             .safeAreaInset(edge: .top, spacing: 0) {
                 if isWelcome {
@@ -235,6 +309,104 @@ private struct ShoppingListPage<Scope: View, Footer: View, Rows: View>: View {
     }
 }
 
+// Import sheets still own a stack; list routes share the root stack so the
+// platform supplies both the transition and cancellable interactive edge pop.
+private struct ListNavigationContainer<Content: View>: View {
+    let standalone: Bool
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        if standalone {
+            NavigationStack { content() }
+        } else {
+            content()
+        }
+    }
+}
+
+// Tint only the native Back item. Keep its system glyph, background, hit target
+// and interactive navigation; never extend the chooser's decoration over it.
+private struct StoreListBackTint: UIViewControllerRepresentable {
+    let tint: Color
+
+    func makeUIViewController(context: Context) -> Controller {
+        let controller = Controller()
+        controller.storeTint = UIColor(tint)
+        return controller
+    }
+
+    func updateUIViewController(_ controller: Controller, context: Context) {
+        controller.storeTint = UIColor(tint)
+        controller.apply()
+    }
+
+    static func dismantleUIViewController(_ controller: Controller, coordinator: ()) {
+        controller.restore()
+    }
+
+    final class Controller: UIViewController {
+        var storeTint = UIColor.label
+        private weak var previousItem: UINavigationItem?
+        private var originalBack: UIBarButtonItem?
+        private let storeBack = UIBarButtonItem(title: "", style: .plain, target: nil, action: nil)
+
+        override func loadView() {
+            let anchor = UIView()
+            anchor.isUserInteractionEnabled = false
+            view = anchor
+        }
+
+        override func didMove(toParent parent: UIViewController?) {
+            super.didMove(toParent: parent)
+            if parent != nil { apply() }
+        }
+
+        override func viewWillAppear(_ animated: Bool) {
+            super.viewWillAppear(animated)
+            // Configure before the navigation bar's visible transition, rather
+            // than waiting for viewDidAppear or a queued main-thread update.
+            apply()
+        }
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            apply()
+        }
+
+        override func viewDidDisappear(_ animated: Bool) {
+            super.viewDidDisappear(animated)
+            restore()
+        }
+
+        func apply() {
+            // During viewWillAppear the destination need not be in a window yet.
+            // Stack ownership, not window attachment, makes this safe to style.
+            guard let navigationController else { return }
+            var host = parent
+            while let candidate = host, !navigationController.viewControllers.contains(where: { $0 === candidate }) {
+                host = candidate.parent
+            }
+            guard let host, navigationController.topViewController === host,
+                  let index = navigationController.viewControllers.firstIndex(where: { $0 === host }), index > 0 else { return }
+            let previous = navigationController.viewControllers[index - 1].navigationItem
+            if previousItem !== previous {
+                restore()
+                previousItem = previous
+                originalBack = previous.backBarButtonItem
+            }
+            storeBack.tintColor = storeTint
+            storeBack.accessibilityLabel = String(localized: "Back to All items")
+            if previous.backBarButtonItem !== storeBack { previous.backBarButtonItem = storeBack }
+        }
+
+        func restore() {
+            if previousItem?.backBarButtonItem === storeBack { previousItem?.backBarButtonItem = originalBack }
+            previousItem = nil
+            originalBack = nil
+        }
+    }
+}
+
 private struct ListScopePicker: View {
     let stores: [StoreDefinition]
     let selectedStoreID: StoreID?
@@ -242,15 +414,18 @@ private struct ListScopePicker: View {
     let onChooseAllItems: () -> Void
     let onChooseStore: (StoreID) -> Void
     let onManageStores: () -> Void
+    var offersAllItems = true
 
     var body: some View {
         Menu {
-            if selectedStoreID == nil {
-                Label("All items", systemImage: "checkmark")
-            } else {
-                Button(action: onChooseAllItems) { Label("All items", systemImage: "square.grid.2x2") }
+            if offersAllItems {
+                if selectedStoreID == nil {
+                    Label("All items", systemImage: "checkmark")
+                } else {
+                    Button(action: onChooseAllItems) { Label("All items", systemImage: "square.grid.2x2") }
+                }
+                Divider()
             }
-            Divider()
             ForEach(stores, id: \.id) { store in
                 Button(store.displayName) { onChooseStore(store.id) }
             }
@@ -274,19 +449,9 @@ private struct ListScopePicker: View {
 
 private struct ListPageToolbar: ToolbarContent {
     var showSettings = true
-    var onSelectAllItems: (() -> Void)?
     let onSettings: () -> Void
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            if let onSelectAllItems {
-                Button(action: onSelectAllItems) {
-                    Image(systemName: "square.grid.2x2")
-                }
-                .accessibilityLabel("All items")
-                .accessibilityIdentifier("all-items-shortcut")
-            }
-        }
         ToolbarItem(placement: .topBarTrailing) {
             if showSettings {
                 Button(action: onSettings) { Image(systemName: "gearshape") }
@@ -413,12 +578,14 @@ private struct ProductEntrySection<AddButton: View>: View {
     var onFocus: () -> Void = {}
     var onEditorFrame: (CGRect) -> Void = { _ in }
     var onActionsFrame: (CGRect) -> Void = { _ in }
+    var onManualScroll: () -> Void = {}
     @ViewBuilder let addButton: () -> AddButton
 
     var body: some View {
         Section("Add products") {
             ProductEntryEditor(text: $text, isFocused: $isFocused, focusControl: focusControl,
-                               onSubmit: onSubmit, accessibilityIdentifier: accessibilityIdentifier)
+                               onSubmit: onSubmit, accessibilityIdentifier: accessibilityIdentifier,
+                               onManualScroll: onManualScroll)
                 .onChange(of: text) { _, value in onTextChange(value) }
                 .modifier(ProductEntryFieldStyle(tint: tint, isFocused: isFocused))
                 .simultaneousGesture(TapGesture().onEnded {
@@ -984,6 +1151,7 @@ private struct AllItemsScreen: View {
     @Binding var destinationRawValue: String
     let onChooseStoreList: (StoreID) -> Void
     let onPromoteStore: (StoreID, [UUID]) -> Void
+    var onListVisibilityChange: (Bool) -> Void = { _ in }
     @AppStorage("allItemsGrouping.v1") private var groupingRawValue = AllItemsGrouping.store.rawValue
     @AppStorage("allItemsRecentStoreOrder.v1") private var recentStoreOrderRawValue = ""
     @AppStorage("allItemsRecentItemOrder.v1") private var recentItemOrderRawValue = ""
@@ -1123,14 +1291,6 @@ private struct AllItemsScreen: View {
                 listViewportFrame = frame
                 revealFocusedEntry()
                 if let id = scrollTargetItemID { scrollToAddedItem(id, using: proxy) }
-            }, onManualScroll: {
-                groupAddRequest = nil
-                entryRevealTask?.cancel()
-                entryRevealSuppressed = true
-                addedItemScrollTask?.cancel()
-                addedItemScrollTask = nil
-                scrollTargetItemID = nil
-                itemFrames.removeAll(keepingCapacity: true)
             }, scope: {
                 ListScopePicker(stores: visibleStores, selectedStoreID: nil, tint: .accentColor,
                     onChooseAllItems: {}, onChooseStore: onChooseStoreList,
@@ -1176,7 +1336,7 @@ private struct AllItemsScreen: View {
                     let heightChanged = abs(interactionGeometry.editor.height - frame.height) > 0.5
                     interactionGeometry.editor = frame
                     if heightChanged { revealFocusedEntry() }
-                }, onActionsFrame: { interactionGeometry.actions = $0 }) {
+                }, onActionsFrame: { interactionGeometry.actions = $0 }, onManualScroll: userScrolled) {
                     AllItemsAddButton(destination: destinationID, stores: visibleStores,
                          onChooseDestination: selectAddDestination,
                         canAdd: !ParsedGrocery.productEntries(in: draft).isEmpty,
@@ -1417,6 +1577,8 @@ private struct AllItemsScreen: View {
                 }, onStatusChange: { item in
                     stageReminderWriteback(for: item)
                     saveChanges()
+                }, onAddStoreProduct: { name, quantity, insertion in
+                    addStoreProduct(name, quantity: quantity, to: store, insertion: insertion)
                 })
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
@@ -1434,6 +1596,7 @@ private struct AllItemsScreen: View {
                 .interactiveDismissDisabled(paprikaReminders.importing)
         }
         .onAppear {
+            onListVisibilityChange(true)
             if destinationRawValue.isEmpty, !visibleStores.isEmpty {
                 // The root supplies the previously viewed store on first entry.
                 // Do not reach into a different defaults suite here (UI tests
@@ -1442,6 +1605,9 @@ private struct AllItemsScreen: View {
             }
         }
         .onDisappear {
+            onListVisibilityChange(false)
+            entryFocused = false
+            entryFocus.resignFirstResponder()
             if let workingStoreID, !allItems.contains(where: { $0.listID == workingStoreID.listID }) {
                 self.workingStoreID = nil
             }
@@ -1451,6 +1617,16 @@ private struct AllItemsScreen: View {
             addedItemScrollTask = nil
             scrollTargetItemID = nil
         }
+    }
+
+    private func userScrolled() {
+        groupAddRequest = nil
+        entryRevealTask?.cancel()
+        entryRevealSuppressed = true
+        addedItemScrollTask?.cancel()
+        addedItemScrollTask = nil
+        scrollTargetItemID = nil
+        itemFrames.removeAll(keepingCapacity: true)
     }
 
     @ViewBuilder
@@ -1808,6 +1984,26 @@ private struct AllItemsScreen: View {
         }
     }
 
+    private func addStoreProduct(_ name: String, quantity: Int, to store: StoreID,
+                                 insertion: ShoppingLists.AdditionPosition) -> UUID? {
+        guard !paprikaReminders.importing, !name.isEmpty, name.utf8.count <= 512,
+              (1...999).contains(quantity) else { return nil }
+        if modelContext.hasChanges, !saveChanges() { return nil }
+        let entry = ParsedGrocery(name: name, amount: Double(quantity), unit: nil)
+        let snapshot = ShoppingLists.AdditionSnapshot(items: allItems, store: store)
+        let promoted = ShoppingLists.stageAdd([entry], to: store, allItems: allItems, context: modelContext, insertion: insertion)
+        for item in promoted { stageReminderWriteback(for: item) }
+        guard saveChanges() else {
+            modelContext.rollback()
+            snapshot.restoreAfterRollback()
+            pendingReminderWrites.removeAll()
+            return nil
+        }
+        onPromoteStore(store, promoted.map(\.id))
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Added to your \(store.displayName) list"))
+        return promoted.first?.id
+    }
+
     private func storeTint(_ id: StoreID) -> Color {
         guard let definition = sessions.definitions.first(where: { $0.id == id }) else { return .secondary }
         let color = definition.brandColors?.primary ?? definition.addedColor
@@ -1835,6 +2031,9 @@ struct GroceryListScreen: View {
     let onPromoteStore: (StoreID, [UUID]) -> Void
     let onImportCompleted: ((String) -> Void)?
     let onWelcomeStoreEnabled: (StoreID) -> Void
+    let ownsNavigationStack: Bool
+    let offersAllItems: Bool
+    let onListVisibilityChange: (Bool) -> Void
     @Binding private var rawInput: String
     @State private var routedLaunch = false
     @State private var itemToMove: GroceryItem?
@@ -1886,7 +2085,9 @@ struct GroceryListScreen: View {
           storeLaunchRequested: Binding<Bool>,
           importLaunchRequested: Binding<Bool>,
           onPromoteStore: @escaping (StoreID, [UUID]) -> Void,
-          onImportCompleted: ((String) -> Void)? = nil) {
+          onImportCompleted: ((String) -> Void)? = nil,
+          ownsNavigationStack: Bool = true, offersAllItems: Bool = true,
+          onListVisibilityChange: @escaping (Bool) -> Void = { _ in }) {
         self.storeID = storeID; self.sessions = sessions
         self.visibility = visibility
         self.paprikaReminders = paprikaReminders
@@ -1898,6 +2099,9 @@ struct GroceryListScreen: View {
         self._importLaunchRequested = importLaunchRequested
         self.onPromoteStore = onPromoteStore
         self.onImportCompleted = onImportCompleted
+        self.ownsNavigationStack = ownsNavigationStack
+        self.offersAllItems = offersAllItems
+        self.onListVisibilityChange = onListVisibilityChange
         _browser = StateObject(wrappedValue: sessions.browser(for: storeID))
     }
 
@@ -1906,6 +2110,14 @@ struct GroceryListScreen: View {
     private var shoppingVisibleIDs: Set<StoreID> { sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs) }
     private var moveDestinations: [StoreDefinition] {
         StoreCatalogue.ordered(sessions.definitions, countryCode: nil, enabledIDs: shoppingVisibleIDs).filter { $0.id != storeID }
+    }
+
+    private func userScrolled() {
+        // A deliberate scroll wins over automatic editor/item reveal.
+        cancelAddedItemScroll()
+        productEntryRevealTask?.cancel()
+        scrollTargetItemID = nil
+        itemFrames.removeAll(keepingCapacity: true)
     }
 
     private var pendingCount: Int { items.filter { $0.status == .pending }.count }
@@ -1936,25 +2148,19 @@ struct GroceryListScreen: View {
 
     var body: some View {
         ScrollViewReader { scrollProxy in
-        NavigationStack {
+        ListNavigationContainer(standalone: ownsNavigationStack) {
             ShoppingListPage(isWelcome: showingStoreWelcome,
                 keyboardDismissMode: isRevealingProductEntry ? .never : .interactively,
                 onViewportChange: { frame in
                     listViewportFrame = frame
                     revealFocusedProductEntry()
                     if let itemID = scrollTargetItemID { scrollToAddedItem(itemID, using: scrollProxy) }
-                }, onManualScroll: {
-                    // A deliberate scroll wins over automatic editor/item reveal.
-                    cancelAddedItemScroll()
-                    productEntryRevealTask?.cancel()
-                    scrollTargetItemID = nil
-                    itemFrames.removeAll(keepingCapacity: true)
                 }, scope: {
                     if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty {
                         ListScopePicker(stores: StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
                             enabledIDs: shoppingVisibleIDs), selectedStoreID: storeID, tint: storePrimaryColor,
                             onChooseAllItems: onSelectAllItems, onChooseStore: onSelectStore,
-                            onManageStores: { showingStoreManagement = true })
+                            onManageStores: { showingStoreManagement = true }, offersAllItems: offersAllItems)
                     }
                 }, footer: {
                     if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty && !items.isEmpty {
@@ -2049,7 +2255,7 @@ struct GroceryListScreen: View {
                                  let heightChanged = abs(groceryInputFrame.height - frame.height) > 0.5
                                  groceryInputFrame = frame
                                  if heightChanged { revealFocusedProductEntry() }
-                        }, onActionsFrame: { productActionsFrame = $0 }) {
+                        }, onActionsFrame: { productActionsFrame = $0 }, onManualScroll: userScrolled) {
                             Button("Add Items") {
                                 addItems(keepingInputFocused: true)
                             }
@@ -2108,10 +2314,12 @@ struct GroceryListScreen: View {
                    selected != storeID {
                     onSelectStore(selected)
                 }
+                onListVisibilityChange(true)
             }
             .onDisappear {
                 groceryInputFocused = false
                 isListScreenVisible = false
+                onListVisibilityChange(false)
             }
             .navigationDestination(isPresented: $showingStoreManagement) {
                 StoreVisibilityScreen(sessions: sessions, visibility: visibility,
@@ -2153,8 +2361,7 @@ struct GroceryListScreen: View {
                 }
             }
             .toolbar {
-                ListPageToolbar(showSettings: !showingStoreWelcome,
-                    onSelectAllItems: showingStoreWelcome || shoppingVisibleIDs.isEmpty ? nil : onSelectAllItems) {
+                ListPageToolbar(showSettings: !showingStoreWelcome) {
                     groceryInputFocused = false
                     showingSettings = true
                 }
@@ -2181,7 +2388,7 @@ struct GroceryListScreen: View {
                 }, onStatusChange: { item in
                     stageReminderWriteback(for: item)
                     saveChanges()
-                })
+                }, onAddStoreProduct: addStoreProduct)
                     .presentationDetents([.large])
                     .presentationDragIndicator(.hidden)
                     .presentationCornerRadius(32)
@@ -2210,6 +2417,11 @@ struct GroceryListScreen: View {
             }
         }
         .tint(storePrimaryColor)
+        .background {
+            if offersAllItems && !ownsNavigationStack && !showingStoreWelcome {
+                StoreListBackTint(tint: storePrimaryColor)
+            }
+        }
         #if DEBUG
         .overlay(alignment: .topLeading) {
             if ProcessInfo.processInfo.environment["LISTRUNNER_REVEAL_TEST_FIXTURE"] == "enabled" {
@@ -2457,6 +2669,30 @@ struct GroceryListScreen: View {
                 recentlyAddedItemIDs.subtract(newlyAddedIDs)
             }
         }
+    }
+
+    private func addStoreProduct(_ name: String, quantity: Int, insertion: ShoppingLists.AdditionPosition) -> UUID? {
+        guard !paprikaReminders.importing, !name.isEmpty, name.utf8.count <= 512,
+              (1...999).contains(quantity) else { return nil }
+        if modelContext.hasChanges {
+            saveChanges()
+            guard !saveFailed else { return nil }
+        }
+        // This is one literal product title, not a comma-separated ingredient input.
+        let entry = ParsedGrocery(name: name, amount: Double(quantity), unit: nil)
+        let snapshot = ShoppingLists.AdditionSnapshot(items: allItems, store: storeID)
+        let promoted = ShoppingLists.stageAdd([entry], to: storeID, allItems: allItems, context: modelContext, insertion: insertion)
+        for item in promoted { stageReminderWriteback(for: item) }
+        saveChanges()
+        guard !saveFailed else {
+            modelContext.rollback()
+            snapshot.restoreAfterRollback()
+            pendingReminderWrites.removeAll()
+            return nil
+        }
+        onPromoteStore(storeID, promoted.map(\.id))
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Added to your \(storeID.displayName) list"))
+        return promoted.first?.id
     }
 
     private func revealFocusedProductEntry() {
@@ -3020,6 +3256,7 @@ private struct ProductEntryEditor: UIViewRepresentable {
     let focusControl: ProductEntryFocus
     let onSubmit: () -> Void
     var accessibilityIdentifier = "grocery-input"
+    var onManualScroll: () -> Void = {}
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -3038,6 +3275,7 @@ private struct ProductEntryEditor: UIViewRepresentable {
         view.accessibilityIdentifier = accessibilityIdentifier
         view.accessibilityLabel = String(localized: "Type or paste products")
         view.onWindowAttachment = { [weak coordinator = context.coordinator] view in
+            coordinator?.observeListScroll(from: view)
             coordinator?.synchronizeFocus(for: view)
         }
         view.placeholder.text = String(localized: "Tap to add products…")
@@ -3048,6 +3286,7 @@ private struct ProductEntryEditor: UIViewRepresentable {
     func updateUIView(_ view: EntryTextView, context: Context) {
         focusControl.view = view
         context.coordinator.parent = self
+        context.coordinator.observeListScroll(from: view)
         if view.text != text {
             view.text = text
             view.invalidateIntrinsicContentSize()
@@ -3058,6 +3297,7 @@ private struct ProductEntryEditor: UIViewRepresentable {
 
     static func dismantleUIView(_ view: EntryTextView, coordinator: Coordinator) {
         coordinator.isDismantled = true
+        coordinator.stopObservingListScroll()
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: EntryTextView, context: Context) -> CGSize? {
@@ -3071,7 +3311,56 @@ private struct ProductEntryEditor: UIViewRepresentable {
         var parent: ProductEntryEditor
         var isDismantled = false
         private var focusUpdateScheduled = false
+        private weak var listPan: UIPanGestureRecognizer?
+        private var dismissedKeyboardForPan = false
         init(parent: ProductEntryEditor) { self.parent = parent }
+
+        func observeListScroll(from view: UIView) {
+            guard !isDismantled, view.window != nil else {
+                stopObservingListScroll()
+                return
+            }
+            var ancestor = view.superview
+            while let candidate = ancestor {
+                if let list = candidate as? UICollectionView {
+                    let pan = list.panGestureRecognizer
+                    guard listPan !== pan else { return }
+                    stopObservingListScroll()
+                    listPan = pan
+                    // Observe the existing native pan; a competing full-page
+                    // SwiftUI DragGesture can swallow the interactive Back edge.
+                    pan.addTarget(self, action: #selector(listDidPan(_:)))
+                    return
+                }
+                ancestor = candidate.superview
+            }
+            stopObservingListScroll()
+        }
+
+        func stopObservingListScroll() {
+            listPan?.removeTarget(self, action: #selector(listDidPan(_:)))
+            listPan = nil
+        }
+
+        @objc private func listDidPan(_ pan: UIPanGestureRecognizer) {
+            guard !isDismantled else { return }
+            if pan.state == .began {
+                dismissedKeyboardForPan = false
+                parent.onManualScroll()
+                // Reveal can temporarily request .none. Restore native dismissal
+                // before the next touch sample, without adding a pan recognizer.
+                (pan.view as? UIScrollView)?.keyboardDismissMode = .interactive
+            }
+            guard pan.state == .changed, !dismissedKeyboardForPan, parent.isFocused else { return }
+            let translation = pan.translation(in: pan.view)
+            // Upward scrolling need not move an interactive keyboard downward.
+            // Treat a deliberate vertical scroll as dismissal in both directions,
+            // but preserve focus for small repositioning and horizontal edge Back.
+            guard abs(translation.y) >= 44, abs(translation.y) > abs(translation.x) else { return }
+            dismissedKeyboardForPan = true
+            parent.isFocused = false
+            parent.focusControl.resignFirstResponder()
+        }
 
         func synchronizeFocus(for view: EntryTextView) {
             guard parent.isFocused != view.isFirstResponder, !focusUpdateScheduled else { return }
@@ -3126,7 +3415,7 @@ private struct ProductEntryEditor: UIViewRepresentable {
             super.didMoveToWindow()
             // A lazy List can update the editor before attaching its cell. Retry
             // the desired focus on attachment instead of waiting for a scroll.
-            if window != nil { onWindowAttachment?(self) }
+            onWindowAttachment?(self)
         }
         #if DEBUG
         static var lastFocusUpdateAnimationsEnabled: Bool?

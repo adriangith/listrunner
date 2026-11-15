@@ -225,3 +225,39 @@ real app search and scroll engine in iOS WebKit and reports only enum states,
 booleans and geometry. Launch it through xcodebuild with
 `TEST_RUNNER_LISTRUNNER_LIVE_RESULTS_SCROLL=1`; it does not interact with retailer
 controls, consent, account, location or cart settings.
+
+## Optional local-list product selection (native schema 8)
+
+This is separate from search/cart automation. Schema 8 retains the schema-7 single
+category and `automationSchemaVersion` and accepts an optional `productSelection`:
+
+```json
+"productSelection": {
+  "productURLPattern": "_p(\\d{1,32})$",
+  "grid": {
+    "containerSelector": "[data-search-product-tile=\"true\"]",
+    "titleSelector": "a[href*=\"_p\"] p",
+    "linkSelector": "a[href*=\"_p\"]"
+  },
+  "detail": {
+    "containerSelector": "main#main .container-main",
+    "titleSelector": "h1[data-locator=\"product-title\"]"
+  }
+}
+```
+
+This is Bunnings AU's reviewed public DOM, not a template to copy blindly to
+another store. Select one tile per product, one unique rendered name and one
+trusted product-link identity (repeated links to the same ID are fine). Do not
+use a whole results grid, price/rating text, cart badge, broad metadata or a
+recommendation as the product title. The regex matches pathname only and requires
+exactly one captured ID; selectors are bounded to 1024 UTF-8 bytes, regex to 512.
+Both grid/detail rules are required. No additional keys or executable code are
+accepted. Schemas 2–7 remain readable and cannot contain this field.
+
+Verify temporary shields, scrolling/reflow, Cancel/navigation/background cleanup,
+native review, local persistence/failure recovery and no retailer click-through
+in embedded WebKit. The native review defaults quantity to 1 rather than reading
+the retailer's purchase quantity. Missing/ambiguous profiles fall back to manual
+entry. Adding this field never enables cart capabilities and never authorises a
+retailer cart mutation. See `store-product-to-list.md` for the complete contract.

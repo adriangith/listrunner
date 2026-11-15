@@ -35,6 +35,109 @@ The verifier requires every canonical JSON file (including Bunnings) to be byte-
 
 ## Current implementation
 
+### Adaptive list navigation
+
+Store lists share the root `NavigationStack` with All items. With multiple
+available enabled stores, a group header or scope-menu choice opens one store
+destination; changing stores replaces that destination, never adds Back history.
+The compact native leading Back chevron and interactive edge swipe return to
+All items. The old trailing grid shortcut is removed. Explicit scope changes
+respect Reduce Motion, and launch restores the last scope without animating.
+
+Back and the chooser retain their separate system backgrounds. At the user's
+request, the joined-capsule experiment was removed and `GroceryListScreen.swift`
+restored to pre-join revision `acbbe07`. There is no extended glass, decorative
+Back glyph, hidden native indicator, UIKit appearance adapter, replacement Back
+button or gesture-delegate override. Shared-capsule exploration is deferred to
+a future branch; its historical evidence remains in `VALIDATION.md` and Git.
+The subsequent colour-only adjustment uses `StoreListBackTint` to supply the
+native Back item's store tint and accessible label while on store detail,
+restoring the original item on leaving. It does not change navigation-bar
+appearances, background sharing, indicator artwork or gesture delegates.
+
+A single enabled store opens directly with no redundant overview, Back button
+or All items menu entry. Saved rows outside the enabled store (including unknown
+owners) keep All items available for recovery. Visibility changes are reconciled
+when list content returns, not underneath store management/settings. Import
+sheets retain their own stack; list data, drafts and browser sessions keep their
+existing owners. Native policy checks are in `tests/RecoveryTests.swift`; UI
+regression cases are in `ListRunnerUITests/StoreSelectionTests.swift`.
+
+Manual-scroll detection observes the list's existing native collection-view pan
+through the product editor's coordinator, removing its target on detachment or
+dismantling. Do not restore a full-page SwiftUI `DragGesture` just to detect
+scrolling: it competed with native edge Back in gradual-touch verification even
+when faster XCTest drags passed. Keep automatic-reveal cancellation passive and
+check both native edge navigation and keyboard/small-scroll behaviour.
+Deliberate vertical pans of at least 44 points dismiss entry focus in either
+direction; smaller repositioning drags and horizontal edge Back do not. Leaving
+All items explicitly resigns its retained editor without clearing the draft.
+
+### Add a store website product to the list
+
+The shopping card rail has `Add item to your list` at either end; the collapsed
+bar has a plus shortcut. On Bunnings AU, a product page opens a native review;
+a grid temporarily shows tappable ListRunner shields over recognised tiles.
+Choosing a shield never clicks the store's underlying controls. Cancel/manual
+entry remain available. Review the editable name and quantity, then Add to save
+a Pending item in that store's list without navigating away or changing its cart.
+Commas and package sizes remain part of the literal product name. Existing local
+duplicates reactivate/merge through shared list staging. Both store-list and
+All items shopping use this flow; failed saves keep the draft.
+
+The end controls fade in proportion to the uncovered part as cards scroll over
+them. Product-selection shields are positioned in the document's scrolling plane,
+not moved by a periodic viewport-tracking timer. Browser scrolling carries them
+with the products; mutation/resize/load and nested-scroll events coalesce updates
+into animation frames. A separate transparent fixed blocker absorbs unrelated
+website taps, and a single 60-second timeout bounds selection mode.
+
+Left adds to the start of the browsed store list; right adds to its end. The review
+shows Position, and grid/detail/manual/assistive paths retain the captured edge.
+Matching existing rows still merge/reactivate and move to that edge; unaffected
+rows keep their relative order. The collapsed shortcut defaults to the start.
+Both ordinary store lists and All items shopping use the same store-owned ordering;
+other manual/import defaults and All items grouping rules are unchanged.
+
+On successful save, the returned item UUID is used to centre the new/merged card
+without activating it or changing the website search/current shopping item.
+Collapsed entry expands to show this reveal. Failed/cancelled saves do not reveal;
+selecting a card (or tapping the still-active card) restores normal centring.
+The Add controls now fade more quickly using the square of the uncovered fraction
+(25% opacity at half exposure), retaining the existing hit/accessibility thresholds.
+
+The labels paint behind the card rail at full width, so real rounded cards—not a
+rectangular label crop or spacer boundary—cover them. Fade and separate transparent
+tap regions follow the actual first/last card edges; taps remain outside the cards.
+
+A one-card rail shows only left/start Add initially. Drag right to expose left/start
+or left to expose right/end; the last side remains available until a deliberate
+opposite drag. Tiny/vertical movement does not switch it, Cancel retains it, and
+the card stays active. Two or more cards keep the usual scrolling/two-end layout.
+
+Side changes use a resisted pull with a gradual fade through zero, not an instant
+swap. A short 0.22-second label catch-up keeps fast flicks visibly gradual while
+the card still follows the finger directly. Pull at least 64 predominantly
+horizontal points and release to keep the
+new side; a shorter pull springs back. The card's resistance increases with the
+pull distance, while Add controls remain in their fixed slots. Reduce Motion uses
+a short fade without extra card displacement or spring bounce.
+
+Card status, name and collapse buttons use native tap recognition to reject
+drags and yield to rail scrolling. Each tap is independent: no persistent
+cancellation flag, parent-scroll gate or post-swipe cooldown blocks a fresh tap.
+Explicit accessible activation remains available.
+
+Schema 8 adds optional `productSelection` grid/detail selectors separately from
+cart capabilities, retaining schemas 2–7 and all existing automation ceilings.
+Bunnings selectors have read-only public rendered evidence; other stores offer
+manual entry until their own profiles are reviewed. Native/live validation status
+is recorded in `VALIDATION.md`. VoiceOver/Switch Control use manual native entry
+on grids to avoid assistive activation of covered retailer controls; product-page
+reads can still prefill the review. Their full device sign-off remains outstanding.
+Offline tests are not live-site certification.
+See `../../docs/store-product-to-list.md` for the design and implementation plan.
+
 ### Retailer-neutral list wording
 
 Individual store lists label their populated item section `Items` for every
@@ -125,7 +228,8 @@ as well as every canonical JSON file.
 
 ### Twenty-store expansion (1 November 2026 — partial delivery)
 
-Native store definitions use retailer JSON schema 7 for one required category per
+Native store definitions use retailer JSON schema 7 (schema 8 for opt-in website
+product selection) for one required category per
 destination (33 destinations, including IKEA AU). Schemas 2–5 remain readable with
 category unknown; schema 6's multi-category arrays remain readable without assigning
 a primary category by array order. Categories do not grant automation or alter
