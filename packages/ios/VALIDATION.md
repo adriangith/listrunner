@@ -1,5 +1,22 @@
 # Reusable store framework validation
 
+## All items Filter and Settings capsule (15 November 2026)
+
+Branch `feat/all-items-filter-capsule` replaces the scrolling grouping switcher
+with a native Filter menu before Settings in a single `ToolbarItemGroup`. The
+system provides the shared Liquid Glass background on iOS 26+; earlier systems
+keep standard toolbar styling. Individual store screens and the separate native
+Back/scope chooser are unchanged. The existing OpenPencil audit and current
+shared layout were consulted; no design document was changed.
+
+The menu uses the existing persisted grouping, with a native checked Picker and
+an accessible current-grouping value. Choosing a grouping resigns editor focus
+without clearing its draft/destination. Grouping is disabled during editing,
+with a setter guard; Settings remains enabled. Updated existing grouping UI
+tests to use the menu and added toolbar target, standard/largest-text and
+store-scope checks. The shared-page test now requires Filter/Settings to remain
+pinned while entry content scrolls. Native build/UI verification is pending.
+
 ## All items Clear List row height (13 November 2026)
 
 Branch `fix/clear-list-height` gives browse-mode store/category cards 11-point

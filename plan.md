@@ -1,5 +1,10 @@
 ## ListRunner Build Specification
 
+### All items filter and Settings capsule (15 November 2026)
+
+* Replace the scrolling `By store` / `By category` segmented control with an icon-only Filter menu in the top trailing toolbar, immediately before Settings. Put both native controls in one toolbar group so iOS 26+ supplies a shared Liquid Glass capsule; earlier iOS versions use their standard toolbar appearance. Individual store screens retain Settings alone; do not change the leading scope chooser or native Back controls.
+* The menu offers the existing two grouping choices with the current selection checked. Keep the same saved grouping preference, destination, draft, list ownership and group behavior. Filter announces its current grouping and remains pinned while the list scrolls. Grouping stays unavailable during editing without disabling Settings. This supersedes the earlier full-width grouping-capsule presentation, not its data behavior.
+
 ### Separate native Back and chooser (14 November 2026)
 
 * Restore the separate system Back button and store chooser from pre-join revision `acbbe07`. Keep adaptive list navigation, native interactive edge pop, single-store simplification and draft/list/browser ownership unchanged.
