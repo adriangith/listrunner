@@ -680,6 +680,197 @@ Xcode log: `RunProject-Log-20261113-192608.txt` under
 This verifies installation/launch, not a new physical UI-test run. The separately
 recorded input issue remains open; no merge or release was performed.
 
+## Accepting taps during remaining rail motion (15 November 2026)
+
+User clarified that intentional Mark Added/Mark Pending taps are still rejected
+while the cards are visibly moving after finger lift. Removing the custom latch
+did not address this remaining motion-related case. Added a scoped passive UIKit
+anchor inside the multi-card HStack. It finds only its enclosing UIScrollView,
+disables delayed content touches and installs a touch-down observer with all
+touch cancellation/delay flags false. On a new contact, if no drag is active,
+it interrupts deceleration/animated scrolling at the presented bounds offset,
+not the animation destination, then immediately fails. The contact remains
+available to native tap/pan recognition; no action fires on touch-down and no
+new child button drag is installed. Single-card mode detaches the observer;
+detach/unmount also restores the prior touch-delay setting. No global lookup,
+scroll delegate replacement, retailer web-view change, timer or cooldown.
+
+Added source/lifecycle checks for scoped ancestor lookup, multi-card-only
+installation, no-touch-consumption flags, presented-offset interruption,
+immediate failure and observer/settings cleanup. **504 JavaScript tests passed**
+and `git diff --check` passed. No simulator builds/tests were run.
+
+Built and installed `1de0d393ba947899b580c98d62dad31db646d1ea` from the clean Mac
+task checkout via `workspace-4WDbDRuQjn` / ListRunner / Adrian's physical iPhone
+17e (`00008150-001402660A9BC01C`, iOS 27.2.1). BuildProject succeeded with zero
+errors and compiled StoreShoppingView.swift. RunProject launched successfully,
+zero errors, reference `bad8e3a80`, PID **9804**, independently confirmed via
+devicectl. Deep/strict codesign passed for the built phone app. Logs:
+`BuildProject-Log-20261115-205534.txt` and `RunProject-Log-20261115-205552.txt`.
+Updated in place without reset/uninstall, test flags/fixtures, list edits or
+retailer actions. App left running for user testing. Source/build/launch checks
+do not certify anchor attachment, UIKit event ordering or moving-rail interaction
+on the phone; those remain pending user feedback.
+
+## Post-swipe button responsiveness follow-up (15 November 2026)
+
+User reported that multi-card swiping is now good but Mark Added remains
+unresponsive to taps briefly after swiping. The shared cancellation latch could
+outlive its original contact: a new tap depended on the parent panel's drag
+callbacks clearing the previous swipe's cancelled state. Removed the custom
+tracker and all parent-contact gates from card button/background tap activation.
+Each button now relies on its own native tap recognizer to reject dragging and
+yield to native scrolling, triggering directly when a tap is recognized. Disabled
+and explicit accessible activation behaviour remains. No timers, cooldowns or
+child drag recognizers were added. Single-card reveal and multi-card scroll
+configuration are unchanged.
+
+Replaced obsolete custom-latch tests with recognized-tap callback and source
+checks requiring no retained cancellation state, cooldown or child drag and
+preserving disabled/accessibility handling. **502 JavaScript tests passed**;
+`git diff --check` passed. No simulator builds/tests.
+
+Built and installed `eb3e462497ccbbb79b3c68c8170553abbcf0d688` from the clean Mac
+task checkout via `workspace-4WDbDRuQjn` / ListRunner / Adrian's physical iPhone
+17e (`00008150-001402660A9BC01C`, iOS 27.2.1). BuildProject passed with zero errors
+and compiled both changed Swift files. RunProject launched successfully with
+zero errors, reference `bad754000`, PID **9707**, independently confirmed via
+devicectl. Built phone app passed deep/strict codesign verification. Logs:
+`BuildProject-Log-20261115-204631.txt` and `RunProject-Log-20261115-204641.txt`.
+Installed in place without reset/uninstall, test flags/fixtures, list edits or
+retailer actions; app left running. Immediate post-swipe interaction remains for
+user assessment, not certified by source/build checks.
+
+## Multi-card swipe regression follow-up (15 November 2026)
+
+User confirmed that the single-card pull now feels good, but multi-card swiping
+was blocked on the active card and worked only on the lower non-button portion
+of inactive cards. The new per-button zero-distance drag recognizers were
+competing with native ScrollView pan recognition despite `simultaneousGesture`.
+Removed those child drags. Primitive card buttons now recognize taps only;
+the already-existing panel drag maintains one shared eight-point cancellation
+latch. Status, name, collapse and card-background taps consult that latch, while
+explicit accessible button activation stays independent. Retain cancellation
+through release/return-to-origin; reset only on the next contact.
+
+Single-card reveal/displacement/animation code is unchanged. Multi-card rail
+scrolling, positions, selection, persistence and retailer/cart actions are not
+otherwise modified. Regression checks now prohibit child DragGesture or
+high-priority gesture installation in the button style and require shared
+panel tracking and guarded taps. **502 JavaScript tests passed** and
+`git diff --check` passed. No simulator build/tests were run, consistent
+with the user's phone-only feedback workflow.
+
+Built and installed `cb449a3bea2d17e10b45162cf0524aaba9f5bea8` from the clean Mac
+task checkout, workspace `workspace-4WDbDRuQjn`, ListRunner scheme, on Adrian's
+physical iPhone 17e (`00008150-001402660A9BC01C`, iOS 27.2.1). BuildProject passed
+with zero errors and explicitly compiled StoreShoppingView.swift; RunProject
+reported successful launch, reference `bad9bcc00`, PID **9628**, independently
+confirmed by devicectl. Deep/strict codesign passed for the built phone app.
+Logs: `BuildProject-Log-20261115-204058.txt` and
+`RunProject-Log-20261115-204105.txt`. Installed in place without reset/uninstall,
+test fixtures/flags, list edits or retailer actions. App left running for user
+testing; source/build/launch checks do not establish native pan arbitration.
+
+## Card drag cancellation and fast-flick follow-through (15 November 2026)
+
+User reported that dragging from Mark Added/Mark Pending still activated the
+button and that fast single-card pulls looked like instantaneous side switches.
+Replaced the default press recognizer on card status, name and collapse controls
+with one shared primitive button style. Contact movement of eight points in any
+direction latches cancellation until the next contact, including after returning
+to the origin and after GestureState resets before onEnded. Ordinary taps trigger
+immediately on release; explicit accessible activation triggers independently of
+the physical-contact latch. Simultaneous recognition retains parent rail/panel
+drag handling; no status/persistence/cart code was changed.
+
+Only the signed Add-label/target reveal now retargets a 0.22-second smooth
+catch-up while dragging (0.12-second ease-out for Reduce Motion). Card geometry
+still follows the finger directly with elastic resistance. Fast flicks leave
+visible follow-through instead of skipping from -1 to +1 in one input frame;
+release retains spring settling/64-point commit and short-pull rollback. Both
+visual/hit layers keep per-frame clamping and the same signed value so the sides
+cannot paint simultaneously.
+
+Linux: **502 JavaScript tests passed**, including cancellation/return-to-origin,
+fresh-contact reset, button wiring/accessibility and animated reveal source checks;
+focused product-selection suite **52/52**, `git diff --check` passed. At the user's
+explicit request, **no simulator build or simulator tests** were run.
+
+Built and installed code `63375dca660d2b85c05b29da3d40b42d89476ef4` from the clean
+Mac task checkout on Adrian's physical iPhone 17e
+(`00008150-001402660A9BC01C`, iOS 27.2.1), verified ListRunner scheme / physical
+destination in `workspace-4WDbDRuQjn`. `BuildProject` succeeded with zero errors;
+its log explicitly compiles both changed Swift files. `RunProject` then launched
+successfully with zero errors, reference `bad9bf900`, PID **9558**, independently
+confirmed by `devicectl`. Deep/strict codesign verification passed for the built
+phone app. Logs: `BuildProject-Log-20261115-203508.txt` and
+`RunProject-Log-20261115-203518.txt`.
+
+Updated in place without uninstall/reset, test flags/fixtures, list edits or
+retailer actions; other workspaces and preview simulators were untouched. App
+left running for user testing, including the existing Coles support. This proves
+compilation/install/launch, not physical gesture or accessibility sign-off.
+
+## Coles local-list product selection (15 November 2026)
+
+Enabled the existing schema-8 `productSelection` engine for Coles only. Search,
+trusted hosts, automation version 2, cart detection and Undo are unchanged. No
+SwiftUI, persistence schema, rail interactions or retailer actions changed.
+
+Reviewed public rendered DOM on Coles search `search/products?q=milk` and product
+`product/coles-full-cream-milk-3l-8150288`, using a separate anonymous Chromium
+session. All 54 search tiles had one dedicated title and one distinct product
+ID (image/title links repeat the same identity). Grid rule:
+`[data-testid="product-tile"]` / `a[href*="/product/"] h2.product__title` /
+`a[href*="/product/"]`. Detail rule: `[data-testid="product-buy"]` /
+`h1[data-testid="title"]`; exactly one main container/heading, separately from
+five recommendation tiles. Reused Coles' existing pathname-only numeric-ID regex.
+
+Executed the **production selection script** on both live pages. A trusted mouse
+tap on the document-plane grid shield captured `Coles Full Cream Milk | 3L`, ID
+`8150288`, with **zero clicks reaching retailer tiles**, no page navigation and
+complete selection cleanup. Detail reading returned the same exact title/ID,
+without installing grid shields. Grid viewport was 402 × 874. No retailer Add,
+save-to-list, cart, account, storage or private API action was used. Some initial
+navigations returned empty documents; a fresh isolated browser loaded the public
+pages. One early grid attempt during viewport reflow safely returned no selection;
+the settled-layout run passed. Do not treat this as native WebKit/live release
+sign-off or guarantee that Coles will always render.
+
+Added bundled-profile, grid/detail, repeated-link, no-click, untrusted/invalid ID,
+missing/ambiguous title and recommendation-isolation tests. Legacy schema-7/6/2
+fixtures explicitly remove schema-8 selection data instead of relying on Coles'
+current bundled schema. Linux: **500 JavaScript tests** and **47 Python tests**
+passed; focused selection + Coles detector subset **113/113**; `git diff --check`
+passed. On the Mac, all **1,925 native recovery, reset-boundary and diagnostics
+checks passed** at `c9939e2f63115dde2252a64a7109cfbce2d157f7`, including strict
+decoding of the bundled Coles profile and legacy schema compatibility. This ran
+in the separate clean `store-product-native-checks` checkout, without a simulator
+UI suite or device installation. Mac log: `/tmp/listrunner-coles-selection-native.log`.
+
+Compact local browser evidence: `/tmp/opencode/coles-live-grid.json` and
+`/tmp/opencode/coles-live-detail.json`. No phone/preview update, data reset or
+simulator UI suite was performed for this configuration change. Live embedded
+WebKit behaviour remains to be tried on the user's phone after installation.
+
+### Coles-enabled phone update (15 November 2026)
+
+At the user's request, updated the clean Mac task checkout to pushed revision
+`7a915ba48406634842058696130321359bd5bed8` and ran the ListRunner scheme in
+`workspace-4WDbDRuQjn` on Adrian's physical iPhone 17e
+(`00008150-001402660A9BC01C`, iOS 27.2.1). Xcode `RunProject` reported zero build
+errors and successful launch, reference `bad9bea00`, PID **9457**, independently
+confirmed by `devicectl`. Log: `RunProject-Log-20261115-202424.txt`.
+
+Verified the signed `Debug-iphoneos/ListRunner.app` with deep/strict codesign;
+all 36 bundled JSON/JS resources match that checkout byte-for-byte, including
+Coles schema 8 and its dedicated grid/detail selection rules. Installed in place,
+without uninstall/reset, test flags/fixtures, list edits or retailer actions.
+Other Xcode workspaces and preview simulators were left untouched. App left
+running for user testing; this is build/install/launch evidence, not live Coles
+WebKit interaction sign-off.
+
 ## Retailer-neutral store-list wording (13 November 2026)
 
 Branch `fix/store-page-titles` changes the populated store-list section heading
@@ -2840,3 +3031,596 @@ Parser/dictionary v2 keeps uncertain product wording (including `taco shells`), 
 **Passed on Mac:** 1,887 native recovery/configuration/diagnostics checks, including new in-memory SwiftData identity/merge/save/fetch/blank-row tests and Paprika-staging preparation-clause coverage; unsigned Debug generic iOS simulator build; byte-for-byte verification of all 35 JSON and 1 JavaScript app resources with no legacy `-v2` resources. Logs: `/tmp/listrunner-auto-parser-dd06b05-{parser,regional,native,build,resources}.log`. A separate clean detached worktree at `/Users/adrianzafir/Projects/listrunner-auto-parser-e9b1004` tested the exact SHA above; the normal Mac checkout was not switched or edited. Derived Data stayed outside both checkouts.
 
 No new simulator UI-suite run, physical-device installation, user-list edit, real Reminders write, retailer/cart operation or release was performed. Documentation-only commits after the validated SHA do not change the tested implementation.
+
+## Website product → store list (13 November 2026)
+
+Branch: `feature/add-store-product-to-list`. Implementation plan and safety contract:
+`docs/store-product-to-list.md`.
+
+### Follow-up: gradual resisted single-card pull (15 November 2026)
+
+The user reported that the new side popped into place. Replaced the onChanged
+enum flip and hard 56-point card clamp with continuous signed reveal progress
+and elastic displacement. After an 8-point dead zone, old-side opacity falls to
+zero at a 36-point opposite pull, then the new side grows to full at 64 points.
+A predominantly horizontal release at 64 points commits; a shorter pull returns
+to the previous side. Signed progress is interpolated/clamped by both visual and
+target layers during spring release, not just while held. Targets require at
+least half visibility and 44 uncovered points. Card displacement follows
+84 × translation / (abs(translation) + 84), increasing resistance as distance grows.
+Release uses response 0.42 / damping 0.72; Reduce Motion uses a short ease-out and
+no extra card displacement. Backgrounding clears an interrupted pull to its
+committed side. Multi-card scrolling, saved order, active selection and retailer
+state are unchanged. Added short-pull spring-back UI and scalar progress/resistance
+checks. Build/motion verification and preview refresh results follow after execution.
+
+The generic Mac simulator build, **492 JavaScript tests**, **47 Python tests**
+and full cloud offline allowlist (**1,924 native checks** plus parser/regional/
+synthetic registration) passed at code
+`a27446ce1d68fc252bb3e9c7b338cdba3f0c7efd`. The lengthy simulator/motion worker
+was cancelled; no completed UI/motion result or preview refresh is claimed.
+The user explicitly requested a phone build instead and will judge the feel.
+
+Installed in place and launched that clean code revision on Adrian's iPhone 17e
+(`00008150-001402660A9BC01C`), physical destination iOS 27.2.1, through verified
+task workspace `workspace-4WDbDRuQjn` / ListRunner scheme. Xcode `RunProject`
+reported zero build errors and successful launch, reference `bad9b1c80`, PID
+**9331**, independently confirmed running ListRunner by `devicectl`.
+Action log: `RunProject-Log-20261115-201151.txt`. No uninstall, reset, test launch
+flags/fixtures, list edits or retailer/cart actions were used. App left running
+for user feedback. This establishes build/install/launch, not motion sign-off.
+
+### Existing live preview updated in place (15 November 2026)
+
+At the user's request, preview simulator **ListRunner Two Bunnings Cards**
+(`0796AC93-DCD5-452B-B6DE-7B9D8B27F84A`, iPhone 17 / iOS 27.2) was upgraded
+in place from the existing verified product at
+`3c2a19cb11d03f0c093c0a7f3fd625c550f8dca1`. No duplicate device, rebuild,
+uninstall, reset, test flags or fixture environment was used. Both source and
+installed signatures passed, executable/debug-library hashes matched and all
+35 JSON + 1 JavaScript resource comparisons passed. Normal launch succeeded with
+PID **58493**. The task checkout remained clean at the exact implementation SHA.
+
+Pre-install hierarchy and list inspection already showed **one saved item**:
+Hoselink Evolve, quantity 1, Pending, Item 1 of 1. Shade umbrella was absent before
+the update. The upgrade preserved that actual state without reconstructing the
+previously prepared two-item sample, adding/deleting/editing rows or attributing
+the earlier state change to the installer. Dark appearance and ordinary preferences
+were retained. The same simulator was left booted with expanded one-card rail over
+the actual live Bunnings results for Hoselink Evolve. A screenshot taken after
+closing the bridge confirms the app remained running. Native Simulator.app GUI
+window opening remains unverified. No physical-phone or retailer cart/login/
+checkout actions, other-device or source changes occurred.
+
+Evidence: Mac
+`~/Library/Developer/Xcode/StoreProductSelection-Evidence/TwoBunningsPreview/Latest-3c2a19c/`;
+Linux `/tmp/opencode/two-bunnings-preview/LATEST.md` and
+`two-bunnings-cards-latest.png` (the screenshot truthfully shows one card despite
+the retained filename). Only the small screenshot/report were copied to Linux;
+full evidence remains on Mac. Later documentation-only commits do not change the
+installed implementation.
+
+### Follow-up: one-card directional Add reveal (15 November 2026)
+
+The user approved one visible Add end for a one-card rail: left/start initially,
+rightward drag reveals left/start and leftward drag right/end. Per-view side state
+persists through Cancel/collapse/expand and duplicate saves. At least 24 points of
+predominantly horizontal movement (horizontal > 1.25 × vertical) is required;
+tiny/vertical gestures retain the last side. Native scrolling is disabled only
+for the single-card case, which otherwise has no scroll range. The card follows
+the drag up to 56 points then settles; Reduce Motion omits this extra movement.
+Neither side change nor visual displacement selects/searches/reorders an item.
+Both label and tap layers gate the same side structurally—no overlapping crossfade.
+Two or more cards receive no side filter and retain native scrolling; a second
+distinct addition restores that layout automatically, while a merged one-card
+addition retains its side. A transition from multiple cards to one resets left.
+Bounded Collapse-button accessibility actions can reveal either side without drag.
+
+Added UI cases cover default/left/right direction, one-button count, tiny/vertical
+gestures, Cancel retention, unchanged active/history/cart markers, dark appearance,
+and duplicate retention. Existing single-item right-add tests now explicitly reveal
+that end before using it; left/right saved-order and one-to-two coverage remain.
+Scalar/source tests cover thresholds/direction and matching visual/target gating.
+
+Code `3c2a19cb11d03f0c093c0a7f3fd625c550f8dca1`: generic Mac simulator build,
+**491 JavaScript tests**, **47 Python tests**, full cloud offline allowlist with
+**1,924 native checks**, parser/regional/synthetic registration tests and built
+35 JSON + 1 JavaScript canonical-resource comparisons pass. Final focused UI run:
+**10 passed, 0 failed, 0 skipped**, once with no retries/edits/weakened assertions.
+Light and dark cases confirm exactly one label/button: initial left/start, left
+swipe right/end, right swipe left/start; tiny and vertical gestures retain the side.
+Cancel and one-card duplicate saves retain it; active Item 1 of 1, Back history and
+fixture cart markers remain unchanged. Right/manual/All items additions, one-to-two
+transition, saved order/relaunch, inactive-product centring, dark multi-card native
+scrolling/occlusion and duplicate recentring passed.
+
+Full-resolution screenshots and sampled video show the card following horizontal
+input then returning to centre while the Add slots stay fixed. No simultaneous
+single-card labels or premature grey clipping strip was observed. Existing long
+active-title ellipsis and hint/page overlap remain. Brief vertical press/settling
+motion was visible; no persistent horizontal control drift was observed. The first
+All items case passed after a long idle wait/spindump, not performance sign-off.
+Reduce Motion, assistive custom-action invocation, end-side collapse/reopen and
+two-to-one deletion were not exercised by these ten cases; no broad certification
+of those paths is implied. Earlier CancelAX setup/storage root cause remains open;
+passing changed-code/helpers here does not establish that it is resolved.
+
+Evidence: `~/Library/Developer/Xcode/StoreProductSelection-Evidence/SingleCard-3c2a19c/REPORT.md`
+and Linux `/tmp/opencode/singlecard-3c2a19c/REPORT.md`, with result/logs, 21 PNGs,
+six named light/dark state shots, activity trees, motion samples and spindump.
+Full suite recording remains on Mac; Linux holds a passthrough gesture clip because
+full-video transfer exceeded available Linux space. Only the dedicated test
+simulator was shut down, state/DerivedData/evidence retained, clean checkout lease
+released; no bridge was needed. No physical-phone update or changes to the user's
+separate live two-card preview `0796AC93-DCD5-452B-B6DE-7B9D8B27F84A` were performed.
+Documentation-only commits after the code SHA do not alter the tested implementation.
+
+### Follow-up: cards occlude Add labels, not an early grey strip (15 November 2026)
+
+The user supplied a dark-mode phone screenshot showing the label cut off ahead of
+the moving card. The previous label was clipped to its shrinking tap slot, whose
+anchor was a spacer ending 12 points before the card. That exposed the grey panel
+in a rectangular strip before the actual card reached it. The correction paints
+full-width, noninteractive/AX-hidden labels behind the ScrollView and leaves only
+transparent uncovered tap/accessibility slots above it. First/last actual card
+bounds now drive exposure and squared fade. No label clip, replacement grey cover
+or card-spacer gap determines visual occlusion. Card geometry, label lowering,
+fade speed, insertion, reveal and Cancel offset behavior remain unchanged.
+
+Added light/dark screenshots for both rail ends at successive partial coverage,
+with bounded uncovered tap targets and continued selection/Cancel checks. Source
+and scalar checks cover behind-card layering, no label clip, card anchors and
+exposure math including the old 12-point gap. Code
+`3eb315411ceddf0aa44902e2980153712e566990` passes generic Mac simulator build,
+**489 JavaScript tests**, **47 Python tests**, full cloud offline allowlist with
+**1,924 native checks**, parser/regional/synthetic-registration tests and all
+35 JSON + 1 JavaScript canonical-resource byte comparisons. Four focused UI
+cases passed **4/4, zero failed/skipped**, in one run without retries: new light/
+dark both-end occlusion captures, prior fade/hide regression and partially scrolled
+Cancel. Full-resolution screenshots, sampled video and recorded manual captures
+show the actual card body covering the label in both appearances at both ends,
+with text visible around rounded lower corners until covered. The premature hard
+grey rectangle was not reproduced; natural shadows softly darken nearby pixels.
+Some small test drags were not cumulative, so hierarchy-guided manual captures
+supplement the automated coverage rather than overstating the test gestures.
+
+Dark left partial: card starts x=86.7; Add x=21/width=65.7 ends exactly there.
+Dark right partial: card ends x=322.7; Add starts there/width=58.3. Both transparent
+targets opened selection at their reported accessibility hitpoints and Cancel
+restored identical offsets/cart markers. Covered controls disappeared from queries.
+Light automated right Add/Cancel ran; dark's conditional tap branch was skipped
+after coverage, so recorded manual dark-right activation/Cancel establishes that
+specific behavior. No new layout issue observed; existing hint/page overlap remains.
+Scope: one portrait iPhone 17 simulator/offline fixtures, not physical/live-site/
+VoiceOver or other-window-size certification.
+
+Evidence: `~/Library/Developer/Xcode/StoreProductSelection-Evidence/CardOcclusion-3eb3154/REPORT.md`
+and Linux `/tmp/opencode/occlusion-3eb3154/REPORT.md`, with complete mirror in
+`/tmp/opencode/occlusion-3eb3154/evidence/`. Retained result bundle, logs, 17 test
+screenshots, suite video, 17 recorded manual captures, pixel crops and cleanup proof.
+Owned simulator shut down and verified; state/DerivedData/evidence preserved,
+bridges closed, clean checkout/lease released. Documentation-only commits after
+the code SHA do not change the tested implementation.
+Prior right-save/scroll setup failures remain separately open, not silently rerun
+or represented as passing here. No phone installation of this occlusion follow-up
+has been performed.
+
+### Follow-up: Cancel preserves card-rail position (14 November 2026)
+
+Highlighted-product selection previously removed the expanded rail and rebuilt it
+on Cancel, causing its onAppear to centre the active item. It also cleared a prior
+product reveal through a handler that recentered on the active item. The correction
+keeps the same rail mounted, visually hidden and noninteractive during selection;
+the presentation slot is zero-height so the native selection bar remains in place.
+End Add controls are structurally omitted while selecting. Clearing a prior reveal
+does not scroll, and dismissing a cancelled review does not centre the active card.
+Successful saves still reveal the persisted product. Explicit active-card taps use
+a separate recentre request so that interaction still works without selection history.
+
+Added UI coverage for left partial-scroll Cancel, right/end Cancel, right/manual
+review Cancel, Cancel after an earlier saved-product reveal, and collapsed Cancel.
+Each expanded case compares the pre/post card position rather than just checking
+which item is active. Code `f38e50272202bc47c9a70803d7a1b7fdc7afa27d` passes
+generic Mac simulator build, **486 JavaScript tests**, **47 Python tests** and
+the full cloud offline allowlist, including **1,924 native checks** and the
+parser/regional/synthetic-registration regressions. Ten focused simulator cases
+are running (the five new cancellation cases plus save/reveal/duplicate/scroll
+regressions) passed **10/10, zero failed/skipped**, in one run with no retries.
+Manual highlighted-product review Cancel retained visible cards at x=130 and
+x=300 before/after (zero horizontal movement), original active/progress unchanged
+and fixture page/cart marker unchanged. Evidence:
+`~/Library/Developer/Xcode/StoreProductSelection-Evidence/Cancel-f38e502/`.
+Report/attachments/hierarchies/video also retained under Linux
+`/tmp/opencode/cancel-f38e502/`. One intermediate blank fallback-review recapture
+had no established cause or recorded explanatory action; an explicit hidden-card
+touch probe did not reproduce it. This is not presented as assistive sign-off.
+
+Inspection found remaining accessibility defects despite passing Cancel behavior:
+the generic Add action on the ScrollView reported rail-sized bounds, and hidden
+navigation/hint nodes survived during selection. The correction removes navigation
+and hint subtrees while selecting (without removing the rail), and moves the generic
+Add shortcut from the ScrollView to the bounded Collapse overlay button. Explicit
+end buttons retain their labels/edge values. Cancellation tests now assert absent
+hidden navigation and Add width no greater than its 88-point slot. Updated build
+and simulator results follow after execution. Correction code
+`ebc4ad99f6da6c194305f936ff23787b243ce5d4` passes generic Mac simulator build,
+all **487 JavaScript tests**, and the full cloud offline allowlist including
+**1,924 native checks**. The final focused UI invocation completed **8 passed,
+2 failed, 0 skipped**, once without retries. All five Cancel cases and the new
+hidden-navigation/hint absence and Add-width assertions passed unchanged. Left
+save, collapsed-save reveal and duplicate reveal/active-card recentring also passed.
+Manual highlighted-product review Cancel retained cards at x=117.3 and x=287.3,
+original selection and Item 1 of 4, the same page/cart marker and no new item.
+Settled Add bounds remained 68.3 × 88 points before/after (not the previous
+402 × 250 rail-sized frame); Collapse bounds remained 44 × 44. Selection hierarchy
+contained no hidden card/Add/navigation/hint action children. An unlabelled empty
+ScrollView container remains; VoiceOver traversal is not certified.
+
+The two failed outcomes are not waived: right/end-save failed before opening the
+store because Show Store was absent, with an isolated `test.store` open warning
+(SQLite error 4618) and possible Button/PopUpButton automation mismatch. The scroll
+shield regression failed in setup because store-picker did not appear within ten
+seconds. Neither reached its feature assertions, so right-save and shield-scroll
+are **not successfully revalidated at this SHA**. Their cause remains unknown;
+investigate the retained setup/storage/automation diagnostics before another run.
+The modern result export incorrectly returned zero/unknown; retained legacy result
+metrics/issues and XCTest console agree on ten executed and two failures.
+
+Evidence: `~/Library/Developer/Xcode/StoreProductSelection-Evidence/CancelAX-ebc4ad9/REPORT.md`
+and Linux `/tmp/opencode/cancelax-ebc4ad9/REPORT.md`; complete mirror under
+`/tmp/opencode/cancelax-ebc4ad9/evidence/` includes original result bundle,
+diagnostics, logs, action-by-action manual hierarchy/screenshots and cleanup proof.
+The owned simulator was shut down with state/evidence retained; bridge closed and
+clean task worktree/DerivedData ownership released. Narrowed end-label clipping
+at a partially covered slot and existing hint/webpage overlap remain documented
+limitations, unchanged across Cancel. No physical-device installation or live-store
+validation was performed for this revision.
+No phone install of this cancellation follow-up has been performed yet.
+
+### Follow-up: lower Add labels and requested phone update (14 November 2026)
+
+The user requested lower Add controls and installation of the latest changes.
+Both ends share a label with 24 points of top padding, weighting the icon/text
+downward while preserving the bottom-aligned end slots and avoiding the navigation
+row. Squared fade, clipping, minimum interactive width and insertion semantics
+are unchanged.
+
+Code `1ef80966159f74a8484caf77f7677726afb53c49`: generic simulator build and all
+**485 JavaScript tests** pass. Three focused simulator cases (rail label/fade,
+left/start and right/end) passed once, **3 passed, 0 failed, 0 skipped**, with no
+edits or retries. Full-resolution comparison against `75d6b52` shows both icons
+and text exactly **36 pixels / 12 points lower**, complete and readable, with
+approximately 25 points of clear space before the navigation row and no painted
+overlap with Back/Skip/Reload. Fade/covered-control removal, centre-without-active
+selection, saved ordering and relaunch checks remain passing. This focused run
+does not replace the preceding 14-case result at `75d6b52`; only label padding
+changed. Xcode approval blocked fresh bridge hierarchy capture during verification;
+XCTest activity trees/screenshots and explicit simulator commands were used, with
+no manual coordinate interactions. Evidence:
+`~/Library/Developer/Xcode/StoreProductSelection-Evidence/LowerLabels-1ef8096/REPORT.md`
+with result bundle, seven screenshots, before/after crops and recording; Linux
+copies `/tmp/opencode/lowerlabels-1ef8096/`. Dedicated simulator shut down and
+state/evidence preserved; ownership released.
+
+After the user approved Xcode access, the same clean code revision was built,
+signed, installed in place and launched on the physical iPhone 17e / iOS 27.2
+(`00008150-001402660A9BC01C`). Verified task workspace `workspace-4P7oJMPUPA`,
+ListRunner scheme and physical Adrian's iPhone destination before `RunProject`:
+zero build errors, launch session `71fa05b00`, PID **68773** independently confirmed
+running ListRunner by `devicectl`. Deep strict signature verification and all
+35 JSON + 1 JavaScript canonical-resource comparisons passed for the signed app
+under `~/Library/Developer/Xcode/DerivedData/ListRunner-crdymsqoucncavcufdmaqyaqgufx/Build/Products/Debug-iphoneos/`.
+Xcode action log: `RunProject-Log-20261114-223636.txt`.
+
+The phone now includes quicker fade, new/merged-product centring without changing
+the active item, hidden collapsed-control removal and the lower Add labels, as
+well as left/start and right/end insertion. No uninstall, data reset, test launch
+arguments/fixtures, imports or retailer/cart actions were used. The app was left
+running. Install/launch are verified; physical visual/live-store and assistive
+release sign-off remain separate. Later documentation-only commits do not change
+the installed implementation.
+
+### Follow-up: quicker fade and reveal without activation
+
+The Add controls now use squared uncovered fraction rather than a linear fade:
+half exposure yields 25% opacity. Full exposure remains fully opaque, and the
+44-point interactive threshold/zero-exposure subtree removal are unchanged.
+
+Both save callbacks return the saved new/merged UUID only after persistence
+succeeds. The overlay keeps that visual-reveal target separate from `selectedID`,
+centres it on query updates and review dismissal, and expands collapsed entry to
+show it. No active-selection callback, search or cart-attribution change is made.
+Explicitly selecting a card clears the reveal; tapping the still-active card
+recentres it without adding selection history. Each rail end accounts for the
+145-point inactive versus 160-point active card when calculating centre padding.
+Saved left/start and right/end ordering remains unchanged.
+
+The preceding insertion run at `27762b8` finished with **6 passes and 4 failures**:
+all four new tests used an incorrect standalone Position-text locator. Actual
+accessibility combines it as `store-product-insertion` / `Position, End of list`
+(or Start). Manual hierarchy/screenshot follow-through confirmed left/right/manual/
+All items insertion, original-card selection, durable order and store isolation.
+That is not represented as an all-green automated run. Evidence/report:
+`~/Library/Developer/Xcode/StoreProductSelection-Evidence/Insertion-27762b8/REPORT.md`
+and Linux `/tmp/opencode/insertion-27762b8/`. This follow-up fixes the locator and
+adds actual card-centre assertions alongside retained active-card assertions,
+collapsed-entry reveal and repeated duplicate reveal/tap-to-recentre coverage.
+Code revision `b0ba32441856eb9b655f3b295b6931f61a2dd3aa`: **483 JavaScript tests**
+(33 selection/wiring/fade checks), **47 Python tests**, generic Mac simulator
+build and full cloud offline allowlist pass, including **1,924 native checks**,
+parser/regional/synthetic registration coverage and 35 JSON + 1 JavaScript resource
+byte matching. The scalar fade test executes the extracted bounded formula and
+checks endpoints, monotonicity and the half-exposure value. Twelve focused
+simulator cases ran once: **11 passed, 1 failed**. All ten prior cases and the
+duplicate/tap-to-recentre case passed. Left/right/manual/All items actual card
+midpoints were within two points of the screen midpoint while the original card
+remained active; saved order survived relaunch. The collapsed-entry case also
+passed its centre/active assertions and visibly expanded, but its final assertion
+found the hidden collapsed Add control still in the accessibility tree. Manual
+hitpoint activation did nothing; VoiceOver traversal was not certified. Rather
+than treating a transparent zero-height control as safe, the correction structurally
+omits the collapsed-bar subtree whenever expanded or in product-selection mode.
+Evidence:
+`~/Library/Developer/Xcode/StoreProductSelection-Evidence/Reveal-b0ba324/`.
+The report, screenshots, hierarchy and failure recording are also retained under
+Linux `/tmp/opencode/reveal-b0ba324/`. Faster partial fade and centred inactive
+titles were readable. The adjacent active card/action is partly off-screen during
+reveal (normal rail geometry); tapping it recentres it. Prior long active-title
+ellipsis and collapse-hint overlap remain known layout limitations.
+Correction code `75d6b526f6228320de3810f3f52d9afbd04cecb9`: generic simulator
+build, all **484 JavaScript tests**, **47 Python tests**, the full cloud offline
+allowlist with **1,924 native checks**, and 35 JSON + 1 JavaScript canonical
+resource comparisons pass. Final simulator verification at that exact code SHA:
+**14 passed, 0 failed, 0 skipped**, in one run with no retries or source/scheme
+changes. All twelve reveal/fade/insertion cases and the progress-chevron status
+retention and slow-drag collapse/re-expansion regressions passed. The previously
+failing collapsed-control absence assertion now passes; the same control remains
+available and functional when actually collapsed. New inactive cards centre within
+two points while the original item stays active, start/end order survives relaunch,
+store isolation holds, and duplicate merge/recentre does not create selection
+history. Faster fade, scrolling shields and no fixture cart changes also pass.
+
+Retained screenshots show readable centred titles/quantities and native review
+controls. Adjacent active-card cropping is the expected rail tradeoff; existing
+long active-title ellipsis and collapse-hint webpage overlap remain. The first case
+passed but took 276 seconds after an extended idle wait during first-store welcome
+setup, before the collapsed-bar checks. Its spindump is retained; cause is unknown,
+and this run is not performance sign-off.
+
+Evidence: `~/Library/Developer/Xcode/StoreProductSelection-Evidence/Reveal-75d6b52/`
+contains `REPORT.md`, `Reveal.xcresult`, logs/reports, 18 screenshots, spindump,
+suite recording and extracted collapsed/expanded frames. Linux inspection copies:
+`/tmp/opencode/reveal-75d6b52/`. Owned simulator was shut down with its state and
+evidence preserved; interaction bridge closed and worktree ownership released.
+Documentation-only commits after the code SHA do not change the implementation.
+No phone install of this quicker-fade/reveal follow-up has been performed yet;
+the phone remains on `27762b8`.
+
+### Follow-up: side-specific list insertion
+
+The left/leading rail action captures start-of-list insertion; right/trailing
+captures end-of-list insertion. That immutable choice travels through grid/detail
+reading, manual/assistive fallback, native review and save retries. Review shows
+Position, and the controls expose Start/End of list accessibility values/hints.
+Collapsed-bar and generic accessibility shortcuts retain the existing start
+default. Both list screens pass the captured edge to shared list staging.
+Existing duplicates still merge/reactivate and move to that edge. Untouched
+rows keep their relative order, store ownership and status. Existing typed/import
+defaults, group/category recency and database/retailer schemas are unchanged.
+
+Linux: all 481 JavaScript tests (31 selection/wiring checks) and 47 Python tests
+pass. Added native tests cover both edges, preserved unrelated row order/status
+and selected identity, store isolation, durable ordering, duplicate merge/move,
+rollback/cache restoration, retry quantities and batch order. Added simulator
+coverage for left/start, right/end, right/manual fallback and All items/right,
+including retained current-card identity and store-list ordering after relaunch.
+Mac code revision `27762b89ff5d1dce659971313b5b7d4d20617d25`: generic simulator
+build and the complete cloud offline allowlist passed, including **1,924 native
+checks**, parser/regional checks and synthetic store registration. The built
+app's 35 JSON + 1 JavaScript resources match canonical files byte-for-byte.
+The ten-case simulator run (four new insertion cases plus six prior feature
+regressions) finished with six passes and four incorrect review-text locators;
+see the quicker-fade/reveal follow-up above for the evidence and correction.
+
+At the user's explicit request, the clean code revision
+`27762b89ff5d1dce659971313b5b7d4d20617d25` was built, signed, installed in place
+and launched on Adrian's physical iPhone 17e / iOS 27.2
+(`00008150-001402660A9BC01C`). Xcode workspace `workspace-MNUTaeUXRm`, scheme
+ListRunner and physical destination Adrian's iPhone were verified before
+`RunProject`: zero build errors, launch session `ab7b6d980`, PID **65171**.
+`devicectl` independently confirmed that PID running ListRunner on the phone.
+Deep strict code-signature verification and all 35 JSON + 1 JavaScript resource
+byte comparisons passed for the signed `Debug-iphoneos/ListRunner.app` under
+`~/Library/Developer/Xcode/DerivedData/ListRunner-crdymsqoucncavcufdmaqyaqgufx/`.
+Xcode log: `RunProject-Log-20261113-183826.txt` in its action artifacts.
+
+This phone update includes the scrolling/fade/wording changes and left/start,
+right/end insertion. No uninstall, data reset, test launch arguments/fixtures,
+imports or retailer/cart actions were used. The app was left running. Installation
+and launch are verified; physical visual/live-feature sign-off remains separate.
+The ongoing simulator run keeps its dedicated simulator and separate DerivedData;
+no test state or evidence was cleared for the phone install.
+
+### Follow-up: scrolling alignment, fade and wording
+
+The user reported shields trailing products during scrolling on their phone.
+The prior viewport-fixed shields moved on a 100 ms timer. The follow-up places
+all recognised tile shields in a zero-size, overflow-visible document-plane root,
+separate from retailer tile/link subtrees, with a viewport-fixed transparent tap
+blocker behind them. Shield coordinates are relative to the root's actual origin,
+so page margins/positioned bodies work and ordinary page scrolling moves both
+layers together without JavaScript updates. Mutation/resize/image/font-load and
+nested-scroll events coalesce geometry work into animation frames. The only
+remaining timer is the 60-second cancellation deadline; observers, pending frames
+and listeners are removed on all exits. Click-time identity/geometry/hit checks
+and native assistive-entry fallbacks remain in place.
+
+Rail controls now say **Add item to your list**, including collapsed-bar and
+accessibility actions. Their opacity follows uncovered width directly on both
+ends, while clipping/hit-test boundaries still exclude the moving cards. Native
+review uses the shorter **Add item** title.
+
+Linux: all **480 JavaScript tests** (30 selection tests) and **47 Python tests**
+pass. Real isolated Chromium with mobile viewport and positioned body confirmed
+all four shields aligned immediately at six scroll offsets in one JavaScript
+turn, before animation-frame callbacks could reposition them. Dynamic reflow,
+selecting the second product, no retailer Add clicks and cleanup also passed.
+Mac code revision `f7235c9b8355c82fc08dff828682476102655e81`: generic simulator
+build and the complete cloud offline allowlist passed, including 1,910 native
+checks, parser/regional checks and synthetic store registration. The simulator
+app's 35 JSON + 1 JavaScript resources match canonical files byte-for-byte.
+The first six-case simulator run at `2758ef5` passed all four original paths and
+the new scrolling test: a 240-point gesture preserved shield/title offset within
+two points, and video frames showed matching motion during the drag. Selecting
+the scrolled product populated the correct review without a fixture cart change.
+Visual fading and the new wording were also correct, but the covered-control
+nonexistence assertion failed: SwiftUI retained invisible 88-point buttons in
+the accessibility tree. This was not treated as safe merely because they were
+not painted. The correction removes the Button below 44 points of exposure,
+renders only a noninteractive visual sliver while fading out, and removes the
+entire subtree at zero exposure. Exposed buttons clip their labels internally so
+their actual hit/accessibility bounds shrink with the uncovered region.
+Final simulator run at code `f7235c9b8355c82fc08dff828682476102655e81`:
+**6 passed, 0 failed, 0 skipped**, in one run without retries. All four original
+entry/save/cancel/ownership cases and both scrolling/fade cases passed. Covered
+controls disappeared from the accessibility query, correcting the earlier
+nonexistence failure. Video/screenshots show progressive partial-cover fading and
+complete disappearance without painting over cards, readable new end labels and
+native title, and shields staying aligned during actual vertical scrolling.
+The scrolled product opened the correct review without a fixture cart change.
+No new layout regression was found; the prior narrow-card title ellipsis remains.
+An initial welcome/setup idle-notification delay/spindump recovered before product
+selection; its diagnostic is retained, not represented as a feature-test failure.
+
+Evidence: Mac
+`~/Library/Developer/Xcode/StoreProductSelection-Evidence/ScrollFade-f7235c9/`
+contains `Verification.md`, `Tests.xcresult`, `Tests.log`, `Summary.json`, named
+screenshots, `RailFade.mp4`, `ShieldScroll.mp4` and the full recording. Linux
+inspection copies are under `/tmp/opencode/scrollfade-f7235c9/`. The dedicated
+simulator was shut down with its state/evidence preserved. No new phone install
+or live retailer action was performed for this follow-up. Documentation-only
+commits after this code SHA do not change the tested implementation.
+
+### Physical iPhone installation
+
+At the user's explicit request, revision
+`d1b8e3fc9db52d9aef5a5348146593b1807bfb52` was built, signed, installed in place
+and launched on **Adrian's iPhone 17e / iOS 27.2**, device
+`00008150-001402660A9BC01C`. Desktop Xcode `RunProject` reported no build errors
+and a successful launch, reference `ab7bf7000`, PID **64476**. `devicectl`
+independently confirmed that PID running the phone's installed ListRunner app.
+The build used the clean isolated `add-store-product-to-list` Mac worktree; other
+projects/simulators were not run or changed. No test arguments/environment,
+fixtures, uninstall, data reset, import or retailer/cart actions were used on the
+phone. Existing local lists and website sessions were not cleared. Installation
+and process verification do not establish live-site/physical UI sign-off.
+
+SSH compilation initially reached signing but failed `errSecInternalComponent`;
+after the user approved Xcode MCP access, desktop Xcode signing/Run succeeded
+without changing keychain security, project signing or the shared scheme.
+The failed CLI log is `/tmp/listrunner-store-product-phone-build.log` on the Mac.
+Successful Xcode log:
+`/var/folders/0h/0scshybs33ndyxvndzclnhj80000gn/T/ActionArtifacts/default/RunProject/RunProject-Log-20261113-163158.txt`.
+Actual signed app:
+`~/Library/Developer/Xcode/DerivedData/ListRunner-crdymsqoucncavcufdmaqyaqgufx/Build/Products/Debug-iphoneos/ListRunner.app`.
+`codesign --verify --deep --strict` passed, and its 35 JSON + 1 JavaScript resources
+match canonical files byte-for-byte. No merge, archive or TestFlight release was
+performed. Subsequent installation-evidence commits are documentation only.
+
+### Implementation checks
+
+Linux offline: all 473 JavaScript tests pass, including 23 new selection-engine
+tests and the existing retailer/cart, scrolling, inspection and release checks.
+All six `test-*.py` scripts pass (47 tests), including schema-8 preflight and
+legacy category/resource checks. A real isolated Chromium touch test on offline
+HTML selected the exact title, made zero fixture retailer-cart clicks and cleaned
+up on Cancel. This is not a live-site or WebKit claim.
+A separate mobile-touch Chromium fixture confirmed that the page scrolls beneath
+the shields and that a second product can be selected after scrolling/repositioning
+without firing its retailer Add control. An initial fixture tap after a fast fling
+overshot the product and correctly returned no selection; targeting the now-visible
+second tile passed. This does not replace device scroll/reflow validation.
+
+Mac code revision `642ea5dfd0543f716bd764cb8fc885f9768dee88`:
+generic iOS Simulator build succeeds (arm64/x86_64, deployment target iOS 17);
+1,910 standalone native recovery/configuration/persistence checks pass. The built
+app's 35 JSON resources and JavaScript engine match canonical files byte-for-byte.
+The full `run-cloud-checks.sh` offline allowlist passes, including 162 parser
+fixtures, 884 ingredient aliases, 195 regional-search checks and the synthetic
+store-registry proof. Noninteractive SSH needs `/opt/homebrew/bin` on PATH for Node.
+All output remains outside the checkout. Work used a separate Mac worktree and
+dedicated simulator; no other agent's checkout or simulator was changed.
+
+The first complete simulator flow at code revision
+`53b0d2b301ed9fe30348102170554e9079bfd00f` passed grid selection → native review →
+Add → exact literal title in Bunnings, unchanged fixture cart control and absence
+from Coles. Product-page review/Cancel passed too. Screenshots show legible rail
+controls, the opaque Choose pill and native name/quantity review. Early runs caught
+and corrected accessibility locator ambiguity and a shield-label overlap; their
+failures remain in the evidence, not counted as successful Add checks.
+
+At `77bce126e014272247e55e45b7dec646aef62108`, the grid save and unconfigured
+store manual-entry tests passed. The All items screenshot/hierarchy showed the
+saved Pending row owned by Bunnings, but an incorrect ordinary-store picker
+locator stopped its final navigation assertions. Product-page recognition fell
+back to manual in one run while the heading was visible. The chooser now waits
+at most three seconds for that same committed document to finish loading, bound
+to its exact request, web view, generation and URL; it never reloads or follows a
+new navigation.
+
+Final code revision `642ea5dfd0543f716bd764cb8fc885f9768dee88`: **4/4 focused
+offline UI tests passed, 0 failures, 0 skips**, in one run on the dedicated iPhone
+17 / iOS 27.2 simulator:
+
+* Grid selection → shield tap → prefilled review → Add preserves the literal
+  `2x LED lights, 75 mm`, leaves the fixture cart unchanged and saves only to
+  Bunnings, not Coles.
+* Product detail prefilled the expected title without a grid shield; Cancel did
+  not add it. The earlier empty-title failure did not recur in this final run;
+  repeated-run stability was not separately exercised.
+* All items saved a Pending row owned by Bunnings, verified it through Bunnings'
+  actual list scope and confirmed absence from Coles.
+* Unconfigured-store manual entry saved the complete literal
+  `500 g pasta, gluten-free` without splitting the comma-containing title.
+
+Final evidence: `Revision-642ea5d/FocusedTests.xcresult`, `FocusedTests.log`,
+`Summary.json`, runtime logs and rail/shield/review screenshots under the evidence
+directory below. Screenshots show legible controls and no new overlap. Existing
+card-title truncation remains unchanged. Linux screenshot copies are under
+`/tmp/opencode/store-product-642ea5d/`. The simulator was shut down after testing,
+with its data and evidence retained. Documentation-only commits after this code
+revision do not change the tested implementation.
+
+Evidence is outside Git under
+`~/Library/Developer/Xcode/StoreProductSelection-Evidence/` on the Mac, with
+per-revision `.xcresult` bundles and screenshots. The dedicated iPhone 17 / iOS
+27.2 simulator is `312871F5-F94E-4BF0-A1E4-83D8BB6FF11A`; only this task-created
+simulator is used, then shut down without deleting its evidence or state.
+
+The new native transaction checks exposed SwiftData retaining staged quantities
+in already-held model objects after rollback. The website-add path now restores
+a captured amount/unit/status/order snapshot as well as rolling back the database.
+Tests verify unchanged committed data, restored presentation values and a retry
+that applies its explicit quantity exactly once. Existing unrelated manual/import
+transaction code is not changed.
+
+Read-only isolated Chromium at 390×844: Bunnings AU staples grid returned 36 tiles
+with `[data-search-product-tile="true"]`; `a[href*="_p"] p` contains the product
+name without ratings/price. A linked detail page has
+`main#main .container-main h1[data-locator="product-title"]`. Both returned 200.
+No retailer cart, sign-in, consent or fulfilment action was performed. These
+selectors do not certify all Bunnings layouts or native WebKit behavior. Coles
+returned an empty document and Woolworths Access Denied, so neither received a
+guessed selection profile. IKEA grid readback succeeded, but detail/profile review
+is deferred. All unconfigured destinations offer manual local-list entry.
+
+Remaining: live Bunnings embedded-WebKit grid/detail selection; VoiceOver, Dynamic
+Type and scrolling/reflow checks on device. No checkout/cart mutation is needed
+or authorised for selection checks.
+
+Accessibility safety boundary: VoiceOver/Switch Control use the native manual
+composer on grids, not DOM shields, because assistive activation may bypass visual
+hit testing and activate a covered website control. Product-page reads still
+prefill native review. Enabling either technology mid-selection cancels shields.
+The offline test covers this branch; physical-device assistive validation remains
+outstanding.

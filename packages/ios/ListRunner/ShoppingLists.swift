@@ -132,9 +132,42 @@ enum ShoppingLists {
         return remaining
     }
 
+    enum AdditionPosition: Equatable, Sendable { case start, end }
+
+    // SwiftData rollback can leave already-held @Model references showing their
+    // staged values. Restore those presentation objects too, so a retry cannot
+    // add its quantity twice or retain the failed transaction's promoted order.
+    struct AdditionSnapshot {
+        private struct Row {
+            let item: GroceryItem
+            let amount: Double?
+            let unit: String?
+            let status: String
+            let position: Int
+        }
+        private let rows: [Row]
+
+        init(items: [GroceryItem], store: StoreID) {
+            rows = items.filter { $0.listID == store.listID }.map {
+                Row(item: $0, amount: $0.quantityAmount, unit: $0.quantityUnit,
+                    status: $0.statusRawValue, position: $0.position)
+            }
+        }
+
+        func restoreAfterRollback() {
+            for row in rows {
+                if row.item.quantityAmount != row.amount { row.item.quantityAmount = row.amount }
+                if row.item.quantityUnit != row.unit { row.item.quantityUnit = row.unit }
+                if row.item.statusRawValue != row.status { row.item.statusRawValue = row.status }
+                if row.item.position != row.position { row.item.position = row.position }
+            }
+        }
+    }
+
     @MainActor
     static func stageAdd(_ entries: [ParsedGrocery], to store: StoreID,
-                         allItems: [GroceryItem], context: ModelContext) -> [GroceryItem] {
+                         allItems: [GroceryItem], context: ModelContext,
+                         insertion: AdditionPosition = .start) -> [GroceryItem] {
         var staged = allItems.filter { $0.listID == store.listID }.sorted {
             $0.position == $1.position ? $0.id.uuidString < $1.id.uuidString : $0.position < $1.position
         }
@@ -163,7 +196,9 @@ enum ShoppingLists {
             }
         }
         let ids = Set(promoted.map(\.id))
-        for (index, item) in (promoted + staged.filter { !ids.contains($0.id) }).enumerated() { item.position = index }
+        let untouched = staged.filter { !ids.contains($0.id) }
+        let ordered = insertion == .start ? promoted + untouched : untouched + promoted
+        for (index, item) in ordered.enumerated() { item.position = index }
         return promoted
     }
 

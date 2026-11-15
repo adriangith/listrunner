@@ -3,6 +3,120 @@ import UIKit
 import WebKit
 import OSLog
 
+private struct StoreCardTapButtonStyle: PrimitiveButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(Rectangle())
+            // A tap can fail and yield to ScrollView's pan. Never put a
+            // zero-distance drag on each button: it captures the card surface
+            // before the multi-card rail can begin scrolling. Let the tap
+            // recognizer cancel its own contact; never gate a fresh tap on
+            // cancellation state left behind by a previous pan.
+            .onTapGesture {
+                guard isEnabled else { return }
+                configuration.trigger()
+            }
+            // Keep explicit assistive activation on the bounded button.
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { if isEnabled { configuration.trigger() } }
+    }
+}
+
+// Scope UIKit touch policy to the card rail, not the retailer WKWebView or any
+// other scroll view. A new contact interrupts momentum without consuming the
+// contact that the card's normal tap recognizer needs.
+private struct StoreCardRailTouchHandling: UIViewRepresentable {
+    let enabled: Bool
+
+    func makeUIView(context: Context) -> StoreCardRailTouchAnchor {
+        StoreCardRailTouchAnchor()
+    }
+
+    func updateUIView(_ view: StoreCardRailTouchAnchor, context: Context) {
+        view.enabled = enabled
+        view.attachIfNeeded()
+    }
+
+    static func dismantleUIView(_ view: StoreCardRailTouchAnchor, coordinator: ()) {
+        view.detach()
+    }
+}
+
+private final class StoreCardRailTouchAnchor: UIView {
+    var enabled = false
+    private weak var rail: UIScrollView?
+    private var originalTouchDelay: Bool?
+    private var observer: StoreCardRailTouchObserver?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        isAccessibilityElement = false
+        accessibilityElementsHidden = true
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        attachIfNeeded()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        attachIfNeeded()
+    }
+
+    func attachIfNeeded() {
+        guard enabled, window != nil else { detach(); return }
+        var ancestor = superview
+        while let view = ancestor, !(view is UIScrollView) { ancestor = view.superview }
+        guard let scrollView = ancestor as? UIScrollView else { detach(); return }
+        guard rail !== scrollView else { return }
+        detach()
+        rail = scrollView
+        originalTouchDelay = scrollView.delaysContentTouches
+        scrollView.delaysContentTouches = false
+        let observer = StoreCardRailTouchObserver(target: nil, action: nil)
+        observer.rail = scrollView
+        observer.cancelsTouchesInView = false
+        observer.delaysTouchesBegan = false
+        observer.delaysTouchesEnded = false
+        scrollView.addGestureRecognizer(observer)
+        self.observer = observer
+    }
+
+    func detach() {
+        if let rail {
+            if let observer { rail.removeGestureRecognizer(observer) }
+            if let originalTouchDelay, !rail.delaysContentTouches {
+                rail.delaysContentTouches = originalTouchDelay
+            }
+        }
+        observer = nil
+        originalTouchDelay = nil
+        rail = nil
+    }
+}
+
+private final class StoreCardRailTouchObserver: UIGestureRecognizer {
+    weak var rail: UIScrollView?
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        if let rail, !rail.isDragging {
+            // Include animated scrollTo as well as deceleration. Freeze at the
+            // presented offset, never jump to an animation's destination.
+            let visibleOffset = rail.layer.presentation()?.bounds.origin ?? rail.contentOffset
+            rail.setContentOffset(visibleOffset, animated: false)
+        }
+        // This is only a touch-down observer, not a competing tap or pan.
+        // Fail immediately so native scrolling and card tap recognition proceed.
+        state = .failed
+    }
+}
+
 struct StoreShoppingView: View {
     // The controls and card carousel retain their existing geometry. Only the
     // material surface is shorter, so selected cards continue to overlap it at
@@ -15,6 +129,7 @@ struct StoreShoppingView: View {
     let saveFailed: Bool
     let onSelectionChange: (UUID) -> Void
     let onStatusChange: (GroceryItem) -> Void
+    let onAddStoreProduct: (String, Int, ShoppingLists.AdditionPosition) -> UUID?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -33,6 +148,16 @@ struct StoreShoppingView: View {
     @State private var navigationRightActionEdge: CGFloat = 0
     @State private var showingVerificationDetails = false
     @State private var showingCartDetectionDetails = false
+    @State private var choosingStoreProduct = false
+    @State private var storeProductDraft: StoreProductDraft?
+    @State private var storeProductInsertion: ShoppingLists.AdditionPosition = .start
+    // A visual reveal only: never use this for selection, cart attribution or search.
+    @State private var storeProductRevealID: UUID?
+    @State private var activeCardRecentreRequest = 0
+    @State private var singleCardAddPosition: ShoppingLists.AdditionPosition = .start
+    @State private var singleCardPullValue: CGFloat = -1
+    @State private var singleCardPullOrigin: CGFloat?
+    @State private var productSelectionTask: Task<Void, Never>?
     @GestureState private var isTouchingOverlay = false
     @GestureState(resetTransaction: Transaction(animation: .spring(response: 0.4, dampingFraction: 0.86)))
     private var overlayDrag = OverlayDrag()
@@ -41,6 +166,7 @@ struct StoreShoppingView: View {
         enum Axis { case undecided, horizontal, vertical }
         var axis: Axis = .undecided
         var distance: CGFloat = 0
+        var horizontalDistance: CGFloat = 0
     }
 
     private struct NavigationRightActionEdgeKey: PreferenceKey {
@@ -61,13 +187,14 @@ struct StoreShoppingView: View {
         }
     }
 
-    init(items: [GroceryItem], browser: StoreBrowser, initialSelectedID: UUID?, saveFailed: Bool = false, onSelectionChange: @escaping (UUID) -> Void, onStatusChange: @escaping (GroceryItem) -> Void) {
+    init(items: [GroceryItem], browser: StoreBrowser, initialSelectedID: UUID?, saveFailed: Bool = false, onSelectionChange: @escaping (UUID) -> Void, onStatusChange: @escaping (GroceryItem) -> Void, onAddStoreProduct: @escaping (String, Int, ShoppingLists.AdditionPosition) -> UUID?) {
         self.items = items
         self.browser = browser
         self.initialSelectedID = initialSelectedID
         self.saveFailed = saveFailed
         self.onSelectionChange = onSelectionChange
         self.onStatusChange = onStatusChange
+        self.onAddStoreProduct = onAddStoreProduct
         _selectedID = State(initialValue: initialSelectedID)
     }
 
@@ -75,6 +202,10 @@ struct StoreShoppingView: View {
         items.first(where: { $0.id == selectedID }) ?? items.first
     }
     private var pending: [GroceryItem] { items.filter { $0.status == .pending } }
+    private var railScrollTargetID: UUID? {
+        if let id = storeProductRevealID, items.contains(where: { $0.id == id }) { return id }
+        return selected?.id
+    }
     private var isFinalConfirmation: Bool { pending.isEmpty && undoRecord != nil }
     private var collapseProgress: CGFloat {
         isCollapsed ? 1 : min(max(overlayDrag.distance, 0) / 240, 1)
@@ -150,11 +281,12 @@ struct StoreShoppingView: View {
                 // it over the retailer's page. This keeps fixed website actions
                 // (such as checkout confirmation buttons) fully reachable.
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    collapsedBar(bottomSafeAreaInset: geometry.safeAreaInsets.bottom)
-                        .opacity(isCollapsed ? 1 : 0)
-                        .allowsHitTesting(isCollapsed)
-                        .accessibilityHidden(!isCollapsed)
-                        .frame(height: isCollapsed ? 70 : 0)
+                    // Omit hidden controls rather than leaving a zero-height,
+                    // transparent subtree discoverable by accessibility clients.
+                    if isCollapsed && !choosingStoreProduct {
+                        collapsedBar(bottomSafeAreaInset: geometry.safeAreaInsets.bottom)
+                            .frame(height: 70)
+                    }
                 }
 
             VStack(spacing: 0) {
@@ -183,19 +315,40 @@ struct StoreShoppingView: View {
                         .padding(.horizontal, 20)
                         .accessibilityIdentifier("store-cart-undo-progress")
                 }
+                if choosingStoreProduct {
+                    StoreProductSelectionBar(onCancel: { cancelStoreProductSelection() }, onManual: {
+                        cancelStoreProductSelection(resume: false)
+                        storeProductDraft = StoreProductDraft(name: "", insertion: storeProductInsertion)
+                    })
+                }
+                // Keep the same ScrollView alive while choosing a product. A
+                // rebuilt rail loses its exact offset and recentres on Cancel.
                 ZStack(alignment: .bottom) {
                     expandedPanel(bottomSafeAreaInset: geometry.safeAreaInsets.bottom)
                         .offset(y: reduceMotion ? 0 : 250 * collapseProgress)
                         .offset(y: entranceNudge)
-                        .opacity(1 - collapseProgress)
-                        .allowsHitTesting(!isCollapsed)
-                        .accessibilityHidden(isCollapsed)
+                        .opacity(choosingStoreProduct ? 0 : 1 - collapseProgress)
+                        .allowsHitTesting(!isCollapsed && !choosingStoreProduct)
+                        .accessibilityHidden(isCollapsed || choosingStoreProduct)
                 }
-                .frame(height: isCollapsed ? 0 : 330, alignment: .bottom)
+                .frame(height: isCollapsed || choosingStoreProduct ? 0 : 330, alignment: .bottom)
                 }
             }
             .background(Color(uiColor: .systemBackground))
             .interactiveDismissDisabled(isTouchingOverlay)
+            .onReceive(NotificationCenter.default.publisher(for: UIAccessibility.voiceOverStatusDidChangeNotification)) { _ in
+                handleAssistiveProductSelection()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIAccessibility.switchControlStatusDidChangeNotification)) { _ in
+                handleAssistiveProductSelection()
+            }
+            .sheet(item: $storeProductDraft, onDismiss: resumeAfterStoreProductSelection) { draft in
+                StoreProductReview(storeName: browser.store.displayName, initialName: draft.name,
+                                   insertion: draft.insertion, onAdd: { name, quantity in
+                                       saveStoreProduct(name, quantity: quantity, insertion: draft.insertion)
+                                   })
+                    .presentationDetents([.medium, .large])
+            }
             .confirmationDialog("\(browser.store.displayName) has paused browsing", isPresented: $showingVerificationDetails,
                                 titleVisibility: .visible) {
                 Button("Retry store page", action: browser.retryAfterVerification)
@@ -261,12 +414,14 @@ struct StoreShoppingView: View {
                 }
             }
             .onChange(of: browser.detectedAddSequence) { _, _ in
-            guard let id = browser.lastDetectedItemID,
+            guard !choosingStoreProduct, storeProductDraft == nil,
+                  let id = browser.lastDetectedItemID,
                   let item = items.first(where: { $0.id == id }) else { return }
             confirmAutomaticAdd(item)
             }
             .onChange(of: browser.storeRecovery) { _, recovery in
             guard recovery != nil else { return }
+            cancelStoreProductSelection(resume: false)
             task?.cancel()
             secondsRemaining = 0
             manuallyPaused = false
@@ -274,14 +429,20 @@ struct StoreShoppingView: View {
             }
             .onChange(of: browser.siteVerificationRequired) { _, blocked in
                 guard blocked else { return }
+                cancelStoreProductSelection(resume: false)
                 task?.cancel()
                 secondsRemaining = 0
                 manuallyPaused = false
                 if !isFinalConfirmation { undoRecord = nil }
             }
             .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                singleCardPullOrigin = nil
+                singleCardPullValue = singleCardAddPosition == .start ? -1 : 1
+                cancelStoreProductSelection(resume: false)
+            }
             browser.setBrowsingActive(phase == .active)
-            if phase == .active {
+            if phase == .active && storeProductDraft == nil && !choosingStoreProduct {
                 if let selected {
                     browser.resumeInteraction(itemID: selected.id, searchTerm: selected.searchTerm)
                 } else {
@@ -305,6 +466,7 @@ struct StoreShoppingView: View {
             Text("Your shopping run is safe. Try again or return to your list.")
             }
             .onDisappear {
+            cancelStoreProductSelection(resume: false)
             browser.setBrowsingActive(false)
             task?.cancel()
             browser.endInteraction()
@@ -323,7 +485,9 @@ struct StoreShoppingView: View {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
 
-                navigationControls
+                // Keep the rail mounted, but don't retain hidden actionable
+                // navigation nodes over the product-selection bar.
+                if !choosingStoreProduct { navigationControls }
             }
             .frame(height: 220)
             .offset(y: -upwardOverlayPull)
@@ -333,22 +497,61 @@ struct StoreShoppingView: View {
                 ScrollViewReader { scrollProxy in
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(alignment: .bottom, spacing: 12) {
+                            Color.clear.frame(width: 88, height: 102)
+                                .accessibilityHidden(true)
                             ForEach(items) { item in
                                 card(item)
                                     .id(item.id)
+                                    // A one-card rail has no native scroll range.
+                                    // Follow an intentional horizontal drag without
+                                    // changing the active item or saved position.
+                                    .offset(x: items.count == 1 && !reduceMotion
+                                        ? StoreProductSingleCardReveal.displacement(horizontal: overlayDrag.horizontalDistance) : 0)
+                                    .anchorPreference(key: StoreProductRailEdges.self, value: .bounds) { anchor in
+                                        var edges: [String: Anchor<CGRect>] = [:]
+                                        if item.id == items.first?.id { edges["leading"] = anchor }
+                                        if item.id == items.last?.id { edges["trailing"] = anchor }
+                                        return edges
+                                    }
                             }
+                            Color.clear.frame(width: 88, height: 102)
+                                .accessibilityHidden(true)
                         }
-                        // Allow even the first and last selected cards to sit centrally.
-                        .padding(.horizontal, max(0, (geometry.size.width - 160) / 2))
+                        // Inactive cards are narrower than the active card. Each
+                        // edge needs its own padding so either can centre exactly.
+                        .padding(.leading, railEndPadding(for: items.first, width: geometry.size.width))
+                        .padding(.trailing, railEndPadding(for: items.last, width: geometry.size.width))
                         .padding(.top, 5)
                         .padding(.bottom, 14)
+                        .background(StoreCardRailTouchHandling(enabled: items.count > 1))
                     }
                     // Cards intentionally overlap the panel edge; let their shadows
                     // render over the panel instead of clipping at the scroll viewport.
                     .scrollClipDisabled()
-                    .scrollDisabled(overlayDrag.axis == .vertical)
+                    .scrollDisabled(items.count == 1 || overlayDrag.axis == .vertical)
+                    .backgroundPreferenceValue(StoreProductRailEdges.self) { edges in
+                        if !isCollapsed && !choosingStoreProduct {
+                            GeometryReader { proxy in
+                                StoreProductRailAddLabels(layout: StoreProductRailLayout(width: proxy.size.width,
+                                    leadingCardMinX: edges["leading"].map { proxy[$0].minX },
+                                    trailingCardMaxX: edges["trailing"].map { proxy[$0].maxX },
+                                    isSingleCard: items.count == 1), revealValue: singleCardPullValue)
+                            }
+                        }
+                    }
+                    .overlayPreferenceValue(StoreProductRailEdges.self) { edges in
+                        if !isCollapsed && !choosingStoreProduct {
+                        GeometryReader { proxy in
+                            StoreProductRailAddControls(layout: StoreProductRailLayout(width: proxy.size.width,
+                                leadingCardMinX: edges["leading"].map { proxy[$0].minX },
+                                trailingCardMaxX: edges["trailing"].map { proxy[$0].maxX },
+                                isSingleCard: items.count == 1), revealValue: singleCardPullValue,
+                                action: beginStoreProductSelection)
+                        }
+                        }
+                    }
                     .onAppear {
-                        if let id = selected?.id { scrollProxy.scrollTo(id, anchor: .center) }
+                        if let id = railScrollTargetID { scrollProxy.scrollTo(id, anchor: .center) }
                     }
                     .onChange(of: selectedID) { _, id in
                         if let id {
@@ -357,11 +560,38 @@ struct StoreShoppingView: View {
                             }
                         }
                     }
+                    .onChange(of: items.map(\.id)) { _, _ in
+                        // A saved UUID can arrive before SwiftData's updated query.
+                        // Reapply after layout includes the new (or merged) card.
+                        if let id = railScrollTargetID { scrollProxy.scrollTo(id, anchor: .center) }
+                    }
+                    .onChange(of: items.count) { previous, count in
+                        if previous != 1 && count == 1 {
+                            singleCardAddPosition = .start
+                            singleCardPullValue = -1
+                            singleCardPullOrigin = nil
+                        }
+                    }
+                    .onChange(of: storeProductRevealID) { _, _ in
+                        // Clearing a stale reveal when Add starts must not move
+                        // a rail the user has scrolled independently of selection.
+                        if let id = storeProductRevealID { scrollProxy.scrollTo(id, anchor: .center) }
+                    }
+                    .onChange(of: activeCardRecentreRequest) { _, _ in
+                        if let id = selected?.id { scrollProxy.scrollTo(id, anchor: .center) }
+                    }
+                    .onChange(of: storeProductDraft?.id) { _, draftID in
+                        // The rail can be rebuilt before review dismisses. Reveal
+                        // again on return, without selecting or searching the item.
+                        if draftID == nil, let id = storeProductRevealID {
+                            scrollProxy.scrollTo(id, anchor: .center)
+                        }
+                    }
                 }
             }
             .frame(height: 250)
             .overlay(alignment: .top) {
-                if !hasCollapsedShoppingCards && !isCollapsed && !items.isEmpty {
+                if !hasCollapsedShoppingCards && !isCollapsed && !choosingStoreProduct && !items.isEmpty {
                     CardCollapseHint()
                         .padding(.horizontal, 20)
                         // Lay out the entire label above the carousel rather
@@ -394,6 +624,11 @@ struct StoreShoppingView: View {
         .simultaneousGesture(collapseDragGesture)
     }
 
+    private func railEndPadding(for item: GroceryItem?, width: CGFloat) -> CGFloat {
+        let cardWidth: CGFloat = item?.id == selectedID ? 160 : 145
+        return max(0, (width - cardWidth) / 2 - 100)
+    }
+
     private var collapseDragGesture: some Gesture {
         // The panel itself moves while dragging. Local coordinates would feed
         // that movement back into translation and make slow drags oscillate.
@@ -411,9 +646,34 @@ struct StoreShoppingView: View {
                 }
                 if drag.axis == .vertical {
                     drag.distance = translation.height
+                } else if drag.axis == .horizontal {
+                    drag.horizontalDistance = translation.width
+                }
+            }
+            .onChanged { value in
+                guard items.count == 1, !isCollapsed, !choosingStoreProduct,
+                      overlayDrag.axis != .vertical,
+                      abs(value.translation.width) >= 8,
+                      abs(value.translation.width) > abs(value.translation.height) * 1.25 else { return }
+                let origin = singleCardPullOrigin ?? (singleCardAddPosition == .start ? CGFloat(-1) : CGFloat(1))
+                singleCardPullOrigin = origin
+                // The card still follows the finger directly. Give only the
+                // signed Add reveal a short catch-up so a fast flick cannot
+                // traverse its entire fade in a single input frame. Retarget
+                // from the current presentation; do not restart from an edge.
+                withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .smooth(duration: 0.22)) {
+                    singleCardPullValue = StoreProductSingleCardReveal.pullValue(
+                        origin: origin, horizontal: value.translation.width)
                 }
             }
             .onEnded { value in
+                if items.count == 1, singleCardPullOrigin != nil {
+                    let position = StoreProductSingleCardReveal.position(
+                        horizontal: value.translation.width, vertical: value.translation.height)
+                        ?? singleCardAddPosition
+                    singleCardPullOrigin = nil
+                    settleSingleCardAdd(at: position)
+                }
                 // SwiftUI can reset GestureState before delivering onEnded.
                 let vertical = overlayDrag.axis == .vertical
                     || (overlayDrag.axis == .undecided && value.translation.height > abs(value.translation.width))
@@ -423,6 +683,62 @@ struct StoreShoppingView: View {
                     collapse()
                 }
             }
+    }
+
+    private func settleSingleCardAdd(at position: ShoppingLists.AdditionPosition) {
+        singleCardAddPosition = position
+        withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.42, dampingFraction: 0.72)) {
+            singleCardPullValue = position == .start ? -1 : 1
+        }
+    }
+
+    private func beginStoreProductSelection(at insertion: ShoppingLists.AdditionPosition) {
+        guard !choosingStoreProduct, storeProductDraft == nil, !browser.siteVerificationRequired,
+              browser.storeRecovery == nil, !browser.cartUndoInProgress else { return }
+        task?.cancel()
+        secondsRemaining = 0
+        manuallyPaused = undoRecord != nil
+        storeProductInsertion = insertion
+        storeProductRevealID = nil
+        choosingStoreProduct = true
+        productSelectionTask = Task { @MainActor in
+            let choice = await browser.chooseStoreProduct()
+            guard !Task.isCancelled, choosingStoreProduct, scenePhase == .active else { return }
+            choosingStoreProduct = false
+            switch choice {
+            case .cancelled: resumeAfterStoreProductSelection()
+            case .manual: storeProductDraft = StoreProductDraft(name: "", insertion: insertion)
+            case .product(let name): storeProductDraft = StoreProductDraft(name: name, insertion: insertion)
+            }
+        }
+    }
+
+    private func cancelStoreProductSelection(resume: Bool = true) {
+        productSelectionTask?.cancel()
+        productSelectionTask = nil
+        browser.cancelStoreProductSelection()
+        choosingStoreProduct = false
+        if resume { resumeAfterStoreProductSelection() }
+    }
+
+    private func resumeAfterStoreProductSelection() {
+        guard scenePhase == .active else { return }
+        if let selected { browser.resumeAfterStoreProductSelection(itemID: selected.id) }
+    }
+
+    private func saveStoreProduct(_ name: String, quantity: Int,
+                                  insertion: ShoppingLists.AdditionPosition) -> Bool {
+        guard let id = onAddStoreProduct(name, quantity, insertion) else { return false }
+        storeProductRevealID = id
+        isCollapsed = false
+        return true
+    }
+
+    private func handleAssistiveProductSelection() {
+        guard choosingStoreProduct,
+              UIAccessibility.isVoiceOverRunning || UIAccessibility.isSwitchControlRunning else { return }
+        cancelStoreProductSelection(resume: false)
+        storeProductDraft = StoreProductDraft(name: "", insertion: storeProductInsertion)
     }
 
     private var navigationControls: some View {
@@ -556,6 +872,7 @@ struct StoreShoppingView: View {
     }
 
     private func collapsedBar(bottomSafeAreaInset: CGFloat) -> some View {
+        HStack(spacing: 0) {
         Button {
             withAnimation(overlayAnimation) { isCollapsed = false }
         } label: {
@@ -578,12 +895,6 @@ struct StoreShoppingView: View {
             }
             .padding(.horizontal, 20)
             .frame(minHeight: 70)
-            .background {
-                Rectangle()
-                    .fill(.regularMaterial)
-                    .frame(height: 70 + bottomSafeAreaInset)
-                    .offset(y: bottomSafeAreaInset)
-            }
         }
         .buttonStyle(.plain)
         .simultaneousGesture(
@@ -596,6 +907,21 @@ struct StoreShoppingView: View {
         )
         .accessibilityLabel("\(selected?.name ?? "Selected item")\(secondsRemaining > 0 ? ", next item in \(secondsRemaining) seconds" : ""), Expand overlay")
         .accessibilityHint("Shows shopping controls")
+        Button { beginStoreProductSelection(at: .start) } label: {
+            Image(systemName: "text.badge.plus")
+                .frame(width: 44, height: 70)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add item to your list")
+        .accessibilityValue(Text("Start of list"))
+        .accessibilityIdentifier("collapsed-add-store-product")
+        .padding(.trailing, 12)
+        }
+        .background {
+            Rectangle().fill(.regularMaterial)
+                .frame(height: 70 + bottomSafeAreaInset)
+                .offset(y: bottomSafeAreaInset)
+        }
     }
 
     private func card(_ item: GroceryItem) -> some View {
@@ -618,10 +944,19 @@ struct StoreShoppingView: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(StoreCardTapButtonStyle())
                     .accessibilityLabel("Collapse overlay")
                     .accessibilityValue("Item \(position) of \(items.count)")
                     .accessibilityHint("Hides shopping controls and shows the compact bar")
+                    // Put the shortcut on a real, bounded control rather than
+                    // giving the entire ScrollView an Add accessibility action.
+                    .accessibilityAction(named: Text("Add item to your list")) { beginStoreProductSelection(at: .start) }
+                    .accessibilityActions {
+                        if items.count == 1 {
+                            Button("Show Add at start of list") { settleSingleCardAdd(at: .start) }
+                            Button("Show Add at end of list") { settleSingleCardAdd(at: .end) }
+                        }
+                    }
                 }
             }
             .frame(height: current ? 15 : 13)
@@ -643,7 +978,7 @@ struct StoreShoppingView: View {
                 .frame(height: current ? 86 : 62, alignment: .top)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(StoreCardTapButtonStyle())
             .accessibilityLabel("\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(current ? ", selected" : "")")
             .accessibilityAddTraits(current ? .isSelected : [])
 
@@ -659,7 +994,7 @@ struct StoreShoppingView: View {
                         .foregroundStyle(item.status == .added ? addedStatusAccent : .white)
                         .background(item.status == .added ? Color.white : addedStatusAccent, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(StoreCardTapButtonStyle())
                 .accessibilityHint(item.status == .added
                     ? (secondsRemaining > 0
                         ? "Stop automatic progression. Continue with Next when ready."
@@ -848,7 +1183,12 @@ struct StoreShoppingView: View {
     }
 
     private func select(_ item: GroceryItem, recordHistory: Bool = true) {
-        guard item.id != selectedID else { return }
+        // Tapping the active card also returns the rail from a product reveal.
+        storeProductRevealID = nil
+        guard item.id != selectedID else {
+            activeCardRecentreRequest += 1
+            return
+        }
         if recordHistory, let previousID = selectedID {
             selectionHistory.append(previousID)
         }
@@ -1031,6 +1371,66 @@ final class StoreBrowser: ObservableObject {
     }
 
     @Published private(set) var webView: WKWebView
+    private var productSelectionRequest: UUID?
+
+    func resumeAfterStoreProductSelection(itemID: UUID) {
+        // Closing a local-list composer never searches or replaces the document,
+        // even if a paced card search was cancelled when selection began.
+        guard browsingActive, canPresentStore, storeRecovery == nil, !siteVerificationRequired else { return }
+        self.itemID = itemID
+        interactionID = UUID().uuidString
+        interactionEnabled = true
+        activeCandidate = nil
+        updateIsolatedContext()
+    }
+
+    func chooseStoreProduct() async -> StoreProductChoice {
+        // Cancel progression/cart attribution, but retain this document for resume.
+        endInteraction()
+        guard browsingActive, canPresentStore, storeRecovery == nil, !siteVerificationRequired,
+              let url = webView.url, store.allows(url),
+              let config = store.productSelection,
+              let data = try? JSONEncoder().encode(config),
+              let object = try? JSONSerialization.jsonObject(with: data) else { return .manual }
+        let request = UUID()
+        productSelectionRequest = request
+        let view = webView
+        let generation = documentGeneration
+        // The heading can already be visible while WebKit still reports loading.
+        // Give that same committed document a bounded chance to finish; never
+        // navigate, reload, or follow a newer page on behalf of this request.
+        for _ in 0..<30 {
+            guard productSelectionRequest == request, !Task.isCancelled, browsingActive,
+                  view === webView, documentGeneration == generation, view.url == url,
+                  !siteVerificationRequired, storeRecovery == nil else { return .cancelled }
+            if !view.isLoading { break }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        guard !view.isLoading else {
+            productSelectionRequest = nil
+            return .manual
+        }
+        let result = try? await view.callAsyncJavaScript(StoreProductSelection.script,
+            arguments: ["config": object, "hosts": store.allowedHosts,
+                        "pathPrefix": store.id == .ikeaAU ? "/au/en/" : "",
+                        "allowGrid": !UIAccessibility.isVoiceOverRunning && !UIAccessibility.isSwitchControlRunning,
+                        "chooseLabel": String(localized: "Choose product"), "requestID": request.uuidString],
+            in: nil, contentWorld: automationWorld)
+        guard productSelectionRequest == request, !Task.isCancelled, browsingActive,
+              view === webView, documentGeneration == generation, view.url == url,
+              !siteVerificationRequired, storeRecovery == nil else { return .cancelled }
+        productSelectionRequest = nil
+        guard let value = result as? [String: Any], let name = value["name"] as? String,
+              !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, name.utf8.count <= 512 else { return .manual }
+        return .product(name)
+    }
+
+    func cancelStoreProductSelection() {
+        guard let request = productSelectionRequest else { return }
+        productSelectionRequest = nil
+        webView.callAsyncJavaScript("if (window.__listRunnerProductSelectionID === requestID) window.__listRunnerCancelProductSelection?.();",
+            arguments: ["requestID": request.uuidString], in: nil, in: automationWorld, completionHandler: nil)
+    }
     @Published private(set) var preloadWebView: WKWebView?
     #if DEBUG
     @Published private(set) var preloadDebugStatus = ""
@@ -2856,6 +3256,7 @@ final class StoreBrowser: ObservableObject {
     }
 
     fileprivate func navigationStarted(_ navigation: WKNavigation) {
+        cancelStoreProductSelection()
         guard canPresentStore, storeRecovery == nil, !retiredNavigations.contains(navigation), pendingSearchTask == nil else { return }
         if navigation !== resultsScrollNavigation { cancelResultsScroll() }
         // A stale start callback from a replaced search must not reclaim ownership.
@@ -3120,6 +3521,10 @@ final class StoreBrowser: ObservableObject {
            let loginURL = URL(string: raw), store.allowsNavigation(loginURL) {
             url = loginURL
         }
+        if uiTestMode, !isLiveWebsiteProbe, store.id == .bunnings,
+           ProcessInfo.processInfo.environment["LISTRUNNER_PRODUCT_SELECTION_FIXTURE"] == "detail" {
+            url = URL(string: "https://www.bunnings.com.au/fixture-lights_p0123456")!
+        }
         #endif
         guard canPresentStore, storeRecovery == nil else { return }
         navigationPacing.requested(at: ProcessInfo.processInfo.systemUptime)
@@ -3139,11 +3544,35 @@ final class StoreBrowser: ObservableObject {
             // Deterministic UI fixtures never contact a retailer or a real account.
             let verificationFixture = ProcessInfo.processInfo.environment["LISTRUNNER_VERIFICATION_TEST_FIXTURE"] == "enabled"
             let resultsFixture = ProcessInfo.processInfo.environment["LISTRUNNER_RESULTS_SCROLL_TEST_FIXTURE"] == "enabled"
+            let productFixture = ProcessInfo.processInfo.environment["LISTRUNNER_PRODUCT_SELECTION_FIXTURE"] != nil
+                && store.id == .bunnings
+            let scrollingProductFixture = productFixture
+                && ProcessInfo.processInfo.environment["LISTRUNNER_PRODUCT_SELECTION_FIXTURE"] == "scroll"
             // Do not expose the interactive fixture on the initial homepage:
             // XCTest must wait for the selected item's paced search to load.
             let resumeFixture = ProcessInfo.processInfo.environment["LISTRUNNER_STORE_RESUME_TEST_FIXTURE"] != nil
                 && (!store.capabilities.search || url == latestRequestedSearchURL)
-            let html = resumeFixture ? """
+            let html = scrollingProductFixture ? """
+                <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                <body style="position:relative;margin:16px;font:17px -apple-system"><h1>Scrolling selection fixture</h1>
+                <main style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                \((1...8).map { number in """
+                <div data-search-product-tile="true" style="height:280px;background:#eee">
+                  <a href="/scroll-product_p\(number)"><p>Scroll product \(number)</p></a>
+                  <button onclick="this.textContent='UNEXPECTED CART CHANGE'">Fixture cart button \(number)</button>
+                </div>
+                """ }.joined())
+                </main><div style="height:500px"></div></body></html>
+                """ : productFixture ? """
+                <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                <body style="margin:16px;font:20px -apple-system"><main id="main"><div class="container-main">
+                <h1 data-locator="product-title">2x LED lights, 75 mm</h1>
+                <div data-search-product-tile="true" style="width:170px;height:280px;background:#eee">
+                  <a href="/fixture-lights_p0123456"><p>2x LED lights, 75 mm</p></a>
+                  <button onclick="this.textContent='UNEXPECTED CART CHANGE'">Fixture cart button</button>
+                </div><p>Selection fixture loaded</p><div style="height:1200px"></div>
+                </div></main></body></html>
+                """ : resumeFixture ? """
                 <!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
                 <body style="margin:20px;font-size:20px">
                 <button onclick="history.pushState({}, '', '/product/fixture');this.textContent='Fixture product opened'">Open fixture product</button>
@@ -3170,6 +3599,7 @@ final class StoreBrowser: ObservableObject {
     }
 
     func endInteraction() {
+        cancelStoreProductSelection()
         cancelResultsScroll()
         cancelLoginReplay()
         cancelPreload()
@@ -3190,6 +3620,7 @@ final class StoreBrowser: ObservableObject {
     func setBrowsingActive(_ active: Bool) {
         browsingActive = active
         if !active {
+            cancelStoreProductSelection()
             cancelResultsScroll()
             cancelPreload()
         }

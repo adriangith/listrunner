@@ -1574,6 +1574,8 @@ private struct AllItemsScreen: View {
                 }, onStatusChange: { item in
                     stageReminderWriteback(for: item)
                     saveChanges()
+                }, onAddStoreProduct: { name, quantity, insertion in
+                    addStoreProduct(name, quantity: quantity, to: store, insertion: insertion)
                 })
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
@@ -1979,6 +1981,26 @@ private struct AllItemsScreen: View {
         }
     }
 
+    private func addStoreProduct(_ name: String, quantity: Int, to store: StoreID,
+                                 insertion: ShoppingLists.AdditionPosition) -> UUID? {
+        guard !paprikaReminders.importing, !name.isEmpty, name.utf8.count <= 512,
+              (1...999).contains(quantity) else { return nil }
+        if modelContext.hasChanges, !saveChanges() { return nil }
+        let entry = ParsedGrocery(name: name, amount: Double(quantity), unit: nil)
+        let snapshot = ShoppingLists.AdditionSnapshot(items: allItems, store: store)
+        let promoted = ShoppingLists.stageAdd([entry], to: store, allItems: allItems, context: modelContext, insertion: insertion)
+        for item in promoted { stageReminderWriteback(for: item) }
+        guard saveChanges() else {
+            modelContext.rollback()
+            snapshot.restoreAfterRollback()
+            pendingReminderWrites.removeAll()
+            return nil
+        }
+        onPromoteStore(store, promoted.map(\.id))
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Added to your \(store.displayName) list"))
+        return promoted.first?.id
+    }
+
     private func storeTint(_ id: StoreID) -> Color {
         guard let definition = sessions.definitions.first(where: { $0.id == id }) else { return .secondary }
         let color = definition.brandColors?.primary ?? definition.addedColor
@@ -2363,7 +2385,7 @@ struct GroceryListScreen: View {
                 }, onStatusChange: { item in
                     stageReminderWriteback(for: item)
                     saveChanges()
-                })
+                }, onAddStoreProduct: addStoreProduct)
                     .presentationDetents([.large])
                     .presentationDragIndicator(.hidden)
                     .presentationCornerRadius(32)
@@ -2644,6 +2666,30 @@ struct GroceryListScreen: View {
                 recentlyAddedItemIDs.subtract(newlyAddedIDs)
             }
         }
+    }
+
+    private func addStoreProduct(_ name: String, quantity: Int, insertion: ShoppingLists.AdditionPosition) -> UUID? {
+        guard !paprikaReminders.importing, !name.isEmpty, name.utf8.count <= 512,
+              (1...999).contains(quantity) else { return nil }
+        if modelContext.hasChanges {
+            saveChanges()
+            guard !saveFailed else { return nil }
+        }
+        // This is one literal product title, not a comma-separated ingredient input.
+        let entry = ParsedGrocery(name: name, amount: Double(quantity), unit: nil)
+        let snapshot = ShoppingLists.AdditionSnapshot(items: allItems, store: storeID)
+        let promoted = ShoppingLists.stageAdd([entry], to: storeID, allItems: allItems, context: modelContext, insertion: insertion)
+        for item in promoted { stageReminderWriteback(for: item) }
+        saveChanges()
+        guard !saveFailed else {
+            modelContext.rollback()
+            snapshot.restoreAfterRollback()
+            pendingReminderWrites.removeAll()
+            return nil
+        }
+        onPromoteStore(storeID, promoted.map(\.id))
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Added to your \(storeID.displayName) list"))
+        return promoted.first?.id
     }
 
     private func revealFocusedProductEntry() {
