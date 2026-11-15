@@ -1,5 +1,40 @@
 # Reusable store framework validation
 
+## Merged main installed on physical iPhone (15 November 2026)
+
+At the user's request, built and installed merged `main` revision
+`ab2d847acce35b85964f5a4604f21f2dd635214d`. This merges website-product selection
+through feature head `8a8a5f1` with the current adaptive list navigation. Merge
+resolution retained both `ShoppingLists.reorderedIDs` and the addition snapshot /
+insertion-position logic; both branches' documentation and evidence were kept.
+Linux merged checks passed: **504 JavaScript tests**, **47 Python tests**, and
+`git diff --check`. No merged native test-suite or simulator run is claimed.
+
+The canonical Mac checkout `/Users/adrianzafir/Projects/listrunner` received the
+exact pushed revision via Git fast-forward. Its existing untracked Xcode Cloud
+directory was preserved. Xcode workspace `windowtab-ABn8whqjgM` selected the
+ListRunner scheme and eligible **Adrian's iPhone**, iOS 27.2.1. The shared Run
+scheme had no enabled arguments or environment overrides.
+`RunProject(attachDebugger: false)` built, signed, installed in place and launched
+successfully with **zero build errors**, in 12.596 seconds, launch reference
+`8e1c13780`, PID **10041**, independently confirmed on physical device
+`00008150-001402660A9BC01C` using devicectl.
+
+Log `RunProject-Log-20261115-211439.txt` explicitly compiles StoreShoppingView,
+StoreProductSelection and GroceryListScreen from the canonical checkout. The
+actual `Debug-iphoneos/ListRunner.app` under
+`~/Library/Developer/Xcode/DerivedData/ListRunner-epzzinbppcxqwyevzuqhzfuvrvzc/`
+was freshly modified at 21:14:34 +1100, passed deep/strict signature verification,
+and contains all **35 JSON + 1 JavaScript** resources byte-identical to sources.
+One compile warning reports the unused `resignFirstResponder()` result; no new
+source change was made for it.
+
+No uninstall/reset, test flags/fixtures, list edits, imports, retailer/cart or
+account actions were performed. Ordinary app left running. This verifies the
+merged build/install/launch, not moving-rail touch behavior, live Coles/Bunnings
+selection or full physical accessibility/release sign-off. Those manual gates
+remain open despite the user-approved merge.
+
 ## Earlier native Back tint setup (15 November 2026)
 
 User confirmed the separate tint works but reported a momentary black chevron
