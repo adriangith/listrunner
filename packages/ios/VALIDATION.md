@@ -1,5 +1,31 @@
 # Reusable store framework validation
 
+## Filter capsule installed on physical iPhone (16 November 2026)
+
+At the user's request, built/signed/installed in place and launched branch
+`feat/all-items-filter-capsule` at exact revision
+`23dd06a748806b4d81ff9dc28013d225b845124f`. The isolated Mac checkout was clean
+at that revision; shared Run had no enabled arguments or environment overrides.
+After user approval, Xcode workspace `workspace-8MCQ1TN4u6` resolved to
+`/Users/adrianzafir/Projects/listrunner-worktrees/all-items-filter-capsule/packages/ios/ListRunner.xcodeproj`,
+with scheme ListRunner and eligible physical **Adrian’s iPhone**, iOS 27.2.1.
+
+`RunProject(attachDebugger: false)` succeeded with **zero build errors** in
+14.728 seconds, launch reference `bad1f9500`, PID **15218**. `devicectl` independently
+confirmed that process on iPhone 17e `00008150-001402660A9BC01C`. Build log
+`RunProject-Log-20261116-065544.txt` explicitly compiles GroceryListScreen from
+the task checkout. The actual signed app under
+`~/Library/Developer/Xcode/DerivedData/ListRunner-exnodkcxejscmrbwjmqohiedgidl/Build/Products/Debug-iphoneos/ListRunner.app`
+was freshly modified at 06:55:37 +1100, passed deep/strict signature verification,
+and contains all **35 JSON + 1 JavaScript** resources byte-identical to sources.
+The existing unused `resignFirstResponder()` result warning remains; no source
+fix was made for it.
+
+Ordinary app left running. No uninstall/reset, test fixtures, list edits, imports,
+retailer/cart/account actions, merge or release occurred. This verifies the
+signed build/install/launch, not manual phone visual/accessibility sign-off;
+the focused simulator results below remain the UI-test evidence.
+
 ## All items Filter and Settings capsule (15 November 2026)
 
 Branch `feat/all-items-filter-capsule` replaces the scrolling grouping switcher
