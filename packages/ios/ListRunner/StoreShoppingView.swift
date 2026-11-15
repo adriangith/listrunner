@@ -5,21 +5,20 @@ import OSLog
 
 private struct StoreCardTapButtonStyle: PrimitiveButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
-    let press: StoreCardPressTracking
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .contentShape(Rectangle())
             // A tap can fail and yield to ScrollView's pan. Never put a
             // zero-distance drag on each button: it captures the card surface
-            // before the multi-card rail can begin scrolling. The existing
-            // panel gesture owns the shared movement/cancellation latch.
+            // before the multi-card rail can begin scrolling. Let the tap
+            // recognizer cancel its own contact; never gate a fresh tap on
+            // cancellation state left behind by a previous pan.
             .onTapGesture {
-                guard isEnabled, !press.cancelled else { return }
+                guard isEnabled else { return }
                 configuration.trigger()
             }
-            // Assistive activation is a deliberate action, not a
-            // continuation of the last physical drag's cancellation latch.
+            // Keep explicit assistive activation on the bounded button.
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { if isEnabled { configuration.trigger() } }
     }
@@ -66,7 +65,6 @@ struct StoreShoppingView: View {
     @State private var singleCardPullValue: CGFloat = -1
     @State private var singleCardPullOrigin: CGFloat?
     @State private var productSelectionTask: Task<Void, Never>?
-    @State private var cardPress = StoreCardPressTracking()
     @GestureState private var isTouchingOverlay = false
     @GestureState(resetTransaction: Transaction(animation: .spring(response: 0.4, dampingFraction: 0.86)))
     private var overlayDrag = OverlayDrag()
@@ -541,11 +539,7 @@ struct StoreShoppingView: View {
         // The panel itself moves while dragging. Local coordinates would feed
         // that movement back into translation and make slow drags oscillate.
         DragGesture(minimumDistance: 0, coordinateSpace: .global)
-            .updating($isTouchingOverlay) { value, touching, _ in
-                if !touching { cardPress.begin() }
-                touching = true
-                cardPress.move(horizontal: value.translation.width, vertical: value.translation.height)
-            }
+            .updating($isTouchingOverlay) { _, touching, _ in touching = true }
             .updating($overlayDrag) { value, drag, transaction in
                 // Follow the finger directly; animate only the release/snap.
                 transaction.animation = nil
@@ -579,9 +573,6 @@ struct StoreShoppingView: View {
                 }
             }
             .onEnded { value in
-                // Keep final movement latched even if GestureState has reset
-                // before a descendant tap callback is delivered.
-                cardPress.move(horizontal: value.translation.width, vertical: value.translation.height)
                 if items.count == 1, singleCardPullOrigin != nil {
                     let position = StoreProductSingleCardReveal.position(
                         horizontal: value.translation.width, vertical: value.translation.height)
@@ -859,7 +850,7 @@ struct StoreShoppingView: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(StoreCardTapButtonStyle(press: cardPress))
+                    .buttonStyle(StoreCardTapButtonStyle())
                     .accessibilityLabel("Collapse overlay")
                     .accessibilityValue("Item \(position) of \(items.count)")
                     .accessibilityHint("Hides shopping controls and shows the compact bar")
@@ -893,7 +884,7 @@ struct StoreShoppingView: View {
                 .frame(height: current ? 86 : 62, alignment: .top)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(StoreCardTapButtonStyle(press: cardPress))
+            .buttonStyle(StoreCardTapButtonStyle())
             .accessibilityLabel("\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(current ? ", selected" : "")")
             .accessibilityAddTraits(current ? .isSelected : [])
 
@@ -909,7 +900,7 @@ struct StoreShoppingView: View {
                         .foregroundStyle(item.status == .added ? addedStatusAccent : .white)
                         .background(item.status == .added ? Color.white : addedStatusAccent, in: Capsule())
                 }
-                .buttonStyle(StoreCardTapButtonStyle(press: cardPress))
+                .buttonStyle(StoreCardTapButtonStyle())
                 .accessibilityHint(item.status == .added
                     ? (secondsRemaining > 0
                         ? "Stop automatic progression. Continue with Next when ready."
@@ -926,10 +917,7 @@ struct StoreShoppingView: View {
             .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(.white.opacity(0.3), lineWidth: 1))
             .shadow(color: .black.opacity(current ? 0.18 : 0.08), radius: current ? 12 : 6, y: 5)
             .contentShape(RoundedRectangle(cornerRadius: 20))
-            .simultaneousGesture(TapGesture().onEnded {
-                guard !cardPress.cancelled else { return }
-                select(item)
-            })
+            .simultaneousGesture(TapGesture().onEnded { select(item) })
             .onLongPressGesture(minimumDuration: 0.12, maximumDistance: 12, pressing: { pressing in
                 withAnimation(.spring(response: 0.24, dampingFraction: 0.62)) {
                     pressedCardID = pressing ? item.id : (pressedCardID == item.id ? nil : pressedCardID)

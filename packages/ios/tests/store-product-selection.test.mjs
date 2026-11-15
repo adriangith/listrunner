@@ -515,41 +515,32 @@ test('single-card side gates visuals and targets together, without selecting or 
   assert.match(view, /Button\("Show Add at end of list"\)/);
 });
 
-test('card contact cancels at eight points in any direction and stays cancelled after returning to origin', () => {
-  const tracker = swift.split('final class StoreCardPressTracking {')[1].split('enum StoreProductSingleCardReveal')[0];
-  const begin = new Function(tracker.match(/func begin\(\) \{ (.*?) \}/)[1].replace(/\bcancelled\b/g, 'this.cancelled'));
-  const move = new Function('horizontal', 'vertical', tracker.match(/func move\(horizontal: CGFloat, vertical: CGFloat\) \{([\s\S]*?)\n    \}/)[1]
-    .replace(/if (.*?) \{/g, 'if ($1) {').replace(/\bcancelled\b/g, 'this.cancelled'));
-  for (const [dx, dy] of [[8, 0], [-8, 0], [0, 8], [0, -8], [6, 6], [-40, 0], [100, 0]]) {
-    const state = {};
-    begin.call(state); move.call(state, 0, 0); move.call(state, dx, dy);
-    assert.equal(state.cancelled, true);
-    move.call(state, 0, 0);
-    assert.equal(state.cancelled, true, 'returning to the starting point cannot reactivate the press');
-    begin.call(state); move.call(state, 3, 4);
-    assert.equal(state.cancelled, false, 'next real tap is immediately available');
-  }
-});
-
-test('card buttons use taps only and share panel cancellation without competing with multi-card scrolling', () => {
+test('recognized card taps trigger immediately without a cancellation latch or scroll cooldown', () => {
   const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
   const style = view.split('private struct StoreCardTapButtonStyle: PrimitiveButtonStyle {')[1].split('struct StoreShoppingView: View')[0];
-  assert.match(style, /let press: StoreCardPressTracking/);
+  const callback = style.match(/\.onTapGesture \{([\s\S]*?)\n            \}/)[1];
+  assert.doesNotMatch(callback, /cancelled|overlayDrag|isTouching|Task|sleep|asyncAfter/);
+  const activate = new Function('isEnabled', 'configuration', callback.replace('guard isEnabled else { return }', 'if (!isEnabled) { return; }'));
+  let count = 0;
+  const button = {trigger() { count++; }};
+  activate(false, button); assert.equal(count, 0);
+  activate(true, button); assert.equal(count, 1);
+  activate(true, button); assert.equal(count, 2, 'successive recognized taps do not wait for parent gesture reset');
+  assert.doesNotMatch(view + swift, /StoreCardPressTracking|cardPress|press\.cancelled/);
+});
+
+test('card buttons use contact-local tap recognition without competing with multi-card scrolling', () => {
+  const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
+  const style = view.split('private struct StoreCardTapButtonStyle: PrimitiveButtonStyle {')[1].split('struct StoreShoppingView: View')[0];
   const tap = style.split('.onTapGesture {')[1].split('.accessibilityAddTraits')[0];
-  assert.match(tap, /guard isEnabled, !press\.cancelled else \{ return \}[\s\S]*configuration\.trigger\(\)/);
-  assert.doesNotMatch(style, /DragGesture\(|@GestureState|\.highPriorityGesture|\.simultaneousGesture/,
+  assert.match(tap, /guard isEnabled else \{ return \}[\s\S]*configuration\.trigger\(\)/);
+  assert.doesNotMatch(style, /DragGesture\(|@State|@GestureState|\.highPriorityGesture|\.simultaneousGesture/,
     'buttons must not claim the pan before the rail ScrollView');
-  assert.match(view, /@State private var cardPress = StoreCardPressTracking\(\)/);
-  const panel = view.split('private var collapseDragGesture: some Gesture {')[1].split('private func settleSingleCardAdd')[0];
-  assert.match(panel, /\.updating\(\$isTouchingOverlay\)[\s\S]*if !touching \{ cardPress\.begin\(\) \}[\s\S]*cardPress\.move/);
-  const release = panel.split('.onEnded { value in')[1];
-  assert.match(release, /cardPress\.move/);
-  assert.doesNotMatch(release, /cardPress\.begin\(/);
   assert.match(style, /\.accessibilityAddTraits\(\.isButton\)/);
   assert.match(style, /\.accessibilityAction \{ if isEnabled \{ configuration\.trigger\(\) \} \}/);
-  assert.equal((view.match(/\.buttonStyle\(StoreCardTapButtonStyle\(press: cardPress\)\)/g) || []).length, 3,
-    'status, card selection and collapse share one cancellation latch');
-  assert.match(view, /\.simultaneousGesture\(TapGesture\(\)\.onEnded \{\s*guard !cardPress\.cancelled else \{ return \}\s*select\(item\)/);
+  assert.equal((view.match(/\.buttonStyle\(StoreCardTapButtonStyle\(\)\)/g) || []).length, 3,
+    'status, card selection and collapse use contact-local taps');
+  assert.match(view, /\.simultaneousGesture\(TapGesture\(\)\.onEnded \{ select\(item\) \}\)/);
 });
 
 test('interactive pull fades through zero and elastic displacement has increasing resistance', () => {

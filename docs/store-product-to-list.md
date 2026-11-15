@@ -47,18 +47,19 @@ multiple cards to one starts at left/start again. Duplicate merging that leaves
 one card keeps the last revealed side.
 
 Card status, name-selection and collapse buttons use a shared primitive button
-style instead of the default permissive press. Eight points of total movement
-in any direction cancels the contact permanently, even if it returns to its
-origin. Retain this latch across GestureState's release reset and clear it only
-on a new contact. Ordinary taps trigger on release without an added delay;
-explicit accessible activation bypasses stale physical-contact cancellation.
-Track that contact in the existing panel gesture and share its latch with the
-card buttons. Buttons use tap recognition only and yield to the rail's native
-pan. Do not attach zero-distance drags inside card button styles: even a
+style with contact-local tap recognition instead of the default permissive press.
+The platform tap recognizer rejects movement beyond its tap tolerance, including
+when the contact returns to its origin. Do not persist a custom cancellation
+latch or gate button activation on the parent panel's touch/scroll state: native
+pan arbitration can interrupt parent callbacks and leave a stale cancelled flag
+that rejects later genuine taps. Recognized taps trigger directly without an
+added cooldown, and explicit accessible activation remains available.
+Buttons yield to the rail's native pan. Do not attach zero-distance drags inside
+card button styles: even a
 `simultaneousGesture` there can claim the active card's surface before ScrollView
 starts scrolling. Dragging from any part of a card must remain available to the
-multi-card rail without changing item status; background card taps use the same
-cancellation latch.
+multi-card rail without changing item status; background card taps also use
+contact-local tap recognition.
 
 The left/leading control captures **Start of list**; the right/trailing control
 captures **End of list**. Preserve that choice through grid selection, direct

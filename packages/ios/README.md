@@ -85,9 +85,10 @@ new side; a shorter pull springs back. The card's resistance increases with the
 pull distance, while Add controls remain in their fixed slots. Reduce Motion uses
 a short fade without extra card displacement or spring bounce.
 
-Dragging eight points or more from a card's status, name or collapse button
-cancels that press for the rest of the contact, including when dragged back to
-the starting point. A fresh tap and explicit accessible activation remain available.
+Card status, name and collapse buttons use native tap recognition to reject
+drags and yield to rail scrolling. Each tap is independent: no persistent
+cancellation flag, parent-scroll gate or post-swipe cooldown blocks a fresh tap.
+Explicit accessible activation remains available.
 
 Schema 8 adds optional `productSelection` grid/detail selectors separately from
 cart capabilities, retaining schemas 2–7 and all existing automation ceilings.

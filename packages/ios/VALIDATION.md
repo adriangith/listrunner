@@ -1,5 +1,24 @@
 # Reusable store framework validation
 
+## Post-swipe button responsiveness follow-up (15 November 2026)
+
+User reported that multi-card swiping is now good but Mark Added remains
+unresponsive to taps briefly after swiping. The shared cancellation latch could
+outlive its original contact: a new tap depended on the parent panel's drag
+callbacks clearing the previous swipe's cancelled state. Removed the custom
+tracker and all parent-contact gates from card button/background tap activation.
+Each button now relies on its own native tap recognizer to reject dragging and
+yield to native scrolling, triggering directly when a tap is recognized. Disabled
+and explicit accessible activation behaviour remains. No timers, cooldowns or
+child drag recognizers were added. Single-card reveal and multi-card scroll
+configuration are unchanged.
+
+Replaced obsolete custom-latch tests with recognized-tap callback and source
+checks requiring no retained cancellation state, cooldown or child drag and
+preserving disabled/accessibility handling. **502 JavaScript tests passed**;
+`git diff --check` passed. No simulator builds/tests. Physical phone build/install
+evidence follows; immediate post-swipe interaction remains for user assessment.
+
 ## Multi-card swipe regression follow-up (15 November 2026)
 
 User confirmed that the single-card pull now feels good, but multi-card swiping
