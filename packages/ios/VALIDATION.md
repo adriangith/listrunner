@@ -10,8 +10,8 @@ Back/scope chooser are unchanged. The existing OpenPencil audit and current
 shared layout were consulted; no design document was changed.
 
 The menu uses the existing persisted grouping, with a native checked Picker and
-an accessible label that includes the current grouping. Choosing a grouping resigns editor focus
-without clearing its draft/destination. Grouping is disabled during editing,
+an accessible label that includes the current grouping. Choosing a grouping
+resigns editor focus without clearing its draft/destination. Grouping is disabled during editing,
 with a setter guard; Settings remains enabled. Updated existing grouping UI
 tests to use the menu and added toolbar target, standard/largest-text and
 store-scope checks. The shared-page test now requires Filter/Settings to remain
@@ -44,9 +44,8 @@ coverage also passes. Both toolbar tests pass the corrected announcement but
 stop on Filter's native 36-point accessible height. They do not yet reach menu
 reopening or the complete target-size assertions. Evidence is in sibling Mac
 `a5938a5/FocusedTests.xcresult` and Linux
-`/tmp/opencode/listrunner-all-items-filter-a5938a5/`. Both All items toolbar labels
-now have explicit 44-point minimum frames and rectangular hit shapes; the
-single-store Settings label retains its intrinsic size. Final rerun is pending.
+`/tmp/opencode/listrunner-all-items-filter-a5938a5/`. The next attempt added
+44-point minimum label frames and rectangular hit shapes to All items only.
 
 Third Mac run at `17364b3f5d1a8f3c6d5a4c3cd35efff89ec4f7d2` built but
 remained **2/4**: the label frames did not alter the native toolbar's 36-point
@@ -55,8 +54,18 @@ Mac sibling `17364b3/FocusedTests.xcresult` and Linux
 `/tmp/opencode/listrunner-all-items-filter-17364b3/`. Removed those ineffective
 label-frame modifiers. The toolbar tests now directly require successful Filter
 and Settings activation near all four edges of a centred 44-point target,
-rather than assuming accessible visual bounds equal touch bounds. This actual
-hit-region check and the rest of the focused tests are pending.
+rather than assuming accessible visual bounds equal touch bounds.
+
+Fourth run at `467dadde2e7def7cd863e8a6e632261f54f8857d`: build passed.
+All eight normal-text edge activations (four per control at ±21.5 points),
+grouping selection/reopening and Settings navigation succeeded. Screenshots
+confirm a single capsule and **By category checked** after reopening. The one
+test still failed later because its final `choose("Coles")` called a store-only
+helper from All items; the other three tests were not run. Fixed that local test
+step to use `all-items-scope-picker` and wait for the store destination before
+checking Filter is absent; production code is unchanged. Final rerun pending.
+Evidence: Mac sibling `467dadd/NormalEdgeTest.xcresult` and Linux
+`/tmp/opencode/listrunner-all-items-filter-467dadd/`.
 
 ## All items Clear List row height (13 November 2026)
 

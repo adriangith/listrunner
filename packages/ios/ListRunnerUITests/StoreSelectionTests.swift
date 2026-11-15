@@ -1803,7 +1803,10 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         tapNavigationBack()
         XCTAssertTrue(filter.waitForExistence(timeout: 3))
-        choose("Coles")
+        app.buttons["all-items-scope-picker"].tap()
+        XCTAssertTrue(app.buttons["Coles"].firstMatch.waitForExistence(timeout: 3))
+        app.buttons["Coles"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
         XCTAssertFalse(filter.exists, "Filter must not leak into an individual store's toolbar")
     }
 
