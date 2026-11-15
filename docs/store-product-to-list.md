@@ -22,12 +22,19 @@ Back/Skip/Undo and retailer cart behavior remain unchanged.
 With exactly one card, show only one end Add control at a time. Initially expose
 left/start. An intentional rightward drag exposes left/start; a leftward drag
 exposes right/end. Remember that side for the shopping view, including after
-Cancel or collapse/expand. Require at least 24 points of predominantly horizontal
-movement (horizontal > 1.25 × vertical) before switching; tiny and vertical drags
-do not switch. The card follows horizontal movement up to 56 points and settles
-back without becoming a new selection or changing order/search/history. Reduce
-Motion suppresses that extra card displacement. Hidden-side labels and buttons
-have no subtree, so both cannot briefly coexist through a crossfade. Bounded
+Cancel or collapse/expand. Use a pull-to-refresh-like resisted pull, not an enum
+switch as soon as a threshold is crossed. After an 8-point dead zone, fade the old
+side down continuously, pass through zero at 36 points and progressively reveal
+the other side up to 64 points. Release at 64 or more predominantly horizontal
+points (horizontal > 1.25 × vertical) to keep the new side; shorter pulls spring
+back to the previous side. The card uses elastic displacement
+`84 × translation / (abs(translation) + 84)`, with increasing resistance rather
+than a hard clamp, then settles centrally without selecting/reordering/searching.
+Both label and hit layers interpolate the same signed fade-through-zero value,
+including during spring settling; never paint two sides simultaneously. A fading
+side has an actionable subtree only once at least half visible and 44 points wide.
+Reduce Motion omits card displacement and uses a short non-bouncy fade on release.
+Hidden-side labels and buttons have no subtree. Bounded
 Collapse-control accessibility actions can reveal either side without a drag.
 Two or more cards retain the existing native-scrolling/two-end layout; adding a
 second distinct product automatically returns to that layout. Returning from

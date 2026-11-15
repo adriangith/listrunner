@@ -3893,6 +3893,28 @@ final class StoreSelectionTests: XCTestCase {
         checkStoreProductSingleCardSides()
     }
 
+    func testStoreProductSingleCardShortPullSpringsBack() {
+        choose("Bunnings")
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        let left = storeProductAdd(at: "Start of list")
+        let right = storeProductAdd(at: "End of list")
+        XCTAssertTrue(left.isHittable)
+        swipeSingleStoreProductCard(dx: -40)
+        XCTAssertTrue(left.waitForExistence(timeout: 3), "A short pull returns to the original side")
+        XCTAssertFalse(right.exists)
+        attachStoreProductScreenshot("Short pull springs back to left Add")
+        swipeSingleStoreProductCard(dx: -90)
+        XCTAssertTrue(right.waitForExistence(timeout: 3))
+        XCTAssertFalse(left.exists)
+        swipeSingleStoreProductCard(dx: 40)
+        XCTAssertTrue(right.waitForExistence(timeout: 3), "A short reverse pull keeps the committed right side")
+        XCTAssertFalse(left.exists)
+        XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, "Item 1 of 1")
+        XCTAssertFalse(app.buttons["Back"].isEnabled)
+        attachStoreProductScreenshot("Short reverse pull springs back to right Add")
+    }
+
     private func checkStoreProductSingleCardSides() {
         choose("Bunnings")
         app.buttons["Show Store"].tap()

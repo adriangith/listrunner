@@ -338,7 +338,7 @@ test('both rail Add labels sit lower without moving the slots into navigation co
   const label = swift.split('struct StoreProductAddLabel: View {')[1].split('struct StoreProductAddButton')[0];
   assert.match(label, /\.padding\(\.top, 24\)/);
   assert.match(label, /\.frame\(minHeight: 88\)/);
-  const rail = swift.split('struct StoreProductRailAddControls: View {')[1].split('struct StoreProductReview')[0];
+  const rail = swift.split('struct StoreProductRailAddControls: View')[1].split('struct StoreProductReview')[0];
   assert.match(rail, /height: 222, alignment: \.bottomLeading/);
   assert.doesNotMatch(rail, /offset\([^)]*y:/);
 });
@@ -408,30 +408,69 @@ test('single-card direction requires intentional horizontal movement, not tiny/v
   const direction = source.match(/return (horizontal > 0 \? \.start : \.end)/)[1]
     .replace(/\.start/g, '"start"').replace(/\.end/g, '"end"');
   const position = new Function('horizontal', 'vertical', `return (${condition}) ? (${direction}) : null`);
-  assert.equal(position(24, 0), 'start');
-  assert.equal(position(-24, 0), 'end');
-  for (const dx of [-23, -12, 0, 12, 23]) assert.equal(position(dx, 0), null);
+  assert.equal(position(64, 0), 'start');
+  assert.equal(position(-64, 0), 'end');
+  for (const dx of [-63, -40, -24, -12, 0, 12, 24, 40, 63]) assert.equal(position(dx, 0), null);
   assert.equal(position(40, 50), null);
   assert.equal(position(-40, -50), null);
   assert.equal(position(50, 40), null, 'diagonal boundary is not an intentional horizontal swipe');
-  assert.equal(position(-60, 20), 'end');
+  assert.equal(position(-90, 20), 'end');
 });
 
 test('single-card side gates visuals and targets together, without selecting or affecting multi-card scrolling', () => {
   const labels = swift.split('struct StoreProductRailAddLabels: View')[1].split('struct StoreProductRailEdges')[0];
   const controls = swift.split('struct StoreProductRailAddControls: View')[1].split('struct StoreProductReview')[0];
   for (const source of [labels, controls]) {
-    assert.match(source, /if layout\.singleCardSide != \.end/);
-    assert.match(source, /if layout\.singleCardSide != \.start/);
+    assert.match(source, /leadingVisibility/);
+    assert.match(source, /trailingVisibility/);
+    assert.match(source, /layout\.isSingleCard/);
+    assert.match(source, /max\(0, -revealValue\)/);
+    assert.match(source, /max\(0, revealValue\)/);
+    assert.match(source, /var animatableData: CGFloat/);
+    assert.match(source, /revealValue = min\(1, max\(-1, newValue\)\)/);
   }
   const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
   assert.match(view, /singleCardAddPosition: ShoppingLists\.AdditionPosition = \.start/);
-  assert.equal((view.match(/singleCardSide: items\.count == 1 \? singleCardAddPosition : nil/g) || []).length, 2);
+  assert.equal((view.match(/isSingleCard: items\.count == 1\), revealValue: singleCardPullValue/g) || []).length, 2);
   assert.match(view, /scrollDisabled\(items\.count == 1 \|\| overlayDrag\.axis == \.vertical\)/);
   const change = view.split('.onChanged { value in')[1].split('.onEnded')[0];
   assert.match(change, /items\.count == 1/);
-  assert.match(change, /singleCardAddPosition = position/);
+  assert.match(change, /singleCardPullValue = StoreProductSingleCardReveal\.pullValue/);
+  assert.match(change, /transaction\.disablesAnimations = true/);
+  assert.doesNotMatch(change, /singleCardAddPosition =(?!=)/);
   assert.doesNotMatch(change, /selectedID\s*=|onSelectionChange|select\(|beginInteraction|searchTerm|\.position\s*=/);
   assert.match(view, /Button\("Show Add at start of list"\)/);
   assert.match(view, /Button\("Show Add at end of list"\)/);
+});
+
+test('interactive pull fades through zero and elastic displacement has increasing resistance', () => {
+  const helper = swift.split('enum StoreProductSingleCardReveal {')[1].split('struct StoreProductRailAddLabels')[0];
+  const body = helper.match(/static func pullValue\(origin: CGFloat, horizontal: CGFloat\) -> CGFloat \{([\s\S]*?)\n    \}/)[1]
+    .replace(/let /g, 'const ').replace(/\bmin\(/g, 'Math.min(')
+    .replace(/\bmax\(/g, 'Math.max(').replace(/\babs\(/g, 'Math.abs(');
+  const value = new Function('origin', 'horizontal', body);
+  assert.equal(value(-1, 0), -1);
+  assert.equal(value(-1, -8), -1);
+  assert.equal(value(-1, -22), -0.5);
+  assert.equal(value(-1, -36), 0);
+  assert.equal(value(-1, -50), 0.5);
+  assert.equal(value(-1, -64), 1);
+  assert.equal(value(-1, -200), 1);
+  assert.equal(value(1, 22), 0.5);
+  assert.equal(value(1, 36), 0);
+  assert.equal(value(1, 50), -0.5);
+  assert.equal(value(1, 64), -1);
+  for (let x = -200; x <= 200; x++) {
+    const v = value(-1, x);
+    assert.ok(!(Math.max(0, -v) > 0 && Math.max(0, v) > 0), 'never paint both sides');
+  }
+  const expression = helper.match(/return (84 \* horizontal.*)/)[1].replace(/\babs\(/g, 'Math.abs(');
+  const displacement = new Function('horizontal', `return ${expression}`);
+  assert.equal(displacement(0), 0);
+  assert.equal(displacement(-64), -displacement(64));
+  assert.ok(displacement(64) < 64 && displacement(10000) < 84);
+  assert.ok(displacement(100) - displacement(80) < displacement(40) - displacement(20));
+  const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
+  assert.match(view, /withAnimation\(reduceMotion \? \.easeOut\(duration: 0\.15\) : \.spring\(response: 0\.42, dampingFraction: 0\.72\)\)/);
+  assert.match(view, /\.onEnded[\s\S]*?settleSingleCardAdd\(at: position\)/);
 });

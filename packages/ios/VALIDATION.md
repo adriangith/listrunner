@@ -2166,6 +2166,23 @@ No new simulator UI-suite run, physical-device installation, user-list edit, rea
 Branch: `feature/add-store-product-to-list`. Implementation plan and safety contract:
 `docs/store-product-to-list.md`.
 
+### Follow-up: gradual resisted single-card pull (15 November 2026)
+
+The user reported that the new side popped into place. Replaced the onChanged
+enum flip and hard 56-point card clamp with continuous signed reveal progress
+and elastic displacement. After an 8-point dead zone, old-side opacity falls to
+zero at a 36-point opposite pull, then the new side grows to full at 64 points.
+A predominantly horizontal release at 64 points commits; a shorter pull returns
+to the previous side. Signed progress is interpolated/clamped by both visual and
+target layers during spring release, not just while held. Targets require at
+least half visibility and 44 uncovered points. Card displacement follows
+84 × translation / (abs(translation) + 84), increasing resistance as distance grows.
+Release uses response 0.42 / damping 0.72; Reduce Motion uses a short ease-out and
+no extra card displacement. Backgrounding clears an interrupted pull to its
+committed side. Multi-card scrolling, saved order, active selection and retailer
+state are unchanged. Added short-pull spring-back UI and scalar progress/resistance
+checks. Build/motion verification and preview refresh results follow after execution.
+
 ### Existing live preview updated in place (15 November 2026)
 
 At the user's request, preview simulator **ListRunner Two Bunnings Cards**

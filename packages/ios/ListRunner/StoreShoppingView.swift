@@ -41,6 +41,8 @@ struct StoreShoppingView: View {
     @State private var storeProductRevealID: UUID?
     @State private var activeCardRecentreRequest = 0
     @State private var singleCardAddPosition: ShoppingLists.AdditionPosition = .start
+    @State private var singleCardPullValue: CGFloat = -1
+    @State private var singleCardPullOrigin: CGFloat?
     @State private var productSelectionTask: Task<Void, Never>?
     @GestureState private var isTouchingOverlay = false
     @GestureState(resetTransaction: Transaction(animation: .spring(response: 0.4, dampingFraction: 0.86)))
@@ -320,7 +322,11 @@ struct StoreShoppingView: View {
                 if !isFinalConfirmation { undoRecord = nil }
             }
             .onChange(of: scenePhase) { _, phase in
-            if phase != .active { cancelStoreProductSelection(resume: false) }
+            if phase != .active {
+                singleCardPullOrigin = nil
+                singleCardPullValue = singleCardAddPosition == .start ? -1 : 1
+                cancelStoreProductSelection(resume: false)
+            }
             browser.setBrowsingActive(phase == .active)
             if phase == .active && storeProductDraft == nil && !choosingStoreProduct {
                 if let selected {
@@ -386,7 +392,7 @@ struct StoreShoppingView: View {
                                     // Follow an intentional horizontal drag without
                                     // changing the active item or saved position.
                                     .offset(x: items.count == 1 && !reduceMotion
-                                        ? min(56, max(-56, overlayDrag.horizontalDistance)) : 0)
+                                        ? StoreProductSingleCardReveal.displacement(horizontal: overlayDrag.horizontalDistance) : 0)
                                     .anchorPreference(key: StoreProductRailEdges.self, value: .bounds) { anchor in
                                         var edges: [String: Anchor<CGRect>] = [:]
                                         if item.id == items.first?.id { edges["leading"] = anchor }
@@ -414,7 +420,7 @@ struct StoreShoppingView: View {
                                 StoreProductRailAddLabels(layout: StoreProductRailLayout(width: proxy.size.width,
                                     leadingCardMinX: edges["leading"].map { proxy[$0].minX },
                                     trailingCardMaxX: edges["trailing"].map { proxy[$0].maxX },
-                                    singleCardSide: items.count == 1 ? singleCardAddPosition : nil))
+                                    isSingleCard: items.count == 1), revealValue: singleCardPullValue)
                             }
                         }
                     }
@@ -424,7 +430,7 @@ struct StoreShoppingView: View {
                             StoreProductRailAddControls(layout: StoreProductRailLayout(width: proxy.size.width,
                                 leadingCardMinX: edges["leading"].map { proxy[$0].minX },
                                 trailingCardMaxX: edges["trailing"].map { proxy[$0].maxX },
-                                singleCardSide: items.count == 1 ? singleCardAddPosition : nil),
+                                isSingleCard: items.count == 1), revealValue: singleCardPullValue,
                                 action: beginStoreProductSelection)
                         }
                         }
@@ -445,7 +451,11 @@ struct StoreShoppingView: View {
                         if let id = railScrollTargetID { scrollProxy.scrollTo(id, anchor: .center) }
                     }
                     .onChange(of: items.count) { previous, count in
-                        if previous != 1 && count == 1 { singleCardAddPosition = .start }
+                        if previous != 1 && count == 1 {
+                            singleCardAddPosition = .start
+                            singleCardPullValue = -1
+                            singleCardPullOrigin = nil
+                        }
                     }
                     .onChange(of: storeProductRevealID) { _, _ in
                         // Clearing a stale reveal when Add starts must not move
@@ -528,13 +538,28 @@ struct StoreShoppingView: View {
             .onChanged { value in
                 guard items.count == 1, !isCollapsed, !choosingStoreProduct,
                       overlayDrag.axis != .vertical,
-                      let position = StoreProductSingleCardReveal.position(
-                        horizontal: value.translation.width, vertical: value.translation.height) else { return }
-                // Only one side exists at a time. No crossfade can briefly
-                // expose both buttons; tiny/vertical movements keep the last side.
-                singleCardAddPosition = position
+                      abs(value.translation.width) >= 8,
+                      abs(value.translation.width) > abs(value.translation.height) * 1.25 else { return }
+                let origin = singleCardPullOrigin ?? (singleCardAddPosition == .start ? CGFloat(-1) : CGFloat(1))
+                singleCardPullOrigin = origin
+                // Follow the finger with no time-based animation while held.
+                // The signed value fades the old side to zero before the new
+                // side appears; the committed side changes only on release.
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    singleCardPullValue = StoreProductSingleCardReveal.pullValue(
+                        origin: origin, horizontal: value.translation.width)
+                }
             }
             .onEnded { value in
+                if items.count == 1, singleCardPullOrigin != nil {
+                    let position = StoreProductSingleCardReveal.position(
+                        horizontal: value.translation.width, vertical: value.translation.height)
+                        ?? singleCardAddPosition
+                    singleCardPullOrigin = nil
+                    settleSingleCardAdd(at: position)
+                }
                 // SwiftUI can reset GestureState before delivering onEnded.
                 let vertical = overlayDrag.axis == .vertical
                     || (overlayDrag.axis == .undecided && value.translation.height > abs(value.translation.width))
@@ -544,6 +569,13 @@ struct StoreShoppingView: View {
                     collapse()
                 }
             }
+    }
+
+    private func settleSingleCardAdd(at position: ShoppingLists.AdditionPosition) {
+        singleCardAddPosition = position
+        withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.42, dampingFraction: 0.72)) {
+            singleCardPullValue = position == .start ? -1 : 1
+        }
     }
 
     private func beginStoreProductSelection(at insertion: ShoppingLists.AdditionPosition) {
@@ -807,8 +839,8 @@ struct StoreShoppingView: View {
                     .accessibilityAction(named: Text("Add item to your list")) { beginStoreProductSelection(at: .start) }
                     .accessibilityActions {
                         if items.count == 1 {
-                            Button("Show Add at start of list") { singleCardAddPosition = .start }
-                            Button("Show Add at end of list") { singleCardAddPosition = .end }
+                            Button("Show Add at start of list") { settleSingleCardAdd(at: .start) }
+                            Button("Show Add at end of list") { settleSingleCardAdd(at: .end) }
                         }
                     }
                 }

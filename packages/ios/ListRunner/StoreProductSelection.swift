@@ -114,8 +114,7 @@ struct StoreProductRailLayout {
     let width: CGFloat
     let leadingCardMinX: CGFloat?
     let trailingCardMaxX: CGFloat?
-    // Nil means a normal multi-card rail, where either end may be exposed.
-    let singleCardSide: ShoppingLists.AdditionPosition?
+    let isSingleCard: Bool
 
     var inset: CGFloat { max(0, (width - 160) / 2 - 100) }
     var leadingWidth: CGFloat { min(88, max(0, (leadingCardMinX ?? inset) - inset)) }
@@ -124,22 +123,45 @@ struct StoreProductRailLayout {
 
 enum StoreProductSingleCardReveal {
     static func position(horizontal: CGFloat, vertical: CGFloat) -> ShoppingLists.AdditionPosition? {
-        guard abs(horizontal) >= 24, abs(horizontal) > abs(vertical) * 1.25 else { return nil }
+        guard abs(horizontal) >= 64, abs(horizontal) > abs(vertical) * 1.25 else { return nil }
         return horizontal > 0 ? .start : .end
+    }
+
+    static func pullValue(origin: CGFloat, horizontal: CGFloat) -> CGFloat {
+        let distance = max(0, abs(horizontal) - 8)
+        let change = (horizontal < 0 ? 1 : -1) * distance / 28
+        return min(1, max(-1, origin + change))
+    }
+
+    static func displacement(horizontal: CGFloat) -> CGFloat {
+        return 84 * horizontal / (abs(horizontal) + 84)
     }
 }
 
-struct StoreProductRailAddLabels: View {
+struct StoreProductRailAddLabels: View, Animatable {
     let layout: StoreProductRailLayout
+    var revealValue: CGFloat
+
+    // Clamp spring overshoot while interpolating the signed fade-through-zero
+    // value. Derive the side per frame, not from the final enum, to avoid a pop.
+    var animatableData: CGFloat {
+        get { revealValue }
+        set { revealValue = min(1, max(-1, newValue)) }
+    }
+
+    private var leadingVisibility: Double { layout.isSingleCard ? Double(max(0, -revealValue)) : 1 }
+    private var trailingVisibility: Double { layout.isSingleCard ? Double(max(0, revealValue)) : 1 }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            if layout.singleCardSide != .end {
+            if leadingVisibility > 0 {
                 StoreProductRailEndLabel(uncoveredWidth: layout.leadingWidth)
+                    .opacity(leadingVisibility)
                     .offset(x: layout.inset)
             }
-            if layout.singleCardSide != .start {
+            if trailingVisibility > 0 {
                 StoreProductRailEndLabel(uncoveredWidth: layout.trailingWidth)
+                    .opacity(trailingVisibility)
                     .offset(x: layout.width - layout.inset - 88)
             }
         }
@@ -156,19 +178,28 @@ struct StoreProductRailEdges: PreferenceKey {
     }
 }
 
-struct StoreProductRailAddControls: View {
+struct StoreProductRailAddControls: View, Animatable {
     let layout: StoreProductRailLayout
+    var revealValue: CGFloat
     let action: (ShoppingLists.AdditionPosition) -> Void
+
+    var animatableData: CGFloat {
+        get { revealValue }
+        set { revealValue = min(1, max(-1, newValue)) }
+    }
+
+    private var leadingVisibility: CGFloat { layout.isSingleCard ? max(0, -revealValue) : 1 }
+    private var trailingVisibility: CGFloat { layout.isSingleCard ? max(0, revealValue) : 1 }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             // Only the transparent hit regions sit above the rail. They end at
             // the actual card bounds, so none of a card becomes an Add target.
-            if layout.singleCardSide != .end {
+            if leadingVisibility >= 0.5 {
                 StoreProductRailEndControl(uncoveredWidth: layout.leadingWidth, insertion: .start) { action(.start) }
                     .offset(x: layout.inset)
             }
-            if layout.singleCardSide != .start {
+            if trailingVisibility >= 0.5 {
                 StoreProductRailEndControl(uncoveredWidth: layout.trailingWidth, insertion: .end) { action(.end) }
                     .offset(x: layout.width - layout.inset - layout.trailingWidth)
             }

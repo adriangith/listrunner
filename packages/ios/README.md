@@ -77,6 +77,12 @@ or left to expose right/end; the last side remains available until a deliberate
 opposite drag. Tiny/vertical movement does not switch it, Cancel retains it, and
 the card stays active. Two or more cards keep the usual scrolling/two-end layout.
 
+Side changes use a resisted pull with a gradual fade through zero, not an instant
+swap. Pull at least 64 predominantly horizontal points and release to keep the
+new side; a shorter pull springs back. The card's resistance increases with the
+pull distance, while Add controls remain in their fixed slots. Reduce Motion uses
+a short fade without extra card displacement or spring bounce.
+
 Schema 8 adds optional `productSelection` grid/detail selectors separately from
 cart capabilities, retaining schemas 2–7 and all existing automation ceilings.
 Bunnings selectors have read-only public rendered evidence; other stores offer
