@@ -1231,6 +1231,9 @@ private struct AllItemsScreen: View {
                             clearRequest = AllItemsClearRequest(groupID: group.id,
                                 itemIDs: Set(group.items.map(\.id)))
                         }
+                        // Browse cards use a VStack, so supply the vertical
+                        // insets that native List rows already add in edit/store lists.
+                        .padding(.vertical, usesNativeGroupRows ? 0 : 11)
                         .accessibilityLabel("Clear \(group.title) list")
                         .accessibilityIdentifier("all-items-clear-\(group.id)")
                         .confirmationDialog("Clear your list?", isPresented: Binding(

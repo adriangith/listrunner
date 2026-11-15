@@ -2404,6 +2404,34 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["Clear All"].waitForExistence(timeout: 3))
     }
 
+    func testAllItemsClearRowMatchesStoreListHeight() {
+        choose("Coles")
+        openClearListOptions()
+        cancelClearListOptions()
+        let storeItem = app.collectionViews.cells.containing(.button, identifier: "Actions for Coles fixture item").firstMatch
+        XCTAssertTrue(storeItem.exists)
+        // Measure from the preceding native row to the action's centre so the
+        // comparison includes row insets, not just the shared 44pt button.
+        let storeHalfHeight = app.buttons["Clear List"].frame.midY - storeItem.frame.maxY
+        XCTAssertGreaterThan(storeHalfHeight, 22)
+
+        choose("All items")
+        openAllItemsClearOptions("store-coles")
+        cancelClearListOptions()
+        let browseItem = app.tables.cells.containing(.button, identifier: "Actions for Coles fixture item").firstMatch
+        XCTAssertTrue(browseItem.exists)
+        XCTAssertEqual(app.buttons["all-items-clear-store-coles"].frame.midY - browseItem.frame.maxY,
+                       storeHalfHeight, accuracy: 1)
+
+        app.buttons["Edit"].tap()
+        openAllItemsClearOptions("store-coles")
+        cancelClearListOptions()
+        let editItem = app.collectionViews.cells.containing(.button, identifier: "Actions for Coles fixture item").firstMatch
+        XCTAssertTrue(editItem.exists)
+        XCTAssertEqual(app.buttons["all-items-clear-store-coles"].frame.midY - editItem.frame.maxY,
+                       storeHalfHeight, accuracy: 1, "Native edit rows must not receive the padding twice")
+    }
+
     func testAllItemsStoreClearSupportsCancelAddedAndAll() {
         choose("Coles")
         app.buttons["Actions for Coles fixture item"].tap()

@@ -1,5 +1,21 @@
 # Reusable store framework validation
 
+## All items Clear List row height (13 November 2026)
+
+Branch `fix/clear-list-height` gives browse-mode store/category cards 11-point
+vertical padding around their shared Clear List button, matching the native List
+row insets on single-store screens. Edit mode keeps its existing native insets
+without extra padding. Button styling, minimum 44-point target and scoped clear
+confirmations are unchanged. The existing OpenPencil audit and shared native
+layout were consulted; no design document was changed.
+
+Linux focused source assertions and `git diff --check` passed. Added
+`StoreSelectionTests/testAllItemsClearRowMatchesStoreListHeight` to compare the
+action centre against the preceding native item row in single-store, All items
+browse and All items edit layouts. **Not run:** no Swift compiler/Xcode is
+available here; native rendering and the UI test still require a coordinated Mac
+run. No Mac checkout, simulator, device, saved list or retailer cart was touched.
+
 ## Retailer-neutral store-list wording (13 November 2026)
 
 Branch `fix/store-page-titles` changes the populated store-list section heading
