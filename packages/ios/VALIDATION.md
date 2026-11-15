@@ -17,9 +17,19 @@ scrolling, positions, selection, persistence and retailer/cart actions are not
 otherwise modified. Regression checks now prohibit child DragGesture or
 high-priority gesture installation in the button style and require shared
 panel tracking and guarded taps. **502 JavaScript tests passed** and
-`git diff --check` passed. No simulator build/tests are being run, consistent
-with the user's phone-only feedback workflow. Physical build/install evidence
-follows; source checks alone do not prove native pan arbitration.
+`git diff --check` passed. No simulator build/tests were run, consistent
+with the user's phone-only feedback workflow.
+
+Built and installed `cb449a3bea2d17e10b45162cf0524aaba9f5bea8` from the clean Mac
+task checkout, workspace `workspace-4WDbDRuQjn`, ListRunner scheme, on Adrian's
+physical iPhone 17e (`00008150-001402660A9BC01C`, iOS 27.2.1). BuildProject passed
+with zero errors and explicitly compiled StoreShoppingView.swift; RunProject
+reported successful launch, reference `bad9bcc00`, PID **9628**, independently
+confirmed by devicectl. Deep/strict codesign passed for the built phone app.
+Logs: `BuildProject-Log-20261115-204058.txt` and
+`RunProject-Log-20261115-204105.txt`. Installed in place without reset/uninstall,
+test fixtures/flags, list edits or retailer actions. App left running for user
+testing; source/build/launch checks do not establish native pan arbitration.
 
 ## Card drag cancellation and fast-flick follow-through (15 November 2026)
 
