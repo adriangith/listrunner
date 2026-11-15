@@ -23,6 +23,10 @@ fixtures, retailer actions, merge or release. The timing change is installed,
 but elimination of the transient black frame awaits the user's phone observation;
 build/launch alone does not verify frame-by-frame appearance.
 
+The user subsequently reviewed the installed update and confirmed "Looks good
+to me", accepting the earlier-tint behavior on their phone. This is user visual
+acceptance, not a new automated gesture/accessibility regression run.
+
 ## Separate native Back tint, physical-phone only (15 November 2026)
 
 At the user's request, colour-only revision
