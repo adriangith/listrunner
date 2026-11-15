@@ -23,9 +23,22 @@ cannot paint simultaneously.
 Linux: **502 JavaScript tests passed**, including cancellation/return-to-origin,
 fresh-contact reset, button wiring/accessibility and animated reveal source checks;
 focused product-selection suite **52/52**, `git diff --check` passed. At the user's
-explicit request, **no simulator build or simulator tests** are being run. Physical
-phone build/install evidence follows after execution; gesture feel remains for
-the user to assess directly on their phone.
+explicit request, **no simulator build or simulator tests** were run.
+
+Built and installed code `63375dca660d2b85c05b29da3d40b42d89476ef4` from the clean
+Mac task checkout on Adrian's physical iPhone 17e
+(`00008150-001402660A9BC01C`, iOS 27.2.1), verified ListRunner scheme / physical
+destination in `workspace-4WDbDRuQjn`. `BuildProject` succeeded with zero errors;
+its log explicitly compiles both changed Swift files. `RunProject` then launched
+successfully with zero errors, reference `bad9bf900`, PID **9558**, independently
+confirmed by `devicectl`. Deep/strict codesign verification passed for the built
+phone app. Logs: `BuildProject-Log-20261115-203508.txt` and
+`RunProject-Log-20261115-203518.txt`.
+
+Updated in place without uninstall/reset, test flags/fixtures, list edits or
+retailer actions; other workspaces and preview simulators were untouched. App
+left running for user testing, including the existing Coles support. This proves
+compilation/install/launch, not physical gesture or accessibility sign-off.
 
 ## Coles local-list product selection (15 November 2026)
 
