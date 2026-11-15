@@ -31,7 +31,11 @@ missing/ambiguous title and recommendation-isolation tests. Legacy schema-7/6/2
 fixtures explicitly remove schema-8 selection data instead of relying on Coles'
 current bundled schema. Linux: **500 JavaScript tests** and **47 Python tests**
 passed; focused selection + Coles detector subset **113/113**; `git diff --check`
-passed. Native configuration/recovery checks are recorded below after execution.
+passed. On the Mac, all **1,925 native recovery, reset-boundary and diagnostics
+checks passed** at `c9939e2f63115dde2252a64a7109cfbce2d157f7`, including strict
+decoding of the bundled Coles profile and legacy schema compatibility. This ran
+in the separate clean `store-product-native-checks` checkout, without a simulator
+UI suite or device installation. Mac log: `/tmp/listrunner-coles-selection-native.log`.
 
 Compact local browser evidence: `/tmp/opencode/coles-live-grid.json` and
 `/tmp/opencode/coles-live-detail.json`. No phone/preview update, data reset or
