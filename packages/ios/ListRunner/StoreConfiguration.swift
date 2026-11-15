@@ -131,7 +131,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .costcoUS: ["www.costco.com", "costco.com"]
         case .bigW: ["www.bigw.com.au", "bigw.com.au"]
         case .amazon: ["www.amazon.com", "amazon.com"]
-        case .kroger: ["www.kroger.com", "kroger.com"]
+        case .kroger: ["www.kroger.com", "kroger.com", "login.kroger.com"]
         case .target: ["www.target.com", "target.com"]
         case .chemistWarehouse: ["www.chemistwarehouse.com.au", "chemistwarehouse.com.au"]
         case .priceline: ["www.priceline.com.au", "priceline.com.au"]
