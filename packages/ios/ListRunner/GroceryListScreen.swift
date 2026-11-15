@@ -329,11 +329,15 @@ private struct ListNavigationContainer<Content: View>: View {
 private struct StoreListBackTint: UIViewControllerRepresentable {
     let tint: Color
 
-    func makeUIViewController(context: Context) -> Controller { Controller() }
+    func makeUIViewController(context: Context) -> Controller {
+        let controller = Controller()
+        controller.storeTint = UIColor(tint)
+        return controller
+    }
 
     func updateUIViewController(_ controller: Controller, context: Context) {
         controller.storeTint = UIColor(tint)
-        DispatchQueue.main.async { [weak controller] in controller?.apply() }
+        controller.apply()
     }
 
     static func dismantleUIViewController(_ controller: Controller, coordinator: ()) {
@@ -352,6 +356,18 @@ private struct StoreListBackTint: UIViewControllerRepresentable {
             view = anchor
         }
 
+        override func didMove(toParent parent: UIViewController?) {
+            super.didMove(toParent: parent)
+            if parent != nil { apply() }
+        }
+
+        override func viewWillAppear(_ animated: Bool) {
+            super.viewWillAppear(animated)
+            // Configure before the navigation bar's visible transition, rather
+            // than waiting for viewDidAppear or a queued main-thread update.
+            apply()
+        }
+
         override func viewDidAppear(_ animated: Bool) {
             super.viewDidAppear(animated)
             apply()
@@ -363,7 +379,9 @@ private struct StoreListBackTint: UIViewControllerRepresentable {
         }
 
         func apply() {
-            guard viewIfLoaded?.window != nil, let navigationController else { return }
+            // During viewWillAppear the destination need not be in a window yet.
+            // Stack ownership, not window attachment, makes this safe to style.
+            guard let navigationController else { return }
             var host = parent
             while let candidate = host, !navigationController.viewControllers.contains(where: { $0 === candidate }) {
                 host = candidate.parent
