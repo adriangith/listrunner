@@ -1,5 +1,31 @@
 # Reusable store framework validation
 
+## Separate native Back tint, physical-phone only (15 November 2026)
+
+At the user's request, colour-only revision
+`11c3daecdd5aadc17d0c6ec82d8abc4edf25b5d8` supplies the store tint to the native
+Back item via scoped `StoreListBackTint`. The previous navigation item's Back
+configuration is restored on leaving/dismantling; Settings keeps its ordinary
+configuration. No shared backgrounds, glass extensions, indicator suppression,
+decorative chevrons or gesture overrides were added. Controls remain separate.
+
+Linux Swift parsing, 9 resource regressions and diff checks passed. The clean
+Mac task checkout received the exact revision via Git. Xcode MCP selected task
+workspace `windowtab-iTHOqiYv99`, active eligible Adrian's iPhone / iOS 27.2.1.
+Run scheme had no enabled arguments/environment. `RunProject(attachDebugger:false)`
+built/signed/installed/launched successfully with zero build errors in 14.663s,
+launch reference `8e1b42d00`, PID **6263** independently confirmed by `devicectl`.
+Build log explicitly references the task's `GroceryListScreen.swift`.
+
+Actual device bundle passed **35 JSON + 1 JavaScript** canonical checks and
+deep/strict codesign verification. Evidence in Mac
+`~/Library/Developer/ListRunnerValidation/list-navigation/`:
+`separate-tint-phone-run-11c3dae.log` (original `RunProject-Log-20261115-140158.txt`)
+and `separate-tint-phone-processes.json`. No simulator was run, as requested.
+No new automated UI/physical visual/gesture sign-off is claimed from build and
+launch alone. Ordinary app left running; no uninstall/reset/fixtures/imports,
+retailer actions, merge or release.
+
 ## Restore separate native Back and chooser (14 November 2026)
 
 The user chose to stop shared-capsule work and return to the earlier separate
