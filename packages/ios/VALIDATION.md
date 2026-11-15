@@ -2183,6 +2183,22 @@ committed side. Multi-card scrolling, saved order, active selection and retailer
 state are unchanged. Added short-pull spring-back UI and scalar progress/resistance
 checks. Build/motion verification and preview refresh results follow after execution.
 
+The generic Mac simulator build, **492 JavaScript tests**, **47 Python tests**
+and full cloud offline allowlist (**1,924 native checks** plus parser/regional/
+synthetic registration) passed at code
+`a27446ce1d68fc252bb3e9c7b338cdba3f0c7efd`. The lengthy simulator/motion worker
+was cancelled; no completed UI/motion result or preview refresh is claimed.
+The user explicitly requested a phone build instead and will judge the feel.
+
+Installed in place and launched that clean code revision on Adrian's iPhone 17e
+(`00008150-001402660A9BC01C`), physical destination iOS 27.2.1, through verified
+task workspace `workspace-4WDbDRuQjn` / ListRunner scheme. Xcode `RunProject`
+reported zero build errors and successful launch, reference `bad9b1c80`, PID
+**9331**, independently confirmed running ListRunner by `devicectl`.
+Action log: `RunProject-Log-20261115-201151.txt`. No uninstall, reset, test launch
+flags/fixtures, list edits or retailer/cart actions were used. App left running
+for user feedback. This establishes build/install/launch, not motion sign-off.
+
 ### Existing live preview updated in place (15 November 2026)
 
 At the user's request, preview simulator **ListRunner Two Bunnings Cards**
