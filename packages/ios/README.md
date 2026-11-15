@@ -41,7 +41,9 @@ All items places an icon-only Filter menu immediately before Settings in one
 native trailing toolbar group. iOS 26+ supplies the shared Liquid Glass capsule;
 iOS 17–25 retain standard toolbar styling. The previous scrolling segmented
 control is removed. Filter offers checked By store / By category choices and
-announces the current grouping, using the existing saved preference. Selection
+announces the current grouping in its accessible label, using the existing saved
+preference. Native toolbar menus on the tested iOS 27.2 did not forward
+`accessibilityValue`, so keep that announcement in the label. Selection
 dismisses entry focus without clearing its draft or changing the add destination.
 Grouping is disabled during editing; Settings remains available. Individual
 store lists, the leading chooser and native Back controls are unchanged.

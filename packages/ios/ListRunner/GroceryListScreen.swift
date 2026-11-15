@@ -833,8 +833,10 @@ private struct AllItemsGroupingMenu: View {
             Label("Filter", systemImage: "line.3.horizontal.decrease")
         }
         .labelStyle(.iconOnly)
-        .accessibilityLabel("Filter")
-        .accessibilityValue(selection == .store ? Text("By store") : Text("By category"))
+        // Native toolbar menus can discard accessibilityValue; keep the current
+        // grouping in the label so it is still announced before opening the menu.
+        .accessibilityLabel(selection == .store
+            ? Text("Filter, grouped by store") : Text("Filter, grouped by category"))
         .accessibilityHint("Choose how to group all items")
         .accessibilityIdentifier("all-items-filter")
     }

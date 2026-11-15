@@ -10,12 +10,32 @@ Back/scope chooser are unchanged. The existing OpenPencil audit and current
 shared layout were consulted; no design document was changed.
 
 The menu uses the existing persisted grouping, with a native checked Picker and
-an accessible current-grouping value. Choosing a grouping resigns editor focus
+an accessible label that includes the current grouping. Choosing a grouping resigns editor focus
 without clearing its draft/destination. Grouping is disabled during editing,
 with a setter guard; Settings remains enabled. Updated existing grouping UI
 tests to use the menu and added toolbar target, standard/largest-text and
 store-scope checks. The shared-page test now requires Filter/Settings to remain
-pinned while entry content scrolls. Native build/UI verification is pending.
+pinned while entry content scrolls.
+
+Initial Mac verification at `fc2d6209551bbeeee9b7468bb7ef5bb6dacd7f4d`:
+native build succeeded, but **1/4 focused UI tests passed** on an isolated iPhone
+18 Pro / iOS 27.2 simulator. The pinned-header test passed. Both toolbar tests
+and Settings restoration stopped because the native menu exposed an empty
+accessibility value. Screenshots confirm one continuous shared glass capsule,
+the checked By store menu and functional category selection, not the later
+unreached assertions. The follow-up puts grouping into the accessible label
+instead; native rerun is pending. Preserve this label-based announcement when
+changing native toolbar menus, since `accessibilityValue` was not forwarded by
+the tested iOS 27.2 toolbar.
+
+Initial evidence: Mac
+`~/Library/Logs/ListRunner-AllItemsFilter/fc2d620/FocusedTests.xcresult` and
+`attachments/{normal-toolbar,largest-text-toolbar,filter-menu,category-toolbar}.png`;
+Linux copies: `/tmp/opencode/listrunner-all-items-filter-fc2d620/`.
+Largest-text captures also show existing summary/placeholder truncation and a
+large floating Show Store control over lower content. These untouched areas are
+not certified by the toolbar change. No phone installation or retailer actions
+were performed; the task simulator was shut down with state preserved.
 
 ## All items Clear List row height (13 November 2026)
 

@@ -1746,7 +1746,7 @@ final class StoreSelectionTests: XCTestCase {
         let option = app.buttons[grouping == "store" ? "By store" : "By category"]
         XCTAssertTrue(option.waitForExistence(timeout: 3), app.debugDescription)
         option.tap()
-        XCTAssertEqual(filter.value as? String, grouping == "store" ? "By store" : "By category")
+        XCTAssertEqual(filter.label, grouping == "store" ? "Filter, grouped by store" : "Filter, grouped by category")
     }
 
     private func assertAllItemsFilterToolbar() {
@@ -1755,8 +1755,7 @@ final class StoreSelectionTests: XCTestCase {
         let filter = app.buttons["all-items-filter"]
         let settings = app.buttons["Settings"]
         XCTAssertTrue(filter.waitForExistence(timeout: 3))
-        XCTAssertEqual(filter.label, "Filter")
-        XCTAssertEqual(filter.value as? String, "By store")
+        XCTAssertEqual(filter.label, "Filter, grouped by store")
         for button in [filter, settings] {
             XCTAssertTrue(button.isHittable)
             XCTAssertGreaterThanOrEqual(button.frame.height, 44)
@@ -1783,7 +1782,7 @@ final class StoreSelectionTests: XCTestCase {
         screenshot.lifetime = .keepAlways
         add(screenshot)
         app.buttons["By store"].tap()
-        XCTAssertEqual(filter.value as? String, "By store")
+        XCTAssertEqual(filter.label, "Filter, grouped by store")
         settings.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
         tapNavigationBack()
@@ -2059,7 +2058,7 @@ final class StoreSelectionTests: XCTestCase {
         app.terminate(); app.launch()
         XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.buttons["all-items-add"].label, destination)
-        XCTAssertEqual(app.buttons["all-items-filter"].value as? String, "By category")
+        XCTAssertEqual(app.buttons["all-items-filter"].label, "Filter, grouped by category")
         XCTAssertEqual(app.textViews["all-items-entry"].value as? String, "Persisted unsubmitted draft")
     }
 
@@ -2111,7 +2110,7 @@ final class StoreSelectionTests: XCTestCase {
         assertAllItemsIsCurrent()
         XCTAssertEqual(entry.value as? String, "Keep navigation draft")
         XCTAssertEqual(app.buttons["all-items-add"].label, destination)
-        XCTAssertEqual(app.buttons["all-items-filter"].value as? String, "By category")
+        XCTAssertEqual(app.buttons["all-items-filter"].label, "Filter, grouped by category")
     }
 
     func testAllItemsStoreEdgeSwipeWhileTypingPreservesStoreDraft() {
@@ -2724,7 +2723,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
         XCTAssertEqual(entry.value as? String, "Keep aggregate draft")
         XCTAssertEqual(app.buttons["all-items-add"].label, destination)
-        XCTAssertEqual(app.buttons["all-items-filter"].value as? String, "By category")
+        XCTAssertEqual(app.buttons["all-items-filter"].label, "Filter, grouped by category")
     }
 
     func testSeparateStoreHeaderKeepsOneBackAndNativeNavigation() {
