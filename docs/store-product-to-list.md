@@ -102,9 +102,13 @@ Schema 8 adds optional `productSelection` data, independent of cart capability:
 `detail {containerSelector, titleSelector}`. Old schemas 2–7 remain readable;
 automationSchemaVersion keeps its existing meaning. Definitions opt in only with
 explicit selectors; absent or unusable selectors offer manual entry, not broad DOM
-or metadata guesses. The initial profile covers Bunnings AU with public rendered
-grid and detail selector evidence. Coles returned an empty document and Woolworths
-returned Access Denied during read-only inspection; do not guess their selectors.
+or metadata guesses. Profiles cover Bunnings AU and Coles with public rendered
+grid and detail selector evidence. Coles was enabled after a separate review on
+15 November 2026: product-tile title links and the dedicated product-buy heading
+were verified using the production selection script, without retailer clicks.
+Coles sometimes returns an empty document; unavailable/ambiguous content still
+falls back to manual entry. Woolworths returned Access Denied during read-only
+inspection; do not guess its selectors.
 IKEA's grid was readable but needs separate detail/profile review. Other stores
 offer manual entry until individually reviewed. Live native verification remains
 a release gate.

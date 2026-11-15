@@ -173,8 +173,18 @@ struct RecoveryTests {
         for code in [nil, "", "ZZ", "Australia", "123"] as [String?] {
             check(ShoppingCountry.validated(code) == nil, "invalid/missing region suggestions do not guess a country")
         }
-        let configData = try Data(contentsOf: resources.appendingPathComponent("coles.json"))
-        let coles = try JSONDecoder().decode(StoreDefinition.self, from: configData)
+        let colesData = try Data(contentsOf: resources.appendingPathComponent("coles.json"))
+        let coles = try StoreDefinition.decodeConfiguration(from: colesData)
+        check(coles.schemaVersion == 8
+              && coles.productSelection?.grid.titleSelector == "a[href*=\"/product/\"] h2.product__title"
+              && coles.productSelection?.detail.titleSelector == "h1[data-testid=\"title\"]"
+              && coles.automationSchemaVersion == 2,
+              "bundled Coles enables explicit grid/detail selection without upgrading cart automation")
+        // Keep schema-7 compatibility fixtures independent of the bundled profile.
+        var legacyColes = try JSONSerialization.jsonObject(with: colesData) as! [String: Any]
+        legacyColes["schemaVersion"] = 7
+        legacyColes.removeValue(forKey: "productSelection")
+        let configData = try JSONSerialization.data(withJSONObject: legacyColes)
         func resultsConfig(_ fields: [String: Any]) throws -> StoreDefinition {
             var root = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
             var search = root["search"] as! [String: Any]
@@ -238,8 +248,9 @@ struct RecoveryTests {
             check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: invalid))) == nil,
                   "malformed product selection fails closed")
         }
-        check(coles.schemaVersion == 7 && coles.category == .grocery && coles.categories.isEmpty,
-              "Coles schema-7 single category decodes as typed metadata")
+        let schema7 = try StoreDefinition.decodeConfiguration(from: configData)
+        check(schema7.schemaVersion == 7 && schema7.category == .grocery && schema7.categories.isEmpty,
+              "legacy Coles schema-7 single category decodes as typed metadata")
         var schema6Object = try JSONSerialization.jsonObject(with: configData) as! [String: Any]
         schema6Object["schemaVersion"] = 6
         schema6Object.removeValue(forKey: "category")
@@ -955,7 +966,7 @@ struct RecoveryTests {
               && kmart.cart?.profiles?.map(\.identity) == [.cardLink, .pageURL]
               && kmart.cart?.profiles?.allSatisfy({ $0.confirmation == .productReceipt }) == true,
               "Kmart declares independent grid/detail identities using a shared receipt engine")
-        check(coles.schemaVersion == 7 && coles.cart?.profiles == nil
+        check(coles.automationSchemaVersion == 2 && coles.cart?.profiles == nil
               && woolworths.cart?.profiles == nil && bunnings.cart?.profiles == nil,
               "legacy version-2 stores keep their existing detector rules")
         func rejectsProfile(_ mutate: (inout [String: Any]) -> Void) -> Bool {

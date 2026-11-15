@@ -5,6 +5,7 @@ import vm from 'node:vm';
 
 const swift = readFileSync(new URL('../ListRunner/StoreProductSelection.swift', import.meta.url), 'utf8');
 const source = swift.match(/static let script = #"""\n([\s\S]*?)\n    """#/)[1];
+const coles = JSON.parse(readFileSync(new URL('../ListRunner/Resources/coles.json', import.meta.url), 'utf8'));
 const config = {
   productURLPattern: '_p(\\d+)$',
   grid: {containerSelector: '.tile', titleSelector: '.title', linkSelector: 'a'},
@@ -107,6 +108,76 @@ test('product page reads its exact heading without adding selection DOM', async 
   assert.equal(value.name, '2x LED lights, 75 mm');
   assert.equal(value.productID, '0123456');
   assert.equal(f.roots.length, 0); f.assertClean();
+});
+
+function colesFixture({detail = false} = {}) {
+  const f = fixture(), profile = coles.productSelection;
+  f.context.config = structuredClone(profile);
+  f.context.hosts = coles.allowedHosts;
+  f.title.textContent = f.heading.textContent = 'Coles Full Cream Milk | 3L';
+  f.link.href = 'https://www.coles.com.au/product/coles-full-cream-milk-3l-8150288';
+  f.location.href = detail ? f.link.href : 'https://www.coles.com.au/search/products?q=milk';
+  f.tile.nodes = {[profile.grid.titleSelector]: [f.title], [profile.grid.linkSelector]: [f.link, f.link]};
+  f.main.nodes = {[profile.detail.titleSelector]: [f.heading]};
+  f.document.nodes = {[profile.grid.containerSelector]: [f.tile], [profile.detail.containerSelector]: [f.main]};
+  return f;
+}
+
+test('Coles opts into reviewed grid/detail selection without changing cart capabilities or trust', () => {
+  assert.equal(coles.schemaVersion, 8);
+  assert.equal(coles.automationSchemaVersion, 2);
+  assert.deepEqual(coles.capabilities, {search: true, cartDetection: true, cartUndo: true});
+  assert.deepEqual(coles.allowedHosts, ['www.coles.com.au', 'coles.com.au']);
+  assert.equal(coles.productSelection.productURLPattern, coles.cart.productURLPattern);
+  assert.equal(coles.productSelection.grid.containerSelector, '[data-testid="product-tile"]');
+  assert.equal(coles.productSelection.grid.titleSelector, 'a[href*="/product/"] h2.product__title');
+  assert.equal(coles.productSelection.detail.containerSelector, '[data-testid="product-buy"]');
+  assert.equal(coles.productSelection.detail.titleSelector, 'h1[data-testid="title"]');
+});
+
+test('Coles grid consumes selection, deduplicates image/title links and preserves the full product name', async () => {
+  const f = colesFixture();
+  let clicks = 0;
+  f.link.click = f.tile.click = () => { clicks++; };
+  const pending = f.start();
+  assert.equal(f.buttons().length, 1);
+  f.tap();
+  const product = await pending;
+  assert.equal(product.name, 'Coles Full Cream Milk | 3L');
+  assert.equal(product.productID, '8150288');
+  assert.equal(clicks, 0); f.assertClean();
+});
+
+test('Coles detail reads only its product-buy heading, not recommendation tiles or purchase quantity', async () => {
+  const f = colesFixture({detail: true});
+  f.title.textContent = 'Recommended milk | 2L';
+  const product = await f.start();
+  assert.equal(product.name, 'Coles Full Cream Milk | 3L');
+  assert.equal(product.productID, '8150288');
+  assert.deepEqual(Object.keys(product).sort(), ['name', 'productID']);
+  assert.equal(f.roots.length, 0); f.assertClean();
+});
+
+for (const [name, change] of [
+  ['missing grid title', f => { f.title.textContent = ''; }],
+  ['ambiguous grid title', f => { f.tile.nodes[coles.productSelection.grid.titleSelector].push(new f.Node('Other milk')); }],
+  ['foreign product link', f => { f.link.href = 'https://evil.coles.com.au/product/milk-8150288'; }],
+  ['invalid product identity', f => { f.link.href = 'https://www.coles.com.au/product/milk-no-id'; }],
+]) {
+  test(`Coles selection falls back for ${name}`, async () => {
+    const f = colesFixture(); change(f);
+    assert.equal(await f.start(), null); f.assertClean();
+  });
+}
+
+test('Coles missing/ambiguous detail heading never substitutes a recommendation', async () => {
+  for (const ambiguous of [false, true]) {
+    const f = colesFixture({detail: true});
+    f.main.nodes[coles.productSelection.detail.titleSelector] = ambiguous
+      ? [f.heading, new f.Node('Other product')] : [];
+    assert.equal(await f.start(), null);
+    assert.equal(f.roots.length, 0); f.assertClean();
+  }
 });
 
 test('assistive grid activation uses native fallback without exposing website shields', async () => {

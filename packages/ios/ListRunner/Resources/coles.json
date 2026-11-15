@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 7,
+  "schemaVersion": 8,
   "id": "coles",
   "category": "grocery",
   "automationSchemaVersion": 2,
@@ -10,6 +10,18 @@
   "search": {"strategy": "urlTemplate", "template": "https://www.coles.com.au/search?q={query}", "resultsSelector": "[data-testid=\"product-tile\"]", "resultsTopOffset": 120},
   "addedColor": {"red": 224, "green": 26, "blue": 34},
   "capabilities": {"search": true, "cartDetection": true, "cartUndo": true},
+  "productSelection": {
+    "productURLPattern": "/product/[^/?#]+-(\\d{1,32})(?:[/?#]|$)",
+    "grid": {
+      "containerSelector": "[data-testid=\"product-tile\"]",
+      "titleSelector": "a[href*=\"/product/\"] h2.product__title",
+      "linkSelector": "a[href*=\"/product/\"]"
+    },
+    "detail": {
+      "containerSelector": "[data-testid=\"product-buy\"]",
+      "titleSelector": "h1[data-testid=\"title\"]"
+    }
+  },
   "cart": {
     "strategy": "trustedTileQuantity",
     "identityStrategy": "numericURLSuffix",

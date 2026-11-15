@@ -1,5 +1,43 @@
 # Reusable store framework validation
 
+## Coles local-list product selection (15 November 2026)
+
+Enabled the existing schema-8 `productSelection` engine for Coles only. Search,
+trusted hosts, automation version 2, cart detection and Undo are unchanged. No
+SwiftUI, persistence schema, rail interactions or retailer actions changed.
+
+Reviewed public rendered DOM on Coles search `search/products?q=milk` and product
+`product/coles-full-cream-milk-3l-8150288`, using a separate anonymous Chromium
+session. All 54 search tiles had one dedicated title and one distinct product
+ID (image/title links repeat the same identity). Grid rule:
+`[data-testid="product-tile"]` / `a[href*="/product/"] h2.product__title` /
+`a[href*="/product/"]`. Detail rule: `[data-testid="product-buy"]` /
+`h1[data-testid="title"]`; exactly one main container/heading, separately from
+five recommendation tiles. Reused Coles' existing pathname-only numeric-ID regex.
+
+Executed the **production selection script** on both live pages. A trusted mouse
+tap on the document-plane grid shield captured `Coles Full Cream Milk | 3L`, ID
+`8150288`, with **zero clicks reaching retailer tiles**, no page navigation and
+complete selection cleanup. Detail reading returned the same exact title/ID,
+without installing grid shields. Grid viewport was 402 × 874. No retailer Add,
+save-to-list, cart, account, storage or private API action was used. Some initial
+navigations returned empty documents; a fresh isolated browser loaded the public
+pages. One early grid attempt during viewport reflow safely returned no selection;
+the settled-layout run passed. Do not treat this as native WebKit/live release
+sign-off or guarantee that Coles will always render.
+
+Added bundled-profile, grid/detail, repeated-link, no-click, untrusted/invalid ID,
+missing/ambiguous title and recommendation-isolation tests. Legacy schema-7/6/2
+fixtures explicitly remove schema-8 selection data instead of relying on Coles'
+current bundled schema. Linux: **500 JavaScript tests** and **47 Python tests**
+passed; focused selection + Coles detector subset **113/113**; `git diff --check`
+passed. Native configuration/recovery checks are recorded below after execution.
+
+Compact local browser evidence: `/tmp/opencode/coles-live-grid.json` and
+`/tmp/opencode/coles-live-detail.json`. No phone/preview update, data reset or
+simulator UI suite was performed for this configuration change. Live embedded
+WebKit behaviour remains to be tried on the user's phone after installation.
+
 ## Retailer-neutral store-list wording (13 November 2026)
 
 Branch `fix/store-page-titles` changes the populated store-list section heading

@@ -91,12 +91,13 @@ class OnboardingTests(unittest.TestCase):
                 self.assertTrue(tool.validate(changed))
         for value in [None, True, 1, 6, '2']:
             self.assertTrue(tool.validate(dict(config, automationSchemaVersion=value)))
-        legacy = {k: v for k, v in config.items() if k not in {'category', 'automationSchemaVersion'}}
+        legacy = {k: v for k, v in config.items() if k not in {'category', 'automationSchemaVersion', 'productSelection'}}
         legacy['schemaVersion'] = 2
         self.assertEqual(tool.validate(legacy), [])
         self.assertTrue(tool.validate(dict(legacy, category='grocery')))
         schema6 = dict(config, schemaVersion=6, categories=['grocery'], category=None)
         schema6.pop('category')
+        schema6.pop('productSelection', None)
         self.assertEqual(tool.validate(schema6), [])
 
     def test_invalid_capability_types(self):
