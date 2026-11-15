@@ -324,6 +324,71 @@ private struct ListNavigationContainer<Content: View>: View {
     }
 }
 
+// Tint only the native Back item. Keep its system glyph, background, hit target
+// and interactive navigation; never extend the chooser's decoration over it.
+private struct StoreListBackTint: UIViewControllerRepresentable {
+    let tint: Color
+
+    func makeUIViewController(context: Context) -> Controller { Controller() }
+
+    func updateUIViewController(_ controller: Controller, context: Context) {
+        controller.storeTint = UIColor(tint)
+        DispatchQueue.main.async { [weak controller] in controller?.apply() }
+    }
+
+    static func dismantleUIViewController(_ controller: Controller, coordinator: ()) {
+        controller.restore()
+    }
+
+    final class Controller: UIViewController {
+        var storeTint = UIColor.label
+        private weak var previousItem: UINavigationItem?
+        private var originalBack: UIBarButtonItem?
+        private let storeBack = UIBarButtonItem(title: "", style: .plain, target: nil, action: nil)
+
+        override func loadView() {
+            let anchor = UIView()
+            anchor.isUserInteractionEnabled = false
+            view = anchor
+        }
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            apply()
+        }
+
+        override func viewDidDisappear(_ animated: Bool) {
+            super.viewDidDisappear(animated)
+            restore()
+        }
+
+        func apply() {
+            guard viewIfLoaded?.window != nil, let navigationController else { return }
+            var host = parent
+            while let candidate = host, !navigationController.viewControllers.contains(where: { $0 === candidate }) {
+                host = candidate.parent
+            }
+            guard let host, navigationController.topViewController === host,
+                  let index = navigationController.viewControllers.firstIndex(where: { $0 === host }), index > 0 else { return }
+            let previous = navigationController.viewControllers[index - 1].navigationItem
+            if previousItem !== previous {
+                restore()
+                previousItem = previous
+                originalBack = previous.backBarButtonItem
+            }
+            storeBack.tintColor = storeTint
+            storeBack.accessibilityLabel = String(localized: "Back to All items")
+            if previous.backBarButtonItem !== storeBack { previous.backBarButtonItem = storeBack }
+        }
+
+        func restore() {
+            if previousItem?.backBarButtonItem === storeBack { previousItem?.backBarButtonItem = originalBack }
+            previousItem = nil
+            originalBack = nil
+        }
+    }
+}
+
 private struct ListScopePicker: View {
     let stores: [StoreDefinition]
     let selectedStoreID: StoreID?
@@ -2309,6 +2374,11 @@ struct GroceryListScreen: View {
             }
         }
         .tint(storePrimaryColor)
+        .background {
+            if offersAllItems && !ownsNavigationStack && !showingStoreWelcome {
+                StoreListBackTint(tint: storePrimaryColor)
+            }
+        }
         #if DEBUG
         .overlay(alignment: .topLeading) {
             if ProcessInfo.processInfo.environment["LISTRUNNER_REVEAL_TEST_FIXTURE"] == "enabled" {

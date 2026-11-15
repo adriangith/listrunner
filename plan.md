@@ -4,6 +4,7 @@
 
 * Restore the separate system Back button and store chooser from pre-join revision `acbbe07`. Keep adaptive list navigation, native interactive edge pop, single-store simplification and draft/list/browser ownership unchanged.
 * Do not extend glass across the controls, overlay a decorative Back glyph, suppress the native indicator or modify UIKit Back appearance. Shared-capsule exploration is deferred to a future branch; the earlier joined-header requirements are superseded.
+* The separate native Back item may use the selected store's chooser tint. Scope this to store detail and restore the original item on leaving; keep the system glyph/background, separate controls, native navigation and Settings appearance.
 
 ### Adaptive list navigation (13 November 2026)
 

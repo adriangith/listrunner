@@ -50,6 +50,10 @@ restored to pre-join revision `acbbe07`. There is no extended glass, decorative
 Back glyph, hidden native indicator, UIKit appearance adapter, replacement Back
 button or gesture-delegate override. Shared-capsule exploration is deferred to
 a future branch; its historical evidence remains in `VALIDATION.md` and Git.
+The subsequent colour-only adjustment uses `StoreListBackTint` to supply the
+native Back item's store tint and accessible label while on store detail,
+restoring the original item on leaving. It does not change navigation-bar
+appearances, background sharing, indicator artwork or gesture delegates.
 
 A single enabled store opens directly with no redundant overview, Back button
 or All items menu entry. Saved rows outside the enabled store (including unknown
