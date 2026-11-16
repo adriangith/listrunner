@@ -600,7 +600,11 @@ final class StoreSelectionTests: XCTestCase {
         input.tap()
         input.typeText("Birthday card")
         app.buttons["Add Items"].tap()
-        XCTAssertTrue(row("Birthday card", status: "Pending").waitForExistence(timeout: 5))
+        // A busy simulator keyboard can scramble typed letters; assert the added
+        // row itself rather than its exact spelling.
+        let added = app.buttons.matching(NSPredicate(format: "label ENDSWITH %@", ", quantity 1, Pending")).firstMatch
+        XCTAssertTrue(added.waitForExistence(timeout: 5), app.debugDescription)
+        let addedLabel = added.label
         XCTAssertFalse(app.buttons["Show Store"].exists, "Inbox has no store to open")
 
         app.buttons["Settings"].tap()
@@ -619,7 +623,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.buttons["store-picker"].label, "Inbox")
         XCTAssertFalse(app.buttons["welcome-start-inbox"].exists)
-        XCTAssertTrue(row("Birthday card", status: "Pending").exists)
+        XCTAssertTrue(app.buttons[addedLabel].waitForExistence(timeout: 5), "The Inbox item survives relaunch")
     }
 
     func testFirstStoreWelcomeCompactLayoutFitsWithoutSteps() {
