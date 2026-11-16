@@ -703,6 +703,35 @@ struct RecoveryTests {
                       "https://user@account.sainsburys.co.uk/login"] {
             check(!sainsburys.allowsNavigation(URL(string: value)!), "Sainsbury's authentication exceptions remain exact and HTTPS-only")
         }
+        let walgreens = expansionDefinitions.first { $0.id == .walgreens }!
+        let walgreensAcknowledgement = walgreens.cart?.profiles?.first?.acknowledgement
+        check(walgreens.isConfigurationValid && walgreens.capabilities.cartDetection && !walgreens.capabilities.cartUndo
+              && walgreens.cart?.profiles?.count == 1 && walgreensAcknowledgement?.fulfillment?.maximumWaitMS == 120_000
+              && walgreens.acceptsProductIdentity("prod6347302") && !walgreens.acceptsProductIdentity("../prod1"),
+              "Walgreens enables only reviewed two-step card acknowledgement detection")
+        for mutation in ["otherStore", "unanchored", "badPattern", "unknownKey", "emptyContinue", "longWait", "productPage"] {
+            let source = mutation == "otherStore" ? expansionDefinitions.first { $0.id == .jbHiFi }! : walgreens
+            var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(source)) as! [String: Any]
+            var cart = object["cart"] as! [String: Any]
+            var profiles = cart["profiles"] as! [[String: Any]]
+            var acknowledgement = profiles[0]["acknowledgement"] as! [String: Any]
+            var fulfillment = (acknowledgement["fulfillment"] as? [String: Any])
+                ?? ["selector": "div[role='dialog']", "continueSelector": "button", "optionSelector": "[role='tab']", "maximumWaitMS": 60_000]
+            switch mutation {
+            case "unanchored": acknowledgement["successPattern"] = "items? added to cart"
+            case "badPattern": acknowledgement["successPattern"] = "^([$"
+            case "unknownKey": fulfillment["script"] = "click()"
+            case "emptyContinue": fulfillment["continueSelector"] = " "
+            case "longWait": fulfillment["maximumWaitMS"] = 600_000
+            case "productPage": profiles[0]["scope"] = "productPage"; profiles[0]["identity"] = "pageURL"
+            default: break
+            }
+            acknowledgement["fulfillment"] = fulfillment
+            profiles[0]["acknowledgement"] = acknowledgement
+            cart["profiles"] = profiles; object["cart"] = cart
+            check((try? StoreDefinition.decodeConfiguration(from: JSONSerialization.data(withJSONObject: object))) == nil,
+                  "Walgreens fulfilment/count acknowledgement stays reviewed and bounded: \(mutation)")
+        }
         let waitrose = expansionDefinitions.first { $0.id == .waitrose }!
         check(waitrose.schemaVersion == 7 && waitrose.acceptsProductIdentity("053457-26759-26760")
               && waitrose.cart?.profiles?.first?.quantityDraftSelector == "button[data-testid='trolleyUpdateButton']",

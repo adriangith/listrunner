@@ -46,7 +46,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         }
     }
     var permitsCartUndo: Bool { [.coles, .bigW, .tesco, .ikeaAU].contains(self) }
-    var permitsCartDetection: Bool { [.coles, .woolworths, .bunnings, .tesco, .kmart, .bigW, .priceline, .supercheapAuto, .ocado, .chemistWarehouse, .waitrose, .jbHiFi, .bunningsNZ, .officeworks, .ikeaAU, .kroger].contains(self) }
+    var permitsCartDetection: Bool { [.coles, .woolworths, .bunnings, .tesco, .kmart, .bigW, .priceline, .supercheapAuto, .ocado, .chemistWarehouse, .waitrose, .jbHiFi, .bunningsNZ, .officeworks, .ikeaAU, .kroger, .walgreens].contains(self) }
     var displayName: String {
         switch self {
         case .coles: "Coles"
@@ -460,6 +460,18 @@ struct StoreDefinition: Codable {
                 let successText: String
                 let titleSelector: String
                 let failureSelector: String
+                // Reviewed Walgreens-only extensions. An anchored pattern accepts a
+                // retailer count ("2 items added to cart"); `fulfillment` lets
+                // taps inside the retailer's own order-options dialog for the same
+                // product continue (not cancel) the original trusted card Add.
+                var successPattern: String? = nil
+                var fulfillment: Fulfillment? = nil
+            }
+            struct Fulfillment: Codable {
+                let selector: String
+                let continueSelector: String
+                let optionSelector: String
+                let maximumWaitMS: Int
             }
             struct Receipt: Codable {
                 struct ImageIdentity: Codable {
@@ -813,6 +825,20 @@ struct StoreDefinition: Codable {
                               acknowledgement.successText.utf8.count <= 256,
                               profile.receipt == nil, profile.quantitySelector == nil, profile.emptyStatusText == nil,
                               profile.undo == nil, profile.setupPrompt == nil, !capabilities.cartUndo else { throw ConfigurationError.invalid }
+                        if acknowledgement.successPattern != nil || acknowledgement.fulfillment != nil {
+                            guard id == .walgreens, profile.scope == .productCard else { throw ConfigurationError.invalid }
+                        }
+                        if let pattern = acknowledgement.successPattern {
+                            guard pattern.hasPrefix("^"), pattern.hasSuffix("$"), pattern.utf8.count <= 256 else { throw ConfigurationError.invalid }
+                            _ = try NSRegularExpression(pattern: pattern)
+                        }
+                        if let fulfillment = acknowledgement.fulfillment {
+                            for selector in [fulfillment.selector, fulfillment.continueSelector, fulfillment.optionSelector] {
+                                guard !selector.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                                      selector.utf8.count <= 1_024 else { throw ConfigurationError.invalid }
+                            }
+                            guard (1_000...300_000).contains(fulfillment.maximumWaitMS) else { throw ConfigurationError.invalid }
+                        }
                     }
                     if let empty = profile.emptyStatusText {
                         guard !empty.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, empty.utf8.count <= 256 else { throw ConfigurationError.invalid }
@@ -994,7 +1020,9 @@ struct StoreDefinition: Codable {
                 if let setup = profile["setupPrompt"], !(setup is NSNull),
                    !hasOnlyKeys(setup as? [String: Any], ["selector", "textPattern", "maximumWaitMS"]) { throw ConfigurationError.invalid }
                 if let acknowledgement = profile["acknowledgement"], !(acknowledgement is NSNull),
-                   !hasOnlyKeys(acknowledgement as? [String: Any], ["selector", "successSelector", "successText", "titleSelector", "failureSelector"]) { throw ConfigurationError.invalid }
+                   !hasOnlyKeys(acknowledgement as? [String: Any], ["selector", "successSelector", "successText", "titleSelector", "failureSelector", "successPattern", "fulfillment"]) { throw ConfigurationError.invalid }
+                if let acknowledgement = profile["acknowledgement"] as? [String: Any], let fulfillment = acknowledgement["fulfillment"], !(fulfillment is NSNull),
+                   !hasOnlyKeys(fulfillment as? [String: Any], ["selector", "continueSelector", "optionSelector", "maximumWaitMS"]) { throw ConfigurationError.invalid }
             }
         }
         let value = try JSONDecoder().decode(Self.self, from: data)

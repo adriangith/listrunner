@@ -2257,6 +2257,39 @@ final class StoreBrowser: ObservableObject {
                  (supportsSchema4Features && normalize(control.textContent) === normalize(profile.emptyStatusText))))) return 0;
         return null;
       };
+      // Walgreens renders "Name - 5.1 oz" on cards and "Name-5.1 oz" in its
+      // panels. Only reviewed fulfillment profiles ignore spacing around hyphens.
+      const acknowledgementTitle = (rule, value) => {
+        const text = normalize(value);
+        return supportsSchema4Features && rule?.fulfillment ? text.replace(/\s*-\s*/g, '-') : text;
+      };
+      // The retailer's order-options dialog for exactly the armed product.
+      const fulfillmentDialog = (value, origin = null) => {
+        const rule = value?.profile?.acknowledgement;
+        if (!supportsSchema4Features || !rule?.fulfillment) return null;
+        const name = acknowledgementTitle(rule, value.productName);
+        const dialogs = deepQueryAll(document, rule.fulfillment.selector).filter(dialog =>
+          dialog.getClientRects().length && getComputedStyle(dialog).visibility !== 'hidden' &&
+          deepQueryAll(dialog, '*').some(element => acknowledgementTitle(rule, element.innerText || element.textContent) === name));
+        if (dialogs.length !== 1) return null;
+        return !origin || dialogs[0] === origin || deepQueryAll(dialogs[0], '*').includes(origin) ? dialogs[0] : null;
+      };
+      const continueFulfillment = (value, origin) => {
+        const rule = value?.profile?.acknowledgement?.fulfillment;
+        if (!rule || !(origin instanceof Element) || Date.now() > value.fulfillmentDeadline) return false;
+        const dialog = fulfillmentDialog(value, origin);
+        if (!dialog) return false;
+        const target = deepClosest(origin, `${rule.continueSelector},${rule.optionSelector}`);
+        if (!target || !deepQueryAll(dialog, '*').includes(target)) return false;
+        if (target.matches(rule.continueSelector)) {
+          // The retailer's own Add happens here; observe a fresh confirmation
+          // window from this second trusted tap, still for the original product.
+          value.fulfilled = true;
+          value.expires = Date.now() + value.profile.confirmationWindowMS;
+          value.stableCount = 0;
+        }
+        return true;
+      };
       const profileAcknowledgement = (profile, name) => {
         const rule = profile.acknowledgement;
         if (!rule) return null;
@@ -2284,14 +2317,19 @@ final class StoreBrowser: ObservableObject {
           return true;
         };
         const matches = [];
+        const title = value => acknowledgementTitle(rule, value);
+        const successful = text => rule.successPattern
+          ? new RegExp(rule.successPattern).test(text) : text === normalize(rule.successText);
         for (const root of deepQueryAll(document, rule.selector)) {
           if (!visible(root) || deepQueryAll(root, rule.failureSelector)
               .some(error => visible(error) && normalize(error.innerText || error.textContent))) continue;
           const success = deepQueryAll(root, rule.successSelector).filter(element =>
-            visible(element) && normalize(element.innerText || element.textContent) === normalize(rule.successText));
+            visible(element) && successful(normalize(element.innerText || element.textContent)));
           const titles = new Set(deepQueryAll(root, rule.titleSelector)
-            .filter(visible).map(element => normalize(element.innerText || element.textContent)).filter(Boolean));
-          if (success.length === 1 && titles.size === 1 && titles.has(name)) matches.push(`${normalize(rule.successText)}|${name}`);
+            .filter(visible).map(element => title(element.innerText || element.textContent)).filter(Boolean));
+          if (success.length === 1 && titles.size === 1 && titles.has(title(name))) {
+            matches.push(`${normalize(success[0].innerText || success[0].textContent)}|${title(name)}`);
+          }
         }
         return matches.length === 1 ? matches[0] : null;
       };
@@ -2336,6 +2374,12 @@ final class StoreBrowser: ObservableObject {
               Date.now() + value.profile.confirmationWindowMS);
           }
         }
+        if (value.profile?.acknowledgement?.fulfillment && !value.fulfilled &&
+            Date.now() <= value.fulfillmentDeadline && fulfillmentDialog(value)) {
+          // Choosing pickup/delivery/shipping is part of the retailer's Add,
+          // bounded by the reviewed maximum, never a cart confirmation itself.
+          value.expires = Math.max(value.expires, Date.now() + value.profile.confirmationWindowMS);
+        }
         if (Date.now() > value.expires) {
           if (setup) post('automationUnavailable', { capability: 'cartDetection', reason: 'confirmationTimedOut', scope: 'interaction' });
           candidate = null;
@@ -2353,7 +2397,8 @@ final class StoreBrowser: ObservableObject {
           if (!candidateIsValid(checkingCandidate)) return;
           if (checkingCandidate.profile?.confirmation === 'productAcknowledgement') {
             const signature = profileAcknowledgement(checkingCandidate.profile, checkingCandidate.productName);
-            if (signature && signature !== checkingCandidate.initialAcknowledgement) checkingCandidate.stableCount++;
+            const awaitingFulfillment = checkingCandidate.profile.acknowledgement?.fulfillment && !checkingCandidate.fulfilled;
+            if (signature && !awaitingFulfillment && signature !== checkingCandidate.initialAcknowledgement) checkingCandidate.stableCount++;
             else checkingCandidate.stableCount = 0;
             if (checkingCandidate.stableCount >= 2) {
               post('addAcknowledged', { confirmationID: String(++confirmationSequence), productID: checkingCandidate.productID,
@@ -2506,12 +2551,18 @@ final class StoreBrowser: ObservableObject {
         // cannot arm add detection or recursively create an Undo record.
         reversal = null;
         if (!context) return;
-        // A second real action, including manually opening an old cart receipt,
-        // cannot complete a previous Add. Synthetic site updates do not arm it.
-        if (supportsSchema4Features) candidate = null;
         // Events from web components are retargeted at each shadow boundary. The
         // composed path retains the original trusted control for exact attribution.
         const origin = event.composedPath?.().find(node => node instanceof Element) || event.target;
+        // Only a reviewed order-options step for the same armed product may follow
+        // the original Add. Anything else, including close, cancels it.
+        if (supportsSchema4Features && candidate && continueFulfillment(candidate, origin)) {
+          setTimeout(checkCandidate, 180);
+          return;
+        }
+        // A second real action, including manually opening an old cart receipt,
+        // cannot complete a previous Add. Synthetic site updates do not arm it.
+        if (supportsSchema4Features) candidate = null;
         const control = origin instanceof Element
           ? deepClosest(origin, 'button,[role="button"],input[type="button"],input[type="submit"]') : null;
         if (!control) return;
@@ -2527,7 +2578,9 @@ final class StoreBrowser: ObservableObject {
             initialToast: profile.confirmation === 'productReceipt' ? profileReceipt(profile, name, id)?.text || null : null,
             initialAcknowledgement: profile.confirmation === 'productAcknowledgement' ? profileAcknowledgement(profile, name) : null,
             expires: Date.now() + profile.confirmationWindowMS,
-            setupDeadline: Date.now() + (profile.setupPrompt?.maximumWaitMS || 0), stableCount: 0, checking: false };
+            setupDeadline: Date.now() + (profile.setupPrompt?.maximumWaitMS || 0),
+            fulfillmentDeadline: Date.now() + (supportsSchema4Features && profile.acknowledgement?.fulfillment?.maximumWaitMS || 0),
+            fulfilled: false, stableCount: 0, checking: false };
           if (before !== null && !profile.setupPrompt) post('cartInteractionStarted', { productID: id, beforeQuantity: before, intent: before === 0 ? 'add' : 'increment' });
           setTimeout(checkCandidate, 180);
           return;
