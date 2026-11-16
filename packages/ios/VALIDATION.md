@@ -2,8 +2,9 @@
 
 ## IKEA AU local-list product selection (17 November 2026)
 
-Branch `feat/ikea-product-adding`, working-tree changes based on
-`cd80462` (not a committed/native-tested revision). Enabled the existing schema-8
+Branch `feat/ikea-product-adding`, implementation revision
+`fab79348a22f5ecb29ac5e960f7fc0213d549344`, based on `cd80462`.
+Enabled the existing schema-8
 `productSelection` profile for IKEA AU only. Automation schema 5, exact trusted
 hosts, permanent list/session identities, search, cart detection and retailer Undo
 remain unchanged. No selection engine, SwiftUI, persistence or cart code changed.
@@ -40,11 +41,39 @@ round-trip assertions, plus grid/detail fixtures for full titles, Unicode,
 leading-zero IDs, repeated/variant links, untrusted/foreign/composite identities,
 missing/ambiguous headings, stale tiles and assistive manual fallback.
 
-**Not verified:** native compilation/offline recovery assertions, live embedded
+**Not verified:** native offline recovery assertions, live embedded
 iOS WebKit selection/review/save, device installation, all catalogue layouts or
 physical-device accessibility. The existing shared save/cancel/reveal behavior
 was not changed; the desktop checks do not certify it on IKEA. Native validation
 remains a release gate.
+
+### IKEA-enabled physical iPhone build and installation (17 November 2026)
+
+At the user's request and after Xcode approval, received the pushed implementation
+revision `fab79348a22f5ecb29ac5e960f7fc0213d549344` into the clean isolated Mac
+worktree `/Users/adrianzafir/Projects/listrunner-worktrees/ikea-product-adding`.
+The canonical Mac checkout, its unrelated untracked Xcode Cloud directory and
+other task worktrees were left untouched.
+
+Xcode workspace `workspace-RAjFRi95s4` resolved to that worktree's
+`packages/ios/ListRunner.xcodeproj`, scheme ListRunner. Explicitly selected the
+eligible physical **Adrian’s iPhone**, iPhone 17e
+`00008150-001402660A9BC01C`, iOS 27.2.1. `RunProject(attachDebugger: false)`
+completed successfully with **zero build errors** in **14.142 seconds**, launch
+reference `c3573c000`, PID **29816**, independently confirmed on the phone using
+`devicectl`. Log: `RunProject-Log-20261117-081158.txt`.
+
+The build log compiles `StoreShoppingView.swift` and `StoreProductSelection.swift`
+from the exact task checkout and copies its `ikeaAU.json`. The actual signed app
+under `~/Library/Developer/Xcode/DerivedData/ListRunner-gfvraxdbbbievjaijftedtvjwpnr/Build/Products/Debug-iphoneos/ListRunner.app`
+was freshly modified at **08:11:50 +1100**, passed deep/strict signature
+verification, and contains all **35 JSON + 1 JavaScript** resources byte-identical
+to the checkout, including IKEA's schema-8 profile.
+
+Installed in place and left running with the ordinary shared scheme, no test
+arguments/environment, uninstall, data reset, list edits, imports, retailer/cart
+actions or UI tests. This proves native build/sign/install/launch, not live IKEA
+WebKit selection/review/save or physical visual/accessibility sign-off.
 
 ## Walgreens search-card detection enabled (16 November 2026)
 
