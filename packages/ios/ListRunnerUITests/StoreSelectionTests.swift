@@ -583,6 +583,45 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["No stores enabled"].waitForExistence(timeout: 10))
     }
 
+    func testFirstStoreWelcomeStartWithInboxOpensInboxList() {
+        let start = app.buttons["welcome-start-inbox"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertEqual(start.label, "Start with an Inbox")
+        start.tap()
+        let picker = app.buttons["store-picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertEqual(picker.label, "Inbox")
+        XCTAssertFalse(app.buttons["welcome-start-inbox"].exists)
+        XCTAssertFalse(app.buttons["all-items-scope-picker"].exists, "Inbox alone opens directly")
+        XCTAssertFalse(app.buttons["set-import-source"].exists, "Importing into Inbox is not offered")
+        XCTAssertFalse(app.buttons["import-from-paprika"].exists)
+        let input = app.descendants(matching: .any)["grocery-input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap()
+        input.typeText("Birthday card")
+        app.buttons["Add Items"].tap()
+        XCTAssertTrue(row("Birthday card", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Show Store"].exists, "Inbox has no store to open")
+
+        app.buttons["Settings"].tap()
+        let toggle = app.switches["inbox-setting"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.value as? String, "1")
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        let blocked = app.alerts["Inbox can’t be turned off yet"]
+        XCTAssertTrue(blocked.waitForExistence(timeout: 5), app.debugDescription)
+        blocked.buttons["Cancel"].tap()
+        XCTAssertEqual(toggle.value as? String, "1", "A nonempty Inbox stays on")
+        tapNavigationBack()
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.buttons["store-picker"].label, "Inbox")
+        XCTAssertFalse(app.buttons["welcome-start-inbox"].exists)
+        XCTAssertTrue(row("Birthday card", status: "Pending").exists)
+    }
+
     func testFirstStoreWelcomeCompactLayoutFitsWithoutSteps() {
         let action = app.buttons["welcome-choose-store"]
         XCTAssertTrue(action.waitForExistence(timeout: 10))
@@ -2927,7 +2966,7 @@ final class StoreSelectionTests: XCTestCase {
         for _ in 0..<6 where !orphan.isHittable { app.collectionViews.firstMatch.swipeUp() }
         XCTAssertTrue(app.staticTexts["Uncategorised"].exists)
         app.buttons["Actions for Uncategorised saved item"].tap()
-        app.buttons["Move to Another Store"].tap()
+        app.buttons["Move to Another List"].tap()
         app.buttons["Woolworths"].firstMatch.tap()
         app.buttons["all-items-scope-picker"].tap()
         app.buttons["Woolworths"].firstMatch.tap()
@@ -3655,7 +3694,7 @@ final class StoreSelectionTests: XCTestCase {
         choose("Coles")
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
         app.buttons["Actions for Coles fixture item"].tap()
-        app.buttons["Move to Another Store"].tap()
+        app.buttons["Move to Another List"].tap()
         for name in ["Amazon US", "Costco US", "New World", "PAK’nSAVE", "Boots", "CVS"] {
             XCTAssertFalse(app.buttons["Move to \(name)"].exists, name)
         }
@@ -3671,7 +3710,46 @@ final class StoreSelectionTests: XCTestCase {
         choose("Coles")
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
         app.buttons["Actions for Coles fixture item"].tap()
-        app.buttons["Move to Another Store"].tap()
+        app.buttons["Move to Another List"].tap()
+        app.buttons["Move to Woolworths"].tap()
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
+        choose("Woolworths")
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 3))
+        XCTAssertTrue(row("Woolworths fixture item", status: "Pending").exists)
+    }
+
+    func testInboxSettingAddsListAndMovesItemsBetweenLists() {
+        app.buttons["Settings"].tap()
+        let toggle = app.switches["inbox-setting"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.value as? String, "0", "Inbox is off by default")
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertEqual(toggle.value as? String, "1")
+        tapNavigationBack()
+
+        choose("Coles")
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
+        app.buttons["Actions for Coles fixture item"].tap()
+        app.buttons["Move to Another List"].tap()
+        XCTAssertTrue(app.buttons["Move to Inbox"].waitForExistence(timeout: 3))
+        app.buttons["Move to Inbox"].tap()
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
+
+        choose("Inbox")
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Show Store"].exists, "Inbox has no store to open")
+
+        choose("All items")
+        XCTAssertTrue(app.buttons["all-items-scope-picker"].waitForExistence(timeout: 5))
+        let inboxGroup = app.descendants(matching: .any)["all-items-group-title-store-inbox"]
+        XCTAssertTrue(inboxGroup.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertFalse(app.staticTexts["Uncategorised"].exists, "Inbox items are never orphaned")
+
+        app.buttons["all-items-scope-picker"].tap()
+        app.buttons["Inbox"].firstMatch.tap()
+        XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
+        app.buttons["Actions for Coles fixture item"].tap()
+        app.buttons["Move to Another List"].tap()
         app.buttons["Move to Woolworths"].tap()
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
         choose("Woolworths")
