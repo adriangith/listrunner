@@ -601,13 +601,7 @@ struct StoreShoppingView: View {
                         .padding(.trailing, railEndPadding(for: items.last, width: geometry.size.width))
                         .padding(.top, 5)
                         .padding(.bottom, 14)
-                        .background(StoreCardRailTouchHandling(enabled: items.count > 1,
-                            onPullArmedChange: { railPullArmed = $0 },
-                            pullProgress: railPullProgress,
-                            onPullRelease: { position in
-                                guard !isCollapsed else { return }
-                                beginStoreProductSelection(at: position)
-                            }))
+                        .background(railTouchHandling)
                     }
                     // Cards intentionally overlap the panel edge; let their shadows
                     // render over the panel instead of clipping at the scroll viewport.
@@ -710,6 +704,16 @@ struct StoreShoppingView: View {
                 .offset(y: bottomSafeAreaInset)
         }
         .simultaneousGesture(collapseDragGesture)
+    }
+
+    private var railTouchHandling: StoreCardRailTouchHandling {
+        StoreCardRailTouchHandling(enabled: items.count > 1,
+            onPullArmedChange: { railPullArmed = $0 },
+            onPullRelease: { position in
+                guard !isCollapsed else { return }
+                beginStoreProductSelection(at: position)
+            },
+            pullProgress: railPullProgress)
     }
 
     private func railEndPadding(for item: GroceryItem?, width: CGFloat) -> CGFloat {
