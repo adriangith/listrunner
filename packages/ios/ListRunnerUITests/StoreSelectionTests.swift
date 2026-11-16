@@ -4393,10 +4393,10 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(name.waitUntilExists(timeout: 5))
         XCTAssertEqual(name.value as? String, "2x LED lights, 75 mm")
         attachStoreProductScreenshot("Native product review")
-        app.buttons["confirm-store-product"].tap()
+        confirmStoreProduct()
         XCTAssertTrue(app.webViews.buttons["Fixture cart button"].waitUntilExists(timeout: 5))
         XCTAssertFalse(app.webViews.buttons["UNEXPECTED CART CHANGE"].exists)
-        app.buttons["Dismiss store"].tap()
+        dismissStoreSheet()
         XCTAssertTrue(app.staticTexts["2x LED lights, 75 mm"].waitUntilExists(timeout: 5))
         choose("Coles")
         XCTAssertFalse(app.staticTexts["2x LED lights, 75 mm"].exists)
@@ -4414,7 +4414,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(field.value as? String, "2x LED lights, 75 mm")
         XCTAssertFalse(app.webViews.buttons["Choose product: 2x LED lights, 75 mm"].exists)
         app.buttons["Cancel"].tap()
-        app.buttons["Dismiss store"].tap()
+        dismissStoreSheet()
         XCTAssertFalse(app.staticTexts["2x LED lights, 75 mm"].exists)
     }
 
@@ -4428,8 +4428,8 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(shield.waitUntilExists(timeout: 5))
         shield.tap()
         XCTAssertTrue(app.buttons["confirm-store-product"].waitUntilExists(timeout: 5))
-        app.buttons["confirm-store-product"].tap()
-        app.buttons["Dismiss store"].tap()
+        confirmStoreProduct()
+        dismissStoreSheet()
         let savedRow = row("2x LED lights, 75 mm", status: "Pending")
         XCTAssertTrue(savedRow.waitUntilExists(timeout: 5))
         XCTAssertTrue(savedRow.label.contains("Bunnings"))
@@ -4450,8 +4450,8 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(field.waitUntilExists(timeout: 5))
         field.tap()
         field.typeText("500 g pasta, gluten-free")
-        app.buttons["confirm-store-product"].tap()
-        app.buttons["Dismiss store"].tap()
+        confirmStoreProduct()
+        dismissStoreSheet()
         XCTAssertTrue(app.staticTexts["500 g pasta, gluten-free"].waitUntilExists(timeout: 5))
         XCTAssertFalse(app.staticTexts["Gluten-free"].exists)
     }
@@ -4560,7 +4560,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(field.waitUntilExists(timeout: 5))
         field.tap()
         field.typeText("Bunnings fixture item")
-        app.buttons["confirm-store-product"].tap()
+        confirmStoreProduct()
         XCTAssertTrue(storeProductAdd(at: "End of list").waitUntilExists(timeout: 5))
         XCTAssertFalse(storeProductAdd(at: "Start of list").exists)
         XCTAssertEqual(app.buttons.matching(identifier: "add-store-product").count, 1)
@@ -4712,11 +4712,11 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(field.waitUntilExists(timeout: 5))
         field.tap()
         field.typeText("Claw hammer")
-        app.buttons["confirm-store-product"].tap()
+        confirmStoreProduct()
         XCTAssertTrue(card.waitUntilExists(timeout: 5), "The added item becomes the active card")
         XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, "Item 1 of 1")
         XCTAssertFalse(empty.exists)
-        app.buttons["Dismiss store"].tap()
+        dismissStoreSheet()
         XCTAssertTrue(app.staticTexts["Claw hammer"].waitUntilExists(timeout: 5))
         XCTAssertFalse(app.staticTexts["Bunnings fixture item"].exists)
     }
@@ -4738,7 +4738,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, "Item 1 of 3")
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Tool one, quantity")).firstMatch.exists)
         XCTAssertFalse(app.webViews.buttons["UNEXPECTED CART CHANGE"].exists)
-        app.buttons["Dismiss store"].tap()
+        dismissStoreSheet()
         XCTAssertTrue(row("Tool two", status: "Pending").waitUntilExists(timeout: 5))
         XCTAssertFalse(app.staticTexts["Tool one"].exists)
     }
@@ -4758,7 +4758,7 @@ final class StoreSelectionTests: XCTestCase {
         let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
         XCTAssertTrue(shield.waitUntilExists(timeout: 5))
         shield.tap()
-        app.buttons["confirm-store-product"].tap()
+        confirmStoreProduct()
         assertStoreProductCentred("2x LED lights, 75 mm")
         let product = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "2x LED lights, 75 mm, quantity")).firstMatch
         let before = product.frame.minX
@@ -4792,11 +4792,11 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(shield.waitUntilExists(timeout: 5))
         shield.tap()
         assertStoreProductPosition("End of list")
-        app.buttons["confirm-store-product"].tap()
+        confirmStoreProduct()
         XCTAssertTrue(app.buttons["Collapse overlay"].waitUntilExists(timeout: 5))
         XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, "Item 1 of 2")
         assertStoreProductCentred("2x LED lights, 75 mm")
-        app.buttons["Dismiss store"].tap()
+        dismissStoreSheet()
         app.buttons["all-items-scope-picker"].tap()
         app.buttons["Bunnings"].firstMatch.tap()
         let existing = row("Bunnings fixture item", status: "Pending")
@@ -4892,13 +4892,13 @@ final class StoreSelectionTests: XCTestCase {
             field.typeText(title)
         }
         attachStoreProductScreenshot("Review insertion at \(position)")
-        app.buttons["confirm-store-product"].tap()
+        confirmStoreProduct()
         XCTAssertTrue(app.buttons["Collapse overlay"].waitUntilExists(timeout: 5))
         XCTAssertEqual(app.buttons["Collapse overlay"].value as? String,
                        expectedBeforeExisting ? "Item 2 of 2" : "Item 1 of 2", "Keep the current card selected after insertion")
         assertStoreProductCentred(title)
         XCTAssertFalse(app.webViews.buttons["UNEXPECTED CART CHANGE"].exists)
-        app.buttons["Dismiss store"].tap()
+        dismissStoreSheet()
         let existing = row("Bunnings fixture item", status: "Pending")
         let added = row(title, status: "Pending")
         XCTAssertTrue(added.waitUntilExists(timeout: 5))
@@ -4921,7 +4921,7 @@ final class StoreSelectionTests: XCTestCase {
         let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
         XCTAssertTrue(shield.waitUntilExists(timeout: 5))
         shield.tap()
-        app.buttons["confirm-store-product"].tap()
+        confirmStoreProduct()
         assertStoreProductCentred("2x LED lights, 75 mm")
         XCTAssertFalse(app.buttons["collapsed-add-store-product"].exists)
     }
@@ -4935,7 +4935,7 @@ final class StoreSelectionTests: XCTestCase {
             let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
             XCTAssertTrue(shield.waitUntilExists(timeout: 5))
             shield.tap()
-            app.buttons["confirm-store-product"].tap()
+            confirmStoreProduct()
             assertStoreProductCentred("2x LED lights, 75 mm")
         }
         XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, "Item 2 of 2",
@@ -5058,6 +5058,23 @@ final class StoreSelectionTests: XCTestCase {
             app.buttons["Cancel"].tap()
         }
         XCTAssertFalse(app.webViews.buttons["UNEXPECTED CART CHANGE"].exists)
+    }
+
+    /// Tap Add once the review sheet has finished presenting: a tap during
+    /// the slide-up animation can miss and leave the sheet open.
+    private func confirmStoreProduct() {
+        let confirm = app.buttons["confirm-store-product"]
+        XCTAssertTrue(confirm.waitUntilSettled(timeout: 5))
+        confirm.tap()
+        XCTAssertTrue(confirm.waitUntilGone(timeout: 5), "Add closes the review sheet")
+    }
+
+    /// Wait for the store sheet to leave, so list queries never match the
+    /// closing sheet's cards (same labels, without the store name).
+    private func dismissStoreSheet() {
+        let dismiss = app.buttons["Dismiss store"]
+        dismiss.tap()
+        XCTAssertTrue(dismiss.waitUntilGone(timeout: 5))
     }
 
     private func attachStoreProductScreenshot(_ name: String) {
@@ -5459,6 +5476,24 @@ extension XCUIElement {
             RunLoop.current.run(until: Date().addingTimeInterval(0.15))
         }
         return true
+    }
+
+    /// Exists, is hittable and has stopped moving (e.g. a sheet finished presenting).
+    @discardableResult
+    func waitUntilSettled(timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        var last: CGRect?
+        while Date() < deadline {
+            if exists, isHittable {
+                let frame = self.frame
+                if let last, abs(last.minY - frame.minY) < 0.5, abs(last.minX - frame.minX) < 0.5 { return true }
+                last = frame
+            } else {
+                last = nil
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+        }
+        return false
     }
 
     @discardableResult
