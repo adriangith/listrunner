@@ -268,6 +268,17 @@ for (const failure of ['synthetic', 'favourite', 'unrelated', 'foreign', 'ambigu
   });
 }
 
+for (const value of ['', 'invalid', -1, 1.5, 10000]) {
+  test(`Kroger rejects invalid baseline or resulting quantity ${JSON.stringify(value)}`, () => {
+    const invalidBaseline = fixture('kroger');
+    invalidBaseline.quantity(value); invalidBaseline.tap(); invalidBaseline.quantity(1); invalidBaseline.tick();
+    assert.equal(invalidBaseline.additions.length, 0);
+    const invalidResult = fixture('kroger');
+    invalidResult.tap(); invalidResult.quantity(value); invalidResult.tick();
+    assert.equal(invalidResult.additions.length, 0);
+  });
+}
+
 for (const [store, version, action] of [
   ['priceline', 4, p => { p.tap(); p.receipt(); p.tick(); }],
   ['waitrose', 4, p => { p.tap(); p.quantity(1); p.tick(); }],
