@@ -4827,12 +4827,19 @@ final class StoreSelectionTests: XCTestCase {
                     withVelocity: .slow, thenHoldForDuration: 0.2)
     }
 
-    /// Short separate entries: a long typeText can be scrambled by a busy
-    /// simulator keyboard ("ToTool tne"), failing setup before the test begins.
+    /// A busy simulator keyboard can drop or reorder keystrokes ("ToTool tne"),
+    /// failing setup before the test begins. Verify the typed text and retype
+    /// it if needed, then submit.
     private func typeStoreProductTools(into input: XCUIElement) {
-        for (index, name) in ["Tool one", "Tool two", "Tool three"].enumerated() {
-            input.typeText(name + (index == 2 ? "\n" : ", "))
+        let expected = "Tool one, Tool two, Tool three"
+        for _ in 0..<3 {
+            input.typeText(expected)
+            let typed = input.value as? String ?? ""
+            if typed == expected { break }
+            input.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: typed.count + 4))
         }
+        XCTAssertEqual(input.value as? String, expected, "Setup text was entered intact")
+        input.typeText("\n")
     }
 
     private func storeProductAdd(at position: String) -> XCUIElement {
