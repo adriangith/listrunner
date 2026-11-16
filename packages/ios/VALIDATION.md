@@ -3930,3 +3930,24 @@ hit testing and activate a covered website control. Product-page reads still
 prefill native review. Enabling either technology mid-selection cancels shields.
 The offline test covers this branch; physical-device assistive validation remains
 outstanding.
+
+## Pull-to-add on the store card rail
+
+Revision `a8c65f244a1a00f820ac2fdfc54cd726525b082d` (branch `feat/pull-to-add-rail`)
+adds pull-to-add: pulling a rail end past its threshold arms Add ("Release to
+add" plus a haptic), and lifting starts Add at that end. A pull only counts when
+the rail already rested at that end at touch-down; tap and VoiceOver paths are
+unchanged. Thresholds: 56 pt rubber-band overscroll (multi-card), 120 pt finger
+travel toward the already-revealed side (single card).
+
+Mac `build-for-testing` succeeded. On the iPhone 18 Pro simulator, 8 targeted
+`StoreSelectionTests` ran: 7 passed first time, including both new tests' single-card
+case and the existing rail Add/Cancel/side-switch tests.
+`testStoreProductPullPastRailEndsAddsAtThatEnd` failed once in setup (the typed
+"Tool one" row did not appear, before any pull) and passed on an isolated rerun
+(`/tmp/lr-pull-rerun-1794821696.xcresult` on the Mac). The full UI suite was not run.
+
+At the user's request, the same revision was built, signed, installed in place
+and launched on Adrian's iPhone 17e via desktop Xcode `RunProject` (no build
+errors, PID 24251, confirmed running by `devicectl`). No data reset, fixtures or
+retailer actions. Physical feel of the thresholds is pending user review.
