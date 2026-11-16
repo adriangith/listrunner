@@ -1,5 +1,47 @@
 # Reusable store framework validation
 
+## Kroger search-card detection enabled (16 November 2026)
+
+Supersedes the earlier disabled-detection boundary below. At exact app/test revision
+`4fd3ca25e84603ea5dfbdfaffe8c15a54fdfc9cc`, the assigned iPhone 18 Pro / iOS 27.2
+simulator `BC63C21F-093F-4D8E-8F3F-B12BDA23DC4F` passed a live signed-in
+**1→2→1** cycle for **Kroger 2% Reduced Fat Milk Half Gallon, 1/2 gal**,
+product `0001111041600`. The user's pre-existing quantity 1 was preserved.
+
+Read-only debugger evaluation in the existing WKWebView (no source instrumentation,
+storage/auth inspection or requests) established the exact `/p/<slug>/<13-digit-ID>`
+identity, `horizontal-product-card-*` container, subheadline product link, and
+`citrus-QuantityStepper-*` Add/increment/quantity controls. The existing schema-4
+profiled quantity engine is reused without engine changes; leading zeroes stay in
+product IDs. Native policy and JSON enable only card detection, not product-detail
+detection, retailer Undo, or sign-in interrupted-Add replay. `login.kroger.com`
+remains navigation-only, excluded from the automation bridge/host list.
+
+With the existing local Milk item Pending and retailer quantity 1, one trusted
+product-specific Increment changed retailer quantity to 2 and the local item to
+Added automatically, without native Mark Added. One product-specific decrement
+restored retailer quantity 1. The local Milk item remains Added, quantity 1;
+ordinary app and signed-in session were preserved. No eggs/other product, checkout,
+purchase, account, payment, fulfilment or location changes occurred. No other
+simulator was used for this verification. Device interaction session was ended.
+
+Evidence on Linux: `kroger-scroll1.png` / `kroger-scroll1-hierarchy.txt` (baseline),
+`kroger-added2.png` / `kroger-added2-hierarchy.txt` (retailer 2/native Added), and
+`kroger-final1.png` / `kroger-final1-hierarchy.txt` (stable retailer 1/native Added),
+all under `/tmp/opencode/`. The installed `kroger.json` byte-matches source,
+SHA256 `633d75899a6c50ea12038b73729e2fcb1ee89f766ca720c360013cde3fdfedf9`.
+
+Mac offline onboarding checks passed, report
+`/tmp/opencode/store-onboarding-4kycleqs/report.json`, including **1942 native
+recovery/reset/diagnostic checks**, 452 DOM tests and cloud-contract checks.
+The focused profiled suite passed **194/194**, including 19 Kroger scenarios for
+initial/repeated quantity, leading-zero identity, synthetic/unrelated/decrement
+taps, missing/invalid quantities, ambiguous/foreign/changed identity and cancelled
+or expired context. Initial 0→1 detection is fixture-tested; this installed build's
+live automatic proof is 1→2. The earlier Darigold 0→1→0 cycle verified retailer
+behavior only. Detail pages, other responsive layouts, signed-out Add replay,
+retailer Undo and physical-device behavior are not certified by this work.
+
 ## Kroger sign-in and authorized cart probe (16 November 2026)
 
 At the user's request, permitted `login.kroger.com` only as Kroger's exact HTTPS
