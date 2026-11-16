@@ -12,6 +12,7 @@ const load = id => JSON.parse(readFileSync(new URL(`../ListRunner/Resources/${id
 // Supercheap's duplicate image/title links and React/jQuery control updates.
 function fixture(store = 'priceline', { before = 0, captured = false, schemaVersion = null, categories = null } = {}) {
   const config = load(store);
+  const kroger = store === 'kroger';
   if (schemaVersion !== null) {
     config.schemaVersion = schemaVersion;
     if (schemaVersion === 6) {
@@ -34,9 +35,9 @@ function fixture(store = 'priceline', { before = 0, captured = false, schemaVers
   const office = store === 'officeworks';
   const bunnings = store === 'bunningsNZ';
   const acknowledged = store === 'jbHiFi' || office;
-  const name = waitrose ? 'Essential British Free Range Semi-Skimmed Milk 4 Pints' : store === 'priceline' ? 'PRO:VOKE Touch Of Silver Brightening Shampoo 50mL'
+  const name = kroger ? 'Kroger® 2% Reduced Fat Milk Half Gallon' : waitrose ? 'Essential British Free Range Semi-Skimmed Milk 4 Pints' : store === 'priceline' ? 'PRO:VOKE Touch Of Silver Brightening Shampoo 50mL'
     : ocado ? 'Ocado British Semi Skimmed Milk 2 Pints' : morrisons ? 'Belvita Milk & Cereal Biscuit Snack Bars Multipack' : petbarn ? 'Beef with Kiwi Fruit Dog Treat' : detail ? 'Sukin Natural Balance Shampoo 500ml' : office ? 'Keji Ballpoint Pens 1mm Assorted 10 Pack' : bunnings ? 'Craftright 8oz Steel Claw Hammer' : acknowledged ? 'Belkin Hi Speed USB Cable (1.8 Metres)' : 'SCA Car Wash Concentrate 1 Litre';
-  let id = waitrose ? '053457-26759-26760' : store === 'priceline' ? '39390' : ocado ? '78922011' : morrisons ? '109427121' : petbarn ? '138813' : detail ? '85510' : office ? 'keji-ballpoint-pens-1mm-assorted-10-pack-keka1271as' : bunnings ? '5660292' : acknowledged ? 'belkin-hi-speed-usb-cable-1-8-metres' : '733022';
+  let id = kroger ? '0001111041600' : waitrose ? '053457-26759-26760' : store === 'priceline' ? '39390' : ocado ? '78922011' : morrisons ? '109427121' : petbarn ? '138813' : detail ? '85510' : office ? 'keji-ballpoint-pens-1mm-assorted-10-pack-keka1271as' : bunnings ? '5660292' : acknowledged ? 'belkin-hi-speed-usb-cable-1-8-metres' : '733022';
   if (captured) {
     id = 'keji-ballpoint-pens-keka1271as';
     config.id = 'officeworks';
@@ -46,7 +47,7 @@ function fixture(store = 'priceline', { before = 0, captured = false, schemaVers
     config.cart.linkSelector = 'a[href]';
   }
   const host = config.allowedHosts[0];
-  const path = value => waitrose ? `/ecom/products/essential-british-free-range-semi-skimmed-milk-4-pints/${value}` : captured || office ? `/shop/officeworks/p/${value}` : bunnings ? `/craftright-8oz-steel-claw-hammer_p${value}` : store === 'priceline'
+  const path = value => kroger ? `/p/kroger-2-reduced-fat-milk-half-gallon/${value}` : waitrose ? `/ecom/products/essential-british-free-range-semi-skimmed-milk-4-pints/${value}` : captured || office ? `/shop/officeworks/p/${value}` : bunnings ? `/craftright-8oz-steel-claw-hammer_p${value}` : store === 'priceline'
     ? `/product/${value}/pro-voke-touch-of-silver-brightening-shampoo-50ml`
     : ocado ? `/products/ocado-british-semi-skimmed-milk-2-pints/${value}` : morrisons ? `/products/belvita-milk-cereal-biscuit-snack-bars-multipack/${value}` : petbarn ? `/p/providore-beef-with-kiwi-fruit-dog-treat/${value}` : detail ? `/buy/${value}/sukin-natural-balance-shampoo-500ml` : acknowledged ? `/products/${value}` : `/p/sca-sca-car-wash-concentrate-1-litre/${value}.html`;
   let now = 0, click, mutation;
@@ -120,6 +121,11 @@ function fixture(store = 'priceline', { before = 0, captured = false, schemaVers
   const tile = main.append(new Element(waitrose ? 'article' : 'div', { class: store === 'priceline' ? 'card' : detail ? 'flex' : 'product-tile', 'data-testid': waitrose ? 'product-pod' : 'product-card-content', 'data-ref': 'product-tile-KEKA1271AS', 'data-search-product-tile': 'true', 'data-test': 'fop-body' }));
   const imageLink = detail ? null : tile.append(new Element('a', { href: `https://${host}${path(id)}` }));
   const title = tile.append(new Element(detail ? 'h1' : 'a', detail ? {} : { href: `https://${host}${path(id)}`, class: 'name-link', 'data-testid': 'product-card-title', 'data-test': 'fop-product-link' }, name));
+  if (kroger) {
+    tile.attrs['data-testid'] = 'horizontal-product-card-1';
+    tile.children = tile.children.filter(child => child !== title);
+    tile.append(new Element('div', { class: 'CardTemplate-Horizontal-subHeadline' })).append(title);
+  }
   if (morrisons) { title.ownText = ''; title.append(new Element('h3', { 'data-test': 'fop-title' }, name)); }
   if (bunnings) { title.ownText = ''; title.append(new Element('p', {}, name)); }
   if (waitrose) { title.ownText = ''; title.append(new Element('h2', { 'data-testid': 'product-pod-name' }, name)); }
@@ -132,6 +138,8 @@ function fixture(store = 'priceline', { before = 0, captured = false, schemaVers
     ? { 'aria-label': bunnings ? 'Increase quantity' : 'Increment quantity' } : bunnings ? { 'data-locator': 'atcButton' } : { 'data-cy': 'add-to-cart' }
     : { type: 'submit', class: 'atc-button', 'data-testid': 'product-card-actions', 'data-ref': 'add-to-cart-button-KEKA1271AS' }, morrisons || waitrose ? before > 0 ? '' : 'Add' : petbarn && before > 0 ? '+' : (detail || bunnings) && before > 0 ? '' : 'Add to cart'));
   const buttonSuccess = store === 'jbHiFi' ? button.append(new Element('span', {}, 'Added')) : null;
+  if (kroger) button.attrs = { 'data-testid': before > 0 ? 'citrus-QuantityStepper-incButton' : 'citrus-QuantityStepper-ctaButton',
+    'aria-label': before > 0 ? `Increment ${name} - 1/2 gal, in Cart` : `Add to Cart: ${name} - 1/2 gal` };
   if (office) {
     button.ownText = '';
     button.append(new Element('svg')).append(new Element('title', {}, 'base--icons--cart'));
@@ -143,6 +151,7 @@ function fixture(store = 'priceline', { before = 0, captured = false, schemaVers
   } // Static success is translated outside the clipped button before Add.
   const actual = new Element('input', waitrose ? { type: 'text', min: '1', 'aria-label': 'number of items to add to trolley', 'data-testid': 'inputProductAmount' } : { class: 'in-cart-quantity-input', type: 'number', min: '0', 'aria-label': 'Quantity', 'data-test': 'quantity-in-basket' }); actual.value = String(before);
   if ((!detail && !bunnings && !morrisons && !waitrose) || before > 0) controls.append(actual);
+  if (kroger) { actual.attrs = { type: 'text', 'data-testid': 'citrus-QuantityStepper-input', 'aria-label': `Quantity of ${name}, in Cart` }; }
   const draftUpdate = controls.append(new Element('button', { 'data-testid': 'trolleyUpdateButton' }, 'Update')); draftUpdate.hidden = true;
   const favourite = tile.append(new Element('button', { 'data-testid': 'favourites-button', role: 'checkbox', 'aria-label': `Add ${name} to favourites` }));
   const intended = controls.append(new Element('select', { name: 'Quantity' })); intended.value = '9';
@@ -211,6 +220,8 @@ function fixture(store = 'priceline', { before = 0, captured = false, schemaVers
     conflictQuantity() { const q = cartRow.append(new Element('input', { 'aria-label': 'Quantity' })); q.value = '2'; },
     foreignLink() { imageLink.attrs.href = `https://evil.test${path(id)}`; title.attrs.href = imageLink.attrs.href; },
     changeIdentity(value) { imageLink.attrs.href = `https://${host}${path(value)}`; title.attrs.href = imageLink.attrs.href; },
+    ambiguousIdentity() { tile.append(new Element('a', { href: `https://${host}${path('0001111041700')}` }, 'Other milk')); },
+    removeQuantity() { controls.children = controls.children.filter(child => child !== actual); },
     navigate() { location.href = `https://${host}/cart`; },
     expire() { now += 16000; },
     end() { context.window.__listRunnerSetContext(null); },
@@ -218,6 +229,43 @@ function fixture(store = 'priceline', { before = 0, captured = false, schemaVers
     get additions() { return messages.filter(m => m.type === 'addDetected'); },
     get acknowledgements() { return messages.filter(m => m.type === 'addAcknowledged'); },
   };
+}
+
+for (const before of [0, 1]) {
+  test(`Kroger scoped card confirms stable quantity ${before}→${before + 1} and retains leading-zero ID`, () => {
+    const p = fixture('kroger', { before });
+    p.tap(); p.tick(1);
+    assert.equal(p.additions.length, 0);
+    p.quantity(before + 1); p.tick(1);
+    assert.equal(p.additions.length, 0, 'one observation cannot confirm');
+    p.tick();
+    assert.equal(p.additions.length, 1);
+    assert.equal(p.additions[0].productID, '0001111041600');
+    assert.equal(p.additions[0].beforeQuantity, before);
+    assert.equal(p.additions[0].resultingQuantity, before + 1);
+    assert.equal(p.config.capabilities.cartUndo, false);
+  });
+}
+
+for (const failure of ['synthetic', 'favourite', 'unrelated', 'foreign', 'ambiguous', 'missingQuantity', 'identityChanged', 'navigation', 'contextEnded', 'expired', 'decrement', 'unchanged']) {
+  test(`Kroger rejects ${failure} instead of marking the selected item Added`, () => {
+    const p = fixture('kroger');
+    if (failure === 'foreign') p.foreignLink();
+    if (failure === 'ambiguous') p.ambiguousIdentity();
+    if (failure === 'missingQuantity') p.removeQuantity();
+    if (failure === 'decrement') p.relabel('Decrement Kroger milk, in Cart');
+    if (failure === 'synthetic') p.tap(false);
+    else if (failure === 'favourite') p.tapFavourite();
+    else if (failure === 'unrelated') p.tapOther();
+    else p.tap();
+    if (failure === 'identityChanged') p.changeIdentity('0001111041700');
+    if (failure === 'navigation') p.navigate();
+    if (failure === 'contextEnded') p.end();
+    if (failure === 'expired') p.expire();
+    if (failure !== 'unchanged') p.quantity(1);
+    p.tick();
+    assert.equal(p.additions.length, 0);
+  });
 }
 
 for (const [store, version, action] of [

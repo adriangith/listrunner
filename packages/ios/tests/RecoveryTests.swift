@@ -789,10 +789,12 @@ struct RecoveryTests {
                   "only US routes with matching live iOS WebKit product evidence enable automatic search")
             check(definition.serviceArea.countryCodes == ["US"] && definition.isConfigurationValid,
                   "US registrations have valid US-only coverage")
-            check(!definition.capabilities.cartDetection && !definition.capabilities.cartUndo && definition.cart == nil
-                  && !id.permitsCartDetection && !id.permitsCartUndo,
-                  "US cart automation stays disabled until separately verified")
-            for capability in ["cartDetection", "cartUndo"] {
+            let reviewedKroger = id == .kroger
+            check(definition.capabilities.cartDetection == reviewedKroger && id.permitsCartDetection == reviewedKroger
+                  && !definition.capabilities.cartUndo && !id.permitsCartUndo
+                  && (reviewedKroger ? definition.cart?.profiles?.count == 1 : definition.cart == nil),
+                  "only independently reviewed Kroger card detection is enabled; US retailer Undo stays disabled")
+            for capability in reviewedKroger ? ["cartUndo"] : ["cartDetection", "cartUndo"] {
                 var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(definition)) as! [String: Any]
                 var capabilities = object["capabilities"] as! [String: Any]
                 capabilities[capability] = true

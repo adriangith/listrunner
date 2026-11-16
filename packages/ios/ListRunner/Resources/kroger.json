@@ -2,13 +2,37 @@
   "schemaVersion": 7,
   "id": "kroger",
   "category": "grocery",
-  "automationSchemaVersion": 2,
+  "automationSchemaVersion": 4,
   "displayName": "Kroger",
   "serviceArea": {"countryCodes": ["US"]},
   "homepage": "https://www.kroger.com",
   "allowedHosts": ["www.kroger.com", "kroger.com"],
   "search": {"strategy": "urlTemplate", "template": "https://www.kroger.com/search?query={query}"},
   "addedColor": {"red": 0, "green": 75, "blue": 141},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false},
-  "cart": null
+  "capabilities": {"search": true, "cartDetection": true, "cartUndo": false},
+  "cart": {
+    "strategy": "profiled",
+    "identityStrategy": "numericURLSuffix",
+    "tileSelector": "[data-testid^='horizontal-product-card-']",
+    "linkSelector": "a[href*='/p/']",
+    "productURLPattern": "^/p/[^/]+/(\\d{13})/?$",
+    "addSelector": "button[data-testid='citrus-QuantityStepper-ctaButton'],button[data-testid='citrus-QuantityStepper-incButton']",
+    "addLabelPatterns": ["^add to cart:\\s*\\S.+$", "^increment\\s+\\S.+$"],
+    "quantitySelector": "input[data-testid='citrus-QuantityStepper-input']",
+    "emptyStatusSelector": "button[data-testid='citrus-QuantityStepper-ctaButton']",
+    "emptyStatusText": "Add to Cart",
+    "decrementLabelPattern": "^decrement\\s+\\S.+$",
+    "profiles": [{
+      "id": "product-card",
+      "scope": "productCard",
+      "identity": "cardLink",
+      "containerSelector": "[data-testid^='horizontal-product-card-']",
+      "titleSelector": ".CardTemplate-Horizontal-subHeadline a[href*='/p/']",
+      "addSelector": "button[data-testid='citrus-QuantityStepper-ctaButton'],button[data-testid='citrus-QuantityStepper-incButton']",
+      "addLabelPatterns": ["^add to cart:\\s*\\S.+$", "^increment\\s+\\S.+$"],
+      "confirmation": "quantityIncrease",
+      "confirmationWindowMS": 8000,
+      "quantitySelector": "input[data-testid='citrus-QuantityStepper-input']"
+    }]
+  }
 }
