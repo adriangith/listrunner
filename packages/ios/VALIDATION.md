@@ -1,5 +1,15 @@
 # Reusable store framework validation
 
+## Inbox list (17 November 2026)
+
+Branch `feat/inbox-list`, tested in Mac worktree `~/Projects/listrunner-worktrees/inbox-list` on simulator iPhone 18 Pro `BC63C21F-093F-4D8E-8F3F-B12BDA23DC4F`.
+
+- `7f1069f`: `run-recovery-tests.sh` passed (1968 checks, including new Inbox owner, navigation, toggle-guard, selection and move checks); `run-store-proof.sh` passed; simulator app build succeeded with no errors or new warnings in changed files.
+- `8c5b614`, focused UI run (14 tests): passed `testInboxSettingAddsListAndMovesItemsBetweenLists`, the three move tests and seven welcome tests. `testFirstStoreWelcomeStartWithInboxOpensInboxList` failed only because the simulator keyboard typed “Bthdray card”; the snapshot showed the row added to Inbox. `testAllItemsUnavailableAndUnknownOwnersRemainRecoverable` failed once in Manage Stores row hittability during setup.
+- `dd880d2` (test no longer depends on typed spelling): `testFirstStoreWelcomeStartWithInboxOpensInboxList` and `testAllItemsUnavailableAndUnknownOwnersRemainRecoverable` passed.
+- Pre-existing, not Inbox-related: `testFirstStoreWelcomePreviewHidesSavedItemsShortcutAndPreservesLists` and `testFirstStoreWelcomePreviewOverridesAllItemsWithoutChangingSavedScope` fail identically on `main` (`9438032`) and this branch. Both call `choose("All items")` with only Coles enabled, which the single-store simplification hides.
+- Not yet done: physical-device review, and the full UI suite. The OpenPencil design predates Inbox and was not consulted.
+
 ## Walgreens search-card detection enabled (16 November 2026)
 
 Branch `feat/walgreens-product-adding`, app revision
