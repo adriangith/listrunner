@@ -111,6 +111,8 @@ function fixture({ panelName = PANEL_NAME } = {}) {
   };
   return { config,
     tapAdd(trusted = true) { tapOn(add, trusted); panel.hidden = false; mutation(); },
+    tapAddDirect(trusted = true) { tapOn(add, trusted); mutation(); },
+    hidePanel() { panel.hidden = true; mutation(); },
     tapOtherAdd() { tapOn(otherAdd); },
     tapTab() { tapOn(shippingLabel); mutation(); },
     tapContinue(trusted = true) { tapOn(pickup, trusted); panel.hidden = true; mutation(); },
@@ -187,6 +189,30 @@ for (const [name, run] of Object.entries(failures)) {
     const p = fixture(); run(p);
     assert.equal(p.acknowledgements.length, 0);
     assert.equal(p.additions.length, 0);
+  });
+}
+
+test('Walgreens remembered fulfilment: a direct card Add confirms from its matching receipt', () => {
+  const p = fixture(); p.tapAddDirect(); p.tick(2);
+  assert.equal(p.acknowledgements.length, 0);
+  p.succeed(); p.tick();
+  assert.equal(p.acknowledgements.length, 1);
+  assert.equal(p.acknowledgements[0].productID, 'prod6347302');
+});
+
+const directFailures = {
+  synthetic: p => { p.tapAddDirect(false); p.succeed(); p.tick(); },
+  failedReceipt: p => { p.tapAddDirect(); p.fail(); p.tick(); },
+  wrongProduct: p => { p.tapAddDirect(); p.drawerTitle('Colgate Total'); p.succeed(); p.tick(); },
+  otherProduct: p => { p.tapOtherAdd(); p.succeed(); p.tick(); },
+  laterTap: p => { p.tapAddDirect(); p.tapDetails(); p.succeed(); p.tick(); },
+  expired: p => { p.tapAddDirect(); p.advance(16000); p.succeed(); p.tick(); },
+  panelDismissedWithoutAdd: p => { p.tapAdd(); p.tick(2); p.hidePanel(); p.succeed(); p.tick(); },
+};
+for (const [name, run] of Object.entries(directFailures)) {
+  test(`Walgreens direct Add rejects ${name}`, () => {
+    const p = fixture(); run(p);
+    assert.equal(p.acknowledgements.length, 0);
   });
 }
 

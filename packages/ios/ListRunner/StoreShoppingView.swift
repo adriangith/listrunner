@@ -2285,6 +2285,7 @@ final class StoreBrowser: ObservableObject {
           // The retailer's own Add happens here; observe a fresh confirmation
           // window from this second trusted tap, still for the original product.
           value.fulfilled = true;
+          value.panelOpened = true;
           value.expires = Date.now() + value.profile.confirmationWindowMS;
           value.stableCount = 0;
         }
@@ -2378,6 +2379,8 @@ final class StoreBrowser: ObservableObject {
             Date.now() <= value.fulfillmentDeadline && fulfillmentDialog(value)) {
           // Choosing pickup/delivery/shipping is part of the retailer's Add,
           // bounded by the reviewed maximum, never a cart confirmation itself.
+          // Once the panel has opened, its own Add tap becomes mandatory.
+          value.panelOpened = true;
           value.expires = Math.max(value.expires, Date.now() + value.profile.confirmationWindowMS);
         }
         if (Date.now() > value.expires) {
@@ -2397,7 +2400,10 @@ final class StoreBrowser: ObservableObject {
           if (!candidateIsValid(checkingCandidate)) return;
           if (checkingCandidate.profile?.confirmation === 'productAcknowledgement') {
             const signature = profileAcknowledgement(checkingCandidate.profile, checkingCandidate.productName);
-            const awaitingFulfillment = checkingCandidate.profile.acknowledgement?.fulfillment && !checkingCandidate.fulfilled;
+            // Walgreens remembers a fulfilment choice and then adds directly from
+            // the card. Only an opened order-options panel defers confirmation.
+            const awaitingFulfillment = checkingCandidate.profile.acknowledgement?.fulfillment &&
+              checkingCandidate.panelOpened && !checkingCandidate.fulfilled;
             if (signature && !awaitingFulfillment && signature !== checkingCandidate.initialAcknowledgement) checkingCandidate.stableCount++;
             else checkingCandidate.stableCount = 0;
             if (checkingCandidate.stableCount >= 2) {
@@ -2580,7 +2586,7 @@ final class StoreBrowser: ObservableObject {
             expires: Date.now() + profile.confirmationWindowMS,
             setupDeadline: Date.now() + (profile.setupPrompt?.maximumWaitMS || 0),
             fulfillmentDeadline: Date.now() + (supportsSchema4Features && profile.acknowledgement?.fulfillment?.maximumWaitMS || 0),
-            fulfilled: false, stableCount: 0, checking: false };
+            fulfilled: false, panelOpened: false, stableCount: 0, checking: false };
           if (before !== null && !profile.setupPrompt) post('cartInteractionStarted', { productID: id, beforeQuantity: before, intent: before === 0 ? 'add' : 'increment' });
           setTimeout(checkCandidate, 180);
           return;
