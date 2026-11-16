@@ -48,7 +48,8 @@ enum StoreProductRailPull {
     /// Rubber-band overscroll (not finger travel) past the scroll view's edge.
     static let multiCardThreshold: CGFloat = 56
     /// Finger travel for the one-card rail, which has no native scroll range.
-    /// Well beyond the 64 pt side switch, so the two never compete.
+    /// Either direction arms the side it uncovers; well beyond the 64 pt side
+    /// switch, so a moderate pull still only switches sides.
     static let singleCardThreshold: CGFloat = 120
     /// Pulling back this far below the threshold disarms; avoids flicker.
     static let disarmHysteresis: CGFloat = 8

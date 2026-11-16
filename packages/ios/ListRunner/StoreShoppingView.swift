@@ -754,17 +754,16 @@ struct StoreShoppingView: View {
                 }
                 let origin = singleCardPullOrigin ?? (singleCardAddPosition == .start ? CGFloat(-1) : CGFloat(1))
                 singleCardPullOrigin = origin
-                // Pulling further toward the side already showing Add arms it;
-                // pulling the other way only switches sides, as before.
+                // A long pull arms the side the card uncovers, whichever side
+                // showed Add before; a short one (64-119 pt) only switches sides.
                 let width = value.translation.width
                 let side: ShoppingLists.AdditionPosition = width > 0 ? .start : .end
-                let revealed: ShoppingLists.AdditionPosition = origin < 0 ? .start : .end
-                let armed = side == revealed && StoreProductRailPull.isArmed(
+                let armed = StoreProductRailPull.isArmed(
                     wasArmed: railPullArmed == side, distance: abs(width),
                     threshold: StoreProductRailPull.singleCardThreshold)
                 let next = armed ? side : nil
                 if railPullArmed != next { railPullArmed = next }
-                let progress = side == revealed ? abs(width) / StoreProductRailPull.singleCardThreshold : 0
+                let progress = abs(width) / StoreProductRailPull.singleCardThreshold
                 railPullProgress.update(leading: side == .start ? progress : 0,
                                         trailing: side == .end ? progress : 0)
                 // The card still follows the finger directly. Give only the
