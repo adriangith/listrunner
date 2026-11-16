@@ -39,7 +39,12 @@ final class LocalDataController: ObservableObject {
                     context.insert(GroceryItem(name: "Woolworths fixture item", amount: 1, position: 0, listID: StoreID.woolworths.listID))
                 }
                 if navigationFixture == nil {
-                    context.insert(GroceryItem(name: "Bunnings fixture item", amount: 1, position: 0, listID: StoreID.bunnings.listID))
+                    let tools = ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_BUNNINGS_TOOLS"] == "1"
+                        ? ["Tool one", "Tool two", "Tool three"] : []
+                    for (position, name) in tools.enumerated() {
+                        context.insert(GroceryItem(name: name, amount: 1, position: position, listID: StoreID.bunnings.listID))
+                    }
+                    context.insert(GroceryItem(name: "Bunnings fixture item", amount: 1, position: tools.count, listID: StoreID.bunnings.listID))
                 }
                 if ProcessInfo.processInfo.environment["LISTRUNNER_ALL_ITEMS_RECOVERY_TEST_FIXTURE"] == "1"
                     || navigationFixture == "recovery" {

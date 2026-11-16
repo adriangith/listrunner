@@ -381,6 +381,12 @@ final class StoreSelectionTests: XCTestCase {
         app = XCUIApplication()
         app.launchEnvironment["LISTRUNNER_UI_TEST_SESSION"] = UUID().uuidString
         app.launchEnvironment["LISTRUNNER_COUNTRY_TEST_REGION"] = "AU"
+        // Seed "Tool one/two/three" before the Bunnings fixture item. Typing them
+        // in setup proved unreliable: a busy simulator keyboard scrambled input.
+        if ["CancelRestores", "PullPastRailEnds", "HoldDeletesActive", "RailLabelAndFade", "CardOcclusion"]
+            .contains(where: { name.contains($0) }) {
+            app.launchEnvironment["LISTRUNNER_UI_TEST_BUNNINGS_TOOLS"] = "1"
+        }
         if name.contains("StoreProduct") {
             app.launchEnvironment["LISTRUNNER_PRODUCT_SELECTION_FIXTURE"] = name.contains("Detail") ? "detail" : name.contains("Scrolling") ? "scroll" : "grid"
         }
@@ -4566,10 +4572,6 @@ final class StoreSelectionTests: XCTestCase {
 
     private func checkStoreProductCancelPosition(at position: String, manualReview: Bool = false) {
         choose("Bunnings")
-        let input = app.descendants(matching: .any)["grocery-input"]
-        input.tap()
-        typeStoreProductTools(into: input)
-        input.typeText("\n")
         let first = row("Tool one", status: "Pending")
         XCTAssertTrue(first.waitForExistence(timeout: 5))
         first.tap()
@@ -4616,10 +4618,6 @@ final class StoreSelectionTests: XCTestCase {
 
     func testStoreProductPullPastRailEndsAddsAtThatEnd() {
         choose("Bunnings")
-        let input = app.descendants(matching: .any)["grocery-input"]
-        input.tap()
-        typeStoreProductTools(into: input)
-        input.typeText("\n")
         let first = row("Tool one", status: "Pending")
         XCTAssertTrue(first.waitForExistence(timeout: 5))
         first.tap()
@@ -4679,7 +4677,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, "Item 1 of 1")
     }
 
-    func testStoreProductCardHoldDeletesLastItemAndEmptyListCanAddAgain() {
+    func testStoreProductCardHoldDeletesLastItemThenAddsAgain() {
         choose("Bunnings")
         app.buttons["Show Store"].tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
@@ -4715,10 +4713,6 @@ final class StoreSelectionTests: XCTestCase {
 
     func testStoreProductCardHoldDeletesActiveItemAndMovesToNextPending() {
         choose("Bunnings")
-        let input = app.descendants(matching: .any)["grocery-input"]
-        input.tap()
-        typeStoreProductTools(into: input)
-        input.typeText("\n")
         let first = row("Tool one", status: "Pending")
         XCTAssertTrue(first.waitForExistence(timeout: 5))
         first.tap()
@@ -4825,21 +4819,6 @@ final class StoreSelectionTests: XCTestCase {
         let start = rail.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5))
         start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: -100, dy: 0)),
                     withVelocity: .slow, thenHoldForDuration: 0.2)
-    }
-
-    /// A busy simulator keyboard can drop or reorder keystrokes ("ToTool tne"),
-    /// failing setup before the test begins. Verify the typed text and retype
-    /// it if needed, then submit.
-    private func typeStoreProductTools(into input: XCUIElement) {
-        let expected = "Tool one, Tool two, Tool three"
-        for _ in 0..<3 {
-            input.typeText(expected)
-            let typed = input.value as? String ?? ""
-            if typed == expected { break }
-            input.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: typed.count + 4))
-        }
-        XCTAssertEqual(input.value as? String, expected, "Setup text was entered intact")
-        input.typeText("\n")
     }
 
     private func storeProductAdd(at position: String) -> XCUIElement {
@@ -4990,10 +4969,6 @@ final class StoreSelectionTests: XCTestCase {
 
     func testStoreProductRailLabelAndFadeUnderCards() {
         choose("Bunnings")
-        let input = app.descendants(matching: .any)["grocery-input"]
-        input.tap()
-        typeStoreProductTools(into: input)
-        input.typeText("\n")
         let first = row("Tool one", status: "Pending")
         XCTAssertTrue(first.waitForExistence(timeout: 5))
         first.tap()
@@ -5030,10 +5005,6 @@ final class StoreSelectionTests: XCTestCase {
         picker.tap()
         app.buttons[appearance].tap()
         tapNavigationBack()
-        let input = app.descendants(matching: .any)["grocery-input"]
-        input.tap()
-        typeStoreProductTools(into: input)
-        input.typeText("\n")
         let first = row("Tool one", status: "Pending")
         XCTAssertTrue(first.waitForExistence(timeout: 5))
         first.tap()
