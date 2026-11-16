@@ -4679,7 +4679,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, "Item 1 of 1")
     }
 
-    func testStoreCardHoldDeletesLastItemAndEmptyListCanAddAgain() {
+    func testStoreProductCardHoldDeletesLastItemAndEmptyListCanAddAgain() {
         choose("Bunnings")
         app.buttons["Show Store"].tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
@@ -4713,7 +4713,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Bunnings fixture item"].exists)
     }
 
-    func testStoreCardHoldDeletesActiveItemAndMovesToNextPending() {
+    func testStoreProductCardHoldDeletesActiveItemAndMovesToNextPending() {
         choose("Bunnings")
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
