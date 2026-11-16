@@ -23,7 +23,7 @@ VOCABULARY = set(ASSIGNMENTS.values())
 AUTOMATION_SCHEMA_VERSIONS = {
     "amazon": 2, "asda": 2, "bcf": 2, "bigW": 3, "boots": 2, "bunnings": 2,
     "bunningsNZ": 4, "chemistWarehouse": 4, "coles": 2, "costco": 2, "costcoUS": 2,
-    "cvs": 2, "ikeaAU": 5, "jbHiFi": 4, "kmart": 3, "kroger": 2, "morrisons": 4,
+    "cvs": 2, "ikeaAU": 5, "jbHiFi": 4, "kmart": 3, "kroger": 4, "morrisons": 4,
     "newWorld": 2, "ocado": 4, "officeworks": 4, "paknsave": 2, "petbarn": 4,
     "priceline": 4, "sainsburys": 2, "supercheapAuto": 4, "target": 2, "targetAU": 2,
     "tesco": 4, "theWarehouse": 2, "waitrose": 4, "walgreens": 2, "walmart": 2,

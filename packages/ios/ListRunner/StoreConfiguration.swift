@@ -46,7 +46,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         }
     }
     var permitsCartUndo: Bool { [.coles, .bigW, .tesco, .ikeaAU].contains(self) }
-    var permitsCartDetection: Bool { [.coles, .woolworths, .bunnings, .tesco, .kmart, .bigW, .priceline, .supercheapAuto, .ocado, .chemistWarehouse, .waitrose, .jbHiFi, .bunningsNZ, .officeworks, .ikeaAU].contains(self) }
+    var permitsCartDetection: Bool { [.coles, .woolworths, .bunnings, .tesco, .kmart, .bigW, .priceline, .supercheapAuto, .ocado, .chemistWarehouse, .waitrose, .jbHiFi, .bunningsNZ, .officeworks, .ikeaAU, .kroger].contains(self) }
     var displayName: String {
         switch self {
         case .coles: "Coles"
@@ -863,6 +863,9 @@ struct StoreDefinition: Codable {
         }
         if id == .sainsburys { return host == "account.sainsburys.co.uk" }
         if id == .waitrose { return host == "auth.waitrose.com" }
+        // Kroger's CIAM page is navigation-only; do not grant it the isolated
+        // store automation bridge or widen the shopping host set.
+        if id == .kroger { return host == "login.kroger.com" }
         // Bunnings establishes its website session through a silent authorization
         // frame. This is browsing-only: `allows` and automation hosts stay closed.
         if id == .bunnings { return host == "authorisation.api.bunnings.com.au" }
