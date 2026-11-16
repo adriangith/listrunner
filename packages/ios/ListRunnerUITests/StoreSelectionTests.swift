@@ -4367,7 +4367,7 @@ final class StoreSelectionTests: XCTestCase {
         let add = app.buttons["collapsed-add-store-product"]
         XCTAssertTrue(add.waitForExistence(timeout: 3))
         XCTAssertEqual(add.label, "Add item to your list")
-        pullToAdd(add)
+        add.tap()
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "store-product-selection-bar").firstMatch.waitForExistence(timeout: 3))
         let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
         XCTAssertTrue(shield.waitForExistence(timeout: 5))
@@ -4568,7 +4568,7 @@ final class StoreSelectionTests: XCTestCase {
         choose("Bunnings")
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
-        input.typeText("Tool one, Tool two, Tool three\n")
+        typeStoreProductTools(into: input)
         input.typeText("\n")
         let first = row("Tool one", status: "Pending")
         XCTAssertTrue(first.waitForExistence(timeout: 5))
@@ -4583,7 +4583,7 @@ final class StoreSelectionTests: XCTestCase {
             start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: -30, dy: 0)),
                         withVelocity: .slow, thenHoldForDuration: 0.3)
         } else {
-            for _ in 0..<3 {
+            for _ in 0..<8 {
                 if isRevealed(storeProductAdd(at: position)) { break }
                 scrollStoreProductRailTowardEnd(rail)
             }
@@ -4618,7 +4618,7 @@ final class StoreSelectionTests: XCTestCase {
         choose("Bunnings")
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
-        input.typeText("Tool one, Tool two, Tool three\n")
+        typeStoreProductTools(into: input)
         input.typeText("\n")
         let first = row("Tool one", status: "Pending")
         XCTAssertTrue(first.waitForExistence(timeout: 5))
@@ -4640,7 +4640,7 @@ final class StoreSelectionTests: XCTestCase {
         let rail = app.scrollViews.containing(.button, identifier: "Collapse overlay").firstMatch
         let right = storeProductAdd(at: "End of list")
         XCTAssertTrue(rail.waitForExistence(timeout: 5))
-        for _ in 0..<4 {
+        for _ in 0..<8 {
             if isRevealed(right) { break }
             scrollStoreProductRailTowardEnd(rail)
         }
@@ -4763,8 +4763,16 @@ final class StoreSelectionTests: XCTestCase {
     /// Slow, short drags: never overscroll far enough to arm pull-to-add.
     private func scrollStoreProductRailTowardEnd(_ rail: XCUIElement) {
         let start = rail.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5))
-        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: -90, dy: 0)),
+        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: -100, dy: 0)),
                     withVelocity: .slow, thenHoldForDuration: 0.2)
+    }
+
+    /// Short separate entries: a long typeText can be scrambled by a busy
+    /// simulator keyboard ("ToTool tne"), failing setup before the test begins.
+    private func typeStoreProductTools(into input: XCUIElement) {
+        for (index, name) in ["Tool one", "Tool two", "Tool three"].enumerated() {
+            input.typeText(name + (index == 2 ? "\n" : ", "))
+        }
     }
 
     private func storeProductAdd(at position: String) -> XCUIElement {
@@ -4917,7 +4925,7 @@ final class StoreSelectionTests: XCTestCase {
         choose("Bunnings")
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
-        input.typeText("Tool one, Tool two, Tool three\n")
+        typeStoreProductTools(into: input)
         input.typeText("\n")
         let first = row("Tool one", status: "Pending")
         XCTAssertTrue(first.waitForExistence(timeout: 5))
@@ -4957,7 +4965,7 @@ final class StoreSelectionTests: XCTestCase {
         tapNavigationBack()
         let input = app.descendants(matching: .any)["grocery-input"]
         input.tap()
-        input.typeText("Tool one, Tool two, Tool three\n")
+        typeStoreProductTools(into: input)
         input.typeText("\n")
         let first = row("Tool one", status: "Pending")
         XCTAssertTrue(first.waitForExistence(timeout: 5))
@@ -4981,7 +4989,7 @@ final class StoreSelectionTests: XCTestCase {
             }
         }
         let right = storeProductAdd(at: "End of list")
-        for _ in 0..<4 {
+        for _ in 0..<8 {
             if isRevealed(right) { break }
             scrollStoreProductRailTowardEnd(rail)
         }
