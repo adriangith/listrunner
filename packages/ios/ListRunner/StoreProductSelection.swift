@@ -108,8 +108,8 @@ struct StoreProductAddLabel: View {
                         .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                     Image(systemName: "plus").font(.system(size: 11, weight: .bold))
-                } else {
-                    Image(systemName: armed ? "plus.circle.fill" : "text.badge.plus").font(.title2)
+                } else if armed {
+                    Image(systemName: "plus.circle.fill").font(.title2)
                 }
             }
             .frame(width: 28, height: 28)
@@ -126,6 +126,9 @@ struct StoreProductAddLabel: View {
             .lineLimit(3).minimumScaleFactor(0.85)
         }
         .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
+        // Blank at rest: the hint only appears as a pull begins, fully by a
+        // third of the way to the threshold, and stays while armed.
+        .opacity(armed ? 1 : Double(min(1, progress / 0.35)))
         .scaleEffect(armed && !reduceMotion ? 1.1 : 1)
         .animation(reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.25, dampingFraction: 0.6), value: armed)
         // Weight the label toward the lower half of its slot without shifting
