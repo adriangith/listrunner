@@ -1,5 +1,10 @@
 ## ListRunner Build Specification
 
+### IKEA website products to list (17 November 2026)
+
+* IKEA Australia (`ikeaAU`) opts into the existing schema-8 local-list product-selection flow on search grids and product pages. Preserve the full rendered family name and description, including commas, accents and dimensions; review quantity defaults to 1. Keep the existing rail controls, insertion edge, duplicate merging, save/reveal and manual fallback unchanged.
+* Match one exact Australian eight-digit article identity per tile; ambiguous variant links and missing/ambiguous headings fail safely. Read the dedicated detail price-package heading, not cart purchase controls or recommendations. Keep automation schema 5, trusted hosts, identities, search and all existing cart behavior unchanged. Public Chromium checks are not native WebKit release sign-off; see `packages/ios/VALIDATION.md`.
+
 ### All items filter and Settings capsule (15 November 2026)
 
 * Replace the scrolling `By store` / `By category` segmented control with an icon-only Filter menu in the top trailing toolbar, immediately before Settings. Put both native controls in one toolbar group so iOS 26+ supplies a shared Liquid Glass capsule; earlier iOS versions use their standard toolbar appearance. Individual store screens retain Settings alone; do not change the leading scope chooser or native Back controls.
