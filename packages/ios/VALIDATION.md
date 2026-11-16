@@ -75,6 +75,14 @@ arguments/environment, uninstall, data reset, list edits, imports, retailer/cart
 actions or UI tests. This proves native build/sign/install/launch, not live IKEA
 WebKit selection/review/save or physical visual/accessibility sign-off.
 
+**User hands-on acceptance.** After installation, the user reported “looks good”
+and subsequently confirmed they had performed the requested hands-on IKEA check
+on the phone: “I did. Looks good.” This is user-reported acceptance of the installed
+feature, not an automated native test result or itemised proof of every
+save/Cancel/accessibility scenario. Do not continue describing the general
+hands-on phone check as awaiting the user; native offline assertions and broader
+catalogue/accessibility coverage remain separate.
+
 ## Walgreens search-card detection enabled (16 November 2026)
 
 Branch `feat/walgreens-product-adding`, app revision
