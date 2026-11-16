@@ -1,5 +1,31 @@
 # Reusable store framework validation
 
+## Kroger sign-in and authorized cart probe (16 November 2026)
+
+At the user's request, permitted `login.kroger.com` only as Kroger's exact HTTPS
+navigation exception. It is deliberately excluded from `StoreID.hosts` and
+`kroger.json.allowedHosts`, so the identity provider never receives the isolated
+cart-automation bridge. Native regression checks cover the exact-host exception,
+HTTPS/credential/port rejection and cross-retailer isolation.
+
+On the signed-in iPhone 18 Pro simulator, the user-authorized Darigold FIT Whole
+Milk Ultra-Filtered 59 fl oz test began with Kroger reporting **0 items**. One
+product-specific Add produced Kroger's accessible `in Cart`/successful-increment
+state and quantity **1**. One product-specific decrement restored the visible
+cart count to **0**, and the product returned to Add. No checkout, purchase or
+other cart/account change occurred. ListRunner's own row remained Pending because
+Kroger detection was not yet enabled.
+
+This proves the visible Kroger quantity transition for that grid product, not the
+DOM selectors/product-ID extraction required by ListRunner's scoped detector. A
+separate read-only, nonpersistent WebKit search probe on iPad returned no product
+links (Kroger's verification/blocker behavior); it performed no sign-in or cart
+operation. Therefore Kroger cart detection and Undo remain disabled. Do not promote
+either capability until signed-in DOM identity, scoped product-card controls, and
+native automatic detection are independently verified. The signed-in app remains
+on the Kroger milk results screen; the test cart was restored to its observed
+zero-item baseline.
+
 ## Filter capsule installed on physical iPhone (16 November 2026)
 
 At the user's request, built/signed/installed in place and launched branch
