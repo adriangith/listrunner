@@ -3968,4 +3968,5 @@ UI-driven setup. Two latent races uncovered by the faster waits (confirming the 
 sheet mid-animation; querying rows while the store sheet closed) were fixed in shared
 helpers. Earlier failures from scrambled typed setup text were removed by seeding those
 items. Node tests: 557/557. The full UI suite was not run. The iPhone 17e build with
-hold-to-delete (`aa80937`) was installed and launched; physical review is pending.
+hold-to-delete (`aa80937`) was installed and launched, and the user reviewed it on the
+phone and approved it. Later commits change only tests, debug-only fixtures and docs.
