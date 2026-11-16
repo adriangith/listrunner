@@ -286,6 +286,12 @@ passed. `testExpansionStoreDiscoveryAndSeparateTargetBrands` is an offline UI ch
 Schema-4 profiles cover Priceline, Supercheap Auto, Chemist Warehouse,
 JB Hi-Fi, Officeworks, Bunnings NZ, Petbarn, Morrisons and Waitrose; only Priceline,
 Supercheap Auto, Ocado, Chemist Warehouse, Waitrose, JB Hi-Fi, Bunnings NZ and Officeworks are production-enabled after native live proof.
+Walgreens (schema 4) enables search-card detection from its "N item(s) added to cart"
+drawer for the same product, including its order-options step (Walgreens-only
+`acknowledgement.fulfillment`/`successPattern`). Walgreens rejects adds (HTTP 403)
+outside the US, so it works only on a US connection. The direct (remembered pickup) path is
+live-verified; the order-options-panel path is fixture-tested only. No retailer Undo.
+See `VALIDATION.md`.
 User-facing store lists offer only destinations with verified search enabled.
 Amazon US, Costco US, New World, PAK’nSAVE, Boots and CVS are temporarily
 hidden from discovery/search, the chooser and regional options. Their registration,

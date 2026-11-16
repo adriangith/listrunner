@@ -1,5 +1,60 @@
 # Reusable store framework validation
 
+## Walgreens search-card detection enabled (16 November 2026)
+
+Branch `feat/walgreens-product-adding`, app revision
+`173e4f5ba90e36870bebefa1e658b6873c0ea0a0`, assigned iPhone 18 Pro / iOS 27.2
+simulator `BC63C21F-093F-4D8E-8F3F-B12BDA23DC4F`, signed-in user session.
+
+**Network prerequisite.** From the user's normal (non-US) connection, Walgreens
+search loads behind a "Challenge Validation" check but every Add fails: Safari's
+console showed `POST /sameday/cartsvc/items` → **HTTP 403**, reproduced signed in and
+out and in the OpenChamber browser. With the user's own US VPN, adds succeed. No
+bot-check bypass exists in ListRunner; outside the US, Walgreens stays manual.
+
+**Observed retailer flow (read-only debugger DOM inspection).** Card
+`div#productcard<prodID>[data-product-id]` holds the product links
+`/store/c/<slug>/ID=<prodID>-product`, title `a[data-testid^='product-title-']`, an
+intended-quantity `<select>` (never used as evidence) and
+`button[data-testid^='add-to-fulfillment-btn-']`. The first Add opens the
+`#fulfillmentWidgetContainer` order-options dialog ("Add for Pickup"); once a
+choice is remembered, later card Adds add directly. Success is the
+`[data-testid='drawer-root']` drawer with `atc-added-to-cart-success-text`
+"N item(s) added to cart" and `pdp-product-title`. The card itself never changes.
+Card titles read "Name - 5.1 oz"; panel/drawer titles read "Name-5.1 oz".
+
+**Engine change (schema-4 productAcknowledgement, Walgreens-only, native-gated).**
+`acknowledgement.successPattern` (anchored, ≤256) accepts the retailer count;
+`acknowledgement.fulfillment {selector, continueSelector, optionSelector,
+maximumWaitMS ≤300000}` lets taps on tabs/"Add for …" *inside the order-options
+dialog for the same armed product title* continue the trusted card Add instead of
+cancelling it; any other tap still cancels. If that dialog opened, its own Add tap
+becomes mandatory; if it never opened (remembered fulfilment), the card tap is the
+Add. Titles compare ignoring spacing around hyphens only for this profile. Both
+fields are rejected for any other store, product-page scope, unknown keys, empty
+selectors or unbounded waits. No retailer Undo; product identity is the captured
+`prod<digits>` ID.
+
+**Live result.** With Toothpaste Pending and the Walgreens cart at 3 Crest
+Pro-Health Advanced Extra White 5.1 oz (`prod6347302`, earlier test adds), one
+direct card Add raised the cart to 4 and ListRunner marked Toothpaste **Added**
+automatically, without Mark Added. Diagnostics recorded exactly one Walgreens
+`cartDetection/succeeded` (sequence 16, 19:00:09 +11:00). A following Add returned
+"0 items added for pickup / no longer in stock", which cannot match. The previous
+revision (`92196d5`) missed this direct-add path; that miss produced the fix.
+
+**Not live-verified:** the order-options-panel path (panel → Add for Pickup →
+receipt). Under `92196d5` an attempt the user described as using the panel did not
+confirm, and the panel could not be reopened for inspection once Walgreens
+remembered pickup. If the panel's title does not match, the Add for Pickup tap
+cancels detection (fails safe to Pending). Also unverified: Delivery/Shipping
+labels, "added for pickup" success wording, product pages and physical devices.
+
+Checks: 34 Walgreens DOM scenarios (`walgreens-cart-detection.test.mjs`, now in
+`run-cloud-checks.sh`); Mac offline suite **1949 native checks** and **483 DOM
+tests** passed at `173e4f5`. Test-cart cleanup: the four test tubes are to be
+removed by the user from the Walgreens cart (started empty).
+
 ## Kroger search-card detection enabled (16 November 2026)
 
 Supersedes the earlier disabled-detection boundary below. At exact app/test revision

@@ -174,6 +174,8 @@ const failures = {
   differentPanelProduct: p => { p.panelTitle('Colgate Total'); p.tapAdd(); p.tapContinue(); p.succeed(); p.tick(); },
   failedReceipt: p => { p.tapAdd(); p.tapContinue(); p.fail(); p.tick(); },
   failureMarker: p => { p.tapAdd(); p.tapContinue(); p.failureMarker(); p.succeed(); p.tick(); },
+  stockLimit: p => { p.tapAdd(); p.tapContinue(); p.succeed('0 items added for pickup'); p.tick(); },
+  pickupCount: p => { p.tapAdd(); p.tapContinue(); p.succeed('1 item added for pickup'); p.tick(); },
   zeroCount: p => { p.tapAdd(); p.tapContinue(); p.succeed('0 items added to cart'); p.tick(); },
   uncountedReceipt: p => { p.tapAdd(); p.tapContinue(); p.succeed('item added to cart'); p.tick(); },
   receiptPrefix: p => { p.tapAdd(); p.tapContinue(); p.succeed('not 1 item added to cart'); p.tick(); },
@@ -203,6 +205,7 @@ test('Walgreens remembered fulfilment: a direct card Add confirms from its match
 const directFailures = {
   synthetic: p => { p.tapAddDirect(false); p.succeed(); p.tick(); },
   failedReceipt: p => { p.tapAddDirect(); p.fail(); p.tick(); },
+  stockLimit: p => { p.tapAddDirect(); p.succeed('0 items added for pickup'); p.tick(); },
   wrongProduct: p => { p.tapAddDirect(); p.drawerTitle('Colgate Total'); p.succeed(); p.tick(); },
   otherProduct: p => { p.tapOtherAdd(); p.succeed(); p.tick(); },
   laterTap: p => { p.tapAddDirect(); p.tapDetails(); p.succeed(); p.tick(); },
