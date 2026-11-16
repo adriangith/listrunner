@@ -1,11 +1,49 @@
 {
   "schemaVersion": 7, "id": "walgreens", "displayName": "Walgreens",
   "category": "pharmacyBeauty",
-  "automationSchemaVersion": 2,
+  "automationSchemaVersion": 4,
   "serviceArea": {"countryCodes": ["US"]},
   "homepage": "https://www.walgreens.com",
   "allowedHosts": ["www.walgreens.com", "walgreens.com"],
   "search": {"strategy": "urlTemplate", "template": "https://www.walgreens.com/search/results.jsp?Ntt={query}"},
   "addedColor": {"red": 190, "green": 0, "blue": 35},
-  "capabilities": {"search": true, "cartDetection": false, "cartUndo": false}, "cart": null
+  "capabilities": {"search": true, "cartDetection": true, "cartUndo": false},
+  "cart": {
+    "strategy": "profiled",
+    "identityStrategy": "capturedURLComponent",
+    "tileSelector": "div[id^='productcardprod'][data-product-id]",
+    "linkSelector": "a[href*='/ID=prod']",
+    "productURLPattern": "^/store/c/[^/]+/ID=(prod\\d{1,24})-product/?$",
+    "addSelector": "button[data-testid^='add-to-fulfillment-btn-']",
+    "addLabelPatterns": ["^add .+ to cart$"],
+    "quantitySelector": "input[type='number']",
+    "emptyStatusSelector": "button[data-testid^='add-to-fulfillment-btn-']",
+    "emptyStatusText": "Add to cart",
+    "decrementLabelPattern": "^decrease quantity$",
+    "profiles": [{
+      "id": "product-card",
+      "scope": "productCard",
+      "identity": "cardLink",
+      "containerSelector": "div[id^='productcardprod'][data-product-id]",
+      "titleSelector": "a[data-testid^='product-title-']",
+      "addSelector": "button[data-testid^='add-to-fulfillment-btn-']",
+      "addLabelPatterns": ["^add .+ to cart$"],
+      "confirmation": "productAcknowledgement",
+      "confirmationWindowMS": 15000,
+      "acknowledgement": {
+        "selector": "[data-testid='drawer-root'][role='dialog']",
+        "successSelector": "[data-testid='atc-added-to-cart-success-text']",
+        "successText": "1 item added to cart",
+        "successPattern": "^[1-9][0-9]{0,3} items? added to cart$",
+        "titleSelector": "[data-testid='pdp-product-title']",
+        "failureSelector": "[data-testid*='error'],[data-testid*='Error']",
+        "fulfillment": {
+          "selector": "div[id='fulfillmentWidgetContainer'][role='dialog']",
+          "continueSelector": "button[aria-label^='Add for ']",
+          "optionSelector": "[role='tab']",
+          "maximumWaitMS": 120000
+        }
+      }
+    }]
+  }
 }

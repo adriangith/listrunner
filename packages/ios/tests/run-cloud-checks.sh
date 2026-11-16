@@ -21,7 +21,8 @@ node --test \
   "$base/tests/coles-add-detection.test.mjs" \
   "$base/tests/ikea-cart-snapshot.test.mjs" \
   "$base/tests/tesco-quantity.test.mjs" \
-  "$base/tests/profiled-expansion-cart.test.mjs"
+  "$base/tests/profiled-expansion-cart.test.mjs" \
+  "$base/tests/walgreens-cart-detection.test.mjs"
 node --test "$base/tests/store-inspection.test.mjs"
 node --test "$base/tests/nightly-beta.test.mjs"
 bash "$base/tests/run-parser-tests.sh"

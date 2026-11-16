@@ -26,7 +26,7 @@ AUTOMATION_SCHEMA_VERSIONS = {
     "cvs": 2, "ikeaAU": 5, "jbHiFi": 4, "kmart": 3, "kroger": 4, "morrisons": 4,
     "newWorld": 2, "ocado": 4, "officeworks": 4, "paknsave": 2, "petbarn": 4,
     "priceline": 4, "sainsburys": 2, "supercheapAuto": 4, "target": 2, "targetAU": 2,
-    "tesco": 4, "theWarehouse": 2, "waitrose": 4, "walgreens": 2, "walmart": 2,
+    "tesco": 4, "theWarehouse": 2, "waitrose": 4, "walgreens": 4, "walmart": 2,
     "woolworths": 2,
 }
 
