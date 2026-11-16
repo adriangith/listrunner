@@ -203,6 +203,7 @@ struct StoreShoppingView: View {
     let onSelectionChange: (UUID) -> Void
     let onStatusChange: (GroceryItem) -> Void
     let onAddStoreProduct: (String, Int, ShoppingLists.AdditionPosition) -> UUID?
+    let onDeleteItem: (GroceryItem) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -265,7 +266,7 @@ struct StoreShoppingView: View {
         }
     }
 
-    init(items: [GroceryItem], browser: StoreBrowser, initialSelectedID: UUID?, saveFailed: Bool = false, onSelectionChange: @escaping (UUID) -> Void, onStatusChange: @escaping (GroceryItem) -> Void, onAddStoreProduct: @escaping (String, Int, ShoppingLists.AdditionPosition) -> UUID?) {
+    init(items: [GroceryItem], browser: StoreBrowser, initialSelectedID: UUID?, saveFailed: Bool = false, onSelectionChange: @escaping (UUID) -> Void, onStatusChange: @escaping (GroceryItem) -> Void, onAddStoreProduct: @escaping (String, Int, ShoppingLists.AdditionPosition) -> UUID?, onDeleteItem: @escaping (GroceryItem) -> Void = { _ in }) {
         self.items = items
         self.browser = browser
         self.initialSelectedID = initialSelectedID
@@ -273,6 +274,7 @@ struct StoreShoppingView: View {
         self.onSelectionChange = onSelectionChange
         self.onStatusChange = onStatusChange
         self.onAddStoreProduct = onAddStoreProduct
+        self.onDeleteItem = onDeleteItem
         _selectedID = State(initialValue: initialSelectedID)
     }
 
@@ -284,6 +286,9 @@ struct StoreShoppingView: View {
         if let id = storeProductRevealID, items.contains(where: { $0.id == id }) { return id }
         return selected?.id
     }
+    // With no items left (the last card was deleted) the card panel has
+    // nothing to show; the empty-list bar takes its place.
+    private var hidesExpandedPanel: Bool { isCollapsed || choosingStoreProduct || items.isEmpty }
     private var isFinalConfirmation: Bool { pending.isEmpty && undoRecord != nil }
     private var collapseProgress: CGFloat {
         isCollapsed ? 1 : min(max(overlayDrag.distance, 0) / 240, 1)
@@ -361,7 +366,10 @@ struct StoreShoppingView: View {
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     // Omit hidden controls rather than leaving a zero-height,
                     // transparent subtree discoverable by accessibility clients.
-                    if isCollapsed && !choosingStoreProduct {
+                    if items.isEmpty && !choosingStoreProduct {
+                        emptyListBar(bottomSafeAreaInset: geometry.safeAreaInsets.bottom)
+                            .frame(height: 70)
+                    } else if isCollapsed && !choosingStoreProduct {
                         collapsedBar(bottomSafeAreaInset: geometry.safeAreaInsets.bottom)
                             .frame(height: 70)
                     }
@@ -406,10 +414,10 @@ struct StoreShoppingView: View {
                         .offset(y: reduceMotion ? 0 : 250 * collapseProgress)
                         .offset(y: entranceNudge)
                         .opacity(choosingStoreProduct ? 0 : 1 - collapseProgress)
-                        .allowsHitTesting(!isCollapsed && !choosingStoreProduct)
-                        .accessibilityHidden(isCollapsed || choosingStoreProduct)
+                        .allowsHitTesting(!hidesExpandedPanel)
+                        .accessibilityHidden(hidesExpandedPanel)
                 }
-                .frame(height: isCollapsed || choosingStoreProduct ? 0 : 330, alignment: .bottom)
+                .frame(height: hidesExpandedPanel ? 0 : 330, alignment: .bottom)
                 }
             }
             .background(Color(uiColor: .systemBackground))
@@ -461,6 +469,14 @@ struct StoreShoppingView: View {
                 }
             }
             #endif
+            }
+            .onChange(of: items.isEmpty) { _, empty in
+                // An item added from the empty-list bar becomes the active card,
+                // without searching: the store page already shows that product.
+                guard !empty, selectedID == nil || !items.contains(where: { $0.id == selectedID }),
+                      let first = items.first else { return }
+                selectedID = first.id
+                onSelectionChange(first.id)
             }
             .task {
                 #if DEBUG
@@ -1094,6 +1110,7 @@ struct StoreShoppingView: View {
             .buttonStyle(StoreCardTapButtonStyle())
             .accessibilityLabel("\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(current ? ", selected" : "")")
             .accessibilityAddTraits(current ? .isSelected : [])
+            .accessibilityAction(named: Text("Delete from List")) { deleteItem(item.id) }
 
             if current && (!isFinalConfirmation || item.status != .pending) {
                 Divider().overlay(.white.opacity(0.33))
@@ -1124,6 +1141,10 @@ struct StoreShoppingView: View {
             .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(.white.opacity(0.3), lineWidth: 1))
             .shadow(color: .black.opacity(current ? 0.18 : 0.08), radius: current ? 12 : 6, y: 5)
             .contentShape(RoundedRectangle(cornerRadius: 20))
+            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 20))
+            // Hold to delete. A deliberate two-step (hold, then tap Delete), so
+            // no separate confirmation; ListRunner only, never the store cart.
+            .contextMenu { cardMenu(item) }
             .simultaneousGesture(TapGesture().onEnded { select(item) })
             .onLongPressGesture(minimumDuration: 0.12, maximumDistance: 12, pressing: { pressing in
                 withAnimation(.spring(response: 0.24, dampingFraction: 0.62)) {
@@ -1136,6 +1157,76 @@ struct StoreShoppingView: View {
             .animation(overlayAnimation, value: item.status)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(current ? "selected-shopping-card" : "shopping-card-\(item.id.uuidString)")
+    }
+
+    @ViewBuilder
+    private func cardMenu(_ item: GroceryItem) -> some View {
+        if !choosingStoreProduct {
+            Button(role: .destructive) { deleteItem(item.id) } label: {
+                Label("Delete from List", systemImage: "trash")
+                if item.status == .added {
+                    Text("Your \(browser.store.displayName) cart won't change")
+                }
+            }
+        }
+    }
+
+    private func emptyListBar(bottomSafeAreaInset: CGFloat) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Your list is empty").font(.headline)
+                Text("Add something from \(browser.store.displayName)")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .lineLimit(1).minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+            Button { beginStoreProductSelection(at: .start) } label: {
+                Label("Add Item", systemImage: "plus").fixedSize()
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityHint("Choose a product to add to your list. Does not change the store cart.")
+            .accessibilityIdentifier("empty-list-add-store-product")
+            Button("Done") { dismissStore() }
+                .buttonStyle(.bordered)
+                .fixedSize()
+        }
+        .padding(.horizontal, 16)
+        .frame(minHeight: 70)
+        .background {
+            Rectangle().fill(.regularMaterial)
+                .frame(height: 70 + bottomSafeAreaInset)
+                .offset(y: bottomSafeAreaInset)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("empty-list-bar")
+    }
+
+    private func deleteItem(_ id: UUID) {
+        guard let item = items.first(where: { $0.id == id }) else { return }
+        let wasSelected = selected?.id == id
+        if wasSelected || undoRecord?.id == id {
+            // A countdown or undo for a deleted item has nothing left to act on.
+            task?.cancel()
+            browser.cancelPreload()
+            secondsRemaining = 0
+            manuallyPaused = false
+            undoRecord = nil
+        }
+        selectionHistory.removeAll { $0 == id }
+        if storeProductRevealID == id { storeProductRevealID = nil }
+        // Capture the successor before deletion: the model object is gone after.
+        let nextID = wasSelected ? ShoppingLists.selection(afterRemoving: id, from: items) : nil
+        let next = nextID.flatMap { nextID in items.first { $0.id == nextID } }
+        withAnimation(overlayAnimation) { onDeleteItem(item) }
+        guard wasSelected else { return }
+        if let next, next.status == .pending {
+            // Like Skip: continue shopping with the next pending item.
+            select(next, recordHistory: false)
+        } else {
+            // Nothing pending (or nothing left): move selection without searching.
+            selectedID = next?.id
+            if let id = next?.id { onSelectionChange(id) }
+        }
     }
 
     private func cardBackground(_ status: GroceryStatus, active: Bool) -> LinearGradient {

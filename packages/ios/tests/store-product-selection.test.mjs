@@ -418,7 +418,8 @@ test('Cancel retains the mounted rail and does not scroll when clearing a previo
   const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
   assert.match(view, /\}\)\s*\}\s*\/\/ Keep the same ScrollView alive[\s\S]*?ZStack\(alignment: \.bottom\)/);
   assert.match(view, /opacity\(choosingStoreProduct \? 0 : 1 - collapseProgress\)/);
-  assert.match(view, /frame\(height: isCollapsed \|\| choosingStoreProduct \? 0 : 330/);
+  assert.match(view, /frame\(height: hidesExpandedPanel \? 0 : 330/);
+  assert.match(view, /hidesExpandedPanel: Bool \{ isCollapsed \|\| choosingStoreProduct \|\| items\.isEmpty \}/);
   const reveal = view.split('.onChange(of: storeProductRevealID)')[1].split('.onChange(of: activeCardRecentreRequest)')[0];
   assert.match(reveal, /if let id = storeProductRevealID/);
   assert.doesNotMatch(reveal, /railScrollTargetID/);
