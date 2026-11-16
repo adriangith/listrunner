@@ -131,7 +131,7 @@ enum StoreID: String, Codable, CaseIterable, Identifiable {
         case .costcoUS: ["www.costco.com", "costco.com"]
         case .bigW: ["www.bigw.com.au", "bigw.com.au"]
         case .amazon: ["www.amazon.com", "amazon.com"]
-        case .kroger: ["www.kroger.com", "kroger.com", "login.kroger.com"]
+        case .kroger: ["www.kroger.com", "kroger.com"]
         case .target: ["www.target.com", "target.com"]
         case .chemistWarehouse: ["www.chemistwarehouse.com.au", "chemistwarehouse.com.au"]
         case .priceline: ["www.priceline.com.au", "priceline.com.au"]
@@ -863,6 +863,9 @@ struct StoreDefinition: Codable {
         }
         if id == .sainsburys { return host == "account.sainsburys.co.uk" }
         if id == .waitrose { return host == "auth.waitrose.com" }
+        // Kroger's CIAM page is navigation-only; do not grant it the isolated
+        // store automation bridge or widen the shopping host set.
+        if id == .kroger { return host == "login.kroger.com" }
         // Bunnings establishes its website session through a silent authorization
         // frame. This is browsing-only: `allows` and automation hosts stay closed.
         if id == .bunnings { return host == "authorisation.api.bunnings.com.au" }

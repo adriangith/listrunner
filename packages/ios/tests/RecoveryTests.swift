@@ -395,6 +395,16 @@ struct RecoveryTests {
         let amazon = try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("amazon.json")))
         let kroger = try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("kroger.json")))
         let target = try StoreDefinition.decodeConfiguration(from: Data(contentsOf: resources.appendingPathComponent("target.json")))
+        let krogerLogin = URL(string: "https://login.kroger.com/eciamp.onmicrosoft.com/b2c_1a__ciam_signin_signup/oauth2/v2.0/authorize")!
+        check(kroger.allowsNavigation(krogerLogin) && !kroger.allows(krogerLogin)
+              && !kroger.allowedHosts.contains("login.kroger.com"),
+              "Kroger CIAM login is exact-host navigation-only, never a cart automation origin")
+        check(!walmart.allowsNavigation(krogerLogin) && !target.allowsNavigation(krogerLogin),
+              "Kroger CIAM browsing trust is not inherited by other US stores")
+        for raw in ["http://login.kroger.com/authorize", "https://login.kroger.com:444/authorize",
+                    "https://user:password@login.kroger.com/authorize", "https://login.kroger.com.evil.test/authorize"] {
+            check(!kroger.allowsNavigation(URL(string: raw)!), "Kroger CIAM exception remains exact, HTTPS-only and credential-free")
+        }
         let usDefinitions = [amazon, costcoUS, kroger, target, walmart]
         let expandedDefinitions = brandDefinitions + [amazon, kroger, target]
         let expansionIDs: [StoreID] = [.chemistWarehouse, .priceline, .officeworks, .jbHiFi, .targetAU,
