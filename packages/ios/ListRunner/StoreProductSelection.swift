@@ -41,13 +41,47 @@ struct StoreProductSelectionBar: View {
     }
 }
 
+/// Pull-to-add: dragging a rail end past its resting edge arms Add, and lifting
+/// the finger while armed starts it. Only a pull that begins with that end
+/// already showing counts, so flicking through the cards never adds by accident.
+enum StoreProductRailPull {
+    /// Rubber-band overscroll (not finger travel) past the scroll view's edge.
+    static let multiCardThreshold: CGFloat = 56
+    /// Finger travel for the one-card rail, which has no native scroll range.
+    /// Well beyond the 64 pt side switch, so the two never compete.
+    static let singleCardThreshold: CGFloat = 120
+    /// Pulling back this far below the threshold disarms; avoids flicker.
+    static let disarmHysteresis: CGFloat = 8
+    /// How close to an edge the rail must rest at touch-down to pull from it.
+    static let edgeTolerance: CGFloat = 12
+
+    /// Distances past each edge: positive when overscrolled, negative before it.
+    static func overscroll(offset: CGFloat, viewport: CGFloat, content: CGFloat,
+                           leadingInset: CGFloat, trailingInset: CGFloat) -> (leading: CGFloat, trailing: CGFloat) {
+        let minOffset = -leadingInset
+        let maxOffset = max(minOffset, content + trailingInset - viewport)
+        return (minOffset - offset, offset - maxOffset)
+    }
+
+    /// Whether a pull of `distance` past one edge is armed, given its last state.
+    static func isArmed(wasArmed: Bool, distance: CGFloat, threshold: CGFloat) -> Bool {
+        distance >= threshold || (wasArmed && distance >= threshold - disarmHysteresis)
+    }
+}
+
 struct StoreProductAddLabel: View {
+    var armed = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         VStack(spacing: 7) {
-            Image(systemName: "text.badge.plus").font(.title2)
-            Text("Add item to your list")
+            Image(systemName: armed ? "plus.circle.fill" : "text.badge.plus").font(.title2)
+            Text(armed ? "Release to add" : "Add item to your list")
                 .font(.caption).multilineTextAlignment(.center)
         }
+        .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
+        .scaleEffect(armed && !reduceMotion ? 1.1 : 1)
+        .animation(reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.25, dampingFraction: 0.6), value: armed)
         // Weight the label toward the lower half of its slot without shifting
         // the button's bottom edge into the Back/Skip navigation row.
         .padding(.top, 24)
@@ -94,6 +128,7 @@ struct StoreProductRailEndControl: View {
 
 struct StoreProductRailEndLabel: View {
     let uncoveredWidth: CGFloat
+    var armed = false
 
     private var opacity: Double {
         let fraction = min(1, max(0, Double(uncoveredWidth / 88)))
@@ -104,7 +139,7 @@ struct StoreProductRailEndLabel: View {
         if uncoveredWidth > 0 {
             // No rectangular crop: the actual rounded card paints over this
             // full-width label. Fade remains proportional to real card coverage.
-            StoreProductAddLabel()
+            StoreProductAddLabel(armed: armed)
                 .opacity(opacity)
         }
     }
@@ -141,6 +176,7 @@ enum StoreProductSingleCardReveal {
 struct StoreProductRailAddLabels: View, Animatable {
     let layout: StoreProductRailLayout
     var revealValue: CGFloat
+    var armed: ShoppingLists.AdditionPosition? = nil
 
     // Clamp spring overshoot while interpolating the signed fade-through-zero
     // value. Derive the side per frame, not from the final enum, to avoid a pop.
@@ -155,12 +191,12 @@ struct StoreProductRailAddLabels: View, Animatable {
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             if leadingVisibility > 0 {
-                StoreProductRailEndLabel(uncoveredWidth: layout.leadingWidth)
+                StoreProductRailEndLabel(uncoveredWidth: layout.leadingWidth, armed: armed == .start)
                     .opacity(leadingVisibility)
                     .offset(x: layout.inset)
             }
             if trailingVisibility > 0 {
-                StoreProductRailEndLabel(uncoveredWidth: layout.trailingWidth)
+                StoreProductRailEndLabel(uncoveredWidth: layout.trailingWidth, armed: armed == .end)
                     .opacity(trailingVisibility)
                     .offset(x: layout.width - layout.inset - 88)
             }

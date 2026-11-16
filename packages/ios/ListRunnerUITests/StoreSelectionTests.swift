@@ -4614,6 +4614,72 @@ final class StoreSelectionTests: XCTestCase {
         attachStoreProductScreenshot("Same rail position after Cancel at \(position)")
     }
 
+    func testStoreProductPullPastRailEndsAddsAtThatEnd() {
+        choose("Bunnings")
+        let input = app.descendants(matching: .any)["grocery-input"]
+        input.tap()
+        input.typeText("Tool one, Tool two, Tool three\n")
+        input.typeText("\n")
+        let first = row("Tool one", status: "Pending")
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+        first.tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        let bar = app.descendants(matching: .any)["store-product-selection-bar"]
+        let active = app.otherElements["selected-shopping-card"]
+        XCTAssertTrue(active.waitForExistence(timeout: 5))
+        XCTAssertTrue(storeProductAdd(at: "Start of list").isHittable)
+        pullStoreProductRail(from: active, dx: 50)
+        XCTAssertFalse(bar.waitForExistence(timeout: 1), "A short pull past the start springs back without adding")
+        pullStoreProductRail(from: active, dx: 190)
+        XCTAssertTrue(bar.waitForExistence(timeout: 5), "Releasing past the threshold starts Add")
+        attachStoreProductScreenshot("Pull past start opened Add")
+        app.buttons["Enter manually"].tap()
+        assertStoreProductPosition("Start of list")
+        app.buttons["Cancel"].tap()
+
+        let rail = app.scrollViews.containing(.button, identifier: "Collapse overlay").firstMatch
+        let right = storeProductAdd(at: "End of list")
+        XCTAssertTrue(rail.waitForExistence(timeout: 5))
+        for _ in 0..<4 {
+            if right.isHittable { break }
+            rail.swipeLeft()
+        }
+        XCTAssertTrue(right.isHittable)
+        XCTAssertFalse(bar.exists, "Flicking through to the end never adds by itself")
+        let last = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bunnings fixture item, quantity")).firstMatch
+        pullStoreProductRail(from: last, dx: -190)
+        XCTAssertTrue(bar.waitForExistence(timeout: 5))
+        app.buttons["Enter manually"].tap()
+        assertStoreProductPosition("End of list")
+        app.buttons["Cancel"].tap()
+        XCTAssertFalse(app.webViews.buttons["UNEXPECTED CART CHANGE"].exists)
+    }
+
+    func testStoreProductSingleCardPullPastAddSideAdds() {
+        choose("Bunnings")
+        app.buttons["Show Store"].tap()
+        XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
+        let bar = app.descendants(matching: .any)["store-product-selection-bar"]
+        XCTAssertTrue(storeProductAdd(at: "Start of list").isHittable)
+        swipeSingleStoreProductCard(dx: -160)
+        XCTAssertTrue(storeProductAdd(at: "End of list").waitForExistence(timeout: 3))
+        XCTAssertFalse(bar.exists, "A long pull toward the hidden side only switches sides")
+        swipeSingleStoreProductCard(dx: -160)
+        XCTAssertTrue(bar.waitForExistence(timeout: 5), "A long pull toward the shown side starts Add")
+        app.buttons["Enter manually"].tap()
+        assertStoreProductPosition("End of list")
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(storeProductAdd(at: "End of list").waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, "Item 1 of 1")
+    }
+
+    private func pullStoreProductRail(from element: XCUIElement, dx: CGFloat) {
+        XCTAssertTrue(element.waitForExistence(timeout: 5))
+        let start = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: dx, dy: 0)),
+                    withVelocity: .slow, thenHoldForDuration: 0.2)
+    }
+
     func testStoreProductCancelKeepsPreviouslyRevealedProductCentred() {
         choose("Bunnings")
         app.buttons["Show Store"].tap()
