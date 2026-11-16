@@ -52,8 +52,8 @@ labels, "added for pickup" success wording, product pages and physical devices.
 
 Checks: 34 Walgreens DOM scenarios (`walgreens-cart-detection.test.mjs`, now in
 `run-cloud-checks.sh`); Mac offline suite **1949 native checks** and **483 DOM
-tests** passed at `173e4f5`. Test-cart cleanup: the four test tubes are to be
-removed by the user from the Walgreens cart (started empty).
+tests** passed at `173e4f5`. Cleanup: the user removed all four test tubes, restoring
+the Walgreens cart to its empty starting state, and returned Toothpaste to Pending.
 
 ## Kroger search-card detection enabled (16 November 2026)
 
