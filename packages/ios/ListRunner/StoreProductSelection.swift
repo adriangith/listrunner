@@ -53,8 +53,9 @@ enum StoreProductRailPull {
     static let singleCardThreshold: CGFloat = 120
     /// Pulling back this far below the threshold disarms; avoids flicker.
     static let disarmHysteresis: CGFloat = 8
-    /// How close to an edge the rail must rest at touch-down to pull from it.
-    static let edgeTolerance: CGFloat = 12
+    /// How close to an edge the rail must rest at touch-down to pull from it:
+    /// any part of that end's Add label showing (the 88 pt slot) counts.
+    static let edgeTolerance: CGFloat = 88
 
     /// Distances past each edge: positive when overscrolled, negative before it.
     static func overscroll(offset: CGFloat, viewport: CGFloat, content: CGFloat,
@@ -89,6 +90,7 @@ final class StoreProductRailPullProgress: ObservableObject {
 }
 
 struct StoreProductAddLabel: View {
+    var insertion: ShoppingLists.AdditionPosition = .start
     var armed = false
     /// How far toward the threshold a pull past this end is; 0 when not pulling.
     var progress: CGFloat = 0
@@ -111,8 +113,17 @@ struct StoreProductAddLabel: View {
                 }
             }
             .frame(width: 28, height: 28)
-            Text(armed ? "Release to add" : pulling ? "Pull to add" : "Add item to your list")
-                .font(.caption).multilineTextAlignment(.center)
+            Group {
+                if armed {
+                    Text("Release to add")
+                } else if insertion == .start {
+                    Text("Pull to add item to start of list")
+                } else {
+                    Text("Pull to add item to end of list")
+                }
+            }
+            .font(.caption).multilineTextAlignment(.center)
+            .lineLimit(3).minimumScaleFactor(0.85)
         }
         .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
         .scaleEffect(armed && !reduceMotion ? 1.1 : 1)
@@ -131,16 +142,16 @@ struct StoreProductAddButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            // Interaction only. The full label is drawn behind the cards, not
-            // cropped inside this shrinking, rectangular tap/accessibility slot.
-            Color.clear
-                .frame(width: width, height: 88)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.primary)
-        .accessibilityLabel("Add item to your list")
+        // Accessibility only: pull-to-add replaced the touch target, so a touch
+        // here falls through to the rail and can start the pull. VoiceOver and
+        // Switch Control still activate Add directly, since they cannot pull.
+        Color.clear
+            .frame(width: width, height: 88)
+            .allowsHitTesting(false)
+            .accessibilityElement()
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { action() }
+            .accessibilityLabel("Add item to your list")
         .accessibilityValue(insertion == .start ? Text("Start of list") : Text("End of list"))
         .accessibilityHint(insertion == .start
             ? Text("Choose a product to add to the start of your list. Does not change the store cart.")
@@ -163,6 +174,7 @@ struct StoreProductRailEndControl: View {
 
 struct StoreProductRailEndLabel: View {
     let uncoveredWidth: CGFloat
+    var insertion: ShoppingLists.AdditionPosition = .start
     var armed = false
     var progress: CGFloat = 0
 
@@ -175,7 +187,7 @@ struct StoreProductRailEndLabel: View {
         if uncoveredWidth > 0 {
             // No rectangular crop: the actual rounded card paints over this
             // full-width label. Fade remains proportional to real card coverage.
-            StoreProductAddLabel(armed: armed, progress: progress)
+            StoreProductAddLabel(insertion: insertion, armed: armed, progress: progress)
                 .opacity(opacity)
         }
     }
@@ -228,13 +240,13 @@ struct StoreProductRailAddLabels: View, Animatable {
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             if leadingVisibility > 0 {
-                StoreProductRailEndLabel(uncoveredWidth: layout.leadingWidth, armed: armed == .start,
+                StoreProductRailEndLabel(uncoveredWidth: layout.leadingWidth, insertion: .start, armed: armed == .start,
                                          progress: pull.leading)
                     .opacity(leadingVisibility)
                     .offset(x: layout.inset)
             }
             if trailingVisibility > 0 {
-                StoreProductRailEndLabel(uncoveredWidth: layout.trailingWidth, armed: armed == .end,
+                StoreProductRailEndLabel(uncoveredWidth: layout.trailingWidth, insertion: .end, armed: armed == .end,
                                          progress: pull.trailing)
                     .opacity(trailingVisibility)
                     .offset(x: layout.width - layout.inset - 88)

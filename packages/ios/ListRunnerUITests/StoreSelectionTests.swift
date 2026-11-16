@@ -4360,14 +4360,14 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Show Store"].tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
         let railAdd = app.buttons.matching(identifier: "add-store-product").firstMatch
-        XCTAssertTrue(railAdd.isHittable, "The leading add action is exposed beside the first card")
+        XCTAssertTrue(isRevealed(railAdd), "The leading add action is exposed beside the first card")
         XCTAssertEqual(railAdd.label, "Add item to your list")
         attachStoreProductScreenshot("Rail-end add control")
         app.buttons["Collapse overlay"].tap()
         let add = app.buttons["collapsed-add-store-product"]
         XCTAssertTrue(add.waitForExistence(timeout: 3))
         XCTAssertEqual(add.label, "Add item to your list")
-        add.tap()
+        pullToAdd(add)
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "store-product-selection-bar").firstMatch.waitForExistence(timeout: 3))
         let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
         XCTAssertTrue(shield.waitForExistence(timeout: 5))
@@ -4391,8 +4391,8 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Show Store"].tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
         let railAdd = app.buttons.matching(identifier: "add-store-product").firstMatch
-        XCTAssertTrue(railAdd.isHittable)
-        railAdd.tap()
+        XCTAssertTrue(isRevealed(railAdd))
+        pullToAdd(railAdd)
         let field = app.descendants(matching: .any).matching(identifier: "store-product-name").firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         XCTAssertEqual(field.value as? String, "2x LED lights, 75 mm")
@@ -4407,7 +4407,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["all-items-show-store"].tap()
         app.buttons["Shop at Bunnings"].tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
-        app.buttons.matching(identifier: "add-store-product").firstMatch.tap()
+        pullToAdd(app.buttons.matching(identifier: "add-store-product").firstMatch)
         let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
         XCTAssertTrue(shield.waitForExistence(timeout: 5))
         shield.tap()
@@ -4473,7 +4473,7 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
         let left = storeProductAdd(at: "Start of list")
         let right = storeProductAdd(at: "End of list")
-        XCTAssertTrue(left.isHittable)
+        XCTAssertTrue(isRevealed(left))
         swipeSingleStoreProductCard(dx: -40)
         XCTAssertTrue(left.waitForExistence(timeout: 3), "A short pull returns to the original side")
         XCTAssertFalse(right.exists)
@@ -4495,17 +4495,17 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
         let left = storeProductAdd(at: "Start of list")
         let right = storeProductAdd(at: "End of list")
-        XCTAssertTrue(left.isHittable)
+        XCTAssertTrue(isRevealed(left))
         XCTAssertFalse(right.exists)
         XCTAssertEqual(app.buttons.matching(identifier: "add-store-product").count, 1)
         attachStoreProductScreenshot("Single card initially reveals only left Add")
         swipeSingleStoreProductCard(dx: -70)
         XCTAssertTrue(right.waitForExistence(timeout: 3))
-        XCTAssertTrue(right.isHittable)
+        XCTAssertTrue(isRevealed(right))
         XCTAssertFalse(left.exists)
         XCTAssertEqual(app.buttons.matching(identifier: "add-store-product").count, 1)
         attachStoreProductScreenshot("Single card left swipe reveals only right Add")
-        right.tap()
+        pullToAdd(right)
         XCTAssertTrue(app.webViews.buttons["Choose product: 2x LED lights, 75 mm"].waitForExistence(timeout: 5))
         app.buttons["Cancel"].tap()
         XCTAssertTrue(right.waitForExistence(timeout: 3))
@@ -4538,7 +4538,7 @@ final class StoreSelectionTests: XCTestCase {
         choose("Bunnings")
         app.buttons["Show Store"].tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
-        revealStoreProductAdd(at: "End of list").tap()
+        pullToAdd(revealStoreProductAdd(at: "End of list"))
         app.buttons["Enter manually"].tap()
         let field = app.descendants(matching: .any).matching(identifier: "store-product-name").firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5))
@@ -4584,16 +4584,15 @@ final class StoreSelectionTests: XCTestCase {
                         withVelocity: .slow, thenHoldForDuration: 0.3)
         } else {
             for _ in 0..<3 {
-                if storeProductAdd(at: position).isHittable { break }
-                rail.swipeLeft()
+                if isRevealed(storeProductAdd(at: position)) { break }
+                scrollStoreProductRailTowardEnd(rail)
             }
         }
         let add = storeProductAdd(at: position)
-        XCTAssertTrue(add.isHittable)
-        let before = active.frame.minX
+        XCTAssertTrue(isRevealed(add))
         let progress = app.buttons["Collapse overlay"].value as? String
         attachStoreProductScreenshot("Rail position before Add at \(position)")
-        add.tap()
+        pullToAdd(add)
         XCTAssertTrue(app.descendants(matching: .any)["store-product-selection-bar"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Back"].exists)
         XCTAssertFalse(app.buttons["Skip"].exists)
@@ -4607,8 +4606,9 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(add.waitForExistence(timeout: 5))
         XCTAssertLessThanOrEqual(add.frame.width, 88.5, "Add must not report the whole rail as its target")
         XCTAssertTrue(active.exists)
-        XCTAssertEqual(active.frame.minX, before, accuracy: 2,
-                       "Cancel must restore the exact offset, not centre the active card")
+        // The pull leaves the rail resting at the pulled edge; Cancel keeps it
+        // there rather than re-centring the active card.
+        XCTAssertGreaterThanOrEqual(add.frame.width, 86, "Cancel keeps the rail at the pulled edge")
         XCTAssertEqual(app.buttons["Collapse overlay"].value as? String, progress)
         XCTAssertFalse(app.webViews.buttons["UNEXPECTED CART CHANGE"].exists)
         attachStoreProductScreenshot("Same rail position after Cancel at \(position)")
@@ -4627,7 +4627,7 @@ final class StoreSelectionTests: XCTestCase {
         let bar = app.descendants(matching: .any)["store-product-selection-bar"]
         let active = app.otherElements["selected-shopping-card"]
         XCTAssertTrue(active.waitForExistence(timeout: 5))
-        XCTAssertTrue(storeProductAdd(at: "Start of list").isHittable)
+        XCTAssertTrue(isRevealed(storeProductAdd(at: "Start of list")))
         pullStoreProductRail(from: active, dx: 50)
         XCTAssertFalse(bar.waitForExistence(timeout: 1), "A short pull past the start springs back without adding")
         pullStoreProductRail(from: active, dx: 190)
@@ -4641,10 +4641,10 @@ final class StoreSelectionTests: XCTestCase {
         let right = storeProductAdd(at: "End of list")
         XCTAssertTrue(rail.waitForExistence(timeout: 5))
         for _ in 0..<4 {
-            if right.isHittable { break }
-            rail.swipeLeft()
+            if isRevealed(right) { break }
+            scrollStoreProductRailTowardEnd(rail)
         }
-        XCTAssertTrue(right.isHittable)
+        XCTAssertTrue(isRevealed(right))
         XCTAssertFalse(bar.exists, "Flicking through to the end never adds by itself")
         let last = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bunnings fixture item, quantity")).firstMatch
         pullStoreProductRail(from: last, dx: -190)
@@ -4660,7 +4660,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Show Store"].tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
         let bar = app.descendants(matching: .any)["store-product-selection-bar"]
-        XCTAssertTrue(storeProductAdd(at: "Start of list").isHittable)
+        XCTAssertTrue(isRevealed(storeProductAdd(at: "Start of list")))
         swipeSingleStoreProductCard(dx: -90)
         XCTAssertTrue(storeProductAdd(at: "End of list").waitForExistence(timeout: 3))
         XCTAssertFalse(bar.exists, "A moderate pull only switches sides")
@@ -4690,7 +4690,7 @@ final class StoreSelectionTests: XCTestCase {
         choose("Bunnings")
         app.buttons["Show Store"].tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
-        storeProductAdd(at: "Start of list").tap()
+        pullToAdd(storeProductAdd(at: "Start of list"))
         let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
         XCTAssertTrue(shield.waitForExistence(timeout: 5))
         shield.tap()
@@ -4698,7 +4698,7 @@ final class StoreSelectionTests: XCTestCase {
         assertStoreProductCentred("2x LED lights, 75 mm")
         let product = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "2x LED lights, 75 mm, quantity")).firstMatch
         let before = product.frame.minX
-        storeProductAdd(at: "Start of list").tap()
+        pullToAdd(storeProductAdd(at: "Start of list"))
         XCTAssertTrue(shield.waitForExistence(timeout: 5))
         app.buttons["Cancel"].tap()
         XCTAssertTrue(product.waitForExistence(timeout: 5))
@@ -4723,7 +4723,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["all-items-show-store"].tap()
         app.buttons["Shop at Bunnings"].tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
-        revealStoreProductAdd(at: "End of list").tap()
+        pullToAdd(revealStoreProductAdd(at: "End of list"))
         let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
         XCTAssertTrue(shield.waitForExistence(timeout: 5))
         shield.tap()
@@ -4743,6 +4743,30 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertFalse(app.staticTexts["2x LED lights, 75 mm"].exists)
     }
 
+    /// Rail-end Add has no touch target: it is revealed beside a card and
+    /// triggered by pulling past it. Only the accessibility element remains.
+    private func isRevealed(_ add: XCUIElement) -> Bool {
+        add.exists && add.frame.width >= 44
+    }
+
+    /// Pull-to-add: drag from the card beside a revealed Add past the threshold.
+    private func pullToAdd(_ add: XCUIElement) {
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        let start = (add.value as? String) == "Start of list"
+        let frame = add.frame
+        let point = app.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: start ? frame.maxX + 50 : frame.minX - 50, dy: frame.midY))
+        point.press(forDuration: 0.1, thenDragTo: point.withOffset(CGVector(dx: start ? 190 : -190, dy: 0)),
+                    withVelocity: .slow, thenHoldForDuration: 0.2)
+    }
+
+    /// Slow, short drags: never overscroll far enough to arm pull-to-add.
+    private func scrollStoreProductRailTowardEnd(_ rail: XCUIElement) {
+        let start = rail.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5))
+        start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: -90, dy: 0)),
+                    withVelocity: .slow, thenHoldForDuration: 0.2)
+    }
+
     private func storeProductAdd(at position: String) -> XCUIElement {
         app.buttons.matching(NSPredicate(format: "identifier == %@ AND value == %@",
             "add-store-product", position)).firstMatch
@@ -4750,11 +4774,11 @@ final class StoreSelectionTests: XCTestCase {
 
     private func revealStoreProductAdd(at position: String) -> XCUIElement {
         let action = storeProductAdd(at: position)
-        if !action.isHittable {
+        if !isRevealed(action) {
             swipeSingleStoreProductCard(dx: position == "Start of list" ? 70 : -70)
         }
         XCTAssertTrue(action.waitForExistence(timeout: 3))
-        XCTAssertTrue(action.isHittable)
+        XCTAssertTrue(isRevealed(action))
         return action
     }
 
@@ -4785,8 +4809,8 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
         let action = revealStoreProductAdd(at: position)
         XCTAssertTrue(action.waitForExistence(timeout: 5))
-        XCTAssertTrue(action.isHittable)
-        action.tap()
+        XCTAssertTrue(isRevealed(action))
+        pullToAdd(action)
         let title = manual ? "Manual tail item" : "2x LED lights, 75 mm"
         if manual {
             let enter = app.buttons["Enter manually"]
@@ -4843,7 +4867,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Show Store"].tap()
         XCTAssertTrue(app.webViews.staticTexts["Selection fixture loaded"].waitForExistence(timeout: 10))
         for _ in 0..<2 {
-            storeProductAdd(at: "Start of list").tap()
+            pullToAdd(storeProductAdd(at: "Start of list"))
             let shield = app.webViews.buttons["Choose product: 2x LED lights, 75 mm"]
             XCTAssertTrue(shield.waitForExistence(timeout: 5))
             shield.tap()
@@ -4942,7 +4966,7 @@ final class StoreSelectionTests: XCTestCase {
         let rail = app.scrollViews.containing(.button, identifier: "Collapse overlay").firstMatch
         let left = storeProductAdd(at: "Start of list")
         XCTAssertTrue(left.waitForExistence(timeout: 5))
-        XCTAssertTrue(left.isHittable)
+        XCTAssertTrue(isRevealed(left))
         attachStoreProductScreenshot("\(appearance) left fully exposed")
         let active = app.otherElements["selected-shopping-card"]
         for step in 1...2 {
@@ -4958,10 +4982,10 @@ final class StoreSelectionTests: XCTestCase {
         }
         let right = storeProductAdd(at: "End of list")
         for _ in 0..<4 {
-            if right.isHittable { break }
-            rail.swipeLeft()
+            if isRevealed(right) { break }
+            scrollStoreProductRailTowardEnd(rail)
         }
-        XCTAssertTrue(right.isHittable)
+        XCTAssertTrue(isRevealed(right))
         attachStoreProductScreenshot("\(appearance) right fully exposed")
         let last = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Bunnings fixture item, quantity")).firstMatch
         XCTAssertTrue(last.isHittable)
@@ -4972,8 +4996,8 @@ final class StoreSelectionTests: XCTestCase {
             attachStoreProductScreenshot("\(appearance) right card covers label step \(step)")
             if right.exists { XCTAssertLessThanOrEqual(right.frame.width, 88.5) }
         }
-        if right.isHittable {
-            right.tap()
+        if isRevealed(right) {
+            pullToAdd(right)
             XCTAssertTrue(app.webViews.buttons["Choose product: 2x LED lights, 75 mm"].waitForExistence(timeout: 5))
             app.buttons["Cancel"].tap()
         }
