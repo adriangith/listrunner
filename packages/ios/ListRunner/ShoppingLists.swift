@@ -2,9 +2,11 @@ import Foundation
 import SwiftData
 
 enum ShoppingListNavigationPolicy {
-    static func offersAllItems(enabledStoreIDs: Set<StoreID>, itemListIDs: [UUID?]) -> Bool {
-        if enabledStoreIDs.count > 1 { return true }
-        let accessibleLists = Set(enabledStoreIDs.map(\.listID))
+    static func offersAllItems(enabledStoreIDs: Set<StoreID>, inboxEnabled: Bool = false, itemListIDs: [UUID?]) -> Bool {
+        // The Inbox is a list: Inbox plus one store needs the overview.
+        if enabledStoreIDs.count + (inboxEnabled ? 1 : 0) > 1 { return true }
+        var accessibleLists = Set(enabledStoreIDs.map(\.listID))
+        if inboxEnabled { accessibleLists.insert(ListOwner.inboxListID) }
         // nil and unrecognised owners are recovery items too. Never hide them
         // just because only one (or no) retailer can currently be shopped.
         return itemListIDs.contains { id in
@@ -45,6 +47,13 @@ final class GroceryList {
     init(store: StoreID) {
         id = store.listID
         storeID = store.rawValue
+    }
+
+    // `storeID` keeps its stored name for schema compatibility; the Inbox
+    // record uses the reserved owner value "inbox".
+    init(owner: ListOwner) {
+        id = owner.listID
+        storeID = owner.rawValue
     }
 }
 
@@ -148,7 +157,11 @@ enum ShoppingLists {
         private let rows: [Row]
 
         init(items: [GroceryItem], store: StoreID) {
-            rows = items.filter { $0.listID == store.listID }.map {
+            self.init(items: items, owner: .store(store))
+        }
+
+        init(items: [GroceryItem], owner: ListOwner) {
+            rows = items.filter { $0.listID == owner.listID }.map {
                 Row(item: $0, amount: $0.quantityAmount, unit: $0.quantityUnit,
                     status: $0.statusRawValue, position: $0.position)
             }
@@ -168,7 +181,14 @@ enum ShoppingLists {
     static func stageAdd(_ entries: [ParsedGrocery], to store: StoreID,
                          allItems: [GroceryItem], context: ModelContext,
                          insertion: AdditionPosition = .start) -> [GroceryItem] {
-        var staged = allItems.filter { $0.listID == store.listID }.sorted {
+        stageAdd(entries, to: .store(store), allItems: allItems, context: context, insertion: insertion)
+    }
+
+    @MainActor
+    static func stageAdd(_ entries: [ParsedGrocery], to owner: ListOwner,
+                         allItems: [GroceryItem], context: ModelContext,
+                         insertion: AdditionPosition = .start) -> [GroceryItem] {
+        var staged = allItems.filter { $0.listID == owner.listID }.sorted {
             $0.position == $1.position ? $0.id.uuidString < $1.id.uuidString : $0.position < $1.position
         }
         var promoted: [GroceryItem] = []
@@ -189,7 +209,7 @@ enum ShoppingLists {
                 if !promoted.contains(where: { $0.id == existing.id }) { promoted.append(existing) }
             } else {
                 let item = GroceryItem(name: entry.name, amount: entry.amount, unit: entry.unit,
-                                       position: staged.count, listID: store.listID)
+                                       position: staged.count, listID: owner.listID)
                 context.insert(item)
                 staged.append(item)
                 promoted.append(item)
@@ -210,8 +230,10 @@ enum ShoppingLists {
     static func prepare(_ context: ModelContext, legacySelectedID: UUID?) throws {
         let lists = try context.fetch(FetchDescriptor<GroceryList>())
         var byID = Dictionary(uniqueKeysWithValues: lists.map { ($0.id, $0) })
-        for store in StoreID.allCases where byID[store.listID] == nil {
-            let list = GroceryList(store: store)
+        // Inbox's record is created like a retailer's; the setting only controls
+        // whether the list is offered. No schema change is involved.
+        for owner in ListOwner.all where byID[owner.listID] == nil {
+            let list = GroceryList(owner: owner)
             context.insert(list)
             byID[list.id] = list
         }
@@ -235,6 +257,11 @@ enum ShoppingLists {
 
     @MainActor
     static func move(_ item: GroceryItem, to destination: StoreID, allItems: [GroceryItem]) {
+        move(item, to: .store(destination), allItems: allItems)
+    }
+
+    @MainActor
+    static func move(_ item: GroceryItem, to destination: ListOwner, allItems: [GroceryItem]) {
         // Moving an existing row is deliberately not an implicit merge or cart action.
         // Typed/pasted duplicates still merge only within the selected list.
         item.listID = destination.listID

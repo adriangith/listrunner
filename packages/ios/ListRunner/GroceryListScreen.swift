@@ -1,3 +1,4 @@
+import Combine
 import SwiftData
 import SwiftUI
 import UIKit
@@ -10,7 +11,7 @@ struct ShoppingRootScreen: View {
     @StateObject private var visibility: StoreVisibilityPreferences
     @StateObject private var paprikaReminders = PaprikaReminders()
     @AppStorage("activeStoreID") private var activeStoreID = StoreID.coles.rawValue
-    @State private var drafts: [StoreID: String] = [:]
+    @State private var drafts: [ListOwner: String] = [:]
     @AppStorage("allItemsScope.v1") private var showingAllItems = false
     @State private var storeLaunchRequested = false
     @State private var importLaunchRequested = false
@@ -20,9 +21,10 @@ struct ShoppingRootScreen: View {
     @AppStorage("allItemsAddDestination.v1") private var allItemsAddDestination = ""
     @State private var welcomeCompletion = 0
     @State private var welcomeTransition = WelcomeCompletionTransition()
-    // A store is one level below All items, never a growing store-to-store history.
+    // A list is one level below All items, never a growing list-to-list history.
     // nil lets the first render restore the saved scope without a launch animation.
-    @State private var listPath: [StoreID]?
+    // `activeStoreID` keeps its key; it now holds a list owner's raw value.
+    @State private var listPath: [ListOwner]?
     @State private var overviewEnabled: Bool?
     @State private var listContentVisible = false
     @State private var previewingStoreWelcome: Bool = {
@@ -42,13 +44,19 @@ struct ShoppingRootScreen: View {
     private var shoppingVisibleIDs: Set<StoreID> { sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs) }
     private var nonEmptyListIDs: Set<UUID> {
         Set(allItems.compactMap { item in
-            guard let id = item.listID, StoreID.allCases.contains(where: { $0.listID == id }) else { return nil }
+            guard let id = item.listID, ListOwner(listID: id) != nil else { return nil }
             return id
         })
+    }
+    private var activeOwner: ListOwner { ListOwner(rawValue: activeStoreID) ?? .store(.coles) }
+    private var availableOwners: [ListOwner] {
+        (visibility.inboxEnabled ? [.inbox] : []) + StoreCatalogue.ordered(sessions.definitions,
+            countryCode: nil, enabledIDs: shoppingVisibleIDs).map { .store($0.id) }
     }
 
     private var overviewAvailable: Bool {
         ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: shoppingVisibleIDs,
+                                                    inboxEnabled: visibility.inboxEnabled,
                                                     itemListIDs: allItems.map(\.listID))
     }
 
@@ -56,22 +64,21 @@ struct ShoppingRootScreen: View {
         !previewingStoreWelcome && (overviewEnabled ?? overviewAvailable)
     }
 
-    private var navigationPath: Binding<[StoreID]> {
+    private var navigationPath: Binding<[ListOwner]> {
         Binding(get: {
-            listPath ?? (usesOverview && !showingAllItems
-                ? [StoreID(rawValue: activeStoreID) ?? .coles] : [])
+            listPath ?? (usesOverview && !showingAllItems ? [activeOwner] : [])
         }, set: { path in
             // SwiftUI writes this only when the native Back action/edge pop commits.
             // A cancelled interactive swipe must not change the remembered scope.
             sessions.endAllInteractions()
             listPath = path
-            if let store = path.last { activeStoreID = store.rawValue }
+            if let owner = path.last { activeStoreID = owner.rawValue }
             showingAllItems = usesOverview && path.isEmpty
         })
     }
 
     var body: some View {
-        let storeID = StoreID(rawValue: activeStoreID) ?? .coles
+        let owner = activeOwner
         NavigationStack(path: navigationPath) {
                 // A one-launch preview takes precedence without changing the saved scope.
                 Group {
@@ -81,10 +88,10 @@ struct ShoppingRootScreen: View {
                             onChooseStoreList: { selectStore($0) }, onPromoteStore: promote,
                             onListVisibilityChange: listVisibilityChanged)
                     } else {
-                        storeList(storeID)
+                        storeList(owner)
                     }
                 }
-                .navigationDestination(for: StoreID.self) { id in
+                .navigationDestination(for: ListOwner.self) { id in
                     storeList(id)
                         // Keep the system Back button and interactive edge gesture, with
                         // a compact chevron alongside the existing leading scope chooser.
@@ -100,6 +107,9 @@ struct ShoppingRootScreen: View {
                 if !current.subtracting(previous).isEmpty {
                     previewingStoreWelcome = false
                 }
+            }
+            .onChange(of: visibility.inboxEnabled) { _, enabled in
+                if enabled { previewingStoreWelcome = false }
             }
             .onChange(of: overviewAvailable) { _, _ in
                 // Never replace the stack underneath Settings/Manage Stores.
@@ -120,21 +130,21 @@ struct ShoppingRootScreen: View {
             .onChange(of: nonEmptyListIDs) { _, ids in visibility.updateNonEmptyListIDs(ids) }
     }
 
-    // Shared route construction for a direct single-store root and a store detail.
-    private func storeList(_ storeID: StoreID) -> some View {
-        GroceryListScreen(storeID: storeID, sessions: sessions, visibility: visibility,
+    // Shared route construction for a direct single-list root and a list detail.
+    private func storeList(_ owner: ListOwner) -> some View {
+        GroceryListScreen(owner: owner, sessions: sessions, visibility: visibility,
             paprikaReminders: paprikaReminders, previewingStoreWelcome: $previewingStoreWelcome,
-            rawInput: Binding(get: { drafts[storeID] ?? "" }, set: { drafts[storeID] = $0 }),
+            rawInput: Binding(get: { drafts[owner] ?? "" }, set: { drafts[owner] = $0 }),
             onWelcomeStoreEnabled: completeWelcome,
             onSelectStore: { selectStore($0) }, onSelectAllItems: selectAllItems,
             storeLaunchRequested: $storeLaunchRequested, importLaunchRequested: $importLaunchRequested,
             onPromoteStore: promote, ownsNavigationStack: false,
             offersAllItems: usesOverview, onListVisibilityChange: listVisibilityChanged)
-            .id(storeID)
+            .id(owner)
     }
 
-    private func selectStore(_ store: StoreID) {
-        guard shoppingVisibleIDs.contains(store) else { return }
+    private func selectStore(_ store: ListOwner) {
+        guard visibility.isListAvailable(store, definitions: sessions.definitions) else { return }
         guard showingAllItems || activeStoreID != store.rawValue else { return }
         sessions.endAllInteractions()
         var transaction = Transaction(animation: reduceMotion ? nil : .default)
@@ -172,17 +182,16 @@ struct ShoppingRootScreen: View {
         withTransaction(transaction) {
             overviewEnabled = available
             if !available {
-                if let onlyStore = shoppingVisibleIDs.first, shoppingVisibleIDs.count == 1 {
-                    activeStoreID = onlyStore.rawValue
+                if let onlyList = availableOwners.first, availableOwners.count == 1 {
+                    activeStoreID = onlyList.rawValue
                 }
                 showingAllItems = false
             }
-            listPath = available && !showingAllItems
-                ? [StoreID(rawValue: activeStoreID) ?? .coles] : []
+            listPath = available && !showingAllItems ? [activeOwner] : []
         }
     }
 
-    private func completeWelcome(_ store: StoreID) {
+    private func completeWelcome(_ store: ListOwner) {
         sessions.endAllInteractions()
         _ = visibility.selectionForList(current: store, definitions: sessions.definitions)
         welcomeTransition.perform(reduceMotion: reduceMotion) {
@@ -195,14 +204,27 @@ struct ShoppingRootScreen: View {
         }
     }
 
-    private func promote(_ store: StoreID, _ itemIDs: [UUID]) {
+    private func promote(_ store: ListOwner, _ itemIDs: [UUID]) {
         guard !itemIDs.isEmpty else { return }
         var order = allItemsRecentStoreOrder.split(separator: ",")
-            .compactMap { StoreID(rawValue: String($0)) }.filter { $0 != store }
+            .compactMap { ListOwner(rawValue: String($0)) }.filter { $0 != store }
         order.insert(store, at: 0)
         allItemsRecentStoreOrder = order.map(\.rawValue).joined(separator: ",")
         allItemsRecentItemOrder = ItemPromotionOrder.promoting(itemIDs, in: allItemsRecentItemOrder,
                                                                existing: Set(allItems.map(\.id)).union(itemIDs))
+    }
+}
+
+// Lets a list screen own an optional retailer browser as a StateObject and
+// still re-render when that browser changes. The Inbox holds nil.
+@MainActor
+private final class OptionalStoreBrowser: ObservableObject {
+    let browser: StoreBrowser?
+    private var subscription: AnyCancellable?
+
+    init(_ browser: StoreBrowser?) {
+        self.browser = browser
+        subscription = browser?.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
     }
 }
 
@@ -409,32 +431,38 @@ private struct StoreListBackTint: UIViewControllerRepresentable {
 
 private struct ListScopePicker: View {
     let stores: [StoreDefinition]
-    let selectedStoreID: StoreID?
+    var includesInbox = false
+    let selectedOwner: ListOwner?
     let tint: Color
     let onChooseAllItems: () -> Void
-    let onChooseStore: (StoreID) -> Void
+    let onChooseStore: (ListOwner) -> Void
     let onManageStores: () -> Void
     var offersAllItems = true
 
     var body: some View {
         Menu {
             if offersAllItems {
-                if selectedStoreID == nil {
+                if selectedOwner == nil {
                     Label("All items", systemImage: "checkmark")
                 } else {
                     Button(action: onChooseAllItems) { Label("All items", systemImage: "square.grid.2x2") }
                 }
                 Divider()
             }
+            if includesInbox {
+                Button { onChooseStore(.inbox) } label: { Label("Inbox", systemImage: "tray") }
+                    .accessibilityIdentifier("store-picker-inbox")
+                Divider()
+            }
             ForEach(stores, id: \.id) { store in
-                Button(store.displayName) { onChooseStore(store.id) }
+                Button(store.displayName) { onChooseStore(.store(store.id)) }
             }
             Divider()
             Button("Manage Stores", action: onManageStores)
                 .accessibilityIdentifier("store-picker-manage-stores")
         } label: {
             HStack(spacing: 6) {
-                Text(selectedStoreID?.displayName ?? "All items")
+                Text(selectedOwner?.displayName ?? "All items")
                     .font(.headline)
                     .lineLimit(1)
                 Image(systemName: "chevron.up.chevron.down").font(.caption2.weight(.black))
@@ -442,7 +470,7 @@ private struct ListScopePicker: View {
             .foregroundStyle(tint)
             .contentShape(Rectangle())
         }
-        .accessibilityIdentifier(selectedStoreID == nil ? "all-items-scope-picker" : "store-picker")
+        .accessibilityIdentifier(selectedOwner == nil ? "all-items-scope-picker" : "store-picker")
         .accessibilityHint("Each store has its own shopping list and basket")
     }
 }
@@ -575,6 +603,7 @@ private struct ProductEntrySection<AddButton: View>: View {
     let focusControl: ProductEntryFocus
     let tint: Color
     var accessibilityIdentifier = "grocery-input"
+    var showsImport = true
     let importing: Bool
     let importConfigured: Bool
     var importDisabled = false
@@ -606,6 +635,7 @@ private struct ProductEntrySection<AddButton: View>: View {
                 .padding(.vertical, 4)
                 .id("product-entry-editor")
             ProductEntryActionsLayout(preferStacked: dynamicTypeSize.isAccessibilitySize) {
+                if showsImport {
                 Button(action: onImport) {
                     Label(importing ? "Importing…" : compactImport ? "Import" :
                             importConfigured ? "Import from Paprika" : "Import items...",
@@ -623,6 +653,7 @@ private struct ProductEntrySection<AddButton: View>: View {
                 .accessibilityIdentifier(importConfigured ? "import-from-paprika" : "set-import-source")
                 .accessibilityHint(importConfigured ?
                     (removeReminders ? "Imports unchecked Paprika reminders and removes them after saving groceries" : "Imports unchecked Paprika reminders and keeps them linked") : "Choose your grocery import source")
+                }
                 addButton()
             }
             .padding(.vertical, 4)
@@ -729,9 +760,9 @@ private struct ShoppingListItemRow<Actions: View>: View {
 
 private struct AllItemsAddButton: View {
     @ScaledMetric(relativeTo: .body) private var verticalPadding = 7.0
-    let destination: StoreID?
-    let stores: [StoreDefinition]
-    let onChooseDestination: (StoreID) -> Void
+    let destination: ListOwner?
+    let stores: [ListOwner]
+    let onChooseDestination: (ListOwner) -> Void
     let canAdd: Bool
     let onAdd: () -> Void
     let onManageStores: () -> Void
@@ -752,9 +783,9 @@ private struct AllItemsAddButton: View {
                 .accessibilityIdentifier("all-items-add")
                 Rectangle().fill(.white.opacity(0.35)).frame(width: 1, height: 26)
                 Menu {
-                    ForEach(stores, id: \.id) { store in
-                        Button { onChooseDestination(store.id) } label: {
-                            if store.id == destination { Label(store.displayName, systemImage: "checkmark") }
+                    ForEach(stores) { store in
+                        Button { onChooseDestination(store) } label: {
+                            if store == destination { Label(store.displayName, systemImage: "checkmark") }
                             else { Text(store.displayName) }
                         }
                     }
@@ -771,8 +802,8 @@ private struct AllItemsAddButton: View {
             Menu {
                 if stores.isEmpty { Button("Manage Stores", action: onManageStores) }
                 else {
-                    ForEach(stores, id: \.id) { store in
-                        Button(store.displayName) { onChooseDestination(store.id) }
+                    ForEach(stores) { store in
+                        Button(store.displayName) { onChooseDestination(store) }
                     }
                 }
             } label: {
@@ -845,7 +876,7 @@ private struct AllItemsGroupingMenu: View {
 private struct AllItemsGroup: Identifiable {
     let id: String
     let title: String
-    let storeIDs: [StoreID]
+    let owners: [ListOwner]
     let items: [GroceryItem]
 }
 
@@ -857,11 +888,11 @@ private struct AllItemsClearRequest {
 private struct AllItemsGroupHeader: View {
     let group: AllItemsGroup
     let tint: Color
-    let addStore: StoreID?
-    let openStore: StoreID?
-    let onOpenStore: (StoreID) -> Void
-    let onAdd: (StoreID) -> Void
-    var onAddFrame: (StoreID, CGRect) -> Void = { _, _ in }
+    let addStore: ListOwner?
+    let openStore: ListOwner?
+    let onOpenStore: (ListOwner) -> Void
+    let onAdd: (ListOwner) -> Void
+    var onAddFrame: (ListOwner, CGRect) -> Void = { _, _ in }
 
     var body: some View {
         HStack {
@@ -911,12 +942,12 @@ private struct AllItemsGroupHeader: View {
 private final class AllItemsInteractionGeometry {
     var editor: CGRect = .zero
     var actions: CGRect = .zero
-    var groupAddButtons: [StoreID: CGRect] = [:]
+    var groupAddButtons: [ListOwner: CGRect] = [:]
 }
 
 private struct AllItemsGroupRegion<Content: View>: View {
     let nativeRows: Bool
-    let order: [StoreID]
+    let order: [ListOwner]
     let reduceMotion: Bool
     @ViewBuilder let content: () -> Content
 
@@ -1141,8 +1172,8 @@ private struct AllItemsScreen: View {
     @ObservedObject var paprikaReminders: PaprikaReminders
     @Binding var draft: String
     @Binding var destinationRawValue: String
-    let onChooseStoreList: (StoreID) -> Void
-    let onPromoteStore: (StoreID, [UUID]) -> Void
+    let onChooseStoreList: (ListOwner) -> Void
+    let onPromoteStore: (ListOwner, [UUID]) -> Void
     var onListVisibilityChange: (Bool) -> Void = { _ in }
     @AppStorage("allItemsGrouping.v1") private var groupingRawValue = AllItemsGrouping.store.rawValue
     @AppStorage("allItemsRecentStoreOrder.v1") private var recentStoreOrderRawValue = ""
@@ -1151,8 +1182,8 @@ private struct AllItemsScreen: View {
     @State private var showingStoreManagement = false
     @State private var showingSettings = false
     @State private var editMode = EditMode.inactive
-    @State private var workingStoreID: StoreID?
-    @State private var workingStoreOrder: [StoreID] = []
+    @State private var workingStoreID: ListOwner?
+    @State private var workingStoreOrder: [ListOwner] = []
     @State private var groupAddRequest: UUID?
     @State private var groupAddFocusRequest: UUID?
     @State private var clearRequest: AllItemsClearRequest?
@@ -1186,13 +1217,22 @@ private struct AllItemsScreen: View {
     private var shoppingVisibleIDs: Set<StoreID> {
         sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs)
     }
-    private var destinationID: StoreID? {
-        let id = StoreID(rawValue: destinationRawValue)
-        return id.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil }
+    private func isAvailable(_ owner: ListOwner) -> Bool {
+        switch owner {
+        case .inbox: visibility.inboxEnabled
+        case .store(let store): shoppingVisibleIDs.contains(store)
+        }
+    }
+    private var destinationID: ListOwner? {
+        ListOwner(rawValue: destinationRawValue).flatMap { isAvailable($0) ? $0 : nil }
     }
     private var visibleStores: [StoreDefinition] {
         StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
                                enabledIDs: shoppingVisibleIDs)
+    }
+    // Add and move destinations: Inbox first when on, then enabled stores.
+    private var availableOwners: [ListOwner] {
+        (visibility.inboxEnabled ? [.inbox] : []) + visibleStores.map { .store($0.id) }
     }
     private var shoppingStores: [StoreDefinition] {
         let populatedListIDs = Set(allItems.map(\.listID))
@@ -1201,8 +1241,8 @@ private struct AllItemsScreen: View {
     private var pendingCount: Int { allItems.filter { $0.status == .pending }.count }
     private var addedCount: Int { allItems.filter { $0.status == .added }.count }
     private var skippedCount: Int { allItems.filter { $0.status == .skipped }.count }
-    private var recency: [StoreID] {
-        recentStoreOrderRawValue.split(separator: ",").compactMap { StoreID(rawValue: String($0)) }
+    private var recency: [ListOwner] {
+        recentStoreOrderRawValue.split(separator: ",").compactMap { ListOwner(rawValue: String($0)) }
     }
 
     private var groups: [AllItemsGroup] {
@@ -1210,13 +1250,9 @@ private struct AllItemsScreen: View {
         func groupRank(_ group: AllItemsGroup) -> Int {
             group.items.compactMap { itemRanks[$0.id] }.min() ?? Int.max
         }
-        let storesByList = Dictionary(uniqueKeysWithValues: StoreID.allCases.map { ($0.listID, $0) })
-        let owned = allItems.compactMap { item -> (StoreID?, GroceryItem)? in
-            guard let listID = item.listID, let store = storesByList[listID] else { return (nil, item) }
-            return (store, item)
-        }
+        let owned = allItems.map { item in (ListOwner(listID: item.listID), item) }
         let definitions = Dictionary(uniqueKeysWithValues: sessions.definitions.map { ($0.id, $0) })
-        func storeOrder(_ ids: [StoreID]) -> [StoreID] {
+        func storeOrder(_ ids: [ListOwner]) -> [ListOwner] {
             let ranked = ids.sorted { lhs, rhs in
                 let li = recency.firstIndex(of: lhs) ?? Int.max
                 let ri = recency.firstIndex(of: rhs) ?? Int.max
@@ -1224,55 +1260,68 @@ private struct AllItemsScreen: View {
             }
             return ranked
         }
+        func byPosition(_ items: [GroceryItem]) -> [GroceryItem] {
+            items.sorted { left, right in
+                if left.position == right.position { return left.id.uuidString < right.id.uuidString }
+                return left.position < right.position
+            }
+        }
         if grouping == .store {
             var known: [AllItemsGroup] = []
-            for id in StoreID.allCases {
-                let matching: [GroceryItem] = owned.filter { $0.0 == id }.map(\.1)
-                let values = matching.sorted { left, right in
-                    if left.position == right.position { return left.id.uuidString < right.id.uuidString }
-                    return left.position < right.position
-                }
-                if !values.isEmpty || (!editMode.isEditing && workingStoreID == id && shoppingVisibleIDs.contains(id)) {
-                    known.append(AllItemsGroup(id: "store-\(id.rawValue)", title: id.displayName, storeIDs: [id], items: values))
+            for id in ListOwner.all {
+                let values = byPosition(owned.filter { $0.0 == id }.map(\.1))
+                if !values.isEmpty || (!editMode.isEditing && workingStoreID == id && isAvailable(id)) {
+                    known.append(AllItemsGroup(id: "store-\(id.rawValue)", title: id.displayName, owners: [id], items: values))
                 }
             }
             known.sort { lhs, rhs in
                 if workingStoreID != nil {
-                    let left = lhs.storeIDs.first.flatMap { workingStoreOrder.firstIndex(of: $0) } ?? Int.max
-                    let right = rhs.storeIDs.first.flatMap { workingStoreOrder.firstIndex(of: $0) } ?? Int.max
+                    let left = lhs.owners.first.flatMap { workingStoreOrder.firstIndex(of: $0) } ?? Int.max
+                    let right = rhs.owners.first.flatMap { workingStoreOrder.firstIndex(of: $0) } ?? Int.max
                     if left != right { return left < right }
                 }
                 let li = groupRank(lhs), ri = groupRank(rhs)
                 return li == ri ? lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending : li < ri
             }
             let orphaned = owned.filter { $0.0 == nil }.map(\.1).sorted { $0.position < $1.position }
-            return known + (orphaned.isEmpty ? [] : [AllItemsGroup(id: "uncategorised", title: "Uncategorised", storeIDs: [], items: orphaned)])
+            return known + (orphaned.isEmpty ? [] : [AllItemsGroup(id: "uncategorised", title: "Uncategorised", owners: [], items: orphaned)])
         }
-        let byCategory: [StoreCategory?: [(StoreID?, GroceryItem)]] = Dictionary(grouping: owned) { pair in
-            pair.0.flatMap { definitions[$0]?.category ?? $0.defaultCategory }
+        // Inbox items have no retailer category. They form their own group,
+        // never Uncategorised (which means an unrecognised owner).
+        let inboxItems = owned.filter { $0.0 == .inbox }.map(\.1)
+        let storeOwned = owned.filter { $0.0 != .inbox }
+        let byCategory: [StoreCategory?: [(ListOwner?, GroceryItem)]] = Dictionary(grouping: storeOwned) { pair in
+            pair.0?.store.flatMap { definitions[$0]?.category ?? $0.defaultCategory }
         }
-        let categorized = StoreCategory.allCases.compactMap { category -> AllItemsGroup? in
+        func promoted(_ items: [GroceryItem]) -> [GroceryItem] {
+            items.enumerated().sorted { lhs, rhs in
+                let left = itemRanks[lhs.element.id] ?? Int.max, right = itemRanks[rhs.element.id] ?? Int.max
+                return left == right ? lhs.offset < rhs.offset : left < right
+            }.map(\.element)
+        }
+        var categorized = StoreCategory.allCases.compactMap { category -> AllItemsGroup? in
             let values = byCategory[.some(category)] ?? []
             guard !values.isEmpty else { return nil }
-            let storeIDs = storeOrder(Array(Set(values.compactMap(\.0))))
-            let order = Dictionary(uniqueKeysWithValues: storeIDs.enumerated().map { ($1, $0) })
+            let owners = storeOrder(Array(Set(values.compactMap(\.0))))
+            let order = Dictionary(uniqueKeysWithValues: owners.enumerated().map { ($1, $0) })
             let historicalItems = values.sorted { lhs, rhs in
                 let li = lhs.0.flatMap { order[$0] } ?? Int.max, ri = rhs.0.flatMap { order[$0] } ?? Int.max
                 return li == ri ? (lhs.1.position == rhs.1.position ? lhs.1.id.uuidString < rhs.1.id.uuidString : lhs.1.position < rhs.1.position) : li < ri
             }.map(\.1)
-            let sortedItems = historicalItems.enumerated().sorted { lhs, rhs in
-                let left = itemRanks[lhs.element.id] ?? Int.max, right = itemRanks[rhs.element.id] ?? Int.max
-                return left == right ? lhs.offset < rhs.offset : left < right
-            }.map(\.element)
             return AllItemsGroup(id: "category-\(category.rawValue)", title: category.displayName,
-                                 storeIDs: storeIDs, items: sortedItems)
-        }.sorted { lhs, rhs in
+                                 owners: owners, items: promoted(historicalItems))
+        }
+        if !inboxItems.isEmpty {
+            categorized.append(AllItemsGroup(id: "category-inbox", title: ListOwner.inbox.displayName,
+                                             owners: [.inbox], items: promoted(byPosition(inboxItems))))
+        }
+        categorized.sort { lhs, rhs in
             let li = groupRank(lhs), ri = groupRank(rhs)
             return li == ri ? lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending : li < ri
         }
         let orphaned = byCategory[.none] ?? []
         guard !orphaned.isEmpty else { return categorized }
-        return categorized + [AllItemsGroup(id: "uncategorised", title: "Uncategorised", storeIDs: [],
+        return categorized + [AllItemsGroup(id: "uncategorised", title: "Uncategorised", owners: [],
                                              items: orphaned.map(\.1).sorted { $0.position < $1.position })]
     }
 
@@ -1284,7 +1333,8 @@ private struct AllItemsScreen: View {
                 revealFocusedEntry()
                 if let id = scrollTargetItemID { scrollToAddedItem(id, using: proxy) }
             }, scope: {
-                ListScopePicker(stores: visibleStores, selectedStoreID: nil, tint: .accentColor,
+                ListScopePicker(stores: visibleStores, includesInbox: visibility.inboxEnabled,
+                    selectedOwner: nil, tint: .accentColor,
                     onChooseAllItems: {}, onChooseStore: onChooseStoreList,
                     onManageStores: { showingStoreManagement = true })
             }, footer: {
@@ -1304,7 +1354,7 @@ private struct AllItemsScreen: View {
                 tint: .accentColor, accessibilityIdentifier: "all-items-entry",
                 importing: paprikaReminders.importing,
                 importConfigured: GroceryImportSource(rawValue: importSourceID) == .paprika,
-                importDisabled: destinationID == nil, compactImport: true,
+                importDisabled: destinationID?.store == nil, compactImport: true,
                 removeReminders: removeRemindersAfterImport, onSubmit: {
                     if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { entryFocused = false }
                     else { addItems() }
@@ -1329,7 +1379,7 @@ private struct AllItemsScreen: View {
                     interactionGeometry.editor = frame
                     if heightChanged { revealFocusedEntry() }
                 }, onActionsFrame: { interactionGeometry.actions = $0 }, onManualScroll: userScrolled) {
-                    AllItemsAddButton(destination: destinationID, stores: visibleStores,
+                    AllItemsAddButton(destination: destinationID, stores: availableOwners,
                          onChooseDestination: selectAddDestination,
                         canAdd: !ParsedGrocery.productEntries(in: draft).isEmpty,
                         onAdd: addItems, onManageStores: { showingStoreManagement = true })
@@ -1343,11 +1393,11 @@ private struct AllItemsScreen: View {
                 ForEach(groups) { group in
                     AllItemsGroupCard(nativeRows: usesNativeGroupRows) {
                         AllItemsGroupHeader(group: group,
-                            tint: grouping == .store && !group.storeIDs.isEmpty ? storeTint(group.storeIDs[0]) : .secondary,
+                            tint: grouping == .store && !group.owners.isEmpty ? storeTint(group.owners[0]) : .secondary,
                             addStore: grouping == .store
-                                ? group.storeIDs.first.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil } : nil,
+                                ? group.owners.first.flatMap { isAvailable($0) ? $0 : nil } : nil,
                             openStore: grouping == .store
-                                ? group.storeIDs.first.flatMap { shoppingVisibleIDs.contains($0) ? $0 : nil } : nil,
+                                ? group.owners.first.flatMap { isAvailable($0) ? $0 : nil } : nil,
                             onOpenStore: onChooseStoreList,
                             onAdd: { store in
                                 // Let this tap finish before moving its button.
@@ -1391,7 +1441,7 @@ private struct AllItemsScreen: View {
                             Button("Clear All", role: .destructive) { clearItems(addedOnly: false) }
                             Button("Cancel", role: .cancel) { clearRequest = nil }
                         } message: {
-                            if grouping == .store {
+                            if grouping == .store || group.owners == [.inbox] {
                                 Text("This clears only your \(group.title) list in ListRunner. It does not change any store cart or Apple Reminders.")
                             } else {
                                 Text("This clears only items shown in the \(group.title) category in ListRunner, across its store lists. It does not change any store cart or Apple Reminders.")
@@ -1400,7 +1450,7 @@ private struct AllItemsScreen: View {
                         }
                     }
                     .id(group.id)
-                    .zIndex(!editMode.isEditing && group.storeIDs.first == workingStoreID ? 1 : 0)
+                    .zIndex(!editMode.isEditing && group.owners.first == workingStoreID ? 1 : 0)
                 }
                 }
             }
@@ -1468,8 +1518,8 @@ private struct AllItemsScreen: View {
                 groupAddRequest = nil
             }
         }
-        .onChange(of: shoppingVisibleIDs) { _, ids in
-            if let workingStoreID, !ids.contains(workingStoreID) {
+        .onChange(of: availableOwners) { _, owners in
+            if let workingStoreID, !owners.contains(workingStoreID) {
                 self.workingStoreID = nil
                 groupAddRequest = nil
             }
@@ -1530,10 +1580,13 @@ private struct AllItemsScreen: View {
         .navigationDestination(isPresented: $showingSettings) {
             SettingsOverviewScreen(sessions: sessions, visibility: visibility,
                 importInProgress: paprikaReminders.importing,
-                importDestinationName: destinationID?.displayName ?? "selected store",
+                importDestinationName: destinationID?.store?.displayName ?? "selected store",
                 onOpenStoreList: { id in
                     showingSettings = false
-                    onChooseStoreList(id)
+                    onChooseStoreList(.store(id))
+                }, onOpenInbox: {
+                    showingSettings = false
+                    onChooseStoreList(.inbox)
                 }) {
                     showingSettings = false
                     importItems()
@@ -1543,7 +1596,7 @@ private struct AllItemsScreen: View {
             StoreVisibilityScreen(sessions: sessions, visibility: visibility,
                 onOpenStoreList: { id in
                     showingStoreManagement = false
-                    onChooseStoreList(id)
+                    onChooseStoreList(.store(id))
                 })
         }
         .sheet(item: $editingItem) { item in
@@ -1570,13 +1623,13 @@ private struct AllItemsScreen: View {
                     stageReminderWriteback(for: item)
                     saveChanges()
                 }, onAddStoreProduct: { name, quantity, insertion in
-                    addStoreProduct(name, quantity: quantity, to: store, insertion: insertion)
+                    addStoreProduct(name, quantity: quantity, to: .store(store), insertion: insertion)
                 }, onDeleteItem: { item in delete(item) })
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
         }
         .sheet(item: $importDestination) { store in
-            GroceryListScreen(storeID: store, sessions: sessions, visibility: visibility,
+            GroceryListScreen(owner: .store(store), sessions: sessions, visibility: visibility,
                 paprikaReminders: paprikaReminders, previewingStoreWelcome: .constant(false),
                 rawInput: .constant(""), onWelcomeStoreEnabled: { _ in },
                 onSelectStore: { _ in }, onSelectAllItems: { importDestination = nil },
@@ -1589,11 +1642,11 @@ private struct AllItemsScreen: View {
         }
         .onAppear {
             onListVisibilityChange(true)
-            if destinationRawValue.isEmpty, !visibleStores.isEmpty {
-                // The root supplies the previously viewed store on first entry.
+            if destinationRawValue.isEmpty, let first = visibleStores.first.map({ ListOwner.store($0.id) }) ?? availableOwners.first {
+                // The root supplies the previously viewed list on first entry.
                 // Do not reach into a different defaults suite here (UI tests
                 // and recovery use their own isolated app preferences).
-                destinationRawValue = visibleStores[0].id.rawValue
+                destinationRawValue = first.rawValue
             }
         }
         .onDisappear {
@@ -1627,12 +1680,12 @@ private struct AllItemsScreen: View {
             ForEach(group.items, id: \.id) { item in
                 groupItemRow(item, using: proxy)
             }
-            .onMove(perform: grouping == .store && group.storeIDs.count == 1 ? { source, destination in
+            .onMove(perform: grouping == .store && group.owners.count == 1 ? { source, destination in
                 moveItems(in: group, from: source, to: destination)
             } : nil)
         } else {
             AllItemsItemRows(groupID: group.id, items: group.items,
-                canReorder: grouping == .store && group.storeIDs.count == 1,
+                canReorder: grouping == .store && group.owners.count == 1,
                 onReorder: { reorderItems($0, before: $1, in: group) }, onDelete: delete,
                 onSelect: openAllItem) { item in
                     groupItemRow(item, using: proxy)
@@ -1683,8 +1736,8 @@ private struct AllItemsScreen: View {
         }, onRevealing: { isRevealingEntry = $0 })
     }
 
-    private func selectAddDestination(_ store: StoreID) {
-        guard shoppingVisibleIDs.contains(store) else { return }
+    private func selectAddDestination(_ store: ListOwner) {
+        guard isAvailable(store) else { return }
         groupAddRequest = nil
         groupAddFocusRequest = nil
         let promotedOrder = workingOrder(promoting: store)
@@ -1698,12 +1751,12 @@ private struct AllItemsScreen: View {
         }
     }
 
-    private func workingOrder(promoting store: StoreID) -> [StoreID] {
-        [store] + groups.compactMap { $0.storeIDs.first }.filter { $0 != store }
+    private func workingOrder(promoting store: ListOwner) -> [ListOwner] {
+        [store] + groups.compactMap { $0.owners.first }.filter { $0 != store }
     }
 
-    private func beginAdding(to store: StoreID, using proxy: ScrollViewProxy) {
-        guard grouping == .store, !editMode.isEditing, shoppingVisibleIDs.contains(store) else { return }
+    private func beginAdding(to store: ListOwner, using proxy: ScrollViewProxy) {
+        guard grouping == .store, !editMode.isEditing, isAvailable(store) else { return }
         addedItemScrollTask?.cancel()
         addedItemScrollTask = nil
         scrollTargetItemID = nil
@@ -1743,10 +1796,10 @@ private struct AllItemsScreen: View {
         }
     }
 
-    private func finishGroupAdd(_ request: UUID, to store: StoreID) {
+    private func finishGroupAdd(_ request: UUID, to store: ListOwner) {
         guard groupAddRequest == request, workingStoreID == store,
               destinationID == store, !editMode.isEditing,
-              shoppingVisibleIDs.contains(store) else { return }
+              isAvailable(store) else { return }
         groupAddFocusRequest = request
     }
 
@@ -1775,8 +1828,8 @@ private struct AllItemsScreen: View {
     }
 
     private func allItemRow(_ item: GroceryItem, nativeSelection: Bool = false) -> some View {
-        let owner = StoreID.allCases.first { $0.listID == item.listID }
-        let available = owner.map { shoppingVisibleIDs.contains($0) } ?? false
+        let owner = ListOwner(listID: item.listID)
+        let available = owner.map(isAvailable) ?? false
         return ShoppingListItemRow(name: item.name, quantity: item.displayQuantity,
             ownerName: owner?.displayName ?? "Uncategorised", unavailable: !available,
             status: item.status, tint: owner.map(storeTint) ?? .accentColor,
@@ -1793,9 +1846,9 @@ private struct AllItemsScreen: View {
                 } else {
                     Button("Mark Pending", systemImage: "arrow.uturn.backward.circle") { setStatus(.pending, for: item) }
                 }
-                    Menu("Move to Another Store", systemImage: "arrow.right.arrow.left") {
-                        ForEach(visibleStores.filter { $0.id != owner }, id: \.id) { store in
-                            Button(store.displayName) { move(item, to: store.id) }
+                    Menu("Move to Another List", systemImage: "arrow.right.arrow.left") {
+                        ForEach(availableOwners.filter { $0 != owner }) { destination in
+                            Button(destination.displayName) { move(item, to: destination) }
                         }
                     }
                 Button("Delete Item", systemImage: "trash", role: .destructive) { delete(item) }
@@ -1806,10 +1859,12 @@ private struct AllItemsScreen: View {
 
     private func openAllItem(_ item: GroceryItem) {
         guard !editMode.isEditing else { editingItem = item; return }
-        guard let owner = StoreID.allCases.first(where: { $0.listID == item.listID }) else {
+        guard let listOwner = ListOwner(listID: item.listID) else {
             notice = "This saved item has no recognized store list. It remains visible and has not been moved or deleted."
             return
         }
+        // Inbox rows have no store to open; a tap edits the item.
+        guard case .store(let owner) = listOwner else { editingItem = item; return }
         guard shoppingVisibleIDs.contains(owner) else {
             notice = "Shopping with \(owner.displayName) is unavailable. This saved item remains editable here; use its Actions menu to edit or move it."
             return
@@ -1826,7 +1881,7 @@ private struct AllItemsScreen: View {
     }
 
     private func moveItems(in group: AllItemsGroup, from source: IndexSet, to destination: Int) {
-        guard grouping == .store, group.storeIDs.count == 1 else { return }
+        guard grouping == .store, group.owners.count == 1 else { return }
         var orderedItems = group.items
         orderedItems.move(fromOffsets: source, toOffset: destination)
         for (position, item) in orderedItems.enumerated() {
@@ -1836,7 +1891,7 @@ private struct AllItemsScreen: View {
     }
 
     private func reorderItems(_ sources: [UUID], before destination: UUID?, in group: AllItemsGroup) {
-        guard grouping == .store, group.storeIDs.count == 1, let store = group.storeIDs.first else { return }
+        guard grouping == .store, group.owners.count == 1, let store = group.owners.first else { return }
         let current = allItems.filter { $0.listID == store.listID }.sorted {
             $0.position == $1.position ? $0.id.uuidString < $1.id.uuidString : $0.position < $1.position
         }
@@ -1848,21 +1903,21 @@ private struct AllItemsScreen: View {
         saveChanges()
     }
 
-    private func move(_ item: GroceryItem, to destination: StoreID) {
-        guard visibleStores.contains(where: { $0.id == destination }) else { return }
-        let source = StoreID.allCases.first(where: { $0.listID == item.listID })
+    private func move(_ item: GroceryItem, to destination: ListOwner) {
+        guard isAvailable(destination), ListOwner(listID: item.listID) != destination else { return }
+        let source = ListOwner(listID: item.listID)
         if let source, let sourceList = lists.first(where: { $0.id == source.listID }), sourceList.selectedItemID == item.id {
             sourceList.selectedItemID = ShoppingLists.selection(afterRemoving: item.id,
                 from: allItems.filter { $0.listID == source.listID })
         }
-        if let source { sessions.browser(for: source).endInteraction() }
+        if let store = source?.store { sessions.browser(for: store).endInteraction() }
         ShoppingLists.move(item, to: destination, allItems: allItems)
         stageReminderWriteback(for: item)
         if saveChanges() { notice = "Moved item to \(destination.displayName)." }
     }
 
     private func delete(_ item: GroceryItem) {
-        if let owner = StoreID.allCases.first(where: { $0.listID == item.listID }) {
+        if let owner = ListOwner(listID: item.listID) {
             let sourceItems = allItems.filter { $0.listID == owner.listID }
             if let list = lists.first(where: { $0.id == owner.listID }), list.selectedItemID == item.id {
                 list.selectedItemID = ShoppingLists.selection(afterRemoving: item.id, from: sourceItems)
@@ -1891,8 +1946,8 @@ private struct AllItemsScreen: View {
         guard !removed.isEmpty else { return }
         for listID in Set(removed.map(\.listID)) {
             let remaining = allItems.filter { $0.listID == listID && !removedIDs.contains($0.id) }
-            if let owner = StoreID.allCases.first(where: { $0.listID == listID }) {
-                sessions.browser(for: owner).endInteraction()
+            if let store = ListOwner(listID: listID)?.store {
+                sessions.browser(for: store).endInteraction()
             }
             if let list = lists.first(where: { $0.id == listID }) {
                 if remaining.isEmpty {
@@ -1935,7 +1990,7 @@ private struct AllItemsScreen: View {
     }
 
     private func importItems() {
-        guard let destinationID else {
+        guard let destinationID = destinationID?.store else {
             notice = "Choose an enabled store before importing."
             return
         }
@@ -1976,13 +2031,13 @@ private struct AllItemsScreen: View {
         }
     }
 
-    private func addStoreProduct(_ name: String, quantity: Int, to store: StoreID,
+    private func addStoreProduct(_ name: String, quantity: Int, to store: ListOwner,
                                  insertion: ShoppingLists.AdditionPosition) -> UUID? {
         guard !paprikaReminders.importing, !name.isEmpty, name.utf8.count <= 512,
               (1...999).contains(quantity) else { return nil }
         if modelContext.hasChanges, !saveChanges() { return nil }
         let entry = ParsedGrocery(name: name, amount: Double(quantity), unit: nil)
-        let snapshot = ShoppingLists.AdditionSnapshot(items: allItems, store: store)
+        let snapshot = ShoppingLists.AdditionSnapshot(items: allItems, owner: store)
         let promoted = ShoppingLists.stageAdd([entry], to: store, allItems: allItems, context: modelContext, insertion: insertion)
         for item in promoted { stageReminderWriteback(for: item) }
         guard saveChanges() else {
@@ -1996,7 +2051,8 @@ private struct AllItemsScreen: View {
         return promoted.first?.id
     }
 
-    private func storeTint(_ id: StoreID) -> Color {
+    private func storeTint(_ owner: ListOwner) -> Color {
+        guard let id = owner.store else { return .accentColor }
         guard let definition = sessions.definitions.first(where: { $0.id == id }) else { return .secondary }
         let color = definition.brandColors?.primary ?? definition.addedColor
         return Color(red: Double(color.red) / 255, green: Double(color.green) / 255, blue: Double(color.blue) / 255)
@@ -2011,18 +2067,19 @@ struct GroceryListScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query(sort: \GroceryItem.position) private var allItems: [GroceryItem]
     @Query private var lists: [GroceryList]
-    @StateObject private var browser: StoreBrowser
+    // The Inbox has no retailer, so it never creates a browser or website session.
+    @StateObject private var browserHolder: OptionalStoreBrowser
     @ObservedObject var visibility: StoreVisibilityPreferences
     @ObservedObject var paprikaReminders: PaprikaReminders
-    let storeID: StoreID
+    let owner: ListOwner
     let sessions: StoreSessions
-    let onSelectStore: (StoreID) -> Void
+    let onSelectStore: (ListOwner) -> Void
     let onSelectAllItems: () -> Void
     @Binding var storeLaunchRequested: Bool
     @Binding var importLaunchRequested: Bool
-    let onPromoteStore: (StoreID, [UUID]) -> Void
+    let onPromoteStore: (ListOwner, [UUID]) -> Void
     let onImportCompleted: ((String) -> Void)?
-    let onWelcomeStoreEnabled: (StoreID) -> Void
+    let onWelcomeStoreEnabled: (ListOwner) -> Void
     let ownsNavigationStack: Bool
     let offersAllItems: Bool
     let onListVisibilityChange: (Bool) -> Void
@@ -2069,18 +2126,18 @@ struct GroceryListScreen: View {
     @State private var entryDismissalAnimationStatus = "not-dismissed"
     #endif
 
-    init(storeID: StoreID, sessions: StoreSessions, visibility: StoreVisibilityPreferences, paprikaReminders: PaprikaReminders,
+    init(owner: ListOwner, sessions: StoreSessions, visibility: StoreVisibilityPreferences, paprikaReminders: PaprikaReminders,
          previewingStoreWelcome: Binding<Bool>, rawInput: Binding<String>,
-          onWelcomeStoreEnabled: @escaping (StoreID) -> Void,
-          onSelectStore: @escaping (StoreID) -> Void,
+          onWelcomeStoreEnabled: @escaping (ListOwner) -> Void,
+          onSelectStore: @escaping (ListOwner) -> Void,
           onSelectAllItems: @escaping () -> Void,
           storeLaunchRequested: Binding<Bool>,
           importLaunchRequested: Binding<Bool>,
-          onPromoteStore: @escaping (StoreID, [UUID]) -> Void,
+          onPromoteStore: @escaping (ListOwner, [UUID]) -> Void,
           onImportCompleted: ((String) -> Void)? = nil,
           ownsNavigationStack: Bool = true, offersAllItems: Bool = true,
           onListVisibilityChange: @escaping (Bool) -> Void = { _ in }) {
-        self.storeID = storeID; self.sessions = sessions
+        self.owner = owner; self.sessions = sessions
         self.visibility = visibility
         self.paprikaReminders = paprikaReminders
         self.onWelcomeStoreEnabled = onWelcomeStoreEnabled
@@ -2094,14 +2151,31 @@ struct GroceryListScreen: View {
         self.ownsNavigationStack = ownsNavigationStack
         self.offersAllItems = offersAllItems
         self.onListVisibilityChange = onListVisibilityChange
-        _browser = StateObject(wrappedValue: sessions.browser(for: storeID))
+        _browserHolder = StateObject(wrappedValue: OptionalStoreBrowser(owner.store.map { sessions.browser(for: $0) }))
     }
 
-    private var items: [GroceryItem] { allItems.filter { $0.listID == storeID.listID } }
-    private var selectedList: GroceryList? { lists.first { $0.id == storeID.listID } }
+    private var browser: StoreBrowser? { browserHolder.browser }
+    private var storeID: StoreID? { owner.store }
+    private var diagnostics: DiagnosticStore { browser?.diagnostics ?? sessions.diagnostics }
+    private var items: [GroceryItem] { allItems.filter { $0.listID == owner.listID } }
+    private var selectedList: GroceryList? { lists.first { $0.id == owner.listID } }
     private var shoppingVisibleIDs: Set<StoreID> { sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs) }
-    private var moveDestinations: [StoreDefinition] {
-        StoreCatalogue.ordered(sessions.definitions, countryCode: nil, enabledIDs: shoppingVisibleIDs).filter { $0.id != storeID }
+    private var orderedStores: [StoreDefinition] {
+        StoreCatalogue.ordered(sessions.definitions, countryCode: nil, enabledIDs: shoppingVisibleIDs)
+    }
+    private var moveDestinations: [ListOwner] {
+        ((visibility.inboxEnabled ? [.inbox] : []) + orderedStores.map { .store($0.id) }).filter { $0 != owner }
+    }
+    // Neither an enabled store nor an enabled Inbox: show welcome/no-stores.
+    private var hasNoLists: Bool {
+        switch owner {
+        case .inbox: !visibility.inboxEnabled && shoppingVisibleIDs.isEmpty
+        case .store: shoppingVisibleIDs.isEmpty
+        }
+    }
+    private var canShopHere: Bool {
+        guard let storeID, let browser else { return false }
+        return browser.canPresentStore && shoppingVisibleIDs.contains(storeID)
     }
 
     private func userScrolled() {
@@ -2119,20 +2193,21 @@ struct GroceryListScreen: View {
         #if DEBUG
         if previewingStoreWelcome { return true }
         #endif
-        return shoppingVisibleIDs.isEmpty && !visibility.hasCompletedStoreSetup
+        return shoppingVisibleIDs.isEmpty && !visibility.inboxEnabled && !visibility.hasCompletedStoreSetup
     }
     // The storefront configuration is the single source of truth for the
     // selected store's visual identity, including all list-screen accents.
     private var storePrimaryColor: Color {
-        guard !shoppingVisibleIDs.isEmpty else { return .primary }
+        guard !hasNoLists else { return .primary }
+        guard let browser else { return .accentColor }
         let color = browser.store.brandColors?.primary ?? browser.store.addedColor
         return Color(red: Double(color.red) / 255,
                      green: Double(color.green) / 255,
                      blue: Double(color.blue) / 255)
     }
     private var storeHighlightColor: Color {
-        guard !shoppingVisibleIDs.isEmpty else { return .primary }
-        guard let color = browser.store.brandColors?.highlight else { return storePrimaryColor }
+        guard !hasNoLists else { return .primary }
+        guard let color = browser?.store.brandColors?.highlight else { return storePrimaryColor }
         return Color(red: Double(color.red) / 255,
                      green: Double(color.green) / 255,
                      blue: Double(color.blue) / 255)
@@ -2148,14 +2223,14 @@ struct GroceryListScreen: View {
                     revealFocusedProductEntry()
                     if let itemID = scrollTargetItemID { scrollToAddedItem(itemID, using: scrollProxy) }
                 }, scope: {
-                    if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty {
-                        ListScopePicker(stores: StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
-                            enabledIDs: shoppingVisibleIDs), selectedStoreID: storeID, tint: storePrimaryColor,
+                    if !showingStoreWelcome && !hasNoLists {
+                        ListScopePicker(stores: orderedStores, includesInbox: visibility.inboxEnabled,
+                            selectedOwner: owner, tint: storePrimaryColor,
                             onChooseAllItems: onSelectAllItems, onChooseStore: onSelectStore,
                             onManageStores: { showingStoreManagement = true }, offersAllItems: offersAllItems)
                     }
                 }, footer: {
-                    if !showingStoreWelcome && !shoppingVisibleIDs.isEmpty && !items.isEmpty {
+                    if !showingStoreWelcome && !hasNoLists && storeID != nil && !items.isEmpty {
                         Button(action: presentStore) {
                             Label("Show Store", systemImage: "cart.fill")
                                 .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
@@ -2165,7 +2240,7 @@ struct GroceryListScreen: View {
                             showStoreFrame = frame
                             revealFocusedProductEntry()
                         }
-                        .disabled(!browser.canPresentStore || !shoppingVisibleIDs.contains(storeID))
+                        .disabled(!canShopHere)
                         .padding(.horizontal, 20).padding(.top, 8)
                         // Tuck the fixed action closer to the home indicator, but
                         // retain its comfortable keyboard clearance while editing.
@@ -2173,13 +2248,13 @@ struct GroceryListScreen: View {
                     }
                 }) {
                 if showingStoreWelcome {
-                    StoreWelcomeContent {
+                    StoreWelcomeContent(chooseStore: {
                         managingWelcomeStores = true
                         showingStoreManagement = true
-                    }
+                    }, startWithInbox: startWithInbox)
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-                } else if shoppingVisibleIDs.isEmpty {
+                } else if hasNoLists {
                     ContentUnavailableView {
                         Label("No stores enabled", systemImage: "basket")
                     } description: {
@@ -2207,8 +2282,8 @@ struct GroceryListScreen: View {
                                 .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
                         }
                         if saveFailed { PersistenceWarning() }
-                        if browser.cartUndoWarning {
-                            CartUndoWarning(storeName: storeID.displayName) { browser.dismissCartUndoWarning() }
+                        if let browser, browser.cartUndoWarning {
+                            CartUndoWarning(storeName: owner.displayName) { browser.dismissCartUndoWarning() }
                         }
                     }
                     .listRowBackground(Color.clear)
@@ -2219,6 +2294,7 @@ struct GroceryListScreen: View {
 
                     ProductEntrySection(text: $rawInput, isFocused: $groceryInputFocused,
                         focusControl: productEntryFocus, tint: storePrimaryColor,
+                        showsImport: storeID != nil,
                         importing: paprikaReminders.importing,
                         importConfigured: GroceryImportSource(rawValue: importSourceID) == .paprika,
                         removeReminders: removeRemindersAfterImport, onSubmit: addItems, onImport: {
@@ -2263,8 +2339,10 @@ struct GroceryListScreen: View {
 
                     Section {
                         if items.isEmpty {
-                            ContentUnavailableView("Your list is empty", systemImage: "basket",
-                                                   description: Text("Add products above, then shop though them with ListRunner"))
+                            ContentUnavailableView("Your list is empty", systemImage: owner == .inbox ? "tray" : "basket",
+                                                   description: owner == .inbox
+                                                    ? Text("Add items above. Move them to a store list when you know where to buy them.")
+                                                    : Text("Add products above, then shop though them with ListRunner"))
                                 .padding(.vertical, 12)
                         } else {
                             groceryList(using: scrollProxy)
@@ -2277,7 +2355,7 @@ struct GroceryListScreen: View {
                                 Button("Clear All", role: .destructive) { clearItems(addedOnly: false) }
                                 Button("Cancel", role: .cancel) { }
                             } message: {
-                                Text("This clears only your \(storeID.displayName) list in ListRunner. It does not change any store cart or Apple Reminders.")
+                                Text("This clears only your \(owner.displayName) list in ListRunner. It does not change any store cart or Apple Reminders.")
                             }
                         }
                     } header: {
@@ -2292,9 +2370,9 @@ struct GroceryListScreen: View {
                 isListScreenVisible = true
                 if storeLaunchRequested {
                     storeLaunchRequested = false
-                    presentStore()
+                    if storeID != nil { presentStore() }
                 }
-                if importLaunchRequested {
+                if importLaunchRequested, storeID != nil {
                     importLaunchRequested = false
                     if GroceryImportSource(rawValue: importSourceID) == .paprika {
                         importPaprika()
@@ -2302,8 +2380,8 @@ struct GroceryListScreen: View {
                         showingImportSetup = true
                     }
                 }
-                if let selected = visibility.selectionForList(current: storeID, definitions: sessions.definitions),
-                   selected != storeID {
+                if let selected = visibility.selectionForList(current: owner, definitions: sessions.definitions),
+                   selected != owner {
                     onSelectStore(selected)
                 }
                 onListVisibilityChange(true)
@@ -2318,24 +2396,24 @@ struct GroceryListScreen: View {
                     onWelcomeStoreEnabled: managingWelcomeStores ? { id in
                         // Let the root crossfade to a fresh list navigation stack.
                         // Do not pop this outgoing stack during its fade.
-                        onWelcomeStoreEnabled(id)
+                        onWelcomeStoreEnabled(.store(id))
                     } : nil,
                     onOpenStoreList: { id in
                         showingStoreManagement = false
-                        onSelectStore(id)
+                        onSelectStore(.store(id))
                     })
             }
             .onChange(of: showingStoreManagement) { _, presented in
                 if !presented { managingWelcomeStores = false }
             }
             .navigationDestination(isPresented: $showingImportSetup) {
-                ImportSourceSelectionScreen(selectedSourceID: importSourceID, destinationName: browser.store.displayName) { _ in
+                ImportSourceSelectionScreen(selectedSourceID: importSourceID, destinationName: owner.displayName) { _ in
                     showingImportSetup = false
                     importPaprika()
                 }
             }
             .navigationDestination(isPresented: $showingPaprikaInstructions) {
-                PaprikaImportInstructionsScreen(destinationName: browser.store.displayName) {
+                PaprikaImportInstructionsScreen(destinationName: owner.displayName) {
                     showingPaprikaInstructions = false
                     importPaprika()
                 }
@@ -2343,10 +2421,13 @@ struct GroceryListScreen: View {
             .navigationDestination(isPresented: $showingSettings) {
                 SettingsOverviewScreen(sessions: sessions, visibility: visibility,
                                         importInProgress: paprikaReminders.importing,
-                                        importDestinationName: browser.store.displayName,
+                                        importDestinationName: owner.displayName,
                                         onOpenStoreList: { id in
                                             showingSettings = false
-                                            onSelectStore(id)
+                                            onSelectStore(.store(id))
+                                        }, onOpenInbox: {
+                                            showingSettings = false
+                                            onSelectStore(.inbox)
                                         }) {
                     showingSettings = false
                     importPaprika()
@@ -2374,6 +2455,7 @@ struct GroceryListScreen: View {
                 }
             }
             .sheet(isPresented: $showingStore) {
+                if let browser {
                 StoreShoppingView(items: items, browser: browser, initialSelectedID: selectedList?.selectedItemID, saveFailed: saveFailed, onSelectionChange: { id in
                     selectedList?.selectedItemID = id
                     saveChanges()
@@ -2384,6 +2466,7 @@ struct GroceryListScreen: View {
                     .presentationDetents([.large])
                     .presentationDragIndicator(.hidden)
                     .presentationCornerRadius(32)
+                }
             }
             .sheet(item: $editingItem) { item in
                 ItemEditorSheet(item: item) { name, amount, unit in
@@ -2397,15 +2480,15 @@ struct GroceryListScreen: View {
                 }
                 .presentationDetents([.medium, .large])
             }
-            .confirmationDialog("Move item to another store?", isPresented: Binding(get: { itemToMove != nil }, set: { if !$0 { itemToMove = nil } }), titleVisibility: .visible) {
+            .confirmationDialog("Move item to another list?", isPresented: Binding(get: { itemToMove != nil }, set: { if !$0 { itemToMove = nil } }), titleVisibility: .visible) {
                 if let item = itemToMove {
-                    ForEach(moveDestinations, id: \.id) { destination in
-                        Button("Move to \(destination.displayName)") { moveItem(item, to: destination.id); itemToMove = nil }
+                    ForEach(moveDestinations) { destination in
+                        Button("Move to \(destination.displayName)") { moveItem(item, to: destination); itemToMove = nil }
                     }
                 }
                 Button("Cancel", role: .cancel) { itemToMove = nil }
             } message: {
-                Text("The item moves to the other list as Pending. Neither store basket is changed. Existing items in the other list are not merged.")
+                Text("The item moves to the other list as Pending. No store basket is changed. Existing items in the other list are not merged.")
             }
         }
         .tint(storePrimaryColor)
@@ -2452,13 +2535,13 @@ struct GroceryListScreen: View {
             saveChanges()
         }
         .onChange(of: shoppingVisibleIDs) { _, visibleIDs in
-            guard !visibleIDs.contains(storeID) else { return }
-            browser.endInteraction()
+            guard let storeID, !visibleIDs.contains(storeID) else { return }
+            browser?.endInteraction()
             showingStore = false
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                browser.diagnostics.purge()
+                diagnostics.purge()
                 if saveFailed { saveChanges() }
                 selectedList?.lastActiveDay = Self.localDay()
                 saveChanges()
@@ -2513,9 +2596,12 @@ struct GroceryListScreen: View {
         ForEach(items) { item in
             ShoppingListItemRow(name: item.name, quantity: item.displayQuantity,
                 status: item.status, tint: storePrimaryColor,
-                accessibilityLabel: "\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue). Find in \(storeID.displayName)",
+                accessibilityLabel: storeID.map { "\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue). Find in \($0.displayName)" }
+                    ?? "\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)",
                 onOpen: {
-                    guard browser.canPresentStore, shoppingVisibleIDs.contains(storeID) else { return }
+                    // Inbox rows have no store to open; a tap edits the item.
+                    guard storeID != nil else { editingItem = item; return }
+                    guard canShopHere else { return }
                     selectedList?.selectedItemID = item.id
                     saveChanges()
                     presentStore()
@@ -2529,7 +2615,7 @@ struct GroceryListScreen: View {
                         Button("Mark Skipped", systemImage: "forward.end") { setStatus(.skipped, for: item) }
                     }
                     Button("Edit Item", systemImage: "pencil") { editingItem = item }
-                    Button("Move to Another Store", systemImage: "arrow.right.arrow.left") { itemToMove = item }
+                    Button("Move to Another List", systemImage: "arrow.right.arrow.left") { itemToMove = item }
                     Button("Delete Item", systemImage: "trash", role: .destructive) { delete(item) }
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -2630,7 +2716,7 @@ struct GroceryListScreen: View {
         // the first row still gets the added-item highlight and animated scroll.
         withAnimation(items.isEmpty ? nil : .spring(response: 0.42, dampingFraction: 0.82)) {
             let existingIDs = Set(items.map(\.id))
-            let promotedItems = ShoppingLists.stageAdd(entries, to: storeID, allItems: allItems, context: modelContext)
+            let promotedItems = ShoppingLists.stageAdd(entries, to: owner, allItems: allItems, context: modelContext)
             for item in promotedItems {
                 if existingIDs.contains(item.id) { stageReminderWriteback(for: item) }
                 else { newlyAddedIDs.insert(item.id) }
@@ -2650,7 +2736,7 @@ struct GroceryListScreen: View {
                 recentlyAddedItemIDs.subtract(newlyAddedIDs)
                 scrollTargetItemID = nil
             } else {
-                onPromoteStore(storeID, promotedItems.map(\.id))
+                onPromoteStore(owner, promotedItems.map(\.id))
             }
         }
 
@@ -2672,8 +2758,8 @@ struct GroceryListScreen: View {
         }
         // This is one literal product title, not a comma-separated ingredient input.
         let entry = ParsedGrocery(name: name, amount: Double(quantity), unit: nil)
-        let snapshot = ShoppingLists.AdditionSnapshot(items: allItems, store: storeID)
-        let promoted = ShoppingLists.stageAdd([entry], to: storeID, allItems: allItems, context: modelContext, insertion: insertion)
+        let snapshot = ShoppingLists.AdditionSnapshot(items: allItems, owner: owner)
+        let promoted = ShoppingLists.stageAdd([entry], to: owner, allItems: allItems, context: modelContext, insertion: insertion)
         for item in promoted { stageReminderWriteback(for: item) }
         saveChanges()
         guard !saveFailed else {
@@ -2682,8 +2768,8 @@ struct GroceryListScreen: View {
             pendingReminderWrites.removeAll()
             return nil
         }
-        onPromoteStore(storeID, promoted.map(\.id))
-        UIAccessibility.post(notification: .announcement, argument: String(localized: "Added to your \(storeID.displayName) list"))
+        onPromoteStore(owner, promoted.map(\.id))
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Added to your \(owner.displayName) list"))
         return promoted.first?.id
     }
 
@@ -2758,6 +2844,12 @@ struct GroceryListScreen: View {
         saveChanges()
     }
 
+    private func startWithInbox() {
+        // Turning Inbox on cannot be blocked; only turning it off checks rows.
+        visibility.setInboxEnabled(true)
+        onWelcomeStoreEnabled(.inbox)
+    }
+
     private func clearList() {
         groceryInputFocused = false
         productEntryFocus.resignFirstResponder()
@@ -2777,7 +2869,7 @@ struct GroceryListScreen: View {
         let removed = items.filter { !addedOnly || $0.status == .added }
         let removedIDs = Set(removed.map(\.id))
         let remaining = items.filter { !removedIDs.contains($0.id) }
-        browser.endInteraction()
+        browser?.endInteraction()
         for item in removed {
             pendingReminderWrites.removeValue(forKey: item.id)
             paprikaReminders.cancelQueuedWriteback(for: item)
@@ -2814,17 +2906,17 @@ struct GroceryListScreen: View {
                 UIAccessibility.post(notification: .announcement, argument: "Changes may not be saved")
             }
             saveFailed = true
-            browser.diagnostics.record(.storage, .localSave, reason: .storageFailure, outcome: .failed)
+            diagnostics.record(.storage, .localSave, reason: .storageFailure, outcome: .failed)
         }
     }
 
-    private func moveItem(_ item: GroceryItem, to destination: StoreID) {
-        guard item.listID == storeID.listID, destination != storeID,
-              shoppingVisibleIDs.contains(destination) else { return }
+    private func moveItem(_ item: GroceryItem, to destination: ListOwner) {
+        guard item.listID == owner.listID, destination != owner,
+              visibility.isListAvailable(destination, definitions: sessions.definitions) else { return }
         if selectedList?.selectedItemID == item.id {
             selectedList?.selectedItemID = ShoppingLists.selection(afterRemoving: item.id, from: items)
         }
-        browser.endInteraction()
+        browser?.endInteraction()
         ShoppingLists.move(item, to: destination, allItems: allItems)
         stageReminderWriteback(for: item)
         saveChanges()
@@ -2838,7 +2930,8 @@ struct GroceryListScreen: View {
     }
 
     private func importPaprika() {
-        guard !paprikaReminders.importing else { return }
+        // Importing into the Inbox is out of scope; its page offers no Import.
+        guard storeID != nil, !paprikaReminders.importing else { return }
         guard !remindersListID.isEmpty else {
             showingRemindersListPicker = true
             return
@@ -2889,7 +2982,7 @@ struct GroceryListScreen: View {
                                                    amount: entry.grocery.amount,
                                                    unit: entry.grocery.unit,
                                                    position: position,
-                                                   listID: storeID.listID)
+                                                   listID: owner.listID)
                             item.paprikaReminderID = entry.reminderID
                             modelContext.insert(item)
                             importedItemIDs.append(item.id)
@@ -2904,23 +2997,23 @@ struct GroceryListScreen: View {
                     throw PaprikaImportError.transaction
                 }
                 importSourceID = GroceryImportSource.paprika.rawValue
-                onPromoteStore(storeID, importedItemIDs)
+                onPromoteStore(owner, importedItemIDs)
                 if removeAfterImport {
                     let savedIDs = linkedIDs.union(staged.compactMap(\.reminderID))
                     let failed = paprikaReminders.removeImportedReminders(PaprikaImportPlanner.removalCandidates(reminders: snapshot, savedIDs: savedIDs), calendarID: sourceListID)
                     notice = failed == 0
-                        ? String(localized: "Groceries added to your \(browser.store.displayName) list: \(staged.count). Removed their reminders from ‘\(sourceListName)’. Paprika is unchanged.")
-                        : String(localized: "Added \(staged.count) groceries to your \(browser.store.displayName) list. Some Apple reminders could not be removed. Import again to retry; your saved groceries won’t be duplicated.")
+                        ? String(localized: "Groceries added to your \(owner.displayName) list: \(staged.count). Removed their reminders from ‘\(sourceListName)’. Paprika is unchanged.")
+                        : String(localized: "Added \(staged.count) groceries to your \(owner.displayName) list. Some Apple reminders could not be removed. Import again to retry; your saved groceries won’t be duplicated.")
                     return
                 }
                 if alreadyImportedCount > 0 && staged.count == 1 {
-                    notice = String(localized: "Added 1 item to your \(browser.store.displayName) list. Already-imported reminders skipped: \(alreadyImportedCount).")
+                    notice = String(localized: "Added 1 item to your \(owner.displayName) list. Already-imported reminders skipped: \(alreadyImportedCount).")
                 } else if alreadyImportedCount > 0 {
-                    notice = String(localized: "Added \(staged.count) items to your \(browser.store.displayName) list. Already-imported reminders skipped: \(alreadyImportedCount).")
+                    notice = String(localized: "Added \(staged.count) items to your \(owner.displayName) list. Already-imported reminders skipped: \(alreadyImportedCount).")
                 } else if staged.count == 1 {
-                    notice = String(localized: "Added 1 item to your \(browser.store.displayName) list.")
+                    notice = String(localized: "Added 1 item to your \(owner.displayName) list.")
                 } else {
-                    notice = String(localized: "Added \(staged.count) items to your \(browser.store.displayName) list.")
+                    notice = String(localized: "Added \(staged.count) items to your \(owner.displayName) list.")
                 }
             } catch let error as PaprikaImportError {
                 if error == .listNotFound {
@@ -2949,6 +3042,7 @@ struct GroceryListScreen: View {
 
 private struct StoreWelcomeContent: View {
     let chooseStore: () -> Void
+    let startWithInbox: () -> Void
 
     var body: some View {
         VStack(spacing: 24) {
@@ -2965,6 +3059,17 @@ private struct StoreWelcomeContent: View {
                 }
                 .buttonStyle(StoreWelcomeButtonStyle())
                 .accessibilityIdentifier("welcome-choose-store")
+                Button(action: startWithInbox) {
+                    Text("Start with an Inbox")
+                        .font(.headline)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.capsule)
+                .accessibilityHint("Turns on a list that is not tied to any store")
+                .accessibilityIdentifier("welcome-start-inbox")
                 Text("Add more stores and lists whenever you like.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
