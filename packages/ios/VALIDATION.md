@@ -1,5 +1,51 @@
 # Reusable store framework validation
 
+## IKEA AU local-list product selection (17 November 2026)
+
+Branch `feat/ikea-product-adding`, working-tree changes based on
+`cd80462` (not a committed/native-tested revision). Enabled the existing schema-8
+`productSelection` profile for IKEA AU only. Automation schema 5, exact trusted
+hosts, permanent list/session identities, search, cart detection and retailer Undo
+remain unchanged. No selection engine, SwiftUI, persistence or cart code changed.
+
+**Public rendered DOM review.** Separate anonymous Chromium sessions loaded
+`https://www.ikea.com/au/en/search/?q=spoon` and
+`https://www.ikea.com/au/en/p/dragon-spoon-stainless-steel-40515525/`.
+The search had 22 `[data-testid='plp-product-card']` tiles, each with one
+`.plp-price-module__information h3` containing the family plus description,
+separate from price/rating text. Image/title links generally repeated the same
+eight-digit AU product identity. One RÖRT tile included two different variant
+links; it deliberately fails selection rather than guessing a variant. Detail had
+one `.pipf-price-package__price-module-wrapper` containing the dedicated
+`.pipcom-price-module__information h1`; the cart's `.js-add-to-cart-section`
+contained no heading and is not reused for this feature.
+
+**Production-script checks.** At 402 × 874, a trusted pointer tap on the
+document-plane grid shield returned `DRAGON Spoon, stainless steel, 19 cm`,
+article `40515525`, with zero clicks reaching the monitored retailer tile, no
+navigation and cleared selection hooks. Direct detail reading returned the same
+name/article and cleared its hooks without grid selection. An initial grid tap
+during responsive reflow returned no selection safely; the settled-layout run
+passed. No consent, sign-in, storage/private API, retailer-cart action or local
+list save occurred. Compact browser evidence is in
+`/tmp/opencode/ikea-live-grid.json` and `/tmp/opencode/ikea-live-detail.json`.
+
+**Offline checks.** Focused selection plus IKEA cart regression: **104/104**.
+The complete JavaScript allowlist from `run-cloud-checks.sh` (selection, scrolling,
+all listed cart engines, inspection and nightly metadata) passed. All **47 Python
+tests** passed. The IKEA onboarding check passed registration, resources, tooling,
+cloud contracts, strategies and inspection; exit **2** correctly reports that
+native offline checks need macOS/Xcode. Added bundled-profile and native
+round-trip assertions, plus grid/detail fixtures for full titles, Unicode,
+leading-zero IDs, repeated/variant links, untrusted/foreign/composite identities,
+missing/ambiguous headings, stale tiles and assistive manual fallback.
+
+**Not verified:** native compilation/offline recovery assertions, live embedded
+iOS WebKit selection/review/save, device installation, all catalogue layouts or
+physical-device accessibility. The existing shared save/cancel/reveal behavior
+was not changed; the desktop checks do not certify it on IKEA. Native validation
+remains a release gate.
+
 ## Walgreens search-card detection enabled (16 November 2026)
 
 Branch `feat/walgreens-product-adding`, app revision

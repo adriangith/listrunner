@@ -6,6 +6,7 @@ import vm from 'node:vm';
 const swift = readFileSync(new URL('../ListRunner/StoreProductSelection.swift', import.meta.url), 'utf8');
 const source = swift.match(/static let script = #"""\n([\s\S]*?)\n    """#/)[1];
 const coles = JSON.parse(readFileSync(new URL('../ListRunner/Resources/coles.json', import.meta.url), 'utf8'));
+const ikea = JSON.parse(readFileSync(new URL('../ListRunner/Resources/ikeaAU.json', import.meta.url), 'utf8'));
 const config = {
   productURLPattern: '_p(\\d+)$',
   grid: {containerSelector: '.tile', titleSelector: '.title', linkSelector: 'a'},
@@ -178,6 +179,118 @@ test('Coles missing/ambiguous detail heading never substitutes a recommendation'
     assert.equal(await f.start(), null);
     assert.equal(f.roots.length, 0); f.assertClean();
   }
+});
+
+// Public IKEA AU markup reviewed 17 Nov 2026: the product family and description
+// share a heading; price, rating and purchase controls are outside it. Detail
+// headings live in the price package, not the cart engine's purchase container.
+function ikeaFixture({detail = false} = {}) {
+  const f = fixture(), profile = ikea.productSelection;
+  f.context.config = structuredClone(profile);
+  f.context.hosts = ikea.allowedHosts;
+  f.context.pathPrefix = '/au/en/';
+  f.title.textContent = f.heading.textContent = 'DRAGON\nSpoon, stainless steel, 19 cm';
+  f.link.href = 'https://www.ikea.com/au/en/p/dragon-spoon-stainless-steel-40515525/';
+  f.location.href = detail ? f.link.href : 'https://www.ikea.com/au/en/search/?q=spoon';
+  f.tile.nodes = {[profile.grid.titleSelector]: [f.title], [profile.grid.linkSelector]: [f.link, f.link]};
+  f.main.nodes = {[profile.detail.titleSelector]: [f.heading]};
+  f.document.nodes = {[profile.grid.containerSelector]: [f.tile], [profile.detail.containerSelector]: [f.main]};
+  return f;
+}
+
+test('IKEA opts into explicit AU grid/detail selection without changing cart capabilities or trust', () => {
+  assert.equal(ikea.schemaVersion, 8);
+  assert.equal(ikea.automationSchemaVersion, 5);
+  assert.deepEqual(ikea.capabilities, {search: true, cartDetection: true, cartUndo: true});
+  assert.deepEqual(ikea.allowedHosts, ['www.ikea.com', 'ikea.com']);
+  assert.equal(ikea.productSelection.productURLPattern, ikea.cart.productURLPattern);
+  assert.equal(ikea.productSelection.grid.containerSelector, "[data-testid='plp-product-card']");
+  assert.equal(ikea.productSelection.grid.titleSelector, '.plp-price-module__information h3');
+  assert.equal(ikea.productSelection.grid.linkSelector, "a[href*='/au/en/p/']");
+  assert.equal(ikea.productSelection.detail.containerSelector, '.pipf-price-package__price-module-wrapper');
+  assert.equal(ikea.productSelection.detail.titleSelector, '.pipcom-price-module__information h1');
+});
+
+test('IKEA grid preserves family, description and commas, deduplicates links and consumes the retailer tap', async () => {
+  const f = ikeaFixture();
+  let clicks = 0;
+  f.tile.click = f.link.click = () => { clicks++; };
+  const pending = f.start();
+  assert.equal(f.buttons().length, 1);
+  f.tap();
+  const product = await pending;
+  assert.equal(product.name, 'DRAGON Spoon, stainless steel, 19 cm');
+  assert.equal(product.productID, '40515525');
+  assert.equal(clicks, 0); f.assertClean();
+});
+
+for (const detail of [false, true]) {
+  test(`IKEA ${detail ? 'detail' : 'grid'} preserves Unicode and leading-zero article numbers`, async () => {
+    const f = ikeaFixture({detail});
+    f.title.textContent = f.heading.textContent = 'FÖRNUFT\nFork, stainless steel, 19 cm';
+    f.link.href = 'https://www.ikea.com/au/en/p/foernuft-fork-stainless-steel-00428484/';
+    if (detail) f.location.href = f.link.href;
+    const pending = f.start();
+    if (!detail) f.tap();
+    assert.deepEqual({...await pending}, {name: 'FÖRNUFT Fork, stainless steel, 19 cm', productID: '00428484'});
+    f.assertClean();
+  });
+}
+
+test('IKEA detail reads the dedicated heading rather than recommendations or purchase quantity', async () => {
+  const f = ikeaFixture({detail: true});
+  f.title.textContent = 'Recommended spoon';
+  const product = await f.start();
+  assert.deepEqual({...product}, {name: 'DRAGON Spoon, stainless steel, 19 cm', productID: '40515525'});
+  assert.equal(f.roots.length, 0); f.assertClean();
+});
+
+for (const [name, change] of [
+  ['missing title', f => { f.title.textContent = ''; }],
+  ['ambiguous title', f => { f.tile.nodes[ikea.productSelection.grid.titleSelector].push(new f.Node('Other spoon')); }],
+  ['foreign host', f => { f.link.href = 'https://shop.ikea.com/au/en/p/dragon-spoon-40515525/'; }],
+  ['foreign locale', f => { f.link.href = 'https://www.ikea.com/us/en/p/dragon-spoon-40515525/'; }],
+  ['non-HTTPS link', f => { f.link.href = 'http://www.ikea.com/au/en/p/dragon-spoon-40515525/'; }],
+  ['invalid article', f => { f.link.href = 'https://www.ikea.com/au/en/p/dragon-spoon-4051552/'; }],
+  ['composite article', f => { f.link.href = 'https://www.ikea.com/au/en/p/dragon-spoon-s40515525/'; }],
+  ['variant links in the same tile', f => {
+    const other = new f.Node();
+    other.href = 'https://www.ikea.com/au/en/p/dragon-fork-80515528/';
+    f.tile.nodes[ikea.productSelection.grid.linkSelector].push(other);
+  }],
+]) {
+  test(`IKEA grid falls back for ${name}`, async () => {
+    const f = ikeaFixture(); change(f);
+    assert.equal(await f.start(), null); f.assertClean();
+  });
+}
+
+for (const [name, change] of [
+  ['missing heading', f => { f.main.nodes[ikea.productSelection.detail.titleSelector] = []; }],
+  ['ambiguous heading', f => { f.main.nodes[ikea.productSelection.detail.titleSelector].push(new f.Node('Other spoon')); }],
+  ['hidden heading', f => { f.heading.hidden = true; }],
+  ['ambiguous detail container', f => { f.document.nodes[ikea.productSelection.detail.containerSelector].push(f.main); }],
+]) {
+  test(`IKEA detail rejects ${name} without substituting a recommendation`, async () => {
+    const f = ikeaFixture({detail: true}); change(f);
+    assert.equal(await f.start(), null);
+    assert.equal(f.roots.length, 0); f.assertClean();
+  });
+}
+
+test('IKEA grid rechecks article identity on selection and cleans up stale shields', async () => {
+  const f = ikeaFixture(), pending = f.start();
+  f.link.href = 'https://www.ikea.com/au/en/p/dragon-fork-80515528/';
+  f.tap();
+  assert.equal(await pending, null); f.assertClean();
+});
+
+test('IKEA assistive grid uses manual entry while detail still reads its heading', async () => {
+  const grid = ikeaFixture(); grid.context.allowGrid = false;
+  assert.equal(await grid.start(), null);
+  assert.equal(grid.roots.length, 0); grid.assertClean();
+  const detail = ikeaFixture({detail: true}); detail.context.allowGrid = false;
+  assert.equal((await detail.start()).productID, '40515525'); detail.assertClean();
 });
 
 test('assistive grid activation uses native fallback without exposing website shields', async () => {
