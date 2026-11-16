@@ -809,7 +809,7 @@ struct RecoveryTests {
                   && components.fragment == nil && definition.allows(url), "US query encoding preserves one retailer-specific parameter")
             for raw in ["http://www.\(id.dataDomain)", "https://www.\(id.dataDomain):444",
                         "https://user:secret@www.\(id.dataDomain)", "https://www.\(id.dataDomain).evil.test",
-                        "https://login.\(id.dataDomain)"] {
+                         "https://account.\(id.dataDomain)"] {
                 check(!definition.allowsNavigation(URL(string: raw)!), "US browsing trust cannot widen to unreviewed origins")
             }
             for other in expandedDefinitions where other.id != id {
