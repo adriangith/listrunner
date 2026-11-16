@@ -360,6 +360,23 @@ enum StoreProductSelection {
       let mutations = null, sizes = null;
       let update = null, reposition = null;
       const shields = new Map(), observed = new Set();
+      // Entrance only: the first batch staggers top-to-bottom, later shields
+      // (scroll/infinite load) just fade in. Never affects hit testing or
+      // positioning; skipped where Web Animations are unavailable.
+      const reduceMotion = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      let firstBatch = true, staggered = 0;
+      function reveal(button, label) {
+        if (typeof button.animate !== 'function') return;
+        if (reduceMotion) {
+          button.animate([{opacity: 0}, {opacity: 1}], {duration: 150, easing: 'ease-out', fill: 'backwards'});
+          return;
+        }
+        const delay = firstBatch ? Math.min(staggered++ * 40, 320) : 0;
+        button.animate([{opacity: 0, transform: 'scale(0.94)'}, {opacity: 1, transform: 'scale(1)'}],
+          {duration: 280, delay, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards'});
+        label.animate([{opacity: 0, transform: 'translateY(8px) scale(0.85)'}, {opacity: 1, transform: 'none'}],
+          {duration: 360, delay: delay + 80, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)', fill: 'backwards'});
+      }
       const startURL = location.href;
       const clean = value => (value || '').replace(/\s+/g, ' ').trim();
       function finish(value) {
@@ -528,6 +545,7 @@ enum StoreProductSelection {
             });
             shadow.appendChild(button); shields.set(tile, entry);
             position(entry);
+            reveal(button, label);
             if (!observed.has(tile)) { sizes.observe(tile); observed.add(tile); }
           }
           for (const [tile, entry] of shields) {
@@ -553,6 +571,7 @@ enum StoreProductSelection {
         // A deadline bounds the mode; it never drives product positioning.
         deadline = setTimeout(cancel, 60_000);
         update();
+        firstBatch = false;
       } catch { finish(null); }
     });
     """#
