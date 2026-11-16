@@ -31,6 +31,7 @@ private struct StoreCardRailTouchHandling: UIViewRepresentable {
     let enabled: Bool
     var onPullArmedChange: (ShoppingLists.AdditionPosition?) -> Void = { _ in }
     var onPullRelease: (ShoppingLists.AdditionPosition) -> Void = { _ in }
+    var pullProgress: StoreProductRailPullProgress?
 
     func makeUIView(context: Context) -> StoreCardRailTouchAnchor {
         StoreCardRailTouchAnchor()
@@ -40,6 +41,7 @@ private struct StoreCardRailTouchHandling: UIViewRepresentable {
         view.enabled = enabled
         view.onPullArmedChange = onPullArmedChange
         view.onPullRelease = onPullRelease
+        view.pullProgress = pullProgress
         view.attachIfNeeded()
     }
 
@@ -52,6 +54,7 @@ private final class StoreCardRailTouchAnchor: UIView {
     var enabled = false
     var onPullArmedChange: (ShoppingLists.AdditionPosition?) -> Void = { _ in }
     var onPullRelease: (ShoppingLists.AdditionPosition) -> Void = { _ in }
+    var pullProgress: StoreProductRailPullProgress?
     private weak var rail: UIScrollView?
     private var originalTouchDelay: Bool?
     private var observer: StoreCardRailTouchObserver?
@@ -124,8 +127,10 @@ private final class StoreCardRailTouchAnchor: UIView {
     @objc private func handleRailPan(_ pan: UIPanGestureRecognizer) {
         switch pan.state {
         case .began, .changed:
-            guard enabled, let edges = railOverscroll() else { return setPullArmed(nil) }
+            guard enabled, let edges = railOverscroll() else { pullProgress?.reset(); return setPullArmed(nil) }
             let threshold = StoreProductRailPull.multiCardThreshold
+            pullProgress?.update(leading: pullFromLeading ? edges.leading / threshold : 0,
+                                 trailing: pullFromTrailing ? edges.trailing / threshold : 0)
             if pullFromLeading, StoreProductRailPull.isArmed(wasArmed: pullArmed == .start,
                                                              distance: edges.leading, threshold: threshold) {
                 setPullArmed(.start)
@@ -148,6 +153,7 @@ private final class StoreCardRailTouchAnchor: UIView {
     private func resetPull() {
         pullFromLeading = false
         pullFromTrailing = false
+        pullProgress?.reset()
         setPullArmed(nil)
     }
 
@@ -226,6 +232,9 @@ struct StoreShoppingView: View {
     @State private var singleCardPullOrigin: CGFloat?
     // Pull-to-add: the rail end pulled past its threshold. Lifting adds there.
     @State private var railPullArmed: ShoppingLists.AdditionPosition?
+    // A reference in @State is not observed: per-frame progress redraws only
+    // the end labels, never this whole view.
+    @State private var railPullProgress = StoreProductRailPullProgress()
     @State private var productSelectionTask: Task<Void, Never>?
     @GestureState private var isTouchingOverlay = false
     @GestureState(resetTransaction: Transaction(animation: .spring(response: 0.4, dampingFraction: 0.86)))
@@ -594,6 +603,7 @@ struct StoreShoppingView: View {
                         .padding(.bottom, 14)
                         .background(StoreCardRailTouchHandling(enabled: items.count > 1,
                             onPullArmedChange: { railPullArmed = $0 },
+                            pullProgress: railPullProgress,
                             onPullRelease: { position in
                                 guard !isCollapsed else { return }
                                 beginStoreProductSelection(at: position)
@@ -610,7 +620,7 @@ struct StoreShoppingView: View {
                                     leadingCardMinX: edges["leading"].map { proxy[$0].minX },
                                     trailingCardMaxX: edges["trailing"].map { proxy[$0].maxX },
                                     isSingleCard: items.count == 1), revealValue: singleCardPullValue,
-                                    armed: railPullArmed)
+                                    armed: railPullArmed, pull: railPullProgress)
                             }
                         }
                     }
@@ -643,6 +653,7 @@ struct StoreShoppingView: View {
                     }
                     .onChange(of: items.count) { previous, count in
                         railPullArmed = nil
+                        railPullProgress.reset()
                         if previous != 1 && count == 1 {
                             singleCardAddPosition = .start
                             singleCardPullValue = -1
@@ -734,6 +745,7 @@ struct StoreShoppingView: View {
                       abs(value.translation.width) >= 8,
                       abs(value.translation.width) > abs(value.translation.height) * 1.25 else {
                     if railPullArmed != nil { railPullArmed = nil }
+                    railPullProgress.reset()
                     return
                 }
                 let origin = singleCardPullOrigin ?? (singleCardAddPosition == .start ? CGFloat(-1) : CGFloat(1))
@@ -748,6 +760,9 @@ struct StoreShoppingView: View {
                     threshold: StoreProductRailPull.singleCardThreshold)
                 let next = armed ? side : nil
                 if railPullArmed != next { railPullArmed = next }
+                let progress = side == revealed ? abs(width) / StoreProductRailPull.singleCardThreshold : 0
+                railPullProgress.update(leading: side == .start ? progress : 0,
+                                        trailing: side == .end ? progress : 0)
                 // The card still follows the finger directly. Give only the
                 // signed Add reveal a short catch-up so a fast flick cannot
                 // traverse its entire fade in a single input frame. Retarget
@@ -761,6 +776,7 @@ struct StoreShoppingView: View {
                 if items.count == 1, singleCardPullOrigin != nil {
                     let pulled = railPullArmed
                     railPullArmed = nil
+                    railPullProgress.reset()
                     let position = pulled ?? StoreProductSingleCardReveal.position(
                         horizontal: value.translation.width, vertical: value.translation.height)
                         ?? singleCardAddPosition

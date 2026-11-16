@@ -69,14 +69,48 @@ enum StoreProductRailPull {
     }
 }
 
+/// Per-frame pull progress (0...1 of the threshold) for each rail end. Kept out
+/// of StoreShoppingView's state, held there in @State (which does not observe
+/// it), so only the end labels redraw while a finger drags.
+final class StoreProductRailPullProgress: ObservableObject {
+    @Published private(set) var leading: CGFloat = 0
+    @Published private(set) var trailing: CGFloat = 0
+
+    func update(leading: CGFloat, trailing: CGFloat) {
+        // Quantize so a slow drag doesn't publish sub-pixel changes.
+        let l = (min(1, max(0, leading)) * 50).rounded() / 50
+        let t = (min(1, max(0, trailing)) * 50).rounded() / 50
+        if l != self.leading { self.leading = l }
+        if t != self.trailing { self.trailing = t }
+    }
+
+    func reset() { update(leading: 0, trailing: 0) }
+}
+
 struct StoreProductAddLabel: View {
     var armed = false
+    /// How far toward the threshold a pull past this end is; 0 when not pulling.
+    var progress: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var pulling: Bool { progress > 0 && !armed }
 
     var body: some View {
         VStack(spacing: 7) {
-            Image(systemName: armed ? "plus.circle.fill" : "text.badge.plus").font(.title2)
-            Text(armed ? "Release to add" : "Add item to your list")
+            ZStack {
+                if pulling {
+                    // Fills as the finger approaches the threshold; full means armed.
+                    Circle().stroke(.secondary.opacity(0.3), lineWidth: 2.5)
+                    Circle().trim(from: 0, to: progress)
+                        .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Image(systemName: "plus").font(.system(size: 11, weight: .bold))
+                } else {
+                    Image(systemName: armed ? "plus.circle.fill" : "text.badge.plus").font(.title2)
+                }
+            }
+            .frame(width: 28, height: 28)
+            Text(armed ? "Release to add" : pulling ? "Pull to add" : "Add item to your list")
                 .font(.caption).multilineTextAlignment(.center)
         }
         .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
@@ -129,6 +163,7 @@ struct StoreProductRailEndControl: View {
 struct StoreProductRailEndLabel: View {
     let uncoveredWidth: CGFloat
     var armed = false
+    var progress: CGFloat = 0
 
     private var opacity: Double {
         let fraction = min(1, max(0, Double(uncoveredWidth / 88)))
@@ -139,7 +174,7 @@ struct StoreProductRailEndLabel: View {
         if uncoveredWidth > 0 {
             // No rectangular crop: the actual rounded card paints over this
             // full-width label. Fade remains proportional to real card coverage.
-            StoreProductAddLabel(armed: armed)
+            StoreProductAddLabel(armed: armed, progress: progress)
                 .opacity(opacity)
         }
     }
@@ -177,6 +212,7 @@ struct StoreProductRailAddLabels: View, Animatable {
     let layout: StoreProductRailLayout
     var revealValue: CGFloat
     var armed: ShoppingLists.AdditionPosition? = nil
+    @ObservedObject var pull: StoreProductRailPullProgress
 
     // Clamp spring overshoot while interpolating the signed fade-through-zero
     // value. Derive the side per frame, not from the final enum, to avoid a pop.
@@ -191,12 +227,14 @@ struct StoreProductRailAddLabels: View, Animatable {
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             if leadingVisibility > 0 {
-                StoreProductRailEndLabel(uncoveredWidth: layout.leadingWidth, armed: armed == .start)
+                StoreProductRailEndLabel(uncoveredWidth: layout.leadingWidth, armed: armed == .start,
+                                         progress: pull.leading)
                     .opacity(leadingVisibility)
                     .offset(x: layout.inset)
             }
             if trailingVisibility > 0 {
-                StoreProductRailEndLabel(uncoveredWidth: layout.trailingWidth, armed: armed == .end)
+                StoreProductRailEndLabel(uncoveredWidth: layout.trailingWidth, armed: armed == .end,
+                                         progress: pull.trailing)
                     .opacity(trailingVisibility)
                     .offset(x: layout.width - layout.inset - 88)
             }
