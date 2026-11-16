@@ -335,9 +335,7 @@ test('native source confines reads and cancellation to the request and isolated 
 });
 
 test('rail control wording and fade follow uncovered width without a delayed animation', () => {
-  assert.match(swift, /Text\("Pull to add item to start of list"\)/);
-  assert.match(swift, /Text\("Pull to add item to end of list"\)/);
-  assert.match(swift, /Text\("Release to add"\)/);
+  assert.match(swift, /Text\(armed \? "Release to add" : "Pull to add"\)/);
   assert.match(swift, /accessibilityLabel\("Add item to your list"\)/);
   assert.match(swift, /StoreProductRailEndControl\(uncoveredWidth: layout\.leadingWidth/);
   assert.match(swift, /StoreProductRailEndControl\(uncoveredWidth: layout\.trailingWidth/);

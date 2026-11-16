@@ -90,7 +90,6 @@ final class StoreProductRailPullProgress: ObservableObject {
 }
 
 struct StoreProductAddLabel: View {
-    var insertion: ShoppingLists.AdditionPosition = .start
     var armed = false
     /// How far toward the threshold a pull past this end is; 0 when not pulling.
     var progress: CGFloat = 0
@@ -113,17 +112,8 @@ struct StoreProductAddLabel: View {
                 }
             }
             .frame(width: 28, height: 28)
-            Group {
-                if armed {
-                    Text("Release to add")
-                } else if insertion == .start {
-                    Text("Pull to add item to start of list")
-                } else {
-                    Text("Pull to add item to end of list")
-                }
-            }
-            .font(.caption).multilineTextAlignment(.center)
-            .lineLimit(3).minimumScaleFactor(0.85)
+            Text(armed ? "Release to add" : "Pull to add")
+                .font(.caption).multilineTextAlignment(.center)
         }
         .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
         // Blank at rest: the hint only appears as a pull begins, fully by a
@@ -177,7 +167,6 @@ struct StoreProductRailEndControl: View {
 
 struct StoreProductRailEndLabel: View {
     let uncoveredWidth: CGFloat
-    var insertion: ShoppingLists.AdditionPosition = .start
     var armed = false
     var progress: CGFloat = 0
 
@@ -190,7 +179,7 @@ struct StoreProductRailEndLabel: View {
         if uncoveredWidth > 0 {
             // No rectangular crop: the actual rounded card paints over this
             // full-width label. Fade remains proportional to real card coverage.
-            StoreProductAddLabel(insertion: insertion, armed: armed, progress: progress)
+            StoreProductAddLabel(armed: armed, progress: progress)
                 .opacity(opacity)
         }
     }
@@ -243,13 +232,13 @@ struct StoreProductRailAddLabels: View, Animatable {
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             if leadingVisibility > 0 {
-                StoreProductRailEndLabel(uncoveredWidth: layout.leadingWidth, insertion: .start, armed: armed == .start,
+                StoreProductRailEndLabel(uncoveredWidth: layout.leadingWidth, armed: armed == .start,
                                          progress: pull.leading)
                     .opacity(leadingVisibility)
                     .offset(x: layout.inset)
             }
             if trailingVisibility > 0 {
-                StoreProductRailEndLabel(uncoveredWidth: layout.trailingWidth, insertion: .end, armed: armed == .end,
+                StoreProductRailEndLabel(uncoveredWidth: layout.trailingWidth, armed: armed == .end,
                                          progress: pull.trailing)
                     .opacity(trailingVisibility)
                     .offset(x: layout.width - layout.inset - 88)
