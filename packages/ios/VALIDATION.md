@@ -3951,3 +3951,21 @@ At the user's request, the same revision was built, signed, installed in place
 and launched on Adrian's iPhone 17e via desktop Xcode `RunProject` (no build
 errors, PID 24251, confirmed running by `devicectl`). No data reset, fixtures or
 retailer actions. Physical feel of the thresholds is pending user review.
+
+### Hold-to-delete, shield entrance and faster StoreProduct UI tests
+
+Branch `feat/pull-to-add-rail` adds: rail ends blank until a pull, then "Pull to add" /
+"Release to add"; hold a shopping card for a context-menu "Delete from List" (ListRunner
+only; deleting the active card continues with the next pending item); an empty-list bar
+(Add Item / Done) after the last card is deleted; and an entrance animation for product
+selection shields (reduce-motion: fade only).
+
+UI tests were made faster: the StoreProduct tests seed post-welcome store setup instead of
+tapping through it, use fast waits, and are sharded across two simulators by
+`tools/run-ui-tests-sharded.sh`. On revision `1879655`, all 27 `testStoreProduct*` tests
+passed in 724 s wall time (two simulators), versus about 40 minutes serially with
+UI-driven setup. Two latent races uncovered by the faster waits (confirming the review
+sheet mid-animation; querying rows while the store sheet closed) were fixed in shared
+helpers. Earlier failures from scrambled typed setup text were removed by seeding those
+items. Node tests: 557/557. The full UI suite was not run. The iPhone 17e build with
+hold-to-delete (`aa80937`) was installed and launched; physical review is pending.
