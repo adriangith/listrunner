@@ -1223,6 +1223,58 @@ struct StoreBrand: Identifiable {
 // A snapshot belongs to one immutable, loaded registry. Keep full validation at
 // this boundary; visibility toggles only intersect IDs and never recompile every
 // retailer's validation expressions during SwiftUI rendering.
+// Owner of one ListRunner list: a retailer or the single built-in Inbox.
+// StoreID remains retailer identity only. Never hand the Inbox to website,
+// cart, session or store-definition code; use `store` to reach a retailer.
+enum ListOwner: Hashable, Identifiable {
+    case store(StoreID)
+    case inbox
+
+    static let inboxRawValue = "inbox"
+    // Permanent identity, distinct from every retailer list/website-data ID.
+    static let inboxListID = UUID(uuidString: "50000000-0000-4000-8000-000000000001")!
+
+    // Every recognised owner. Retailers keep their registry order.
+    static var all: [ListOwner] { StoreID.allCases.map(ListOwner.store) + [.inbox] }
+
+    init?(rawValue: String) {
+        if rawValue == Self.inboxRawValue { self = .inbox }
+        else if let store = StoreID(rawValue: rawValue) { self = .store(store) }
+        else { return nil }
+    }
+
+    init?(listID: UUID?) {
+        guard let listID else { return nil }
+        if listID == Self.inboxListID { self = .inbox; return }
+        guard let store = StoreID.allCases.first(where: { $0.listID == listID }) else { return nil }
+        self = .store(store)
+    }
+
+    var rawValue: String {
+        switch self {
+        case .store(let store): store.rawValue
+        case .inbox: Self.inboxRawValue
+        }
+    }
+    var id: String { rawValue }
+    var listID: UUID {
+        switch self {
+        case .store(let store): store.listID
+        case .inbox: Self.inboxListID
+        }
+    }
+    var store: StoreID? {
+        if case .store(let store) = self { return store }
+        return nil
+    }
+    var displayName: String {
+        switch self {
+        case .store(let store): store.displayName
+        case .inbox: String(localized: "Inbox", comment: "The built-in list that is not tied to any store.")
+        }
+    }
+}
+
 struct StoreShoppingAvailability {
     let availableIDs: Set<StoreID>
 
@@ -1244,8 +1296,12 @@ final class StoreVisibilityPreferences: ObservableObject {
     var listItemCountsProvider: (() throws -> [UUID: Int])?
 
     private func canDisable(_ ids: Set<StoreID>) -> Bool {
+        canDisableLists(Set(ids.map(\.listID)))
+    }
+
+    private func canDisableLists(_ listIDs: Set<UUID>) -> Bool {
         listLookupFailed = false
-        guard !ids.isEmpty else { return true }
+        guard !listIDs.isEmpty else { return true }
         if let listItemCountsProvider {
             do {
                 let counts = try listItemCountsProvider()
@@ -1256,7 +1312,7 @@ final class StoreVisibilityPreferences: ObservableObject {
                 return false
             }
         }
-        return ids.allSatisfy { !nonEmptyListIDs.contains($0.listID) }
+        return listIDs.isDisjoint(with: nonEmptyListIDs)
     }
     // Do not rewrite saved visibility: hidden stores can recover their previous
     // preferences when support improves. UI eligibility is a separate projection.
@@ -1264,6 +1320,9 @@ final class StoreVisibilityPreferences: ObservableObject {
         Set(definitions.filter(\.isAvailableForShopping).map(\.id)).intersection(visibleIDs)
     }
     @Published private(set) var hasCompletedStoreSetup: Bool
+    // The built-in Inbox list. Off by default; it is not a store, so it is
+    // never part of visibleIDs, discovery or shopping availability.
+    @Published private(set) var inboxEnabled: Bool
     @Published private(set) var shoppingCountryCode: String?
     @Published private(set) var useLocalIngredientNames: Bool
     @Published private(set) var autoScrollToResults: Bool
@@ -1278,6 +1337,7 @@ final class StoreVisibilityPreferences: ObservableObject {
     private let regionalKey = "storeRegionalChoices.v1"
     private let pendingSelectionKey = "pendingEnabledStoreSelection.v1"
     private let setupCompletedKey = "storeSetupCompleted.v1"
+    static let inboxEnabledKey = "inboxEnabled.v1"
 
     init(defaults: UserDefaults? = nil, suggestedCountryCode: String? = Locale.current.region?.identifier) {
         if let defaults {
@@ -1332,7 +1392,8 @@ final class StoreVisibilityPreferences: ObservableObject {
         // welcome remains until a store is actually enabled, across relaunches.
         hasCompletedStoreSetup = defaults.object(forKey: setupCompletedKey) as? Bool
             ?? (hasStoredVisibility || hasLegacyStorePreferences)
-        if !visibleIDs.isEmpty { hasCompletedStoreSetup = true }
+        inboxEnabled = defaults.bool(forKey: Self.inboxEnabledKey)
+        if !visibleIDs.isEmpty || inboxEnabled { hasCompletedStoreSetup = true }
         defaults.set(hasCompletedStoreSetup, forKey: setupCompletedKey)
         defaults.set(current.map(\.rawValue).sorted(), forKey: knownKey)
         defaults.set(visibleIDs.map(\.rawValue).sorted(), forKey: visibleKey)
@@ -1354,6 +1415,26 @@ final class StoreVisibilityPreferences: ObservableObject {
         return true
     }
 
+    // Turning Inbox off follows the store rule: blocked while it has any row.
+    @discardableResult
+    func setInboxEnabled(_ enabled: Bool) -> Bool {
+        guard enabled || canDisableLists([ListOwner.inboxListID]) else { return false }
+        inboxEnabled = enabled
+        defaults.set(enabled, forKey: Self.inboxEnabledKey)
+        if enabled {
+            hasCompletedStoreSetup = true
+            defaults.set(true, forKey: setupCompletedKey)
+        }
+        return true
+    }
+
+    func isListAvailable(_ owner: ListOwner, definitions: [StoreDefinition]) -> Bool {
+        switch owner {
+        case .inbox: inboxEnabled
+        case .store(let store): shoppingVisibleIDs(in: definitions).contains(store)
+        }
+    }
+
     private func saveVisibility(_ updated: Set<StoreID>) {
         var pending = (defaults.array(forKey: pendingSelectionKey) as? [String] ?? [])
             .compactMap(StoreID.init(rawValue:)).filter { updated.contains($0) }
@@ -1372,18 +1453,31 @@ final class StoreVisibilityPreferences: ObservableObject {
         }
     }
 
-    func selectionForList(current: StoreID, definitions: [StoreDefinition]) -> StoreID? {
-        // Resolve only when returning to the list, never during management.
-        // Reading persisted visibility also repairs an old disabled selection on launch.
+    // Resolve only when returning to the list, never during management.
+    // Reading persisted visibility also repairs an old disabled selection on
+    // launch. An enabled Inbox stays selected; with no enabled store, an
+    // enabled Inbox replaces the returning-user empty state.
+    func selectionForList(current: ListOwner, definitions: [StoreDefinition]) -> ListOwner? {
         let available = shoppingVisibleIDs(in: definitions)
         let pending = (defaults.array(forKey: pendingSelectionKey) as? [String] ?? [])
             .compactMap(StoreID.init(rawValue:)).last(where: { available.contains($0) })
         // Consume on return, even when already active, so subsequent visits or
         // explicit picker choices are not overridden by an old enable action.
         defaults.removeObject(forKey: pendingSelectionKey)
-        if let pending { return pending }
-        return available.contains(current) ? current
-            : StoreCatalogue.ordered(definitions, countryCode: nil, enabledIDs: available).first?.id
+        if let pending { return .store(pending) }
+        switch current {
+        case .inbox where inboxEnabled: return .inbox
+        case .store(let store) where available.contains(store): return current
+        default: break
+        }
+        if let first = StoreCatalogue.ordered(definitions, countryCode: nil, enabledIDs: available).first?.id {
+            return .store(first)
+        }
+        return inboxEnabled ? .inbox : nil
+    }
+
+    func selectionForList(current: StoreID, definitions: [StoreDefinition]) -> StoreID? {
+        selectionForList(current: .store(current), definitions: definitions)?.store
     }
 
     func setShoppingCountry(_ code: String?) {

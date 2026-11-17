@@ -255,7 +255,9 @@ struct SettingsOverviewScreen: View {
     let importInProgress: Bool
     let importDestinationName: String
     let onOpenStoreList: (StoreID) -> Void
+    var onOpenInbox: () -> Void = {}
     let onImportSourceSelected: () -> Void
+    @State private var inboxDisableBlocked = false
 
     private var appearanceLabel: LocalizedStringKey {
         switch appearance {
@@ -300,6 +302,27 @@ struct SettingsOverviewScreen: View {
                 .accessibilityIdentifier("use-local-ingredient-names")
             } footer: {
                 Text("Uses the Country setting to adapt ingredient names in retailer searches. Your list and quantities stay unchanged.")
+            }
+            Section {
+                Toggle("Inbox", isOn: Binding(
+                    get: { visibility.inboxEnabled },
+                    set: { if !visibility.setInboxEnabled($0) { inboxDisableBlocked = true } }
+                ))
+                .accessibilityIdentifier("inbox-setting")
+                .alert("Inbox can’t be turned off yet", isPresented: $inboxDisableBlocked) {
+                    Button("View Inbox", action: onOpenInbox)
+                    Button("Cancel", role: .cancel) { }
+                } message: {
+                    if visibility.listLookupFailed {
+                        Text("Your saved lists could not be checked. Save or retry your list changes before turning off Inbox. Nothing was changed.")
+                    } else {
+                        Text("Move or clear the items in your Inbox first. This includes Added and Skipped items. Nothing was changed.")
+                    }
+                }
+            } header: {
+                Text("Lists")
+            } footer: {
+                Text("A list for items that aren’t tied to a store yet.")
             }
             Section {
                 Toggle("Auto-scroll to results", isOn: Binding(

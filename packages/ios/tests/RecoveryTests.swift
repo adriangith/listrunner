@@ -29,6 +29,22 @@ struct RecoveryTests {
               "saved lists remain reachable with no enabled stores")
         check(!ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [], itemListIDs: []),
               "a fresh or empty no-stores state has no redundant overview")
+        check(ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [.coles], inboxEnabled: true, itemListIDs: []),
+              "Inbox plus one store counts as two lists and offers the overview")
+        check(!ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [], inboxEnabled: true,
+                                                           itemListIDs: [ListOwner.inboxListID]),
+              "Inbox alone opens directly, like a single store")
+        check(ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: [.coles], itemListIDs: [ListOwner.inboxListID]),
+              "rows in a turned-off Inbox keep All items accessible")
+        check(ListOwner(rawValue: "inbox") == .inbox && ListOwner(rawValue: "coles") == .store(.coles)
+              && ListOwner(rawValue: "unknown") == nil && ListOwner.inbox.rawValue == "inbox",
+              "list owners round-trip through saved raw values")
+        check(ListOwner(listID: ListOwner.inboxListID) == .inbox && ListOwner(listID: StoreID.coles.listID) == .store(.coles)
+              && ListOwner(listID: UUID()) == nil && ListOwner(listID: nil) == nil && ListOwner.inbox.store == nil,
+              "list IDs resolve to Inbox, a store or no recognised owner")
+        check(!StoreID.allCases.contains { $0.listID == ListOwner.inboxListID || $0.websiteDataID == ListOwner.inboxListID }
+              && StoreID(rawValue: ListOwner.inboxRawValue) == nil,
+              "Inbox identity never collides with a retailer's list, website data or raw value")
         let reorderA = UUID(), reorderB = UUID(), reorderC = UUID(), foreignID = UUID()
         let reorderInput = [reorderA, reorderB, reorderC]
         check(ShoppingLists.reorderedIDs(reorderInput, moving: [reorderC], before: reorderA)
@@ -633,6 +649,39 @@ struct RecoveryTests {
         disableGuard.listItemCountsProvider = { [:] }
         check(disableGuard.setVisible(false, for: .coles) && !disableGuard.visibleIDs.contains(.coles),
               "explicit disable succeeds after all affected rows are successfully removed")
+        let inboxSuite = "ListRunner.InboxGuard.\(UUID().uuidString)"
+        let inboxDefaults = UserDefaults(suiteName: inboxSuite)!
+        defer { inboxDefaults.removePersistentDomain(forName: inboxSuite) }
+        let freshInbox = StoreVisibilityPreferences(defaults: inboxDefaults)
+        check(!freshInbox.inboxEnabled && !freshInbox.hasCompletedStoreSetup
+              && freshInbox.selectionForList(current: .inbox, definitions: allProductionDefinitions) == nil,
+              "Inbox is off on a fresh install and the welcome remains")
+        check(freshInbox.setInboxEnabled(true) && freshInbox.inboxEnabled && freshInbox.hasCompletedStoreSetup
+              && freshInbox.visibleIDs.isEmpty,
+              "turning Inbox on completes the welcome without enabling any store")
+        check(freshInbox.selectionForList(current: .store(.coles), definitions: allProductionDefinitions) == .inbox
+              && freshInbox.selectionForList(current: .inbox, definitions: allProductionDefinitions) == .inbox,
+              "with no enabled store, an enabled Inbox replaces the no-stores state")
+        let reloadedInbox = StoreVisibilityPreferences(defaults: inboxDefaults)
+        check(reloadedInbox.inboxEnabled && reloadedInbox.hasCompletedStoreSetup, "Inbox setting persists across relaunch")
+        reloadedInbox.listItemCountsProvider = { [ListOwner.inboxListID: 2] }
+        check(!reloadedInbox.setInboxEnabled(false) && reloadedInbox.inboxEnabled,
+              "a nonempty Inbox cannot be turned off")
+        reloadedInbox.listItemCountsProvider = { throw StoreDefinition.ConfigurationError.invalid }
+        check(!reloadedInbox.setInboxEnabled(false) && reloadedInbox.inboxEnabled && reloadedInbox.listLookupFailed,
+              "failed saved-row lookup keeps Inbox on")
+        reloadedInbox.listItemCountsProvider = { [StoreID.coles.listID: 3] }
+        check(reloadedInbox.setInboxEnabled(true) && reloadedInbox.setVisible(true, for: .coles)
+              && reloadedInbox.selectionForList(current: .inbox, definitions: allProductionDefinitions) == .store(.coles),
+              "a newly enabled store is selected on return, as before")
+        check(reloadedInbox.selectionForList(current: .inbox, definitions: allProductionDefinitions) == .inbox,
+              "an enabled Inbox stays selected once the enable action is consumed")
+        check(!reloadedInbox.setVisible(false, for: .coles), "store rows still block disabling that store")
+        reloadedInbox.listItemCountsProvider = { [:] }
+        check(reloadedInbox.setInboxEnabled(false) && !reloadedInbox.inboxEnabled
+              && reloadedInbox.selectionForList(current: .inbox, definitions: allProductionDefinitions) == .store(.coles)
+              && !StoreVisibilityPreferences(defaults: inboxDefaults).inboxEnabled,
+              "an empty Inbox turns off and its scope falls back to an enabled store")
         let availableCostco = StoreBrand.sections(allProductionDefinitions, countryCode: "US", search: "Costco").flatMap(\.brands).first!
         disableGuardDefaults.set([StoreID.costcoUS.rawValue], forKey: "visibleStoreIDs.v1")
         disableGuardDefaults.set(["costco": StoreID.costco.rawValue], forKey: "storeRegionalChoices.v1")
@@ -1813,8 +1862,10 @@ struct RecoveryTests {
         try ShoppingLists.prepare(migrated.mainContext, legacySelectedID: originalID)
         let migratedItems = try migrated.mainContext.fetch(FetchDescriptor<GroceryItem>())
         let migratedLists = try migrated.mainContext.fetch(FetchDescriptor<GroceryList>())
-        check(migratedItems.count == 1 && Set(migratedLists.map(\.id)) == Set(StoreID.allCases.map(\.listID)),
-              "legacy items retained with a separate list for every bundled store")
+        check(migratedItems.count == 1 && Set(migratedLists.map(\.id)) == Set(ListOwner.all.map(\.listID)),
+              "legacy items retained with a separate list for every bundled store and the Inbox")
+        check(migratedLists.first { $0.id == ListOwner.inboxListID }?.storeID == "inbox",
+              "Inbox list record uses its reserved owner value")
         let original = migratedItems[0]
         check(original.id == originalID && original.listID == StoreID.coles.listID, "legacy UUID preserved in Coles list")
         check(original.name == "BBQ Sauce" && original.searchTerm == "BBQ Sauce" && original.quantityAmount == 2 && original.quantityUnit == "bottles", "legacy names and quantities preserved")
@@ -1823,12 +1874,19 @@ struct RecoveryTests {
         check(colesList.selectedItemID == originalID, "legacy selected item migrated")
         try ShoppingLists.prepare(migrated.mainContext, legacySelectedID: originalID)
         let listCount = try migrated.mainContext.fetchCount(FetchDescriptor<GroceryList>())
-        check(listCount == StoreID.allCases.count, "list backfill is idempotent")
+        check(listCount == ListOwner.all.count, "list backfill is idempotent")
         let woolworthsItem = GroceryItem(name: "BBQ Sauce", position: 0, listID: StoreID.woolworths.listID)
         migrated.mainContext.insert(woolworthsItem)
         ShoppingLists.move(original, to: .woolworths, allItems: [original, woolworthsItem])
         check(original.id == originalID && original.status == .pending && original.position == 1, "explicit move preserves identity, marks Pending, appends")
         check(woolworthsItem.status == .pending && original.listID == StoreID.woolworths.listID, "move does not merge or edit existing destination item")
+        original.status = .added
+        ShoppingLists.move(original, to: .inbox, allItems: [original, woolworthsItem])
+        check(original.id == originalID && original.listID == ListOwner.inboxListID && original.status == .pending
+              && original.position == 0, "moving to the Inbox keeps identity, marks Pending and appends")
+        ShoppingLists.move(original, to: .woolworths, allItems: [original, woolworthsItem])
+        check(original.listID == StoreID.woolworths.listID && original.position == 1 && woolworthsItem.position == 0,
+              "moving out of the Inbox appends to the store list without touching its rows")
         try migrated.mainContext.save()
 
         let v2URL = root.appendingPathComponent("store-v2.store")
