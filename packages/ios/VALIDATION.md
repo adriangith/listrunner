@@ -10,7 +10,8 @@ Branch `feat/inbox-list`, tested in Mac worktree `~/Projects/listrunner-worktree
 - Pre-existing, not Inbox-related: `testFirstStoreWelcomePreviewHidesSavedItemsShortcutAndPreservesLists` and `testFirstStoreWelcomePreviewOverridesAllItemsWithoutChangingSavedScope` fail identically on `main` (`9438032`) and this branch. Both call `choose("All items")` with only Coles enabled, which the single-store simplification hides.
 - `f561f20`: at the user's request, built, signed, installed in place and launched on **Adrian’s iPhone** (iPhone 17e `00008150-001402660A9BC01C`, iOS 27.2.1) via Xcode workspace `workspace-aQjgqIlw3b`, whose path was checked as `listrunner-worktrees/inbox-list/packages/ios/ListRunner.xcodeproj`. `RunProject` reported zero build errors in 20.5 s, PID 32135, which `devicectl` confirmed. The build log compiles `GroceryListScreen.swift` from the task worktree. No uninstall or data reset.
 - The user reviewed the welcome screen with `Start with an Inbox` on the iPhone (twice, via `devicectl` launch with `--preview-store-welcome`) and approved its look.
-- Not yet done: full manual review of the Inbox list flows on the phone, and the full UI suite. The OpenPencil design predates Inbox and was not consulted.
+- The user then tried the Inbox list flows on the iPhone (turn on in Settings, add items, move to and from a store, check All items) and approved them.
+- Not yet done: the full UI suite. The OpenPencil design predates Inbox and was not consulted.
 
 ## Walgreens search-card detection enabled (16 November 2026)
 
