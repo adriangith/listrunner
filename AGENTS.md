@@ -1,8 +1,9 @@
 # ListRunner agent notes
 
 - There is no root `package.json` or shared workspace runner. Run npm commands from the package being changed; each package has its own lockfile.
-- The iOS app and its Capacitor plugins were removed in preparation for a native SwiftUI rewrite. `plan.md` is the current product/architecture spec; consult the OpenPencil design in the project before implementing UI. Old dated docs/specs may describe the removed Capacitor implementation.
-- Focused core checks: `cd packages/core && npm test && npm run typecheck` (Vitest). `packages/extension` and `packages/harness` remain separate browser targets: extension checks use `npm run build` and `npm run typecheck`; harness uses `npm run dev` or `npm run build`.
+- The native SwiftUI iOS app lives in `packages/ios`. `plan.md` is the current product/architecture spec; consult the OpenPencil design in the project before implementing UI. Old dated docs/specs may describe the removed Capacitor implementation.
+- The Chrome/Firefox browser extension was retired at the user's request. Do not restore it; dated extension plans/specs are historical only.
+- Focused core checks: `cd packages/core && npm test && npm run typecheck` (Vitest). The standalone `packages/harness` uses `npm run dev` or `npm run build`.
 - iOS UI tests run on the Mac only. For focused runs, shard with `packages/ios/tools/run-ui-tests-sharded.sh` (see `packages/ios/README.md`); new `StoreSelectionTests` names matter because `setUpWithError` picks fixtures by substring (e.g. `StoreProduct`, `EmptyList`).
 - `packages/prototype` is a standalone, simulated iPhone-flow prototype (not the mobile app and does not contact Coles): `npm start` serves on port 4178; `npm run check` syntax-checks its JS.
 - `plan.md` and design specs may describe desired behavior, not necessarily the implementation. Verify current code and tests before treating a requirement there as implemented.

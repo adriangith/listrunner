@@ -1,5 +1,9 @@
 ## ListRunner Build Specification
 
+### Browser extension retired (17 November 2026)
+
+* The Chrome/Firefox extension is no longer a product target and has been removed. The native iOS app is the active product; the TypeScript core, standalone browser test harness and simulated prototype remain development tools. Earlier extension-specific plans/specs are historical only.
+
 ### Inbox list (17 November 2026)
 
 * Add one built-in **Inbox** list that belongs to no store: a place to note items before deciding where to buy them. It is a list owner, not a retailer: it never appears in the store registry, Manage Stores, country discovery, Show Store choosers or store diagnostics, and has no website, retailer session, shopping cards, product search or product adding. Exactly one Inbox exists; user-created or renamed lists are out of scope.

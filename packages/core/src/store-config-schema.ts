@@ -1,9 +1,6 @@
 /**
- * Schema and runtime validation for StoreConfig records. Lives in core so
- * community configs can be validated from a CI script, a native mobile shell,
- * or the extension at load time without duplicating logic.
- *
- * The shape mirrors packages/extension/src/store-config.ts; keep them in sync.
+ * Legacy TypeScript StoreConfig schema and runtime validation.
+ * The native iOS app uses its own versioned store definitions and validation.
  */
 
 export interface StoreConfigShape {

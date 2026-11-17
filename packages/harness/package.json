@@ -1,7 +1,7 @@
 {
   "name": "@listrunner/harness",
   "version": "0.1.0",
-  "description": "ListRunner local dev harness — test wizard behaviour without the extension",
+  "description": "ListRunner local dev harness — test the TypeScript wizard in a browser",
   "private": true,
   "type": "module",
   "scripts": {

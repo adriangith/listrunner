@@ -1,22 +1,22 @@
 # ListRunner
 
-A shopping-list wizard. Paste a shopping list, pick a store, and ListRunner
-steps you through each item on the store's actual website — pre-filling the
-search, detecting when you add to cart, and advancing automatically.
+A native iOS shopping-list app with store-owned lists, an independent Inbox,
+Paprika import via Reminders, and optional guided shopping on retailer websites.
 
-Design spec: [`docs/superpowers/specs/2026-03-29-listrunner-design.md`](docs/superpowers/specs/2026-03-29-listrunner-design.md).
+Current product specification: `plan.md`. Native build and test instructions:
+`packages/ios/README.md`.
 
 ## Current repository
 
-```
-The native iOS app is being rebuilt from `plan.md` and the OpenPencil UI design.
-The previous Capacitor app and plugins have been removed. Remaining packages:
+The Chrome/Firefox extension has been retired. Current packages:
 
+- `packages/ios/` — native SwiftUI app and its tests.
 - `packages/core/` — shared TypeScript library and Vitest tests.
-- `packages/extension/` — Chrome + Firefox extension (MV3).
 - `packages/harness/` — local web app for manual wizard testing.
 - `packages/prototype/` — standalone simulated iPhone-flow prototype.
-```
+
+The harness and prototype are development tools, not the native app. Dated
+extension and Capacitor plans/specs remain as historical references.
 
 ## Working on the core library
 
@@ -29,10 +29,9 @@ npm run typecheck
 
 ## Working on the harness
 
-The harness is a local web app for testing wizard behaviour without loading the
-extension. It uses the same core parsing and wizard logic as the real extension
-but runs entirely in a regular browser tab — no Chrome APIs, no extension
-reloads, no content scripts.
+The harness is a standalone local web app for testing the TypeScript core's
+parsing and wizard logic in a regular browser tab. It does not exercise the
+native iOS implementation.
 
 ```bash
 cd packages/harness
@@ -48,7 +47,7 @@ npm run dev           # Starts on http://localhost:3000
    tab/window with the current search. Add the item on Coles manually, then
    return to the harness and click **Added**.
 4. Skip, undo, revisit, and edit search terms all work the same as the
-   extension.
+   core wizard.
 5. Pantry exclusions and "last time you picked" hints persist in `localStorage`.
 
 ### Core dev loop
@@ -69,49 +68,16 @@ browser refresh. No `packages/core` rebuild step needed.
 
 - Add-to-cart auto-detection
 - Content-script selectors
-- Chrome extension messaging/service-worker behaviour
-- Extension packaging/loading
-
-## Working on the extension
-
-```bash
-cd packages/extension
-npm install
-npm run build         # → dist/chrome/ and dist/firefox/
-npm run watch         # Rebuilds on file change.
-npm run typecheck
-```
-
-### Load the Chrome build
-
-1. Open `chrome://extensions`.
-2. Toggle **Developer mode** on.
-3. Click **Load unpacked** and select `packages/extension/dist/chrome`.
-4. Click the ListRunner icon (or open the side panel from the extensions menu).
-
-### Load the Firefox build
-
-1. Open `about:debugging#/runtime/this-firefox`.
-2. Click **Load Temporary Add-on…** and select any file inside
-   `packages/extension/dist/firefox` (e.g. `manifest.json`).
-3. Open the sidebar from Firefox's View → Sidebar → ListRunner menu.
+- Native iOS UI, persistence, Reminders integration or WebKit behaviour
 
 ## Store configs
 
-Store automation is defined per-store in `packages/extension/src/store-configs`.
-Each config declares the URL pattern, search method, and CSS selectors used to
-detect cart-add clicks and extract product info.
+Native retailer definitions live in `packages/ios/ListRunner/Resources`.
+Search, cart detection and cart Undo are independently verified capabilities;
+registration alone does not mean a retailer supports all three.
+See `docs/adding-a-store.md` and `packages/ios/VALIDATION.md`.
 
-Currently supported:
-- Woolworths (AU)
-- Coles (AU)
-- IGA (AU)
-
-Adding a new store is typically a couple of selectors plus a URL template. The
-wizard's manual-fallback mode kicks in automatically when selectors don't
-resolve, so broken configs degrade gracefully instead of stranding the user.
-
-## Keyboard shortcuts in the wizard
+## Keyboard shortcuts in the harness wizard
 
 | Key | Action |
 |---|---|
@@ -124,9 +90,7 @@ resolve, so broken configs degrade gracefully instead of stranding the user.
 | `R` | Revisit skipped items (done view) |
 | `?` | Toggle the shortcut help overlay |
 
-## Privacy
+## Harness storage
 
-ListRunner never sees your store login, password, or payment details. It only
-reads the public shelf pages to locate search inputs and add-to-cart buttons.
-Pantry entries and a local "last time you picked" history are stored in the
-browser; the history can be cleared anytime from the pantry settings view.
+The harness stores pantry entries and a local "last time you picked" history
+in the browser; history can be cleared from its pantry settings view.

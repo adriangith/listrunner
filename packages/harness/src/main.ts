@@ -13,10 +13,10 @@ import type {
   WizardItem,
   WizardAction,
 } from "@listrunner/core";
-import colesConfig from "../../extension/src/store-configs/coles-au.js";
 
 const COOLDOWN_MS = 3000;
-const STORE_ID = colesConfig.id;
+const STORE_ID = "coles-au";
+const COLES_SEARCH_URL = "https://www.coles.com.au/search?q={query}";
 const COLES_WINDOW_NAME = "listrunner-coles";
 
 let parsedList: ParsedList | null = null;
@@ -778,7 +778,7 @@ function getActiveSearchTerm(): string | null {
 }
 
 function buildColesSearchUrl(query: string): string {
-  return colesConfig.search.urlTemplate!.replace(
+  return COLES_SEARCH_URL.replace(
     "{query}",
     encodeURIComponent(query),
   );
