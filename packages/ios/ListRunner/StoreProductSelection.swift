@@ -41,13 +41,86 @@ struct StoreProductSelectionBar: View {
     }
 }
 
+/// Pull-to-add: dragging a rail end past its resting edge arms Add, and lifting
+/// the finger while armed starts it. Only a pull that begins with that end
+/// already showing counts, so flicking through the cards never adds by accident.
+enum StoreProductRailPull {
+    /// Rubber-band overscroll (not finger travel) past the scroll view's edge.
+    static let multiCardThreshold: CGFloat = 56
+    /// Finger travel for the one-card rail, which has no native scroll range.
+    /// Either direction arms the side it uncovers; well beyond the 64 pt side
+    /// switch, so a moderate pull still only switches sides.
+    static let singleCardThreshold: CGFloat = 120
+    /// Pulling back this far below the threshold disarms; avoids flicker.
+    static let disarmHysteresis: CGFloat = 8
+    /// How close to an edge the rail must rest at touch-down to pull from it:
+    /// any part of that end's Add label showing (the 88 pt slot) counts.
+    static let edgeTolerance: CGFloat = 88
+
+    /// Distances past each edge: positive when overscrolled, negative before it.
+    static func overscroll(offset: CGFloat, viewport: CGFloat, content: CGFloat,
+                           leadingInset: CGFloat, trailingInset: CGFloat) -> (leading: CGFloat, trailing: CGFloat) {
+        let minOffset = -leadingInset
+        let maxOffset = max(minOffset, content + trailingInset - viewport)
+        return (minOffset - offset, offset - maxOffset)
+    }
+
+    /// Whether a pull of `distance` past one edge is armed, given its last state.
+    static func isArmed(wasArmed: Bool, distance: CGFloat, threshold: CGFloat) -> Bool {
+        distance >= threshold || (wasArmed && distance >= threshold - disarmHysteresis)
+    }
+}
+
+/// Per-frame pull progress (0...1 of the threshold) for each rail end. Kept out
+/// of StoreShoppingView's state, held there in @State (which does not observe
+/// it), so only the end labels redraw while a finger drags.
+final class StoreProductRailPullProgress: ObservableObject {
+    @Published private(set) var leading: CGFloat = 0
+    @Published private(set) var trailing: CGFloat = 0
+
+    func update(leading: CGFloat, trailing: CGFloat) {
+        // Quantize so a slow drag doesn't publish sub-pixel changes.
+        let l = (min(1, max(0, leading)) * 50).rounded() / 50
+        let t = (min(1, max(0, trailing)) * 50).rounded() / 50
+        if l != self.leading { self.leading = l }
+        if t != self.trailing { self.trailing = t }
+    }
+
+    func reset() { update(leading: 0, trailing: 0) }
+}
+
 struct StoreProductAddLabel: View {
+    var armed = false
+    /// How far toward the threshold a pull past this end is; 0 when not pulling.
+    var progress: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var pulling: Bool { progress > 0 && !armed }
+
     var body: some View {
         VStack(spacing: 7) {
-            Image(systemName: "text.badge.plus").font(.title2)
-            Text("Add item to your list")
+            ZStack {
+                if pulling {
+                    // Fills as the finger approaches the threshold; full means armed.
+                    Circle().stroke(.secondary.opacity(0.3), lineWidth: 2.5)
+                    Circle().trim(from: 0, to: progress)
+                        .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Image(systemName: "plus").font(.system(size: 11, weight: .bold))
+                } else if armed {
+                    Image(systemName: "plus.circle.fill").font(.title2)
+                }
+            }
+            .frame(width: 28, height: 28)
+            Text(armed ? "Release to add" : "Pull to add")
                 .font(.caption).multilineTextAlignment(.center)
         }
+        .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
+        // Blank at rest: the hint only appears as a pull begins, fully by a
+        // third of the way to the threshold, and stays while armed.
+        .opacity(armed ? 1 : Double(min(1, progress / 0.35)))
+        .scaleEffect(armed && !reduceMotion ? 1.1 : 1)
+        .animation(reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.25, dampingFraction: 0.6), value: armed)
         // Weight the label toward the lower half of its slot without shifting
         // the button's bottom edge into the Back/Skip navigation row.
         .padding(.top, 24)
@@ -62,16 +135,16 @@ struct StoreProductAddButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            // Interaction only. The full label is drawn behind the cards, not
-            // cropped inside this shrinking, rectangular tap/accessibility slot.
-            Color.clear
-                .frame(width: width, height: 88)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.primary)
-        .accessibilityLabel("Add item to your list")
+        // Accessibility only: pull-to-add replaced the touch target, so a touch
+        // here falls through to the rail and can start the pull. VoiceOver and
+        // Switch Control still activate Add directly, since they cannot pull.
+        Color.clear
+            .frame(width: width, height: 88)
+            .allowsHitTesting(false)
+            .accessibilityElement()
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { action() }
+            .accessibilityLabel("Add item to your list")
         .accessibilityValue(insertion == .start ? Text("Start of list") : Text("End of list"))
         .accessibilityHint(insertion == .start
             ? Text("Choose a product to add to the start of your list. Does not change the store cart.")
@@ -94,6 +167,8 @@ struct StoreProductRailEndControl: View {
 
 struct StoreProductRailEndLabel: View {
     let uncoveredWidth: CGFloat
+    var armed = false
+    var progress: CGFloat = 0
 
     private var opacity: Double {
         let fraction = min(1, max(0, Double(uncoveredWidth / 88)))
@@ -104,7 +179,7 @@ struct StoreProductRailEndLabel: View {
         if uncoveredWidth > 0 {
             // No rectangular crop: the actual rounded card paints over this
             // full-width label. Fade remains proportional to real card coverage.
-            StoreProductAddLabel()
+            StoreProductAddLabel(armed: armed, progress: progress)
                 .opacity(opacity)
         }
     }
@@ -141,6 +216,8 @@ enum StoreProductSingleCardReveal {
 struct StoreProductRailAddLabels: View, Animatable {
     let layout: StoreProductRailLayout
     var revealValue: CGFloat
+    var armed: ShoppingLists.AdditionPosition? = nil
+    @ObservedObject var pull: StoreProductRailPullProgress
 
     // Clamp spring overshoot while interpolating the signed fade-through-zero
     // value. Derive the side per frame, not from the final enum, to avoid a pop.
@@ -155,12 +232,14 @@ struct StoreProductRailAddLabels: View, Animatable {
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             if leadingVisibility > 0 {
-                StoreProductRailEndLabel(uncoveredWidth: layout.leadingWidth)
+                StoreProductRailEndLabel(uncoveredWidth: layout.leadingWidth, armed: armed == .start,
+                                         progress: pull.leading)
                     .opacity(leadingVisibility)
                     .offset(x: layout.inset)
             }
             if trailingVisibility > 0 {
-                StoreProductRailEndLabel(uncoveredWidth: layout.trailingWidth)
+                StoreProductRailEndLabel(uncoveredWidth: layout.trailingWidth, armed: armed == .end,
+                                         progress: pull.trailing)
                     .opacity(trailingVisibility)
                     .offset(x: layout.width - layout.inset - 88)
             }
@@ -281,6 +360,23 @@ enum StoreProductSelection {
       let mutations = null, sizes = null;
       let update = null, reposition = null;
       const shields = new Map(), observed = new Set();
+      // Entrance only: the first batch staggers top-to-bottom, later shields
+      // (scroll/infinite load) just fade in. Never affects hit testing or
+      // positioning; skipped where Web Animations are unavailable.
+      const reduceMotion = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      let firstBatch = true, staggered = 0;
+      function reveal(button, label) {
+        if (typeof button.animate !== 'function') return;
+        if (reduceMotion) {
+          button.animate([{opacity: 0}, {opacity: 1}], {duration: 150, easing: 'ease-out', fill: 'backwards'});
+          return;
+        }
+        const delay = firstBatch ? Math.min(staggered++ * 40, 320) : 0;
+        button.animate([{opacity: 0, transform: 'scale(0.94)'}, {opacity: 1, transform: 'scale(1)'}],
+          {duration: 280, delay, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)', fill: 'backwards'});
+        label.animate([{opacity: 0, transform: 'translateY(8px) scale(0.85)'}, {opacity: 1, transform: 'none'}],
+          {duration: 360, delay: delay + 80, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)', fill: 'backwards'});
+      }
       const startURL = location.href;
       const clean = value => (value || '').replace(/\s+/g, ' ').trim();
       function finish(value) {
@@ -449,6 +545,7 @@ enum StoreProductSelection {
             });
             shadow.appendChild(button); shields.set(tile, entry);
             position(entry);
+            reveal(button, label);
             if (!observed.has(tile)) { sizes.observe(tile); observed.add(tile); }
           }
           for (const [tile, entry] of shields) {
@@ -474,6 +571,7 @@ enum StoreProductSelection {
         // A deadline bounds the mode; it never drives product positioning.
         deadline = setTimeout(cancel, 60_000);
         update();
+        firstBatch = false;
       } catch { finish(null); }
     });
     """#

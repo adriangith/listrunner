@@ -29,6 +29,9 @@ private struct StoreCardTapButtonStyle: PrimitiveButtonStyle {
 // contact that the card's normal tap recognizer needs.
 private struct StoreCardRailTouchHandling: UIViewRepresentable {
     let enabled: Bool
+    var onPullArmedChange: (ShoppingLists.AdditionPosition?) -> Void = { _ in }
+    var onPullRelease: (ShoppingLists.AdditionPosition) -> Void = { _ in }
+    var pullProgress: StoreProductRailPullProgress?
 
     func makeUIView(context: Context) -> StoreCardRailTouchAnchor {
         StoreCardRailTouchAnchor()
@@ -36,6 +39,9 @@ private struct StoreCardRailTouchHandling: UIViewRepresentable {
 
     func updateUIView(_ view: StoreCardRailTouchAnchor, context: Context) {
         view.enabled = enabled
+        view.onPullArmedChange = onPullArmedChange
+        view.onPullRelease = onPullRelease
+        view.pullProgress = pullProgress
         view.attachIfNeeded()
     }
 
@@ -46,9 +52,17 @@ private struct StoreCardRailTouchHandling: UIViewRepresentable {
 
 private final class StoreCardRailTouchAnchor: UIView {
     var enabled = false
+    var onPullArmedChange: (ShoppingLists.AdditionPosition?) -> Void = { _ in }
+    var onPullRelease: (ShoppingLists.AdditionPosition) -> Void = { _ in }
+    var pullProgress: StoreProductRailPullProgress?
     private weak var rail: UIScrollView?
     private var originalTouchDelay: Bool?
     private var observer: StoreCardRailTouchObserver?
+    // Pull-to-add. Edges the rail rested at when this contact began, and the
+    // edge currently pulled past the threshold, if any.
+    private var pullFromLeading = false
+    private var pullFromTrailing = false
+    private var pullArmed: ShoppingLists.AdditionPosition?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -81,16 +95,73 @@ private final class StoreCardRailTouchAnchor: UIView {
         scrollView.delaysContentTouches = false
         let observer = StoreCardRailTouchObserver(target: nil, action: nil)
         observer.rail = scrollView
+        observer.onTouchDown = { [weak self] in self?.recordPullEdges() }
         observer.cancelsTouchesInView = false
         observer.delaysTouchesBegan = false
         observer.delaysTouchesEnded = false
         scrollView.addGestureRecognizer(observer)
+        scrollView.panGestureRecognizer.addTarget(self, action: #selector(handleRailPan(_:)))
         self.observer = observer
+    }
+
+    private func railOverscroll() -> (leading: CGFloat, trailing: CGFloat)? {
+        guard let rail else { return nil }
+        return StoreProductRailPull.overscroll(offset: rail.contentOffset.x, viewport: rail.bounds.width,
+            content: rail.contentSize.width, leadingInset: rail.adjustedContentInset.left,
+            trailingInset: rail.adjustedContentInset.right)
+    }
+
+    private func recordPullEdges() {
+        // Called after any momentum is frozen, so this is where the rail rests.
+        guard let edges = railOverscroll() else { return }
+        pullFromLeading = edges.leading >= -StoreProductRailPull.edgeTolerance
+        pullFromTrailing = edges.trailing >= -StoreProductRailPull.edgeTolerance
+    }
+
+    private func setPullArmed(_ position: ShoppingLists.AdditionPosition?) {
+        guard pullArmed != position else { return }
+        pullArmed = position
+        onPullArmedChange(position)
+    }
+
+    @objc private func handleRailPan(_ pan: UIPanGestureRecognizer) {
+        switch pan.state {
+        case .began, .changed:
+            guard enabled, let edges = railOverscroll() else { pullProgress?.reset(); return setPullArmed(nil) }
+            let threshold = StoreProductRailPull.multiCardThreshold
+            pullProgress?.update(leading: pullFromLeading ? edges.leading / threshold : 0,
+                                 trailing: pullFromTrailing ? edges.trailing / threshold : 0)
+            if pullFromLeading, StoreProductRailPull.isArmed(wasArmed: pullArmed == .start,
+                                                             distance: edges.leading, threshold: threshold) {
+                setPullArmed(.start)
+            } else if pullFromTrailing, StoreProductRailPull.isArmed(wasArmed: pullArmed == .end,
+                                                                     distance: edges.trailing, threshold: threshold) {
+                setPullArmed(.end)
+            } else {
+                setPullArmed(nil)
+            }
+        case .ended:
+            // Only a lift while armed adds; momentum after release never does.
+            let released = pullArmed
+            resetPull()
+            if let released { onPullRelease(released) }
+        default:
+            resetPull()
+        }
+    }
+
+    private func resetPull() {
+        pullFromLeading = false
+        pullFromTrailing = false
+        pullProgress?.reset()
+        setPullArmed(nil)
     }
 
     func detach() {
         if let rail {
             if let observer { rail.removeGestureRecognizer(observer) }
+            rail.panGestureRecognizer.removeTarget(self, action: #selector(handleRailPan(_:)))
+            resetPull()
             if let originalTouchDelay, !rail.delaysContentTouches {
                 rail.delaysContentTouches = originalTouchDelay
             }
@@ -103,6 +174,7 @@ private final class StoreCardRailTouchAnchor: UIView {
 
 private final class StoreCardRailTouchObserver: UIGestureRecognizer {
     weak var rail: UIScrollView?
+    var onTouchDown: (() -> Void)?
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
         if let rail, !rail.isDragging {
@@ -110,6 +182,7 @@ private final class StoreCardRailTouchObserver: UIGestureRecognizer {
             // presented offset, never jump to an animation's destination.
             let visibleOffset = rail.layer.presentation()?.bounds.origin ?? rail.contentOffset
             rail.setContentOffset(visibleOffset, animated: false)
+            onTouchDown?()
         }
         // This is only a touch-down observer, not a competing tap or pan.
         // Fail immediately so native scrolling and card tap recognition proceed.
@@ -130,6 +203,7 @@ struct StoreShoppingView: View {
     let onSelectionChange: (UUID) -> Void
     let onStatusChange: (GroceryItem) -> Void
     let onAddStoreProduct: (String, Int, ShoppingLists.AdditionPosition) -> UUID?
+    let onDeleteItem: (GroceryItem) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -157,6 +231,11 @@ struct StoreShoppingView: View {
     @State private var singleCardAddPosition: ShoppingLists.AdditionPosition = .start
     @State private var singleCardPullValue: CGFloat = -1
     @State private var singleCardPullOrigin: CGFloat?
+    // Pull-to-add: the rail end pulled past its threshold. Lifting adds there.
+    @State private var railPullArmed: ShoppingLists.AdditionPosition?
+    // A reference in @State is not observed: per-frame progress redraws only
+    // the end labels, never this whole view.
+    @State private var railPullProgress = StoreProductRailPullProgress()
     @State private var productSelectionTask: Task<Void, Never>?
     @GestureState private var isTouchingOverlay = false
     @GestureState(resetTransaction: Transaction(animation: .spring(response: 0.4, dampingFraction: 0.86)))
@@ -187,7 +266,7 @@ struct StoreShoppingView: View {
         }
     }
 
-    init(items: [GroceryItem], browser: StoreBrowser, initialSelectedID: UUID?, saveFailed: Bool = false, onSelectionChange: @escaping (UUID) -> Void, onStatusChange: @escaping (GroceryItem) -> Void, onAddStoreProduct: @escaping (String, Int, ShoppingLists.AdditionPosition) -> UUID?) {
+    init(items: [GroceryItem], browser: StoreBrowser, initialSelectedID: UUID?, saveFailed: Bool = false, onSelectionChange: @escaping (UUID) -> Void, onStatusChange: @escaping (GroceryItem) -> Void, onAddStoreProduct: @escaping (String, Int, ShoppingLists.AdditionPosition) -> UUID?, onDeleteItem: @escaping (GroceryItem) -> Void = { _ in }) {
         self.items = items
         self.browser = browser
         self.initialSelectedID = initialSelectedID
@@ -195,6 +274,7 @@ struct StoreShoppingView: View {
         self.onSelectionChange = onSelectionChange
         self.onStatusChange = onStatusChange
         self.onAddStoreProduct = onAddStoreProduct
+        self.onDeleteItem = onDeleteItem
         _selectedID = State(initialValue: initialSelectedID)
     }
 
@@ -206,6 +286,9 @@ struct StoreShoppingView: View {
         if let id = storeProductRevealID, items.contains(where: { $0.id == id }) { return id }
         return selected?.id
     }
+    // With no items left (the last card was deleted) the card panel has
+    // nothing to show; the empty-list bar takes its place.
+    private var hidesExpandedPanel: Bool { isCollapsed || choosingStoreProduct || items.isEmpty }
     private var isFinalConfirmation: Bool { pending.isEmpty && undoRecord != nil }
     private var collapseProgress: CGFloat {
         isCollapsed ? 1 : min(max(overlayDrag.distance, 0) / 240, 1)
@@ -283,7 +366,10 @@ struct StoreShoppingView: View {
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     // Omit hidden controls rather than leaving a zero-height,
                     // transparent subtree discoverable by accessibility clients.
-                    if isCollapsed && !choosingStoreProduct {
+                    if items.isEmpty && !choosingStoreProduct {
+                        emptyListBar(bottomSafeAreaInset: geometry.safeAreaInsets.bottom)
+                            .frame(height: 70)
+                    } else if isCollapsed && !choosingStoreProduct {
                         collapsedBar(bottomSafeAreaInset: geometry.safeAreaInsets.bottom)
                             .frame(height: 70)
                     }
@@ -328,10 +414,10 @@ struct StoreShoppingView: View {
                         .offset(y: reduceMotion ? 0 : 250 * collapseProgress)
                         .offset(y: entranceNudge)
                         .opacity(choosingStoreProduct ? 0 : 1 - collapseProgress)
-                        .allowsHitTesting(!isCollapsed && !choosingStoreProduct)
-                        .accessibilityHidden(isCollapsed || choosingStoreProduct)
+                        .allowsHitTesting(!hidesExpandedPanel)
+                        .accessibilityHidden(hidesExpandedPanel)
                 }
-                .frame(height: isCollapsed || choosingStoreProduct ? 0 : 330, alignment: .bottom)
+                .frame(height: hidesExpandedPanel ? 0 : 330, alignment: .bottom)
                 }
             }
             .background(Color(uiColor: .systemBackground))
@@ -383,6 +469,14 @@ struct StoreShoppingView: View {
                 }
             }
             #endif
+            }
+            .onChange(of: items.isEmpty) { _, empty in
+                // An item added from the empty-list bar becomes the active card,
+                // without searching: the store page already shows that product.
+                guard !empty, selectedID == nil || !items.contains(where: { $0.id == selectedID }),
+                      let first = items.first else { return }
+                selectedID = first.id
+                onSelectionChange(first.id)
             }
             .task {
                 #if DEBUG
@@ -523,7 +617,7 @@ struct StoreShoppingView: View {
                         .padding(.trailing, railEndPadding(for: items.last, width: geometry.size.width))
                         .padding(.top, 5)
                         .padding(.bottom, 14)
-                        .background(StoreCardRailTouchHandling(enabled: items.count > 1))
+                        .background(railTouchHandling)
                     }
                     // Cards intentionally overlap the panel edge; let their shadows
                     // render over the panel instead of clipping at the scroll viewport.
@@ -535,10 +629,12 @@ struct StoreShoppingView: View {
                                 StoreProductRailAddLabels(layout: StoreProductRailLayout(width: proxy.size.width,
                                     leadingCardMinX: edges["leading"].map { proxy[$0].minX },
                                     trailingCardMaxX: edges["trailing"].map { proxy[$0].maxX },
-                                    isSingleCard: items.count == 1), revealValue: singleCardPullValue)
+                                    isSingleCard: items.count == 1), revealValue: singleCardPullValue,
+                                    armed: railPullArmed, pull: railPullProgress)
                             }
                         }
                     }
+                    .sensoryFeedback(.impact(weight: .medium), trigger: railPullArmed) { _, armed in armed != nil }
                     .overlayPreferenceValue(StoreProductRailEdges.self) { edges in
                         if !isCollapsed && !choosingStoreProduct {
                         GeometryReader { proxy in
@@ -566,6 +662,8 @@ struct StoreShoppingView: View {
                         if let id = railScrollTargetID { scrollProxy.scrollTo(id, anchor: .center) }
                     }
                     .onChange(of: items.count) { previous, count in
+                        railPullArmed = nil
+                        railPullProgress.reset()
                         if previous != 1 && count == 1 {
                             singleCardAddPosition = .start
                             singleCardPullValue = -1
@@ -624,6 +722,16 @@ struct StoreShoppingView: View {
         .simultaneousGesture(collapseDragGesture)
     }
 
+    private var railTouchHandling: StoreCardRailTouchHandling {
+        StoreCardRailTouchHandling(enabled: items.count > 1,
+            onPullArmedChange: { railPullArmed = $0 },
+            onPullRelease: { position in
+                guard !isCollapsed else { return }
+                beginStoreProductSelection(at: position)
+            },
+            pullProgress: railPullProgress)
+    }
+
     private func railEndPadding(for item: GroceryItem?, width: CGFloat) -> CGFloat {
         let cardWidth: CGFloat = item?.id == selectedID ? 160 : 145
         return max(0, (width - cardWidth) / 2 - 100)
@@ -651,12 +759,29 @@ struct StoreShoppingView: View {
                 }
             }
             .onChanged { value in
-                guard items.count == 1, !isCollapsed, !choosingStoreProduct,
+                guard items.count == 1 else { return }
+                guard !isCollapsed, !choosingStoreProduct,
                       overlayDrag.axis != .vertical,
                       abs(value.translation.width) >= 8,
-                      abs(value.translation.width) > abs(value.translation.height) * 1.25 else { return }
+                      abs(value.translation.width) > abs(value.translation.height) * 1.25 else {
+                    if railPullArmed != nil { railPullArmed = nil }
+                    railPullProgress.reset()
+                    return
+                }
                 let origin = singleCardPullOrigin ?? (singleCardAddPosition == .start ? CGFloat(-1) : CGFloat(1))
                 singleCardPullOrigin = origin
+                // A long pull arms the side the card uncovers, whichever side
+                // showed Add before; a short one (64-119 pt) only switches sides.
+                let width = value.translation.width
+                let side: ShoppingLists.AdditionPosition = width > 0 ? .start : .end
+                let armed = StoreProductRailPull.isArmed(
+                    wasArmed: railPullArmed == side, distance: abs(width),
+                    threshold: StoreProductRailPull.singleCardThreshold)
+                let next = armed ? side : nil
+                if railPullArmed != next { railPullArmed = next }
+                let progress = abs(width) / StoreProductRailPull.singleCardThreshold
+                railPullProgress.update(leading: side == .start ? progress : 0,
+                                        trailing: side == .end ? progress : 0)
                 // The card still follows the finger directly. Give only the
                 // signed Add reveal a short catch-up so a fast flick cannot
                 // traverse its entire fade in a single input frame. Retarget
@@ -668,11 +793,15 @@ struct StoreShoppingView: View {
             }
             .onEnded { value in
                 if items.count == 1, singleCardPullOrigin != nil {
-                    let position = StoreProductSingleCardReveal.position(
+                    let pulled = railPullArmed
+                    railPullArmed = nil
+                    railPullProgress.reset()
+                    let position = pulled ?? StoreProductSingleCardReveal.position(
                         horizontal: value.translation.width, vertical: value.translation.height)
                         ?? singleCardAddPosition
                     singleCardPullOrigin = nil
                     settleSingleCardAdd(at: position)
+                    if let pulled, !isCollapsed { beginStoreProductSelection(at: pulled) }
                 }
                 // SwiftUI can reset GestureState before delivering onEnded.
                 let vertical = overlayDrag.axis == .vertical
@@ -981,6 +1110,7 @@ struct StoreShoppingView: View {
             .buttonStyle(StoreCardTapButtonStyle())
             .accessibilityLabel("\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(current ? ", selected" : "")")
             .accessibilityAddTraits(current ? .isSelected : [])
+            .accessibilityAction(named: Text("Delete from List")) { deleteItem(item.id) }
 
             if current && (!isFinalConfirmation || item.status != .pending) {
                 Divider().overlay(.white.opacity(0.33))
@@ -1011,6 +1141,10 @@ struct StoreShoppingView: View {
             .overlay(RoundedRectangle(cornerRadius: 20).strokeBorder(.white.opacity(0.3), lineWidth: 1))
             .shadow(color: .black.opacity(current ? 0.18 : 0.08), radius: current ? 12 : 6, y: 5)
             .contentShape(RoundedRectangle(cornerRadius: 20))
+            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 20))
+            // Hold to delete. A deliberate two-step (hold, then tap Delete), so
+            // no separate confirmation; ListRunner only, never the store cart.
+            .contextMenu { cardMenu(item) }
             .simultaneousGesture(TapGesture().onEnded { select(item) })
             .onLongPressGesture(minimumDuration: 0.12, maximumDistance: 12, pressing: { pressing in
                 withAnimation(.spring(response: 0.24, dampingFraction: 0.62)) {
@@ -1023,6 +1157,76 @@ struct StoreShoppingView: View {
             .animation(overlayAnimation, value: item.status)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(current ? "selected-shopping-card" : "shopping-card-\(item.id.uuidString)")
+    }
+
+    @ViewBuilder
+    private func cardMenu(_ item: GroceryItem) -> some View {
+        if !choosingStoreProduct {
+            Button(role: .destructive) { deleteItem(item.id) } label: {
+                Label("Delete from List", systemImage: "trash")
+                if item.status == .added {
+                    Text("Your \(browser.store.displayName) cart won't change")
+                }
+            }
+        }
+    }
+
+    private func emptyListBar(bottomSafeAreaInset: CGFloat) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Your list is empty").font(.headline)
+                Text("Add something from \(browser.store.displayName)")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .lineLimit(1).minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+            Button { beginStoreProductSelection(at: .start) } label: {
+                Label("Add Item", systemImage: "plus").fixedSize()
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityHint("Choose a product to add to your list. Does not change the store cart.")
+            .accessibilityIdentifier("empty-list-add-store-product")
+            Button("Done") { dismissStore() }
+                .buttonStyle(.bordered)
+                .fixedSize()
+        }
+        .padding(.horizontal, 16)
+        .frame(minHeight: 70)
+        .background {
+            Rectangle().fill(.regularMaterial)
+                .frame(height: 70 + bottomSafeAreaInset)
+                .offset(y: bottomSafeAreaInset)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("empty-list-bar")
+    }
+
+    private func deleteItem(_ id: UUID) {
+        guard let item = items.first(where: { $0.id == id }) else { return }
+        let wasSelected = selected?.id == id
+        if wasSelected || undoRecord?.id == id {
+            // A countdown or undo for a deleted item has nothing left to act on.
+            task?.cancel()
+            browser.cancelPreload()
+            secondsRemaining = 0
+            manuallyPaused = false
+            undoRecord = nil
+        }
+        selectionHistory.removeAll { $0 == id }
+        if storeProductRevealID == id { storeProductRevealID = nil }
+        // Capture the successor before deletion: the model object is gone after.
+        let nextID = wasSelected ? ShoppingLists.selection(afterRemoving: id, from: items) : nil
+        let next = nextID.flatMap { nextID in items.first { $0.id == nextID } }
+        withAnimation(overlayAnimation) { onDeleteItem(item) }
+        guard wasSelected else { return }
+        if let next, next.status == .pending {
+            // Like Skip: continue shopping with the next pending item.
+            select(next, recordHistory: false)
+        } else {
+            // Nothing pending (or nothing left): move selection without searching.
+            selectedID = next?.id
+            if let id = next?.id { onSelectionChange(id) }
+        }
     }
 
     private func cardBackground(_ status: GroceryStatus, active: Bool) -> LinearGradient {

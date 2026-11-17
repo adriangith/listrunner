@@ -1571,7 +1571,7 @@ private struct AllItemsScreen: View {
                     saveChanges()
                 }, onAddStoreProduct: { name, quantity, insertion in
                     addStoreProduct(name, quantity: quantity, to: store, insertion: insertion)
-                })
+                }, onDeleteItem: { item in delete(item) })
                 .presentationDetents([.large])
                 .presentationDragIndicator(.hidden)
         }
@@ -2380,7 +2380,7 @@ struct GroceryListScreen: View {
                 }, onStatusChange: { item in
                     stageReminderWriteback(for: item)
                     saveChanges()
-                }, onAddStoreProduct: addStoreProduct)
+                }, onAddStoreProduct: addStoreProduct, onDeleteItem: { item in delete(item) })
                     .presentationDetents([.large])
                     .presentationDragIndicator(.hidden)
                     .presentationCornerRadius(32)

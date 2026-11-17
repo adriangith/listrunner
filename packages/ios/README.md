@@ -506,6 +506,28 @@ xcodebuild -project ListRunner.xcodeproj -scheme ListRunner \
   -destination 'platform=iOS Simulator,name=<installed iPhone simulator>' test
 ```
 
+For a focused UI-test run on the Mac, build once and shard by test name across
+simulators (Xcode's `-parallel-testing-enabled` splits by class, and
+`StoreSelectionTests` is one class, so it runs serially):
+
+```sh
+xcodebuild -project ListRunner.xcodeproj -scheme ListRunner \
+  -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/lr-dd build-for-testing
+tools/run-ui-tests-sharded.sh /tmp/lr-dd '^testStoreProduct' <sim-udid-1> <sim-udid-2>
+```
+
+Two simulators suit the 16 GB M1 (clone one with `xcrun simctl clone`). The 27
+`testStoreProduct*` tests take about 12 minutes this way. They launch with the
+debug-only `LISTRUNNER_NAVIGATION_TEST_FIXTURE=stores` state (Coles, Bunnings and
+Woolworths enabled; Bunnings active) instead of tapping through first-store setup,
+which took about 45 s per test; the dedicated welcome tests still cover that flow.
+Tests needing the three "Tool" items get them seeded via
+`LISTRUNNER_UI_TEST_BUNNINGS_TOOLS`, because a busy simulator keyboard scrambled typed
+setup text. In these tests use `waitUntilExists`/`waitUntilGone` (XCTest's
+`waitForExistence` costs about a second even when the element is present), and the
+`confirmStoreProduct()`/`dismissStoreSheet()` helpers, which wait out sheet animations
+that the faster waits would otherwise race.
+
 The UI tests exercise store/list/status isolation, all-hidden and hidden-active chooser states, country suggestion/selection/persistence, unset-country fallback, native index/search/menu behavior, enabled-only Settings, explicit item transfer, retailer-specific reset confirmation, same-day/hidden-store relaunch, Paprika fixture import/deduplication/list ownership, first-item scrolling, and existing shopping flows. Debug-only test sessions use unique temporary databases/preferences, injected device-region suggestions, nonpersistent WebViews and deterministic local fixtures for both visible and preloaded navigation; tests never mutate a retailer cart or access the user's Reminders. One isolated mixed-country presentation fixture changes Bunnings' displayed service area to NZ to exercise both groups; it never changes the registry/browser or production AU metadata. Fixture results do not certify real sign-in or embedded WebKit cart behavior. Earlier physical-device results predate the country-first revision; the iPhone is currently unavailable and this revision uses simulator validation only. iOS 17 runtime coverage remains unavailable on this Mac. See `VALIDATION.md` for current results, the native-index hit-area limitation, and outstanding release checks.
 
 The Mac Xcode project is the build/signing baseline. Review both checkouts before synchronizing source changes: uncommitted work can exist in each, and Mac asset/project changes must not be overwritten by a blind folder copy. For committed work, on the Mac:

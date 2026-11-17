@@ -448,7 +448,7 @@ test('native source confines reads and cancellation to the request and isolated 
 });
 
 test('rail control wording and fade follow uncovered width without a delayed animation', () => {
-  assert.match(swift, /Text\("Add item to your list"\)/);
+  assert.match(swift, /Text\(armed \? "Release to add" : "Pull to add"\)/);
   assert.match(swift, /accessibilityLabel\("Add item to your list"\)/);
   assert.match(swift, /StoreProductRailEndControl\(uncoveredWidth: layout\.leadingWidth/);
   assert.match(swift, /StoreProductRailEndControl\(uncoveredWidth: layout\.trailingWidth/);
@@ -531,7 +531,8 @@ test('Cancel retains the mounted rail and does not scroll when clearing a previo
   const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
   assert.match(view, /\}\)\s*\}\s*\/\/ Keep the same ScrollView alive[\s\S]*?ZStack\(alignment: \.bottom\)/);
   assert.match(view, /opacity\(choosingStoreProduct \? 0 : 1 - collapseProgress\)/);
-  assert.match(view, /frame\(height: isCollapsed \|\| choosingStoreProduct \? 0 : 330/);
+  assert.match(view, /frame\(height: hidesExpandedPanel \? 0 : 330/);
+  assert.match(view, /hidesExpandedPanel: Bool \{ isCollapsed \|\| choosingStoreProduct \|\| items\.isEmpty \}/);
   const reveal = view.split('.onChange(of: storeProductRevealID)')[1].split('.onChange(of: activeCardRecentreRequest)')[0];
   assert.match(reveal, /if let id = storeProductRevealID/);
   assert.doesNotMatch(reveal, /railScrollTargetID/);
@@ -565,6 +566,11 @@ test('full Add labels paint behind real cards; only uncovered transparent hit sl
   const button = swift.split('struct StoreProductAddButton: View')[1].split('struct StoreProductRailEndControl')[0];
   assert.match(button, /Color\.clear\s*\.frame\(width: width, height: 88\)/);
   assert.doesNotMatch(button, /StoreProductAddLabel\(\)/);
+  // Pull-to-add replaced the touch target: touches fall through to the rail,
+  // while assistive technologies still activate Add directly.
+  assert.match(button, /\.allowsHitTesting\(false\)/);
+  assert.match(button, /\.accessibilityAction \{ action\(\) \}/);
+  assert.doesNotMatch(button, /Button\(/);
   assert.match(view, /if item\.id == items\.first\?\.id \{ edges\["leading"\] = anchor \}/);
   assert.match(view, /if item\.id == items\.last\?\.id \{ edges\["trailing"\] = anchor \}/);
 });
@@ -658,7 +664,11 @@ test('card buttons use contact-local tap recognition without competing with mult
 
 test('only the multi-card rail receives immediate content touches with scoped lifecycle cleanup', () => {
   const view = readFileSync(new URL('../ListRunner/StoreShoppingView.swift', import.meta.url), 'utf8');
-  assert.match(view, /\.padding\(\.bottom, 14\)\s*\.background\(StoreCardRailTouchHandling\(enabled: items\.count > 1\)\)/);
+  assert.match(view, /\.padding\(\.bottom, 14\)\s*\.background\(railTouchHandling\)/);
+  assert.match(view, /StoreCardRailTouchHandling\(enabled: items\.count > 1,/);
+  // Pull-to-add observes the rail's own pan as a target, never replacing it.
+  assert.match(view, /panGestureRecognizer\.addTarget\(self, action: #selector\(handleRailPan/);
+  assert.match(view, /panGestureRecognizer\.removeTarget\(self, action: #selector\(handleRailPan/);
   const anchor = view.split('private final class StoreCardRailTouchAnchor: UIView {')[1].split('private final class StoreCardRailTouchObserver')[0];
   assert.match(anchor, /isUserInteractionEnabled = false/);
   assert.match(anchor, /accessibilityElementsHidden = true/);

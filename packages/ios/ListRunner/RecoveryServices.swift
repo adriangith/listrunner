@@ -29,17 +29,32 @@ final class LocalDataController: ObservableObject {
                 // Exercise an older install that last viewed the redundant overview.
                 defaults.set(navigationFixture != "header", forKey: "allItemsScope.v1")
             }
+            // The state the first-store welcome flow leaves behind (Coles, Bunnings
+            // and Woolworths enabled), without ~45 s of UI setup per test.
+            if navigationFixture == "stores", defaults.array(forKey: "knownStoreIDs.v1") == nil {
+                defaults.set(StoreID.allCases.map(\.rawValue), forKey: "knownStoreIDs.v1")
+                defaults.set([StoreID.coles.rawValue, StoreID.bunnings.rawValue, StoreID.woolworths.rawValue],
+                             forKey: "visibleStoreIDs.v1")
+                defaults.set(true, forKey: "storeSetupCompleted.v1")
+                defaults.set(StoreID.bunnings.rawValue, forKey: "activeStoreID")
+                defaults.set(false, forKey: "allItemsScope.v1")
+            }
             let controller = LocalDataController(configuration: ModelConfiguration(url: directory.appendingPathComponent("test.store")),
                                                  diagnostics: DiagnosticStore(fileURL: directory.appendingPathComponent("diagnostics.json")), defaults: defaults)
             if ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_EMPTY_LIST"] != "1",
                let context = controller.container?.mainContext,
                (try? context.fetchCount(FetchDescriptor<GroceryItem>())) == 0 {
                 context.insert(GroceryItem(name: "Coles fixture item", amount: 2, position: 0, listID: StoreID.coles.listID))
-                if navigationFixture == nil || navigationFixture == "header" {
+                if navigationFixture == nil || navigationFixture == "header" || navigationFixture == "stores" {
                     context.insert(GroceryItem(name: "Woolworths fixture item", amount: 1, position: 0, listID: StoreID.woolworths.listID))
                 }
-                if navigationFixture == nil {
-                    context.insert(GroceryItem(name: "Bunnings fixture item", amount: 1, position: 0, listID: StoreID.bunnings.listID))
+                if navigationFixture == nil || navigationFixture == "stores" {
+                    let tools = ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_BUNNINGS_TOOLS"] == "1"
+                        ? ["Tool one", "Tool two", "Tool three"] : []
+                    for (position, name) in tools.enumerated() {
+                        context.insert(GroceryItem(name: name, amount: 1, position: position, listID: StoreID.bunnings.listID))
+                    }
+                    context.insert(GroceryItem(name: "Bunnings fixture item", amount: 1, position: tools.count, listID: StoreID.bunnings.listID))
                 }
                 if ProcessInfo.processInfo.environment["LISTRUNNER_ALL_ITEMS_RECOVERY_TEST_FIXTURE"] == "1"
                     || navigationFixture == "recovery" {
