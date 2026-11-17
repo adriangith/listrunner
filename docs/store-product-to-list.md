@@ -131,16 +131,24 @@ Schema 8 adds optional `productSelection` data, independent of cart capability:
 `detail {containerSelector, titleSelector}`. Old schemas 2–7 remain readable;
 automationSchemaVersion keeps its existing meaning. Definitions opt in only with
 explicit selectors; absent or unusable selectors offer manual entry, not broad DOM
-or metadata guesses. Profiles cover Bunnings AU and Coles with public rendered
+or metadata guesses. Profiles cover Bunnings AU, Coles and IKEA AU with public rendered
 grid and detail selector evidence. Coles was enabled after a separate review on
 15 November 2026: product-tile title links and the dedicated product-buy heading
 were verified using the production selection script, without retailer clicks.
 Coles sometimes returns an empty document; unavailable/ambiguous content still
 falls back to manual entry. Woolworths returned Access Denied during read-only
 inspection; do not guess its selectors.
-IKEA's grid was readable but needs separate detail/profile review. Other stores
-offer manual entry until individually reviewed. Live native verification remains
-a release gate.
+IKEA AU was enabled after a separate review on 17 November 2026. Its grid reads
+`.plp-price-module__information h3` inside `[data-testid='plp-product-card']`;
+detail reads `.pipcom-price-module__information h1` inside the dedicated
+`.pipf-price-package__price-module-wrapper`. Both headings include the product
+family and description, without price/rating text. Product links must resolve to
+one Australian eight-digit article identity, preserving leading zeroes; tiles
+with multiple variant IDs are not selectable. The production script passed a
+live Chromium grid-shield tap and direct detail read without retailer clicks or
+navigation. This does not certify iOS WebKit or all catalogue layouts.
+Other stores offer manual entry until individually reviewed. Live native
+verification remains a release gate.
 
 Read public rendered DOM only, in the existing isolated WebKit world, on the active
 trusted main-frame store document. No retailer APIs, credentials, storage reads,

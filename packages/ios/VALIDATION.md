@@ -13,6 +13,89 @@ Branch `feat/inbox-list`, tested in Mac worktree `~/Projects/listrunner-worktree
 - The user then tried the Inbox list flows on the iPhone (turn on in Settings, add items, move to and from a store, check All items) and approved them.
 - Not yet done: the full UI suite. The OpenPencil design predates Inbox and was not consulted.
 
+## IKEA AU local-list product selection (17 November 2026)
+
+Branch `feat/ikea-product-adding`, implementation revision
+`fab79348a22f5ecb29ac5e960f7fc0213d549344`, based on `cd80462`.
+Enabled the existing schema-8
+`productSelection` profile for IKEA AU only. Automation schema 5, exact trusted
+hosts, permanent list/session identities, search, cart detection and retailer Undo
+remain unchanged. No selection engine, SwiftUI, persistence or cart code changed.
+
+**Public rendered DOM review.** Separate anonymous Chromium sessions loaded
+`https://www.ikea.com/au/en/search/?q=spoon` and
+`https://www.ikea.com/au/en/p/dragon-spoon-stainless-steel-40515525/`.
+The search had 22 `[data-testid='plp-product-card']` tiles, each with one
+`.plp-price-module__information h3` containing the family plus description,
+separate from price/rating text. Image/title links generally repeated the same
+eight-digit AU product identity. One RÖRT tile included two different variant
+links; it deliberately fails selection rather than guessing a variant. Detail had
+one `.pipf-price-package__price-module-wrapper` containing the dedicated
+`.pipcom-price-module__information h1`; the cart's `.js-add-to-cart-section`
+contained no heading and is not reused for this feature.
+
+**Production-script checks.** At 402 × 874, a trusted pointer tap on the
+document-plane grid shield returned `DRAGON Spoon, stainless steel, 19 cm`,
+article `40515525`, with zero clicks reaching the monitored retailer tile, no
+navigation and cleared selection hooks. Direct detail reading returned the same
+name/article and cleared its hooks without grid selection. An initial grid tap
+during responsive reflow returned no selection safely; the settled-layout run
+passed. No consent, sign-in, storage/private API, retailer-cart action or local
+list save occurred. Compact browser evidence is in
+`/tmp/opencode/ikea-live-grid.json` and `/tmp/opencode/ikea-live-detail.json`.
+
+**Offline checks.** Focused selection plus IKEA cart regression: **104/104**.
+The complete JavaScript allowlist from `run-cloud-checks.sh` (selection, scrolling,
+all listed cart engines, inspection and nightly metadata) passed. All **47 Python
+tests** passed. The IKEA onboarding check passed registration, resources, tooling,
+cloud contracts, strategies and inspection; exit **2** correctly reports that
+native offline checks need macOS/Xcode. Added bundled-profile and native
+round-trip assertions, plus grid/detail fixtures for full titles, Unicode,
+leading-zero IDs, repeated/variant links, untrusted/foreign/composite identities,
+missing/ambiguous headings, stale tiles and assistive manual fallback.
+
+**Not verified:** native offline recovery assertions, live embedded
+iOS WebKit selection/review/save, device installation, all catalogue layouts or
+physical-device accessibility. The existing shared save/cancel/reveal behavior
+was not changed; the desktop checks do not certify it on IKEA. Native validation
+remains a release gate.
+
+### IKEA-enabled physical iPhone build and installation (17 November 2026)
+
+At the user's request and after Xcode approval, received the pushed implementation
+revision `fab79348a22f5ecb29ac5e960f7fc0213d549344` into the clean isolated Mac
+worktree `/Users/adrianzafir/Projects/listrunner-worktrees/ikea-product-adding`.
+The canonical Mac checkout, its unrelated untracked Xcode Cloud directory and
+other task worktrees were left untouched.
+
+Xcode workspace `workspace-RAjFRi95s4` resolved to that worktree's
+`packages/ios/ListRunner.xcodeproj`, scheme ListRunner. Explicitly selected the
+eligible physical **Adrian’s iPhone**, iPhone 17e
+`00008150-001402660A9BC01C`, iOS 27.2.1. `RunProject(attachDebugger: false)`
+completed successfully with **zero build errors** in **14.142 seconds**, launch
+reference `c3573c000`, PID **29816**, independently confirmed on the phone using
+`devicectl`. Log: `RunProject-Log-20261117-081158.txt`.
+
+The build log compiles `StoreShoppingView.swift` and `StoreProductSelection.swift`
+from the exact task checkout and copies its `ikeaAU.json`. The actual signed app
+under `~/Library/Developer/Xcode/DerivedData/ListRunner-gfvraxdbbbievjaijftedtvjwpnr/Build/Products/Debug-iphoneos/ListRunner.app`
+was freshly modified at **08:11:50 +1100**, passed deep/strict signature
+verification, and contains all **35 JSON + 1 JavaScript** resources byte-identical
+to the checkout, including IKEA's schema-8 profile.
+
+Installed in place and left running with the ordinary shared scheme, no test
+arguments/environment, uninstall, data reset, list edits, imports, retailer/cart
+actions or UI tests. This proves native build/sign/install/launch, not live IKEA
+WebKit selection/review/save or physical visual/accessibility sign-off.
+
+**User hands-on acceptance.** After installation, the user reported “looks good”
+and subsequently confirmed they had performed the requested hands-on IKEA check
+on the phone: “I did. Looks good.” This is user-reported acceptance of the installed
+feature, not an automated native test result or itemised proof of every
+save/Cancel/accessibility scenario. Do not continue describing the general
+hands-on phone check as awaiting the user; native offline assertions and broader
+catalogue/accessibility coverage remain separate.
+
 ## Walgreens search-card detection enabled (16 November 2026)
 
 Branch `feat/walgreens-product-adding`, app revision

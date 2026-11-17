@@ -440,6 +440,18 @@ struct RecoveryTests {
               && ikea.id.websiteDataID.uuidString.hasSuffix("000033"), "IKEA fallback and stable identities stay Australian")
         check(ikea.cart?.strategy == .verifiedCartSnapshot && ikea.cart?.profiles?.count == 2,
               "IKEA grid and detail opt into the separately bundled cart snapshot engine")
+        check(ikea.schemaVersion == 8 && ikea.automationSchemaVersion == 5
+              && ikea.productSelection?.productURLPattern == ikea.cart?.productURLPattern
+              && ikea.productSelection?.grid.containerSelector == "[data-testid='plp-product-card']"
+              && ikea.productSelection?.grid.titleSelector == ".plp-price-module__information h3"
+              && ikea.productSelection?.grid.linkSelector == "a[href*='/au/en/p/']"
+              && ikea.productSelection?.detail.containerSelector == ".pipf-price-package__price-module-wrapper"
+              && ikea.productSelection?.detail.titleSelector == ".pipcom-price-module__information h1",
+              "IKEA local-list selection reads complete product headings independently of cart automation")
+        let ikeaRoundTrip = try StoreDefinition.decodeConfiguration(from: JSONEncoder().encode(ikea))
+        check(ikeaRoundTrip.productSelection?.detail.titleSelector == ikea.productSelection?.detail.titleSelector
+              && ikeaRoundTrip.automationSchemaVersion == 5,
+              "IKEA schema-8 selection round-trips without changing its snapshot engine")
         check(ikea.acceptsProductIdentity("00428484") && !ikea.acceptsProductIdentity("428484")
               && !ikea.acceptsProductIdentity("004.284.84"), "IKEA keeps exact eight-digit article IDs, including leading zeroes")
         check(ikea.allows(URL(string: "https://www.ikea.com/au/en/search/?q=spoon")!)
