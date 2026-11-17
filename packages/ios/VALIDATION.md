@@ -8,7 +8,8 @@ Branch `feat/inbox-list`, tested in Mac worktree `~/Projects/listrunner-worktree
 - `8c5b614`, focused UI run (14 tests): passed `testInboxSettingAddsListAndMovesItemsBetweenLists`, the three move tests and seven welcome tests. `testFirstStoreWelcomeStartWithInboxOpensInboxList` failed only because the simulator keyboard typed “Bthdray card”; the snapshot showed the row added to Inbox. `testAllItemsUnavailableAndUnknownOwnersRemainRecoverable` failed once in Manage Stores row hittability during setup.
 - `dd880d2` (test no longer depends on typed spelling): `testFirstStoreWelcomeStartWithInboxOpensInboxList` and `testAllItemsUnavailableAndUnknownOwnersRemainRecoverable` passed.
 - Pre-existing, not Inbox-related: `testFirstStoreWelcomePreviewHidesSavedItemsShortcutAndPreservesLists` and `testFirstStoreWelcomePreviewOverridesAllItemsWithoutChangingSavedScope` fail identically on `main` (`9438032`) and this branch. Both call `choose("All items")` with only Coles enabled, which the single-store simplification hides.
-- Not yet done: physical-device review, and the full UI suite. The OpenPencil design predates Inbox and was not consulted.
+- `f561f20`: at the user's request, built, signed, installed in place and launched on **Adrian’s iPhone** (iPhone 17e `00008150-001402660A9BC01C`, iOS 27.2.1) via Xcode workspace `workspace-aQjgqIlw3b`, whose path was checked as `listrunner-worktrees/inbox-list/packages/ios/ListRunner.xcodeproj`. `RunProject` reported zero build errors in 20.5 s, PID 32135, which `devicectl` confirmed. The build log compiles `GroceryListScreen.swift` from the task worktree. No uninstall or data reset.
+- Not yet done: manual review of the Inbox on the phone, and the full UI suite. The OpenPencil design predates Inbox and was not consulted.
 
 ## Walgreens search-card detection enabled (16 November 2026)
 
