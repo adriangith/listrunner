@@ -15,7 +15,7 @@
 * The Inbox page reuses the shared list-page layout, `Items` heading, typed/pasted entry (no ingredient parsing), duplicate merging within Inbox, edit/reorder, swipe Delete and `Clear List`. It uses the app's neutral accent and omits Show Store and Import. Tapping an Inbox row opens its item editor instead of a store. Rows keep Pending status unless changed with the existing manual controls.
 * The row action becomes `Move to Another List` everywhere. Its destinations are available enabled stores plus Inbox when on, excluding the current owner. Existing move semantics apply: confirm, keep identity and quantity, append, set Pending, no implicit merge, never touch retailer carts or Reminders.
 * All items: Inbox is a separate group titled `Inbox` in both groupings. In By category it stays its own group, not Uncategorised and not a retailer category. It takes part in addition-recency promotion, offers the group plus shortcut and per-group `Clear List`, and appears in the split Add destination menu. It is excluded from `Show Store...` and the Import destination. Tapping an Inbox item in All items opens its item editor, not a store.
-* Out of scope for this change: multiple or named lists, importing into Inbox, and sharing. The OpenPencil design predates Inbox and is out of date; follow this section and the existing shared list/Settings/welcome styling until the design is updated.
+* Out of scope for this change: multiple or named lists, importing into Inbox, and sharing. The **List Runner — iOS 27** OpenPencil design (19 November 2026) now includes the Inbox, its welcome button, Settings switch and move flow; this section remains the behavioural source of truth.
 
 ### IKEA website products to list (17 November 2026)
 

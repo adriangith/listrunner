@@ -1,7 +1,7 @@
 # ListRunner agent notes
 
 - There is no root `package.json` or shared workspace runner. Run npm commands from the package being changed; each package has its own lockfile.
-- The native SwiftUI iOS app lives in `packages/ios`. `plan.md` is the current product/architecture spec; consult the OpenPencil design in the project before implementing UI. Old dated docs/specs may describe the removed Capacitor implementation.
+- The native SwiftUI iOS app lives in `packages/ios`. `plan.md` is the current product/architecture spec; consult the OpenPencil design before implementing UI: the current one is **List Runner — iOS 27** in OpenPencil Storage (document `f749d3cc-ba87-40f4-a02a-383eb34d475b`, built 19 November 2026 from the shipped app with Apple iOS & iPadOS 27 library components). The older **List Runner** document (`3758a235-313a-4893-80aa-f8e986d0c2cc`) is an archive of pre-November explorations. Old dated docs/specs may describe the removed Capacitor implementation.
 - The Chrome/Firefox browser extension was retired at the user's request. Do not restore it; dated extension plans/specs are historical only.
 - Focused core checks: `cd packages/core && npm test && npm run typecheck` (Vitest). The standalone `packages/harness` uses `npm run dev` or `npm run build`.
 - iOS UI tests run on the Mac only. For focused runs, shard with `packages/ios/tools/run-ui-tests-sharded.sh` (see `packages/ios/README.md`); new `StoreSelectionTests` names matter because `setUpWithError` picks fixtures by substring (e.g. `StoreProduct`, `EmptyList`).
