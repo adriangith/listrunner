@@ -3998,6 +3998,7 @@ private struct ListsEditorSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
+                        NSLog("LRDEBUG ListsEditorSheet save selection=%@", selection.sorted())
                         onSave(chosen)
                         dismiss()
                     }
