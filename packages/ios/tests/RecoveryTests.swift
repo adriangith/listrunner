@@ -1881,8 +1881,8 @@ struct RecoveryTests {
         try ShoppingLists.prepare(migrated.mainContext, legacySelectedID: originalID)
         let listCount = try migrated.mainContext.fetchCount(FetchDescriptor<GroceryList>())
         check(listCount == ListOwner.all.count, "list backfill is idempotent")
-        check(try migrated.mainContext.fetchCount(FetchDescriptor<GroceryMembership>()) == 1,
-              "membership backfill is idempotent")
+        let membershipCount = try migrated.mainContext.fetchCount(FetchDescriptor<GroceryMembership>())
+        check(membershipCount == 1, "membership backfill is idempotent")
         let woolworthsItem = GroceryItem(name: "BBQ Sauce", position: 0, listID: StoreID.woolworths.listID)
         migrated.mainContext.insert(woolworthsItem)
         ShoppingLists.setLists(original, to: [.store(.woolworths)], allItems: [original, woolworthsItem], context: migrated.mainContext)
