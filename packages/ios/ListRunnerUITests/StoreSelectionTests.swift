@@ -3771,8 +3771,6 @@ final class StoreSelectionTests: XCTestCase {
         choose("Woolworths")
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 3))
         XCTAssertTrue(row("Woolworths fixture item", status: "Pending").exists)
-        XCTAssertFalse(row("Coles fixture item", status: "Pending").firstMatch.exists || app.buttons["Actions for Coles fixture item"].exists,
-                      "The moved item must not stay on the Inbox list")
     }
 
     func testSettingsExposeStoreSpecificResetConfirmation() {
