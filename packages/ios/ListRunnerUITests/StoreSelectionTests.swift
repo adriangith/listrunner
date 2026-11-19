@@ -2182,7 +2182,7 @@ final class StoreSelectionTests: XCTestCase {
         let destination = app.buttons["all-items-add"].label
         app.buttons["all-items-scope-picker"].tap()
         app.buttons["Coles"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5), app.debugDescription)
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.45))
         start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45)))
         assertAllItemsIsCurrent()
