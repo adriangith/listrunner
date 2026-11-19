@@ -1888,7 +1888,7 @@ struct RecoveryTests {
         ShoppingLists.setLists(original, to: [.store(.woolworths)], allItems: [original, woolworthsItem], context: migrated.mainContext)
         check(original.id == originalID && original.status == .pending && original.position == 1, "explicit move preserves identity, marks Pending, appends")
         check(woolworthsItem.status == .pending && original.listID == StoreID.woolworths.listID, "move does not merge or edit existing destination item")
-        check(original.memberships.count == 1 && original.membership(in: StoreID.woolworths.listID)?.position == 1,
+        check(original.liveMemberships.count == 1 && original.membership(in: StoreID.woolworths.listID)?.position == 1,
               "a move replaces the old membership with the destination's own position")
         original.status = .added
         ShoppingLists.setLists(original, to: [.inbox], allItems: [original, woolworthsItem], context: migrated.mainContext)
