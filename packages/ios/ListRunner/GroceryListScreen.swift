@@ -3964,11 +3964,7 @@ private struct ListsEditorSheet: View {
         self.onSave = onSave
         let locked = options.first { $0.store?.rawValue == item.originStoreID }
         _selection = State(initialValue: locked.map { Set([$0.rawValue]) }
-            ?? Set(item.listIDs.compactMap { ownerRawValue(for: $0) }))
-    }
-
-    private func ownerRawValue(for listID: UUID) -> String? {
-        ListOwner(listID: listID)?.rawValue
+            ?? Set(item.listIDs.compactMap { ListOwner(listID: $0)?.rawValue }))
     }
 
     private var chosen: [ListOwner] { options.filter { selection.contains($0.rawValue) } }
