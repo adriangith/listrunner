@@ -3875,6 +3875,7 @@ private struct ListsSelectionRows: View {
         Binding(
             get: { selection.contains(option.rawValue) },
             set: { on in
+                NSLog("LRDEBUG toggle %@ on=%d", option.rawValue, on ? 1 : 0)
                 if option == .inbox {
                     if on { selection = [option.rawValue] } else { selection.remove(option.rawValue) }
                 } else if on {
