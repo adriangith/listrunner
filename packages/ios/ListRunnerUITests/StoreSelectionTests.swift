@@ -3703,10 +3703,11 @@ final class StoreSelectionTests: XCTestCase {
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
         app.buttons["Actions for Coles fixture item"].tap()
         app.buttons["Lists…"].tap()
-        XCTAssertTrue(app.switches["Costco"].waitForExistence(timeout: 3),
+        XCTAssertTrue(app.buttons["lists-row-costco"].waitForExistence(timeout: 3),
                       "Search-verified/manual-cart stores remain valid list options")
         for name in ["Amazon US", "Costco US", "New World", "PAK’nSAVE", "Boots", "CVS", "Kmart"] {
-            XCTAssertFalse(app.switches[name].exists, name)
+            XCTAssertFalse(app.buttons.matching(identifier: "lists-row-" + name).firstMatch.exists
+                           || app.buttons[name].exists, name)
         }
         // Read-only inspection: cancel without changing the item's lists.
         app.buttons["Cancel"].tap()
