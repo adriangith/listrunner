@@ -370,9 +370,6 @@ enum ShoppingLists {
         }
         if previous.isDisjoint(with: target) { item.status = .pending }
         normalizeLegacyMirror(item)
-        NSLog("LRDEBUG setLists item=%@ previous=%@ targets=%@ live=%@ mirror=%@/%d",
-              item.name, previous.sorted().map(\.uuidString), targets.map { ListOwner(listID: $0)?.rawValue ?? "?" },
-              item.liveMemberships.map(\.listID.uuidString), item.listID?.uuidString ?? "nil", item.position)
     }
 
     // Remove one list's membership (the ⋯ menu's "Remove from [store]"). The

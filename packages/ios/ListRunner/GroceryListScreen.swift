@@ -3855,9 +3855,10 @@ private struct ProductEntryEditor: UIViewRepresentable {
     }
 }
 
-// Toggle rows shared by the Add-destination picker, the Lists… sheet and the
-// Lists section of Edit Item. Inbox is exclusive: ticking it clears every
-// store, and ticking a store clears Inbox.
+// Selection rows shared by the Add-destination picker, the Lists… sheet and
+// the Lists section of Edit Item: full-row buttons with a checkmark, as in
+// the OpenPencil design. Whole rows are tappable; Inbox is exclusive: ticking
+// it clears every store, and ticking a store clears Inbox.
 private struct ListsSelectionRows: View {
     let options: [ListOwner]
     var lockedTo: ListOwner? = nil
@@ -3865,27 +3866,30 @@ private struct ListsSelectionRows: View {
 
     var body: some View {
         ForEach(options) { option in
-            Toggle(option.displayName, isOn: toggleBinding(option))
-                .disabled(lockedTo != nil && option != lockedTo)
-                .accessibilityIdentifier("lists-row-\(option.rawValue)")
-        }
-    }
-
-    private func toggleBinding(_ option: ListOwner) -> Binding<Bool> {
-        Binding(
-            get: { selection.contains(option.rawValue) },
-            set: { on in
-                NSLog("LRDEBUG toggle %@ on=%d", option.rawValue, on ? 1 : 0)
+            let selected = selection.contains(option.rawValue)
+            Button {
                 if option == .inbox {
-                    if on { selection = [option.rawValue] } else { selection.remove(option.rawValue) }
-                } else if on {
+                    if selected { selection.remove(option.rawValue) } else { selection = [option.rawValue] }
+                } else if selected {
+                    selection.remove(option.rawValue)
+                } else {
                     selection.remove(ListOwner.inbox.rawValue)
                     selection.insert(option.rawValue)
-                } else {
-                    selection.remove(option.rawValue)
                 }
+            } label: {
+                HStack {
+                    Text(option.displayName)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    if selected { Image(systemName: "checkmark") }
+                }
+                .contentShape(Rectangle())
             }
-        )
+            .buttonStyle(.plain)
+            .disabled(lockedTo != nil && option != lockedTo)
+            .accessibilityIdentifier("lists-row-\(option.rawValue)")
+            .accessibilityAddTraits(selected ? [.isSelected] : [])
+        }
     }
 }
 
@@ -3999,7 +4003,6 @@ private struct ListsEditorSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        NSLog("LRDEBUG ListsEditorSheet save selection=%@", selection.sorted())
                         onSave(chosen)
                         dismiss()
                     }
