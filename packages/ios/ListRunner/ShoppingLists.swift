@@ -361,7 +361,7 @@ enum ShoppingLists {
             let position = orderedItems(in: listID, from: allItems.filter { $0.id != item.id }).count
             context.insert(GroceryMembership(item: item, listID: listID, position: position))
         }
-        for membership in item.memberships where !target.contains(membership.listID) {
+        for membership in item.liveMemberships where !target.contains(membership.listID) {
             context.delete(membership)
         }
         if previous.isDisjoint(with: target) { item.status = .pending }
@@ -395,8 +395,9 @@ enum ShoppingLists {
     // fallback reads (and an older recovery view) stay truthful. Rows with no
     // membership at all keep their stored values untouched.
     static func normalizeLegacyMirror(_ item: GroceryItem) {
-        guard !item.memberships.isEmpty else { return }
-        let membership = item.memberships.min { $0.listID.uuidString < $1.listID.uuidString }!
+        let live = item.liveMemberships
+        guard !live.isEmpty else { return }
+        let membership = live.min { $0.listID.uuidString < $1.listID.uuidString }!
         item.listID = membership.listID
         item.position = membership.position
     }

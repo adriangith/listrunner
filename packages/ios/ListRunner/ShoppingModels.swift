@@ -86,16 +86,22 @@ extension GroceryItem {
     // Membership rows are authoritative. The legacy `listID`/`position` pair
     // stays in the schema as migration input, mirrors the first membership as
     // a fallback for rows written before this change (fixtures, a mid-upgrade
-    // crash), and is normalized after every membership change.
+    // crash), and is normalized after every membership change. SwiftData
+    // keeps a pending-deleted membership in the relationship until the save
+    // processes it, so live reads exclude deleted rows.
+    var liveMemberships: [GroceryMembership] {
+        memberships.filter { !$0.isDeleted }
+    }
+
     var listIDs: [UUID] {
-        let ids = memberships.map(\.listID)
+        let ids = liveMemberships.map(\.listID)
         return ids.isEmpty ? [listID].compactMap { $0 } : ids
     }
 
     var isShared: Bool { listIDs.count > 1 }
 
     func membership(in listID: UUID) -> GroceryMembership? {
-        memberships.first { $0.listID == listID }
+        liveMemberships.first { $0.listID == listID }
     }
 
     // Position within one list: the membership's own value, or the legacy
