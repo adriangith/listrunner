@@ -3747,7 +3747,7 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["lists-row-inbox"].tap()
         XCTAssertFalse(app.buttons["lists-row-coles"].isSelected, "Ticking Inbox must clear the store ticks")
         app.buttons["Save"].tap()
-        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3), app.debugDescription)
 
         choose("Inbox")
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
