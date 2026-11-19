@@ -345,11 +345,15 @@ enum ShoppingLists {
     // move, and moves set Pending, as the old Move action did. Everything else
     // (name, quantity, status, Reminders link) is shared and untouched here.
     @MainActor
-    static func setLists(_ item: GroceryItem, to owners: [ListOwner],
+    static func setLists(_ item: GroceryItem, to requested: [ListOwner],
                          allItems: [GroceryItem], context: ModelContext) {
+        // Inbox is exclusive with stores: a mixed request keeps the stores,
+        // exactly as the sheet's ticking rules already enforce.
+        let owners = requested.contains { $0.store != nil }
+            ? requested.filter { $0.store != nil }
+            : requested.filter { $0 == .inbox }
         let targets = owners.map(\.listID)
         guard !targets.isEmpty else { return }
-        guard owners.contains(where: { $0.store != nil }) || targets == [ListOwner.inbox.listID] else { return }
         let previous = Set(item.listIDs)
         // A fallback row (legacy fields, no membership yet) must not lose its
         // first list when a second is ticked: materialize it first.

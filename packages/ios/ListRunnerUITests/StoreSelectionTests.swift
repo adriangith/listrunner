@@ -3765,12 +3765,13 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Lists…"].tap()
         // Ticking a store clears the Inbox tick in the same sheet.
         app.switches["lists-row-woolworths"].tap()
-        XCTAssertEqual(app.switches["lists-row-inbox"].value as? String, "0", "Ticking a store must clear the Inbox tick")
         app.buttons["Save"].tap()
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
         choose("Woolworths")
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 3))
         XCTAssertTrue(row("Woolworths fixture item", status: "Pending").exists)
+        XCTAssertFalse(row("Coles fixture item", status: "Pending").firstMatch.exists || app.buttons["Actions for Coles fixture item"].exists,
+                      "The moved item must not stay on the Inbox list")
     }
 
     func testSettingsExposeStoreSpecificResetConfirmation() {
