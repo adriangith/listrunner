@@ -601,9 +601,8 @@ struct StoreVisibilityScreen: View {
     }
 
     private var nonEmptyListIDs: Set<UUID> {
-        Set(allItems.compactMap { item in
-            guard let id = item.listID, StoreID.allCases.contains(where: { $0.listID == id }) else { return nil }
-            return id
+        Set(allItems.flatMap { item in
+            item.listIDs.filter { id in StoreID.allCases.contains(where: { $0.listID == id }) }
         })
     }
 

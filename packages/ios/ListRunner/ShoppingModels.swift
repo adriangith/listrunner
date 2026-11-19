@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import SwiftData
 
@@ -5,6 +6,37 @@ enum GroceryStatus: String, Codable, CaseIterable {
     case pending = "Pending"
     case added = "Added"
     case skipped = "Skipped"
+}
+
+// One row per (item, list): an item on Coles and Woolworths has two
+// memberships, each holding that list's own position. The `id` is derived
+// deterministically from the item and list so the pair is unique in storage;
+// every mutation path still checks membership before inserting.
+@Model
+final class GroceryMembership {
+    @Attribute(.unique) var id: UUID
+    var listID: UUID
+    var position: Int
+    var item: GroceryItem?
+
+    init(item: GroceryItem, listID: UUID, position: Int) {
+        self.id = Self.membershipID(itemID: item.id, listID: listID)
+        self.listID = listID
+        self.position = position
+        self.item = item
+    }
+
+    static func membershipID(itemID: UUID, listID: UUID) -> UUID {
+        // Deterministic across launches: the same (item, list) pair always
+        // derives the same membership identity.
+        let seed = Data("\(itemID.uuidString)/\(listID.uuidString)".utf8)
+        let digest = SHA256.hash(data: seed)
+        let bytes = Array(digest.prefix(16))
+        let padded = bytes + Array(repeating: 0, count: max(0, 16 - bytes.count))
+        return UUID(uuid: (padded[0], padded[1], padded[2], padded[3], padded[4], padded[5],
+                           padded[6], padded[7], padded[8], padded[9], padded[10], padded[11],
+                           padded[12], padded[13], padded[14], padded[15]))
+    }
 }
 
 @Model
@@ -18,6 +50,11 @@ final class GroceryItem {
     var position: Int
     var listID: UUID? = nil
     var paprikaReminderID: String? = nil
+    // Website products stay with the store whose site they were picked on.
+    // Older items have no recorded origin and are treated as typed items.
+    var originStoreID: String? = nil
+    @Relationship(deleteRule: .cascade, inverse: \GroceryMembership.item)
+    var memberships: [GroceryMembership] = []
 
     var status: GroceryStatus {
         get { GroceryStatus(rawValue: statusRawValue) ?? .pending }
@@ -42,6 +79,36 @@ final class GroceryItem {
 
     private static func formatAmount(_ value: Double) -> String {
         formatGroceryAmount(value)
+    }
+}
+
+extension GroceryItem {
+    // Membership rows are authoritative. The legacy `listID`/`position` pair
+    // stays in the schema as migration input, mirrors the first membership as
+    // a fallback for rows written before this change (fixtures, a mid-upgrade
+    // crash), and is normalized after every membership change.
+    var listIDs: [UUID] {
+        let ids = memberships.map(\.listID)
+        return ids.isEmpty ? [listID].compactMap { $0 } : ids
+    }
+
+    var isShared: Bool { listIDs.count > 1 }
+
+    func membership(in listID: UUID) -> GroceryMembership? {
+        memberships.first { $0.listID == listID }
+    }
+
+    // Position within one list: the membership's own value, or the legacy
+    // field for rows that have not received a membership yet.
+    func sortPosition(in listID: UUID) -> Int {
+        membership(in: listID)?.position ?? position
+    }
+
+    // Display names of the item's other lists, for row captions.
+    func otherListNames(excluding listID: UUID?) -> [String] {
+        listIDs
+            .filter { $0 != listID }
+            .compactMap { ListOwner(listID: $0)?.displayName }
     }
 }
 

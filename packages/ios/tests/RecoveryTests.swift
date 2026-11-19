@@ -1872,22 +1872,83 @@ struct RecoveryTests {
         check(original.status == .added && original.position == 7, "legacy status and position preserved")
         let colesList = migratedLists.first { $0.id == StoreID.coles.listID }!
         check(colesList.selectedItemID == originalID, "legacy selected item migrated")
+        // The membership backfill gives every legacy row its first membership
+        // at the stored position, without touching the item's own fields.
+        let backfilledMemberships = try migrated.mainContext.fetch(FetchDescriptor<GroceryMembership>())
+        check(backfilledMemberships.count == 1 && backfilledMemberships[0].listID == StoreID.coles.listID
+              && backfilledMemberships[0].position == 7 && backfilledMemberships[0].item?.id == originalID,
+              "legacy rows receive one membership per saved list at their stored position")
         try ShoppingLists.prepare(migrated.mainContext, legacySelectedID: originalID)
         let listCount = try migrated.mainContext.fetchCount(FetchDescriptor<GroceryList>())
         check(listCount == ListOwner.all.count, "list backfill is idempotent")
+        check(try migrated.mainContext.fetchCount(FetchDescriptor<GroceryMembership>()) == 1,
+              "membership backfill is idempotent")
         let woolworthsItem = GroceryItem(name: "BBQ Sauce", position: 0, listID: StoreID.woolworths.listID)
         migrated.mainContext.insert(woolworthsItem)
-        ShoppingLists.move(original, to: .woolworths, allItems: [original, woolworthsItem])
+        ShoppingLists.setLists(original, to: [.store(.woolworths)], allItems: [original, woolworthsItem], context: migrated.mainContext)
         check(original.id == originalID && original.status == .pending && original.position == 1, "explicit move preserves identity, marks Pending, appends")
         check(woolworthsItem.status == .pending && original.listID == StoreID.woolworths.listID, "move does not merge or edit existing destination item")
+        check(original.memberships.count == 1 && original.membership(in: StoreID.woolworths.listID)?.position == 1,
+              "a move replaces the old membership with the destination's own position")
         original.status = .added
-        ShoppingLists.move(original, to: .inbox, allItems: [original, woolworthsItem])
+        ShoppingLists.setLists(original, to: [.inbox], allItems: [original, woolworthsItem], context: migrated.mainContext)
         check(original.id == originalID && original.listID == ListOwner.inboxListID && original.status == .pending
               && original.position == 0, "moving to the Inbox keeps identity, marks Pending and appends")
-        ShoppingLists.move(original, to: .woolworths, allItems: [original, woolworthsItem])
+        ShoppingLists.setLists(original, to: [.store(.woolworths)], allItems: [original, woolworthsItem], context: migrated.mainContext)
         check(original.listID == StoreID.woolworths.listID && original.position == 1 && woolworthsItem.position == 0,
               "moving out of the Inbox appends to the store list without touching its rows")
         try migrated.mainContext.save()
+
+        // One item on several lists: shared status, per-list ordering and the
+        // Lists… checklist that replaces Move to Another List.
+        let sharedData = try ShoppingLists.open(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
+        let sharedContext = sharedData.mainContext
+        sharedContext.autosaveEnabled = false
+        var sharedItems = ["Milk", "Bread", "Eggs"].enumerated().map { index, name in
+            GroceryItem(name: name, amount: 1, position: index, listID: StoreID.coles.listID)
+        }
+        for item in sharedItems { sharedContext.insert(item) }
+        try sharedContext.save()
+        let woolworthsOrder = ["Eggs", "Milk", "Bananas"].enumerated().map { index, name in
+            GroceryItem(name: name, amount: 1, position: index, listID: StoreID.woolworths.listID)
+        }
+        for item in woolworthsOrder { sharedContext.insert(item) }
+        try sharedContext.save()
+        let sharedMilk = woolworthsOrder[1]
+        ShoppingLists.setLists(sharedItems[0], to: [.store(.coles), .store(.woolworths)], allItems: sharedItems + woolworthsOrder, context: sharedContext)
+        check(sharedItems[0].isShared && Set(sharedItems[0].listIDs) == Set([StoreID.coles.listID, StoreID.woolworths.listID]),
+              "ticking a second store shares one item, not a copy")
+        check(sharedItems[0].status == .pending && sharedItems[0].sortPosition(in: StoreID.coles.listID) == 0
+              && sharedItems[0].sortPosition(in: StoreID.woolworths.listID) == 3,
+              "a shared item keeps each list's own position and is not a move")
+        check(ShoppingLists.orderedItems(in: StoreID.woolworths.listID, from: sharedItems + woolworthsOrder).map(\.name)
+              == ["Eggs", "Milk", "Bananas", "Milk"],
+              "the destination list appends the shared item after its existing rows")
+        sharedItems[0].status = .added
+        check(ShoppingLists.orderedItems(in: StoreID.coles.listID, from: sharedItems + woolworthsOrder).count == 3,
+              "status is one value across every list the item is on")
+        ShoppingLists.setLists(sharedItems[0], to: [.store(.woolworths)], allItems: sharedItems + woolworthsOrder, context: sharedContext)
+        check(sharedItems[0].status == .added && !sharedItems[0].isShared,
+              "removing one of several lists keeps the status; only leaving every list is a move")
+        ShoppingLists.setLists(sharedItems[0], to: [.inbox], allItems: sharedItems + woolworthsOrder, context: sharedContext)
+        check(sharedItems[0].status == .pending && sharedItems[0].listIDs == [ListOwner.inboxListID],
+              "unticking the last store with Inbox on lands the item in Inbox as a move")
+        ShoppingLists.removeList(ListOwner.inbox.listID, from: sharedItems[0])
+        check(!sharedItems[0].isShared, "removeList is guarded to shared items")
+        // Legacy fallback rows (no membership yet) still read on their list.
+        check(ShoppingLists.orderedItems(in: StoreID.woolworths.listID, from: [sharedMilk]).map(\.name) == ["Milk"],
+              "rows written without memberships stay readable through the legacy fallback")
+        sharedItems.append(sharedMilk)
+        let promotedShared = ShoppingLists.stageAdd([ParsedGrocery(name: "Milk", amount: 2, unit: nil)],
+            to: .store(.woolworths), allItems: sharedItems, context: sharedContext)
+        check(promotedShared.count == 1 && promotedShared[0].id == sharedMilk.id && sharedMilk.quantityAmount == 3
+              && sharedMilk.memberships.count == 1,
+              "a legacy fallback row merges within the destination and gains its first membership")
+        let otherName = ShoppingLists.stageAdd([ParsedGrocery(name: "Bread", amount: 1, unit: nil)],
+            to: .store(.woolworths), allItems: sharedItems, context: sharedContext)
+        check(otherName.count == 1 && otherName[0].id != sharedItems[1].id,
+              "a typed name that exists only on another list creates a new, separate item")
+        try sharedContext.save()
 
         let v2URL = root.appendingPathComponent("store-v2.store")
         let v2Writer = Process()
