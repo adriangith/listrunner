@@ -1655,13 +1655,13 @@ private struct AllItemsScreen: View {
                 stageReminderWriteback(for: item)
                 saveChanges()
             }
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.large])
         }
         .sheet(isPresented: $showingDestinationPicker) {
             AddDestinationSheet(options: availableOwners, initialSelection: Set(destinationOwners.map(\.rawValue))) { chosen in
                 destinationRawValue = chosen.map(\.rawValue).joined(separator: ",")
             }
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.large])
         }
         .sheet(item: $editingListsItem) { item in
             ListsEditorSheet(item: item, options: editorListOptions(for: item)) { lists in
@@ -1673,7 +1673,7 @@ private struct AllItemsScreen: View {
                         : "Item is now on \(joinedNames(lists.map(\.displayName)))."
                 }
             }
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.large])
         }
         .confirmationDialog("Open which store?", isPresented: Binding(
             get: { shoppingChooserItem != nil }, set: { if !$0 { shoppingChooserItem = nil } }),
@@ -2683,7 +2683,7 @@ struct GroceryListScreen: View {
                     stageReminderWriteback(for: item)
                     saveChanges()
                 }
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
             }
             .sheet(item: $editingListsItem) { item in
                 ListsEditorSheet(item: item, options: editorListOptions()) { lists in
@@ -2695,7 +2695,7 @@ struct GroceryListScreen: View {
                             : "Item is now on \(joinedNames(lists.map(\.displayName)))."
                     }
                 }
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
             }
         }
         .tint(storePrimaryColor)
