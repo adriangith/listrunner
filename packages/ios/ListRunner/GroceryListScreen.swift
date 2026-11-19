@@ -3972,7 +3972,7 @@ private struct ListsEditorSheet: View {
         self.options = options
         self.inboxAvailable = options.contains(.inbox)
         self.onSave = onSave
-        let locked = options.first { $0.store?.rawValue == item.originStoreID }
+        let locked = item.originStoreID.flatMap { origin in options.first { $0.store?.rawValue == origin } }
         _selection = State(initialValue: locked.map { Set([$0.rawValue]) }
             ?? Set(item.listIDs.compactMap { ListOwner(listID: $0)?.rawValue }))
     }
@@ -4043,7 +4043,7 @@ private struct ItemEditorSheet: View {
         _name = State(initialValue: item.name)
         _amount = State(initialValue: item.quantityAmount.map { String($0) } ?? "")
         _unit = State(initialValue: item.quantityUnit ?? "")
-        let locked = listOptions.first { $0.store?.rawValue == item.originStoreID }
+        let locked = item.originStoreID.flatMap { origin in listOptions.first { $0.store?.rawValue == origin } }
         _listSelection = State(initialValue: locked.map { Set([$0.rawValue]) }
             ?? Set(item.listIDs.compactMap { ListOwner(listID: $0)?.rawValue }))
     }
