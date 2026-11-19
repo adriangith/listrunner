@@ -2559,11 +2559,7 @@ struct GroceryListScreen: View {
                                 Button("Clear All", role: .destructive) { clearItems(addedOnly: false) }
                                 Button("Cancel", role: .cancel) { }
                             } message: {
-                                if items.contains(where: \.isShared) {
-                                    Text("This clears only your \(owner.displayName) list in ListRunner. Items also on other lists stay on them. It does not change any store cart or Apple Reminders.")
-                                } else {
-                                    Text("This clears only your \(owner.displayName) list in ListRunner. It does not change any store cart or Apple Reminders.")
-                                }
+                                Text(storeClearConfirmationMessage)
                             }
                         }
                     } header: {
@@ -3083,6 +3079,12 @@ struct GroceryListScreen: View {
         onWelcomeStoreEnabled(.inbox)
     }
 
+    private var storeClearConfirmationMessage: String {
+        items.contains(where: \.isShared)
+            ? "This clears only your \(owner.displayName) list in ListRunner. Items also on other lists stay on them. It does not change any store cart or Apple Reminders."
+            : "This clears only your \(owner.displayName) list in ListRunner. It does not change any store cart or Apple Reminders."
+    }
+
     private func clearList() {
         groceryInputFocused = false
         productEntryFocus.resignFirstResponder()
@@ -3141,19 +3143,22 @@ struct GroceryListScreen: View {
         }
     }
 
-    private func saveChanges() {
+    @discardableResult
+    private func saveChanges() -> Bool {
         do {
             try modelContext.save()
             saveFailed = false
             let writes = Array(pendingReminderWrites.values)
             pendingReminderWrites.removeAll()
             for write in writes { paprikaReminders.queueWriteback(write) }
+            return true
         } catch {
             if !saveFailed {
                 UIAccessibility.post(notification: .announcement, argument: "Changes may not be saved")
             }
             saveFailed = true
             diagnostics.record(.storage, .localSave, reason: .storageFailure, outcome: .failed)
+            return false
         }
     }
 
@@ -3182,8 +3187,8 @@ struct GroceryListScreen: View {
 
     // Apply a Lists… or Edit Item selection: repair the lists the item left,
     // then hand the change to the shared mutation helper.
-    private func applyLists(_ lists: [ListOwner], to item: GroceryItem) {
-        let target = Set(lists.map(\.listID))
+    private func applyLists(_ selected: [ListOwner], to item: GroceryItem) {
+        let target = Set(selected.map(\.listID))
         let previous = Set(item.listIDs)
         let removedLists = previous.subtracting(target)
         for listID in removedLists {
@@ -3195,7 +3200,7 @@ struct GroceryListScreen: View {
                     from: ShoppingLists.orderedItems(in: listID, from: allItems))
             }
         }
-        ShoppingLists.setLists(item, to: lists, allItems: allItems, context: modelContext)
+        ShoppingLists.setLists(item, to: selected, allItems: allItems, context: modelContext)
         ShoppingLists.repairOrder(removedIDs: [item.id], affectedListIDs: removedLists, allItems: allItems)
     }
 
@@ -3958,8 +3963,8 @@ private struct ListsEditorSheet: View {
         self.inboxAvailable = options.contains(.inbox)
         self.onSave = onSave
         let locked = options.first { $0.store?.rawValue == item.originStoreID }
-        _selection = State(initialValue: Set(locked.map(\.rawValue)
-            ?? Set(item.listIDs.compactMap { ownerRawValue(for: $0) })))
+        _selection = State(initialValue: locked.map { Set([$0.rawValue]) }
+            ?? Set(item.listIDs.compactMap { ownerRawValue(for: $0) }))
     }
 
     private func ownerRawValue(for listID: UUID) -> String? {
@@ -4033,8 +4038,8 @@ private struct ItemEditorSheet: View {
         _amount = State(initialValue: item.quantityAmount.map { String($0) } ?? "")
         _unit = State(initialValue: item.quantityUnit ?? "")
         let locked = listOptions.first { $0.store?.rawValue == item.originStoreID }
-        _listSelection = State(initialValue: Set(locked.map(\.rawValue)
-            ?? Set(item.listIDs.compactMap { ListOwner(listID: $0)?.rawValue })))
+        _listSelection = State(initialValue: locked.map { Set([$0.rawValue]) }
+            ?? Set(item.listIDs.compactMap { ListOwner(listID: $0)?.rawValue }))
     }
 
     private var chosenLists: [ListOwner] { listOptions.filter { listSelection.contains($0.rawValue) } }
