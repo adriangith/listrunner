@@ -2128,13 +2128,18 @@ private struct AllItemsScreen: View {
         }
         var fullyRemoved: [GroceryItem] = []
         for item in removed {
-            let unaffectedOthers = item.listIDs.filter { !affectedLists.contains($0) }
+            // Uncategorised has no recognised owner: clearing it removes the
+            // item's unrecognised lists, as the pre-membership clear did.
+            let cleared: (UUID) -> Bool = group.owners.isEmpty
+                ? { ListOwner(listID: $0) == nil }
+                : { affectedLists.contains($0) }
+            let unaffectedOthers = item.listIDs.filter { !cleared($0) }
             if unaffectedOthers.isEmpty {
                 fullyRemoved.append(item)
                 for membership in item.memberships { modelContext.delete(membership) }
                 modelContext.delete(item)
             } else {
-                for membership in item.memberships where affectedLists.contains(membership.listID) {
+                for membership in item.liveMemberships where cleared(membership.listID) {
                     modelContext.delete(membership)
                 }
                 ShoppingLists.normalizeLegacyMirror(item)
