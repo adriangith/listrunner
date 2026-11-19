@@ -53,7 +53,7 @@ public struct SummaryCounts: View {
             Text(heading)
                 .font(.subheadline).foregroundStyle(.secondary)
                 .id(heading)
-                .transition(reduceMotion ? .opacity : .blurReplace)
+                .transition(reduceMotion ? .opacity : AnyTransition(.blurReplace))
                 .animation(reduceMotion ? tuning.reduced : tuning.count, value: heading)
             HStack(spacing: 0) {
                 metric(pending, "Pending", tint)

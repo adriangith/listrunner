@@ -52,7 +52,7 @@ public struct StatusBadge: View {
             }
             Text(status.rawValue)
                 .id(status)
-                .transition(animatesFully ? .blurReplace : .opacity)
+                .transition(animatesFully ? AnyTransition(.blurReplace) : .opacity)
         }
         .font(.caption2.weight(.semibold))
         .foregroundStyle(tint)
