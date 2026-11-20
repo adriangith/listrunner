@@ -4097,7 +4097,12 @@ hierarchy dump to one UI assertion message. Spec: `plan.md` → Multi-store item
   checklist sheets clipped rows at a medium detent (now full height); clearing the
   Uncategorised group removed nothing; with Inbox on, Lists…/Edit Item pre-ticked only
   Inbox for every item without a website origin.
-- **Not done:** the full UI suite, a physical-device install, and a migration of a real
-  user store (only test fixtures). Existing UI tests that asserted the old Move dialog were
+- **Physical-device review:** Xcode built, signed, installed in place and launched
+  `e9422d5` on Adrian’s iPhone 17e (iOS 27.2.1), without an uninstall or data reset.
+  `devicectl` confirmed the running process. Adrian reviewed the build and said
+  “Looks good.” Individual flows and saved-list migration were not independently
+  verified on the phone.
+- **Not done:** the full UI suite and dedicated UI tests for the new shared-item flows.
+  Existing UI tests that asserted the old Move dialog were
   rewritten for Lists…; there is no dedicated UI test yet for sharing one item across two
   stores, Remove from [store], or multi-store Add on All items (covered by native tests only).
