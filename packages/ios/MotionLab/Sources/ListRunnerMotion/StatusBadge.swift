@@ -88,7 +88,7 @@ public struct StatusBadge: View {
 // MARK: - Previews
 
 /// Flips every badge on a loop so timing can be judged without tapping.
-private struct BadgeLoop: View {
+struct BadgeLoop: View {
     @State private var added = false
     @State private var tuning = MotionTuning.standard
 
