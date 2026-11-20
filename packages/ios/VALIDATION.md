@@ -4066,3 +4066,43 @@ helpers. Earlier failures from scrambled typed setup text were removed by seedin
 items. Node tests: 557/557. The full UI suite was not run. The iPhone 17e build with
 hold-to-delete (`aa80937`) was installed and launched, and the user reviewed it on the
 phone and approved it. Later commits change only tests, debug-only fixtures and docs.
+
+## Multi-store items (19 November 2026)
+
+Branch `feat/multi-store-items`. App revision under test
+`6f65cc04e4c79616d04026dbb6985fd7e2d535fc`; the next commit (`43e7b3b`) only adds a
+hierarchy dump to one UI assertion message. Spec: `plan.md` → Multi-store items.
+
+- **Build:** Mac `build` and `build-for-testing` succeeded (iOS Simulator).
+- **Native service tests** (`tests/run-recovery-tests.sh`): 1983/1983 checks pass,
+  including the new membership backfill, idempotency, sharing, per-list positions,
+  moves via `setLists`, Inbox exclusivity, legacy fallback rows and list-local
+  duplicate merging. Legacy (unversioned) and v2 store fixtures migrate to V4.
+- **UI tests:** 67 impacted `StoreSelectionTests` (All items, Inbox, move/delete/clear,
+  welcome, store management, card hold-delete) on the iPhone 18 Pro simulator, one
+  shard, 4996 s: 53 passed, 13 failed. Of the 13:
+  - 4 passed on an isolated rerun (flaky): `testAllItemsBrowseLongPressReordersWithinStoreAndPersists`,
+    `testAllItemsStoreEdgeSwipeWhileTypingPreservesStoreDraft` (scrambled simulator typing),
+    `testClearAddedPreservesPendingSkippedAndOtherStores`,
+    `testStoreProductCardHoldDeletesActiveItemAndMovesToNextPending`.
+  - 9 also fail on unmodified `main` (`5fd1c61`) on the same simulator, so they predate
+    this change: `testAllItemsClearRowMatchesStoreListHeight`, `testClearListHasWideTapTarget`
+    (Clear List row measures 74 pt, test allows < 56), `testDisablingActiveBunningsRequiresClearingItsList`,
+    `testEnabledStoresMoveOutOfDiscoveryGroupsAndBack`, both `testFirstStoreWelcomePreview*`
+    tests, `testSwipeLeftRevealsDeleteAndRemovesOnlyThatItem`, `testWalmartMovesToLocalGroupForUnitedStates`,
+    `testAllItemsSwipeBackPreservesDraftDestinationAndGrouping` (scope menu stays open after
+    tapping Coles; failed twice on `main`).
+- **Bugs found by the UI run and fixed before the final run:** Lists… switches did not
+  receive taps (rows are now full-width checkmark buttons, matching the design); the
+  checklist sheets clipped rows at a medium detent (now full height); clearing the
+  Uncategorised group removed nothing; with Inbox on, Lists…/Edit Item pre-ticked only
+  Inbox for every item without a website origin.
+- **Physical-device review:** Xcode built, signed, installed in place and launched
+  `e9422d5` on Adrian’s iPhone 17e (iOS 27.2.1), without an uninstall or data reset.
+  `devicectl` confirmed the running process. Adrian reviewed the build and said
+  “Looks good.” Individual flows and saved-list migration were not independently
+  verified on the phone.
+- **Not done:** the full UI suite and dedicated UI tests for the new shared-item flows.
+  Existing UI tests that asserted the old Move dialog were
+  rewritten for Lists…; there is no dedicated UI test yet for sharing one item across two
+  stores, Remove from [store], or multi-store Add on All items (covered by native tests only).

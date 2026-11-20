@@ -43,9 +43,8 @@ struct ShoppingRootScreen: View {
 
     private var shoppingVisibleIDs: Set<StoreID> { sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs) }
     private var nonEmptyListIDs: Set<UUID> {
-        Set(allItems.compactMap { item in
-            guard let id = item.listID, ListOwner(listID: id) != nil else { return nil }
-            return id
+        Set(allItems.flatMap { item in
+            item.listIDs.filter { ListOwner(listID: $0) != nil }
         })
     }
     private var activeOwner: ListOwner { ListOwner(rawValue: activeStoreID) ?? .store(.coles) }
@@ -57,7 +56,7 @@ struct ShoppingRootScreen: View {
     private var overviewAvailable: Bool {
         ShoppingListNavigationPolicy.offersAllItems(enabledStoreIDs: shoppingVisibleIDs,
                                                     inboxEnabled: visibility.inboxEnabled,
-                                                    itemListIDs: allItems.map(\.listID))
+                                                    itemListIDs: allItems.flatMap { item in item.listIDs.map(Optional.init) })
     }
 
     private var usesOverview: Bool {
@@ -124,7 +123,7 @@ struct ShoppingRootScreen: View {
                     // not been saved, or when the saved rows cannot be read.
                     guard !context.hasChanges, !reminders.importing else { throw StoreDefinition.ConfigurationError.invalid }
                     let rows = try context.fetch(FetchDescriptor<GroceryItem>())
-                    return Dictionary(grouping: rows.compactMap(\.listID), by: { $0 }).mapValues(\.count)
+                    return Dictionary(grouping: rows.flatMap(\.listIDs), by: { $0 }).mapValues(\.count)
                 }
             }
             .onChange(of: nonEmptyListIDs) { _, ids in visibility.updateNonEmptyListIDs(ids) }
@@ -671,6 +670,8 @@ private struct ListItemContent: View {
     let quantity: String
     var ownerName: String?
     var unavailable = false
+    // Other lists the item also belongs to, e.g. "Also in Woolworths".
+    var alsoIn: String?
     let status: GroceryStatus
     let tint: Color
 
@@ -679,10 +680,11 @@ private struct ListItemContent: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(sentenceCase(name)).font(.body.weight(.medium)).foregroundStyle(.primary)
                 if let ownerName {
-                    Text("\(ownerName) · Quantity \(quantity)\(unavailable ? " · Unavailable" : "")")
+                    Text("\(ownerName) · Quantity \(quantity)\(unavailable ? " · Unavailable" : "")\(alsoIn.map { " · \($0)" } ?? "")")
                         .font(.caption).foregroundStyle(.secondary)
                 } else {
-                    Text("Quantity \(quantity)").font(.caption).foregroundStyle(.secondary)
+                    Text("Quantity \(quantity)\(alsoIn.map { " · \($0)" } ?? "")")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 6)
@@ -719,6 +721,7 @@ private struct ShoppingListItemRow<Actions: View>: View {
     let quantity: String
     var ownerName: String?
     var unavailable = false
+    var alsoIn: String?
     let status: GroceryStatus
     let tint: Color
     let accessibilityLabel: String
@@ -753,25 +756,28 @@ private struct ShoppingListItemRow<Actions: View>: View {
 
     private var itemContent: some View {
         ListItemContent(name: name, quantity: quantity, ownerName: ownerName,
-                        unavailable: unavailable, status: status,
+                        unavailable: unavailable, alsoIn: alsoIn, status: status,
                         tint: status == .skipped ? .secondary : tint)
     }
 }
 
 private struct AllItemsAddButton: View {
     @ScaledMetric(relativeTo: .body) private var verticalPadding = 7.0
-    let destination: ListOwner?
+    let destinations: [ListOwner]
     let stores: [ListOwner]
     let onChooseDestination: (ListOwner) -> Void
+    let onChooseDestinations: () -> Void
     let canAdd: Bool
     let onAdd: () -> Void
     let onManageStores: () -> Void
 
     var body: some View {
-        if let destination {
+        if !destinations.isEmpty {
             HStack(spacing: 0) {
                 Button(action: onAdd) {
-                    Text("Add to \(destination.displayName)")
+                    Text(destinations.count == 1
+                        ? "Add to \(destinations[0].displayName)"
+                        : "Add to \(destinations.count) Stores")
                         .font(.body)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.leading, 14).padding(.trailing, 12)
@@ -785,16 +791,18 @@ private struct AllItemsAddButton: View {
                 Menu {
                     ForEach(stores) { store in
                         Button { onChooseDestination(store) } label: {
-                            if store == destination { Label(store.displayName, systemImage: "checkmark") }
+                            if destinations.contains(store) { Label(store.displayName, systemImage: "checkmark") }
                             else { Text(store.displayName) }
                         }
                     }
+                    Divider()
+                    Button("Choose Lists…", action: onChooseDestinations)
                 } label: {
                     Image(systemName: "chevron.down").font(.caption.weight(.bold))
                         .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
                 }
-                .accessibilityLabel("Choose add destination")
-                .accessibilityValue(destination.displayName)
+                .accessibilityLabel("Choose add destinations")
+                .accessibilityValue(Text(destinations.map(\.displayName).joined(separator: ", ")))
                 .accessibilityIdentifier("all-items-add-destination")
             }
             .modifier(ProductAddButtonChrome())
@@ -805,9 +813,11 @@ private struct AllItemsAddButton: View {
                     ForEach(stores) { store in
                         Button(store.displayName) { onChooseDestination(store) }
                     }
+                    Divider()
+                    Button("Choose Lists…", action: onChooseDestinations)
                 }
             } label: {
-                Label("Choose Store", systemImage: "chevron.down")
+                Label("Choose Lists", systemImage: "chevron.down")
                     .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
             }
             .buttonStyle(.borderedProminent)
@@ -1187,6 +1197,9 @@ private struct AllItemsScreen: View {
     @State private var groupAddRequest: UUID?
     @State private var groupAddFocusRequest: UUID?
     @State private var clearRequest: AllItemsClearRequest?
+    @State private var showingDestinationPicker = false
+    @State private var editingListsItem: GroceryItem?
+    @State private var shoppingChooserItem: GroceryItem?
     @State private var editingItem: GroceryItem?
     @State private var shoppingDestination: StoreID?
     @State private var importDestination: StoreID?
@@ -1223,9 +1236,10 @@ private struct AllItemsScreen: View {
         case .store(let store): shoppingVisibleIDs.contains(store)
         }
     }
-    private var destinationID: ListOwner? {
-        ListOwner(rawValue: destinationRawValue).flatMap { isAvailable($0) ? $0 : nil }
+    private var destinationOwners: [ListOwner] {
+        destinationRawValue.split(separator: ",").compactMap { ListOwner(rawValue: String($0)) }.filter { isAvailable($0) }
     }
+    private var destinationID: ListOwner? { destinationOwners.first }
     private var visibleStores: [StoreDefinition] {
         StoreCatalogue.ordered(sessions.definitions, countryCode: nil,
                                enabledIDs: shoppingVisibleIDs)
@@ -1235,7 +1249,7 @@ private struct AllItemsScreen: View {
         (visibility.inboxEnabled ? [.inbox] : []) + visibleStores.map { .store($0.id) }
     }
     private var shoppingStores: [StoreDefinition] {
-        let populatedListIDs = Set(allItems.map(\.listID))
+        let populatedListIDs = Set(allItems.flatMap(\.listIDs))
         return visibleStores.filter { populatedListIDs.contains($0.id.listID) }
     }
     private var pendingCount: Int { allItems.filter { $0.status == .pending }.count }
@@ -1250,7 +1264,23 @@ private struct AllItemsScreen: View {
         func groupRank(_ group: AllItemsGroup) -> Int {
             group.items.compactMap { itemRanks[$0.id] }.min() ?? Int.max
         }
-        let owned = allItems.map { item in (ListOwner(listID: item.listID), item) }
+        // One pair per (item, list): a shared item appears in each of its
+        // store groups; an unknown or missing owner appears once as
+        // Uncategorised, never silently dropped.
+        let owned: [(ListOwner?, GroceryItem)] = allItems.flatMap { item in
+            var pairs: [(ListOwner?, GroceryItem)] = []
+            var orphaned = false
+            for listID in item.listIDs {
+                if let owner = ListOwner(listID: listID) {
+                    pairs.append((owner, item))
+                } else if !orphaned {
+                    orphaned = true
+                    pairs.append((nil, item))
+                }
+            }
+            if pairs.isEmpty { pairs.append((nil, item)) }
+            return pairs
+        }
         let definitions = Dictionary(uniqueKeysWithValues: sessions.definitions.map { ($0.id, $0) })
         func storeOrder(_ ids: [ListOwner]) -> [ListOwner] {
             let ranked = ids.sorted { lhs, rhs in
@@ -1260,16 +1290,17 @@ private struct AllItemsScreen: View {
             }
             return ranked
         }
-        func byPosition(_ items: [GroceryItem]) -> [GroceryItem] {
+        // Each store group orders by that list's own membership positions.
+        func byListPosition(_ items: [GroceryItem], in listID: UUID) -> [GroceryItem] {
             items.sorted { left, right in
-                if left.position == right.position { return left.id.uuidString < right.id.uuidString }
-                return left.position < right.position
+                let lhs = left.sortPosition(in: listID), rhs = right.sortPosition(in: listID)
+                return lhs == rhs ? left.id.uuidString < right.id.uuidString : lhs < rhs
             }
         }
         if grouping == .store {
             var known: [AllItemsGroup] = []
             for id in ListOwner.all {
-                let values = byPosition(owned.filter { $0.0 == id }.map(\.1))
+                let values = byListPosition(owned.filter { $0.0 == id }.map(\.1), in: id.listID)
                 if !values.isEmpty || (!editMode.isEditing && workingStoreID == id && isAvailable(id)) {
                     known.append(AllItemsGroup(id: "store-\(id.rawValue)", title: id.displayName, owners: [id], items: values))
                 }
@@ -1306,14 +1337,21 @@ private struct AllItemsScreen: View {
             let order = Dictionary(uniqueKeysWithValues: owners.enumerated().map { ($1, $0) })
             let historicalItems = values.sorted { lhs, rhs in
                 let li = lhs.0.flatMap { order[$0] } ?? Int.max, ri = rhs.0.flatMap { order[$0] } ?? Int.max
-                return li == ri ? (lhs.1.position == rhs.1.position ? lhs.1.id.uuidString < rhs.1.id.uuidString : lhs.1.position < rhs.1.position) : li < ri
-            }.map(\.1)
+                if li != ri { return li < ri }
+                let lp = lhs.0.map { lhs.1.sortPosition(in: $0.listID) } ?? lhs.1.position
+                let rp = rhs.0.map { rhs.1.sortPosition(in: $0.listID) } ?? rhs.1.position
+                return lp == rp ? lhs.1.id.uuidString < rhs.1.id.uuidString : lp < rp
+            }
+            // A shared item whose stores share a category appears once in
+            // that category group, at its best-ranked occurrence.
+            var seen = Set<UUID>()
+            let unique = historicalItems.filter { seen.insert($0.1.id).inserted }
             return AllItemsGroup(id: "category-\(category.rawValue)", title: category.displayName,
-                                 owners: owners, items: promoted(historicalItems))
+                                 owners: owners, items: promoted(unique.map(\.1)))
         }
         if !inboxItems.isEmpty {
             categorized.append(AllItemsGroup(id: "category-inbox", title: ListOwner.inbox.displayName,
-                                             owners: [.inbox], items: promoted(byPosition(inboxItems))))
+                                             owners: [.inbox], items: promoted(byListPosition(inboxItems, in: ListOwner.inbox.listID))))
         }
         categorized.sort { lhs, rhs in
             let li = groupRank(lhs), ri = groupRank(rhs)
@@ -1379,10 +1417,11 @@ private struct AllItemsScreen: View {
                     interactionGeometry.editor = frame
                     if heightChanged { revealFocusedEntry() }
                 }, onActionsFrame: { interactionGeometry.actions = $0 }, onManualScroll: userScrolled) {
-                    AllItemsAddButton(destination: destinationID, stores: availableOwners,
+                    AllItemsAddButton(destinations: destinationOwners, stores: availableOwners,
                          onChooseDestination: selectAddDestination,
-                        canAdd: !ParsedGrocery.productEntries(in: draft).isEmpty,
-                        onAdd: addItems, onManageStores: { showingStoreManagement = true })
+                         onChooseDestinations: { showingDestinationPicker = true },
+                         canAdd: !ParsedGrocery.productEntries(in: draft).isEmpty,
+                         onAdd: addItems, onManageStores: { showingStoreManagement = true })
                 }
             if groups.isEmpty {
                 ContentUnavailableView("Your lists are empty", systemImage: "basket",
@@ -1442,7 +1481,13 @@ private struct AllItemsScreen: View {
                             Button("Cancel", role: .cancel) { clearRequest = nil }
                         } message: {
                             if grouping == .store || group.owners == [.inbox] {
-                                Text("This clears only your \(group.title) list in ListRunner. It does not change any store cart or Apple Reminders.")
+                                if group.items.contains(where: \.isShared) {
+                                    Text("This clears only your \(group.title) list in ListRunner. Items also on other lists stay on them. It does not change any store cart or Apple Reminders.")
+                                } else {
+                                    Text("This clears only your \(group.title) list in ListRunner. It does not change any store cart or Apple Reminders.")
+                                }
+                            } else if group.items.contains(where: \.isShared) {
+                                Text("This clears only items shown in the \(group.title) category in ListRunner, across its store lists. Items also on other lists stay on them. It does not change any store cart or Apple Reminders.")
                             } else {
                                 Text("This clears only items shown in the \(group.title) category in ListRunner, across its store lists. It does not change any store cart or Apple Reminders.")
                             }
@@ -1600,19 +1645,55 @@ private struct AllItemsScreen: View {
                 })
         }
         .sheet(item: $editingItem) { item in
-            ItemEditorSheet(item: item) { name, amount, unit in
+            ItemEditorSheet(item: item, listOptions: editorListOptions(for: item)) { name, amount, unit, lists in
                 item.name = name
                 item.searchTerm = name
                 item.quantityAmount = amount
                 item.quantityUnit = amount == nil ? nil : unit
                 item.status = .pending
+                if !lists.isEmpty { applyLists(lists, to: item) }
                 stageReminderWriteback(for: item)
                 saveChanges()
             }
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showingDestinationPicker) {
+            AddDestinationSheet(options: availableOwners, initialSelection: Set(destinationOwners.map(\.rawValue))) { chosen in
+                destinationRawValue = chosen.map(\.rawValue).joined(separator: ",")
+            }
+            .presentationDetents([.large])
+        }
+        .sheet(item: $editingListsItem) { item in
+            ListsEditorSheet(item: item, options: editorListOptions(for: item)) { lists in
+                applyLists(lists, to: item)
+                stageReminderWriteback(for: item)
+                if saveChanges() {
+                    notice = lists.count == 1
+                        ? "Item is now on \(lists[0].displayName)."
+                        : "Item is now on \(joinedNames(lists.map(\.displayName)))."
+                }
+            }
+            .presentationDetents([.large])
+        }
+        .confirmationDialog("Open which store?", isPresented: Binding(
+            get: { shoppingChooserItem != nil }, set: { if !$0 { shoppingChooserItem = nil } }),
+            titleVisibility: .visible) {
+            if let item = shoppingChooserItem {
+                ForEach(shoppingChoices(for: item), id: \.rawValue) { owner in
+                    Button(owner.displayName) {
+                        openAllItem(item, at: owner)
+                        shoppingChooserItem = nil
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) { shoppingChooserItem = nil }
+        } message: {
+            if let item = shoppingChooserItem {
+                Text("\(item.name) is on more than one list. Choose which store to shop.")
+            }
         }
         .sheet(item: $shoppingDestination) { store in
-            StoreShoppingView(items: allItems.filter { $0.listID == store.listID }.sorted { $0.position < $1.position },
+            StoreShoppingView(items: ShoppingLists.orderedItems(in: store.listID, from: allItems),
                 browser: sessions.browser(for: store),
                 initialSelectedID: lists.first { $0.id == store.listID }?.selectedItemID,
                 saveFailed: saveFailed,
@@ -1653,7 +1734,7 @@ private struct AllItemsScreen: View {
             onListVisibilityChange(false)
             entryFocused = false
             entryFocus.resignFirstResponder()
-            if let workingStoreID, !allItems.contains(where: { $0.listID == workingStoreID.listID }) {
+            if let workingStoreID, !allItems.contains(where: { $0.listIDs.contains(workingStoreID.listID) }) {
                 self.workingStoreID = nil
             }
             groupAddRequest = nil
@@ -1678,7 +1759,7 @@ private struct AllItemsScreen: View {
     private func groupItemRows(_ group: AllItemsGroup, using proxy: ScrollViewProxy) -> some View {
         if usesNativeGroupRows {
             ForEach(group.items, id: \.id) { item in
-                groupItemRow(item, using: proxy)
+                groupItemRow(item, in: group, using: proxy)
             }
             .onMove(perform: grouping == .store && group.owners.count == 1 ? { source, destination in
                 moveItems(in: group, from: source, to: destination)
@@ -1687,15 +1768,21 @@ private struct AllItemsScreen: View {
             AllItemsItemRows(groupID: group.id, items: group.items,
                 canReorder: grouping == .store && group.owners.count == 1,
                 onReorder: { reorderItems($0, before: $1, in: group) }, onDelete: delete,
-                onSelect: openAllItem) { item in
-                    groupItemRow(item, using: proxy)
+                onSelect: { openAllItem($0, choosingFrom: displayOwner(of: $0, in: group)) }) { item in
+                    groupItemRow(item, in: group, using: proxy)
                 }
         }
     }
 
+    // Which of the group's lists a row speaks for: the group's own owner in
+    // By store, or the item's best-ranked list among the category's owners.
+    private func displayOwner(of item: GroceryItem, in group: AllItemsGroup) -> ListOwner? {
+        group.owners.first { item.listIDs.contains($0.listID) } ?? group.owners.first
+    }
+
     @ViewBuilder
-    private func groupItemRow(_ item: GroceryItem, using proxy: ScrollViewProxy) -> some View {
-        let row = allItemRow(item, nativeSelection: !usesNativeGroupRows)
+    private func groupItemRow(_ item: GroceryItem, in group: AllItemsGroup, using proxy: ScrollViewProxy) -> some View {
+        let row = allItemRow(item, displayOwner: displayOwner(of: item, in: group), nativeSelection: !usesNativeGroupRows)
             .padding(.horizontal, usesNativeGroupRows ? 0 : 16)
             .background(highlightedItemIDs.contains(item.id) ? Color.accentColor.opacity(0.12) : Color.clear)
             .id(item.id)
@@ -1736,6 +1823,9 @@ private struct AllItemsScreen: View {
         }, onRevealing: { isRevealingEntry = $0 })
     }
 
+    // Choosing a store in the menu replaces the single destination and
+    // promotes its group, preserving the draft and keyboard/focus state.
+    // Multi-list sets are chosen through the Lists… sheet.
     private func selectAddDestination(_ store: ListOwner) {
         guard isAvailable(store) else { return }
         groupAddRequest = nil
@@ -1827,14 +1917,18 @@ private struct AllItemsScreen: View {
         })
     }
 
-    private func allItemRow(_ item: GroceryItem, nativeSelection: Bool = false) -> some View {
-        let owner = ListOwner(listID: item.listID)
-        let available = owner.map(isAvailable) ?? false
+    private func allItemRow(_ item: GroceryItem, displayOwner: ListOwner?, nativeSelection: Bool = false) -> some View {
+        let available = displayOwner.map(isAvailable) ?? false
+        let alsoIn = joinedAlsoIn(item, excluding: displayOwner?.listID)
         return ShoppingListItemRow(name: item.name, quantity: item.displayQuantity,
-            ownerName: owner?.displayName ?? "Uncategorised", unavailable: !available,
-            status: item.status, tint: owner.map(storeTint) ?? .accentColor,
-            accessibilityLabel: "\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(owner.map { ", \($0.displayName)" } ?? ", Uncategorised")\(available ? "" : ", Unavailable")",
-            nativeSelection: nativeSelection, onOpen: { openAllItem(item) }) {
+            ownerName: displayOwner?.displayName ?? "Uncategorised", unavailable: !available,
+            alsoIn: alsoIn,
+            status: item.status, tint: displayOwner.map(storeTint) ?? .accentColor,
+            accessibilityLabel: "\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)\(displayOwner.map { ", \($0.displayName)" } ?? ", Uncategorised")\(alsoIn.map { ", \($0)" } ?? "")\(available ? "" : ", Unavailable")",
+            nativeSelection: nativeSelection, onOpen: {
+                if grouping == .category { openAllItem(item, choosingFrom: displayOwner) }
+                else { openAllItem(item, at: displayOwner) }
+            }) {
                 Button("Edit Item", systemImage: "pencil") { editingItem = item }
                 if item.status == .pending {
                     Button("Mark Added", systemImage: "checkmark.circle") { setStatus(.added, for: item) }
@@ -1846,32 +1940,109 @@ private struct AllItemsScreen: View {
                 } else {
                     Button("Mark Pending", systemImage: "arrow.uturn.backward.circle") { setStatus(.pending, for: item) }
                 }
-                    Menu("Move to Another List", systemImage: "arrow.right.arrow.left") {
-                        ForEach(availableOwners.filter { $0 != owner }) { destination in
-                            Button(destination.displayName) { move(item, to: destination) }
-                        }
+                Button("Lists…", systemImage: "arrow.right.arrow.left") { editingListsItem = item }
+                if let displayOwner, item.listIDs.count > 1 {
+                    Button("Remove from \(displayOwner.displayName)", systemImage: "minus.circle") {
+                        removeItem(item, from: displayOwner)
                     }
-                Button("Delete Item", systemImage: "trash", role: .destructive) { delete(item) }
+                }
+                Button(item.listIDs.count > 1 ? "Delete from All Lists" : "Delete Item",
+                       systemImage: "trash", role: .destructive) { delete(item) }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("all-item-\(item.id.uuidString)")
     }
 
-    private func openAllItem(_ item: GroceryItem) {
+    // "Also in Woolworths" / "Also in Woolworths and Bunnings" for the row's
+    // secondary caption, in the ordinary grey colour of that caption.
+    private func joinedAlsoIn(_ item: GroceryItem, excluding listID: UUID?) -> String? {
+        let names = item.otherListNames(excluding: listID)
+        guard !names.isEmpty else { return nil }
+        return "Also in \(joinedNames(names))"
+    }
+
+    // The list options offered by Edit Item and Lists…: Inbox when on, then
+    // the available stores, always including a current owner that is not
+    // currently available so an item can be moved off a disabled list.
+    private func editorListOptions(for item: GroceryItem) -> [ListOwner] {
+        var options = availableOwners
+        for listID in item.listIDs {
+            if let owner = ListOwner(listID: listID), !options.contains(owner) {
+                options.append(owner)
+            }
+        }
+        return options
+    }
+
+    private func applyLists(_ lists: [ListOwner], to item: GroceryItem) {
+        let previous = Set(item.listIDs)
+        for listID in previous.subtracting(Set(lists.map(\.listID))) {
+            if let store = ListOwner(listID: listID)?.store { sessions.browser(for: store).endInteraction() }
+            repairSelection(afterRemoving: item.id, from: listID)
+        }
+        ShoppingLists.setLists(item, to: lists, allItems: allItems, context: modelContext)
+        ShoppingLists.repairOrder(removedIDs: [item.id],
+                                  affectedListIDs: previous.subtracting(Set(lists.map(\.listID))),
+                                  allItems: allItems)
+    }
+
+    private func removeItem(_ item: GroceryItem, from owner: ListOwner) {
+        repairSelection(afterRemoving: item.id, from: owner.listID)
+        if let store = owner.store { sessions.browser(for: store).endInteraction() }
+        ShoppingLists.removeList(owner.listID, from: item)
+        ShoppingLists.repairOrder(removedIDs: [item.id], affectedListIDs: [owner.listID], allItems: allItems)
+        if saveChanges() {
+            notice = "Removed from \(owner.displayName). It stays on its other lists."
+        }
+    }
+
+    private func repairSelection(afterRemoving id: UUID, from listID: UUID) {
+        guard let list = lists.first(where: { $0.id == listID }),
+              list.selectedItemID == id else { return }
+        list.selectedItemID = ShoppingLists.selection(afterRemoving: id,
+            from: ShoppingLists.orderedItems(in: listID, from: allItems))
+    }
+
+    private func shoppingChoices(for item: GroceryItem) -> [ListOwner] {
+        item.listIDs.compactMap { ListOwner(listID: $0) }.filter { owner in
+            guard case .store(let store) = owner else { return false }
+            return shoppingVisibleIDs.contains(store)
+        }
+    }
+
+    private func openAllItem(_ item: GroceryItem, at owner: ListOwner?) {
         guard !editMode.isEditing else { editingItem = item; return }
-        guard let listOwner = ListOwner(listID: item.listID) else {
+        guard case .store(let storeOwner) = owner else {
+            if owner == .inbox { editingItem = item; return }
             notice = "This saved item has no recognized store list. It remains visible and has not been moved or deleted."
             return
         }
-        // Inbox rows have no store to open; a tap edits the item.
-        guard case .store(let owner) = listOwner else { editingItem = item; return }
-        guard shoppingVisibleIDs.contains(owner) else {
-            notice = "Shopping with \(owner.displayName) is unavailable. This saved item remains editable here; use its Actions menu to edit or move it."
+        guard shoppingVisibleIDs.contains(storeOwner) else {
+            notice = "Shopping with \(storeOwner.displayName) is unavailable. This saved item remains editable here; use its Actions menu to edit or move it."
             return
         }
-        let list = lists.first { $0.id == owner.listID }
+        let list = lists.first { $0.id == owner?.listID }
         list?.selectedItemID = item.id
-        if saveChanges() { shoppingDestination = owner }
+        if saveChanges() { shoppingDestination = storeOwner }
+    }
+
+    private func openAllItem(_ item: GroceryItem, choosingFrom displayOwner: ListOwner?) {
+        guard !editMode.isEditing else { editingItem = item; return }
+        if case .inbox = displayOwner { editingItem = item; return }
+        if displayOwner == nil {
+            notice = "This saved item has no recognized store list. It remains visible and has not been moved or deleted."
+            return
+        }
+        let choices = shoppingChoices(for: item)
+        guard !choices.isEmpty else {
+            openAllItem(item, at: displayOwner)
+            return
+        }
+        if choices.count == 1, let only = choices.first {
+            openAllItem(item, at: only)
+        } else {
+            shoppingChooserItem = item
+        }
     }
 
     private func setStatus(_ status: GroceryStatus, for item: GroceryItem) {
@@ -1881,52 +2052,44 @@ private struct AllItemsScreen: View {
     }
 
     private func moveItems(in group: AllItemsGroup, from source: IndexSet, to destination: Int) {
-        guard grouping == .store, group.owners.count == 1 else { return }
+        guard grouping == .store, group.owners.count == 1, let owner = group.owners.first else { return }
         var orderedItems = group.items
         orderedItems.move(fromOffsets: source, toOffset: destination)
+        // Reordering changes only this list's own positions, never another
+        // list's copy of a shared item.
         for (position, item) in orderedItems.enumerated() {
-            item.position = position
+            if let membership = item.membership(in: owner.listID) { membership.position = position }
+            if item.listID == owner.listID { item.position = position }
         }
         saveChanges()
     }
 
     private func reorderItems(_ sources: [UUID], before destination: UUID?, in group: AllItemsGroup) {
         guard grouping == .store, group.owners.count == 1, let store = group.owners.first else { return }
-        let current = allItems.filter { $0.listID == store.listID }.sorted {
-            $0.position == $1.position ? $0.id.uuidString < $1.id.uuidString : $0.position < $1.position
-        }
+        let current = ShoppingLists.orderedItems(in: store.listID, from: allItems)
         // A drag from another card must never become a cross-store transfer.
         guard let order = ShoppingLists.reorderedIDs(current.map(\.id), moving: sources, before: destination),
               order != current.map(\.id) else { return }
         let byID = Dictionary(uniqueKeysWithValues: current.map { ($0.id, $0) })
-        for (position, id) in order.enumerated() { byID[id]?.position = position }
+        for (position, id) in order.enumerated() {
+            guard let item = byID[id] else { continue }
+            if let membership = item.membership(in: store.listID) { membership.position = position }
+            if item.listID == store.listID { item.position = position }
+        }
         saveChanges()
     }
 
-    private func move(_ item: GroceryItem, to destination: ListOwner) {
-        guard isAvailable(destination), ListOwner(listID: item.listID) != destination else { return }
-        let source = ListOwner(listID: item.listID)
-        if let source, let sourceList = lists.first(where: { $0.id == source.listID }), sourceList.selectedItemID == item.id {
-            sourceList.selectedItemID = ShoppingLists.selection(afterRemoving: item.id,
-                from: allItems.filter { $0.listID == source.listID })
-        }
-        if let store = source?.store { sessions.browser(for: store).endInteraction() }
-        ShoppingLists.move(item, to: destination, allItems: allItems)
-        stageReminderWriteback(for: item)
-        if saveChanges() { notice = "Moved item to \(destination.displayName)." }
-    }
-
     private func delete(_ item: GroceryItem) {
-        if let owner = ListOwner(listID: item.listID) {
-            let sourceItems = allItems.filter { $0.listID == owner.listID }
-            if let list = lists.first(where: { $0.id == owner.listID }), list.selectedItemID == item.id {
-                list.selectedItemID = ShoppingLists.selection(afterRemoving: item.id, from: sourceItems)
-            }
-            for (position, remaining) in sourceItems.filter({ $0.id != item.id }).enumerated() {
-                remaining.position = position
-            }
+        // One item, so Delete removes it from every list it is on, repairing
+        // each affected list's selection and order. No second confirmation.
+        let affected = Set(item.listIDs)
+        for listID in affected {
+            if let store = ListOwner(listID: listID)?.store { sessions.browser(for: store).endInteraction() }
+            repairSelection(afterRemoving: item.id, from: listID)
         }
+        for membership in item.memberships { modelContext.delete(membership) }
         modelContext.delete(item)
+        ShoppingLists.repairOrder(removedIDs: [item.id], affectedListIDs: affected, allItems: allItems)
         pendingReminderWrites.removeValue(forKey: item.id)
         paprikaReminders.cancelQueuedWriteback(for: item)
         saveChanges()
@@ -1940,32 +2103,67 @@ private struct AllItemsScreen: View {
     }
 
     private func clearItems(addedOnly: Bool) {
-        let removed = clearCandidates.filter { !addedOnly || $0.status == .added }
-        let removedIDs = Set(removed.map(\.id))
+        // Capture the confirmed group before dismissing; a concurrent change
+        // must not expand or shift the destructive scope.
+        guard let request = clearRequest, let group = groups.first(where: { $0.id == request.groupID }) else { return }
+        let candidates = group.items.filter { request.itemIDs.contains($0.id) }
+        let removed = candidates.filter { !addedOnly || $0.status == .added }
         clearRequest = nil
         guard !removed.isEmpty else { return }
-        for listID in Set(removed.map(\.listID)) {
-            let remaining = allItems.filter { $0.listID == listID && !removedIDs.contains($0.id) }
+        clear(removed, from: group)
+    }
+
+    // Clearing one list removes shared items from that list only; an item whose
+    // only list was cleared is deleted. In By category the affected lists are
+    // the group's owners, matching the existing "across its store lists" scope.
+    private func clear(_ removed: [GroceryItem], from group: AllItemsGroup) {
+        let removedIDs = Set(removed.map(\.id))
+        let affectedLists = Set(group.owners.map(\.listID))
+        guard !removed.isEmpty else { return }
+        for listID in affectedLists {
             if let store = ListOwner(listID: listID)?.store {
                 sessions.browser(for: store).endInteraction()
             }
-            if let list = lists.first(where: { $0.id == listID }) {
-                if remaining.isEmpty {
-                    list.selectedItemID = nil
-                } else if let selectedID = list.selectedItemID, removedIDs.contains(selectedID) {
-                    list.selectedItemID = remaining.first { $0.status == .pending }?.id ?? remaining.first?.id
-                }
-            }
-            for (position, item) in remaining.enumerated() { item.position = position }
+            repairSelection(afterRemovingMultiple: removedIDs, from: listID)
         }
+        var fullyRemoved: [GroceryItem] = []
         for item in removed {
+            // Uncategorised has no recognised owner: clearing it removes the
+            // item's unrecognised lists, as the pre-membership clear did.
+            let cleared: (UUID) -> Bool = group.owners.isEmpty
+                ? { ListOwner(listID: $0) == nil }
+                : { affectedLists.contains($0) }
+            let unaffectedOthers = item.listIDs.filter { !cleared($0) }
+            if unaffectedOthers.isEmpty {
+                fullyRemoved.append(item)
+                for membership in item.memberships { modelContext.delete(membership) }
+                modelContext.delete(item)
+            } else {
+                for membership in item.liveMemberships where cleared(membership.listID) {
+                    modelContext.delete(membership)
+                }
+                ShoppingLists.normalizeLegacyMirror(item)
+            }
+        }
+        ShoppingLists.repairOrder(removedIDs: removedIDs, affectedListIDs: affectedLists, allItems: allItems)
+        for item in fullyRemoved {
             pendingReminderWrites.removeValue(forKey: item.id)
             paprikaReminders.cancelQueuedWriteback(for: item)
-            modelContext.delete(item)
         }
         highlightedItemIDs.subtract(removedIDs)
         notice = nil
         saveChanges()
+    }
+
+    // Selection repair for a whole cleared batch, on one list's own order.
+    private func repairSelection(afterRemovingMultiple removedIDs: Set<UUID>, from listID: UUID) {
+        guard let list = lists.first(where: { $0.id == listID }) else { return }
+        let remaining = ShoppingLists.orderedItems(in: listID, from: allItems.filter { !removedIDs.contains($0.id) })
+        if remaining.isEmpty {
+            list.selectedItemID = nil
+        } else if let selectedID = list.selectedItemID, removedIDs.contains(selectedID) {
+            list.selectedItemID = remaining.first { $0.status == .pending }?.id ?? remaining.first?.id
+        }
     }
 
     private func stageReminderWriteback(for item: GroceryItem) {
@@ -2003,26 +2201,35 @@ private struct AllItemsScreen: View {
 
     private func addItems() {
         let entries = ParsedGrocery.productEntries(in: draft)
-        guard let destinationID, !entries.isEmpty else { return }
+        let destinations = destinationOwners
+        guard !destinations.isEmpty, !entries.isEmpty else { return }
         guard !modelContext.hasChanges else {
             notice = "Save or retry your pending list changes before adding more items. Your text is still here."
             return
         }
-        let promoted = ShoppingLists.stageAdd(entries, to: destinationID, allItems: allItems, context: modelContext)
+        // One add can reach several lists. Duplicate merging stays list-local,
+        // so the same name on two destinations stays two separate items.
+        var promoted: [GroceryItem] = []
+        for destination in destinations {
+            promoted += ShoppingLists.stageAdd(entries, to: destination, allItems: allItems, context: modelContext)
+        }
         for item in promoted { stageReminderWriteback(for: item) }
         do {
             try modelContext.save()
             let writes = Array(pendingReminderWrites.values)
             pendingReminderWrites.removeAll()
             for write in writes { paprikaReminders.queueWriteback(write) }
-            var order = recency.filter { $0 != destinationID }
-            order.insert(destinationID, at: 0)
+            var order = recency.filter { !destinations.contains($0) }
+            order.insert(contentsOf: destinations.reversed(), at: 0)
             recentStoreOrderRawValue = order.map(\.rawValue).joined(separator: ",")
-            onPromoteStore(destinationID, promoted.map(\.id))
+            for destination in destinations {
+                onPromoteStore(destination, promoted.map(\.id))
+            }
             highlightedItemIDs = Set(promoted.map(\.id))
             draft = ""
             entryFocused = true
-            notice = "Added \(promoted.count) \(promoted.count == 1 ? "item" : "items") to \(destinationID.displayName)."
+            let names = joinedNames(destinations.map(\.displayName))
+            notice = "Added \(promoted.count) \(promoted.count == 1 ? "item" : "items") to \(names)."
             UIAccessibility.post(notification: .announcement, argument: notice)
         } catch {
             modelContext.rollback()
@@ -2036,9 +2243,14 @@ private struct AllItemsScreen: View {
         guard !paprikaReminders.importing, !name.isEmpty, name.utf8.count <= 512,
               (1...999).contains(quantity) else { return nil }
         if modelContext.hasChanges, !saveChanges() { return nil }
+        let existingIDs = Set(allItems.map(\.id))
         let entry = ParsedGrocery(name: name, amount: Double(quantity), unit: nil)
         let snapshot = ShoppingLists.AdditionSnapshot(items: allItems, owner: store)
         let promoted = ShoppingLists.stageAdd([entry], to: store, allItems: allItems, context: modelContext, insertion: insertion)
+        // Website products belong to that store's list only.
+        for item in promoted where !existingIDs.contains(item.id) {
+            item.originStoreID = store.store?.rawValue
+        }
         for item in promoted { stageReminderWriteback(for: item) }
         guard saveChanges() else {
             modelContext.rollback()
@@ -2085,7 +2297,7 @@ struct GroceryListScreen: View {
     let onListVisibilityChange: (Bool) -> Void
     @Binding private var rawInput: String
     @State private var routedLaunch = false
-    @State private var itemToMove: GroceryItem?
+    @State private var editingListsItem: GroceryItem?
     @State private var editingItem: GroceryItem?
     @State private var showingStore = false
     @State private var showingStoreManagement = false
@@ -2157,14 +2369,11 @@ struct GroceryListScreen: View {
     private var browser: StoreBrowser? { browserHolder.browser }
     private var storeID: StoreID? { owner.store }
     private var diagnostics: DiagnosticStore { browser?.diagnostics ?? sessions.diagnostics }
-    private var items: [GroceryItem] { allItems.filter { $0.listID == owner.listID } }
+    private var items: [GroceryItem] { ShoppingLists.orderedItems(in: owner.listID, from: allItems) }
     private var selectedList: GroceryList? { lists.first { $0.id == owner.listID } }
     private var shoppingVisibleIDs: Set<StoreID> { sessions.shoppingAvailability.visibleIDs(in: visibility.visibleIDs) }
     private var orderedStores: [StoreDefinition] {
         StoreCatalogue.ordered(sessions.definitions, countryCode: nil, enabledIDs: shoppingVisibleIDs)
-    }
-    private var moveDestinations: [ListOwner] {
-        ((visibility.inboxEnabled ? [.inbox] : []) + orderedStores.map { .store($0.id) }).filter { $0 != owner }
     }
     // Neither an enabled store nor an enabled Inbox: show welcome/no-stores.
     private var hasNoLists: Bool {
@@ -2355,7 +2564,7 @@ struct GroceryListScreen: View {
                                 Button("Clear All", role: .destructive) { clearItems(addedOnly: false) }
                                 Button("Cancel", role: .cancel) { }
                             } message: {
-                                Text("This clears only your \(owner.displayName) list in ListRunner. It does not change any store cart or Apple Reminders.")
+                                Text(storeClearConfirmationMessage)
                             }
                         }
                     } header: {
@@ -2469,26 +2678,29 @@ struct GroceryListScreen: View {
                 }
             }
             .sheet(item: $editingItem) { item in
-                ItemEditorSheet(item: item) { name, amount, unit in
+                ItemEditorSheet(item: item, listOptions: editorListOptions()) { name, amount, unit, lists in
                     item.name = name
                     item.searchTerm = name
                     item.quantityAmount = amount
                     item.quantityUnit = amount == nil ? nil : unit
                     item.status = .pending
+                    if !lists.isEmpty { applyLists(lists, to: item) }
                     stageReminderWriteback(for: item)
                     saveChanges()
                 }
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
             }
-            .confirmationDialog("Move item to another list?", isPresented: Binding(get: { itemToMove != nil }, set: { if !$0 { itemToMove = nil } }), titleVisibility: .visible) {
-                if let item = itemToMove {
-                    ForEach(moveDestinations) { destination in
-                        Button("Move to \(destination.displayName)") { moveItem(item, to: destination); itemToMove = nil }
+            .sheet(item: $editingListsItem) { item in
+                ListsEditorSheet(item: item, options: editorListOptions()) { lists in
+                    applyLists(lists, to: item)
+                    stageReminderWriteback(for: item)
+                    if saveChanges() {
+                        notice = lists.count == 1
+                            ? "Item is now on \(lists[0].displayName)."
+                            : "Item is now on \(joinedNames(lists.map(\.displayName)))."
                     }
                 }
-                Button("Cancel", role: .cancel) { itemToMove = nil }
-            } message: {
-                Text("The item moves to the other list as Pending. No store basket is changed. Existing items in the other list are not merged.")
+                .presentationDetents([.large])
             }
         }
         .tint(storePrimaryColor)
@@ -2595,6 +2807,7 @@ struct GroceryListScreen: View {
     private func groceryList(using scrollProxy: ScrollViewProxy) -> some View {
         ForEach(items) { item in
             ShoppingListItemRow(name: item.name, quantity: item.displayQuantity,
+                alsoIn: joinedAlsoIn(item),
                 status: item.status, tint: storePrimaryColor,
                 accessibilityLabel: storeID.map { "\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue). Find in \($0.displayName)" }
                     ?? "\(item.name), quantity \(item.displayQuantity), \(item.status.rawValue)",
@@ -2615,8 +2828,12 @@ struct GroceryListScreen: View {
                         Button("Mark Skipped", systemImage: "forward.end") { setStatus(.skipped, for: item) }
                     }
                     Button("Edit Item", systemImage: "pencil") { editingItem = item }
-                    Button("Move to Another List", systemImage: "arrow.right.arrow.left") { itemToMove = item }
-                    Button("Delete Item", systemImage: "trash", role: .destructive) { delete(item) }
+                    Button("Lists…", systemImage: "arrow.right.arrow.left") { editingListsItem = item }
+                    if item.listIDs.count > 1 {
+                        Button("Remove from \(owner.displayName)", systemImage: "minus.circle") { removeItem(item) }
+                    }
+                    Button(item.listIDs.count > 1 ? "Delete from All Lists" : "Delete Item",
+                           systemImage: "trash", role: .destructive) { delete(item) }
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button("Delete", systemImage: "trash", role: .destructive) { delete(item) }
@@ -2758,8 +2975,13 @@ struct GroceryListScreen: View {
         }
         // This is one literal product title, not a comma-separated ingredient input.
         let entry = ParsedGrocery(name: name, amount: Double(quantity), unit: nil)
+        let existingIDs = Set(allItems.map(\.id))
         let snapshot = ShoppingLists.AdditionSnapshot(items: allItems, owner: owner)
         let promoted = ShoppingLists.stageAdd([entry], to: owner, allItems: allItems, context: modelContext, insertion: insertion)
+        // Website products belong to this store's list only.
+        for item in promoted where !existingIDs.contains(item.id) {
+            item.originStoreID = storeID?.rawValue
+        }
         for item in promoted { stageReminderWriteback(for: item) }
         saveChanges()
         guard !saveFailed else {
@@ -2819,13 +3041,23 @@ struct GroceryListScreen: View {
 
 
     private func delete(_ item: GroceryItem) {
+        // One item: Delete removes it from every list it is on, repairing each
+        // affected list's selection and order. No second confirmation.
+        let affected = Set(item.listIDs)
+        for listID in affected {
+            if let store = ListOwner(listID: listID)?.store, store != storeID {
+                sessions.browser(for: store).endInteraction()
+            }
+            if let list = lists.first(where: { $0.id == listID }), list.selectedItemID == item.id {
+                list.selectedItemID = ShoppingLists.selection(afterRemoving: item.id,
+                    from: ShoppingLists.orderedItems(in: listID, from: allItems))
+            }
+        }
         pendingReminderWrites.removeValue(forKey: item.id)
         paprikaReminders.cancelQueuedWriteback(for: item)
-        if selectedList?.selectedItemID == item.id {
-            selectedList?.selectedItemID = ShoppingLists.selection(afterRemoving: item.id, from: items)
-        }
+        for membership in item.memberships { modelContext.delete(membership) }
         modelContext.delete(item)
-        normalizePositions()
+        ShoppingLists.repairOrder(removedIDs: [item.id], affectedListIDs: affected, allItems: allItems)
         saveChanges()
     }
 
@@ -2838,8 +3070,10 @@ struct GroceryListScreen: View {
     private func moveItems(from source: IndexSet, to destination: Int) {
         var orderedItems = items
         orderedItems.move(fromOffsets: source, toOffset: destination)
+        // Reordering changes only this list's own positions.
         for (position, item) in orderedItems.enumerated() {
-            item.position = position
+            if let membership = item.membership(in: owner.listID) { membership.position = position }
+            if item.listID == owner.listID { item.position = position }
         }
         saveChanges()
     }
@@ -2848,6 +3082,12 @@ struct GroceryListScreen: View {
         // Turning Inbox on cannot be blocked; only turning it off checks rows.
         visibility.setInboxEnabled(true)
         onWelcomeStoreEnabled(.inbox)
+    }
+
+    private var storeClearConfirmationMessage: String {
+        items.contains(where: \.isShared)
+            ? "This clears only your \(owner.displayName) list in ListRunner. Items also on other lists stay on them. It does not change any store cart or Apple Reminders."
+            : "This clears only your \(owner.displayName) list in ListRunner. It does not change any store cart or Apple Reminders."
     }
 
     private func clearList() {
@@ -2870,10 +3110,6 @@ struct GroceryListScreen: View {
         let removedIDs = Set(removed.map(\.id))
         let remaining = items.filter { !removedIDs.contains($0.id) }
         browser?.endInteraction()
-        for item in removed {
-            pendingReminderWrites.removeValue(forKey: item.id)
-            paprikaReminders.cancelQueuedWriteback(for: item)
-        }
         if remaining.isEmpty {
             selectedList?.selectedItemID = nil
         } else if let selectedID = selectedList?.selectedItemID, removedIDs.contains(selectedID) {
@@ -2884,42 +3120,107 @@ struct GroceryListScreen: View {
             cancelAddedItemScroll()
             scrollTargetItemID = nil
         }
-        for item in removed { modelContext.delete(item) }
-        for (position, item) in remaining.enumerated() { item.position = position }
+        // Clearing this list removes shared items from here only; items whose
+        // only list was this one are deleted.
+        for item in removed {
+            let otherLists = item.listIDs.filter { $0 != owner.listID }
+            if otherLists.isEmpty {
+                pendingReminderWrites.removeValue(forKey: item.id)
+                paprikaReminders.cancelQueuedWriteback(for: item)
+                for membership in item.memberships { modelContext.delete(membership) }
+                modelContext.delete(item)
+            } else {
+                for membership in item.memberships where membership.listID == owner.listID {
+                    modelContext.delete(membership)
+                }
+                ShoppingLists.normalizeLegacyMirror(item)
+            }
+        }
+        ShoppingLists.repairOrder(removedIDs: removedIDs, affectedListIDs: [owner.listID], allItems: allItems)
         notice = nil
         saveChanges()
     }
 
     private func normalizePositions() {
-        for (index, item) in items.enumerated() { item.position = index }
+        for (index, item) in items.enumerated() {
+            if let membership = item.membership(in: owner.listID) { membership.position = index }
+            if item.listID == owner.listID { item.position = index }
+        }
     }
 
-    private func saveChanges() {
+    @discardableResult
+    private func saveChanges() -> Bool {
         do {
             try modelContext.save()
             saveFailed = false
             let writes = Array(pendingReminderWrites.values)
             pendingReminderWrites.removeAll()
             for write in writes { paprikaReminders.queueWriteback(write) }
+            return true
         } catch {
             if !saveFailed {
                 UIAccessibility.post(notification: .announcement, argument: "Changes may not be saved")
             }
             saveFailed = true
             diagnostics.record(.storage, .localSave, reason: .storageFailure, outcome: .failed)
+            return false
         }
     }
 
-    private func moveItem(_ item: GroceryItem, to destination: ListOwner) {
-        guard item.listID == owner.listID, destination != owner,
-              visibility.isListAvailable(destination, definitions: sessions.definitions) else { return }
+    // "Also in Woolworths" for this list's rows, in the ordinary caption grey.
+    private func joinedAlsoIn(_ item: GroceryItem) -> String? {
+        let names = item.otherListNames(excluding: owner.listID)
+        guard !names.isEmpty else { return nil }
+        return "Also in \(joinedNames(names))"
+    }
+
+    // Inbox when on, then available stores; a current owner that is not
+    // currently available stays in the list so items can be moved off it.
+    private func editorListOptions() -> [ListOwner] {
+        var options = (visibility.inboxEnabled ? [.inbox] : [])
+            + orderedStores.map { ListOwner.store($0.id) }
+        for item in [editingItem, editingListsItem].compactMap({ $0 }) {
+            for listID in item.listIDs {
+                if let current = ListOwner(listID: listID), !options.contains(current) {
+                    options.append(current)
+                }
+            }
+        }
+        if !options.contains(owner) { options.append(owner) }
+        return options
+    }
+
+    // Apply a Lists… or Edit Item selection: repair the lists the item left,
+    // then hand the change to the shared mutation helper.
+    private func applyLists(_ selected: [ListOwner], to item: GroceryItem) {
+        let target = Set(selected.map(\.listID))
+        let previous = Set(item.listIDs)
+        let removedLists = previous.subtracting(target)
+        for listID in removedLists {
+            if let store = ListOwner(listID: listID)?.store, store != storeID {
+                sessions.browser(for: store).endInteraction()
+            }
+            if let list = lists.first(where: { $0.id == listID }), list.selectedItemID == item.id {
+                list.selectedItemID = ShoppingLists.selection(afterRemoving: item.id,
+                    from: ShoppingLists.orderedItems(in: listID, from: allItems))
+            }
+        }
+        ShoppingLists.setLists(item, to: selected, allItems: allItems, context: modelContext)
+        ShoppingLists.repairOrder(removedIDs: [item.id], affectedListIDs: removedLists, allItems: allItems)
+    }
+
+    // The ⋯ menu's "Remove from [store]": the item stays on its other lists.
+    private func removeItem(_ item: GroceryItem) {
+        guard item.listIDs.count > 1 else { return }
         if selectedList?.selectedItemID == item.id {
             selectedList?.selectedItemID = ShoppingLists.selection(afterRemoving: item.id, from: items)
         }
         browser?.endInteraction()
-        ShoppingLists.move(item, to: destination, allItems: allItems)
-        stageReminderWriteback(for: item)
-        saveChanges()
+        ShoppingLists.removeList(owner.listID, from: item)
+        ShoppingLists.repairOrder(removedIDs: [item.id], affectedListIDs: [owner.listID], allItems: allItems)
+        if saveChanges() {
+            notice = "Removed from \(owner.displayName). It stays on its other lists."
+        }
     }
 
     private func stageReminderWriteback(for item: GroceryItem) {
@@ -2975,21 +3276,24 @@ struct GroceryListScreen: View {
                 let previousItems = items
                 do {
                     try modelContext.transaction {
-                        var position = (items.map(\.position).max() ?? -1) + 1
+                        let positionBase = (items.map { $0.sortPosition(in: owner.listID) }.max() ?? -1) + 1
                         var importedItems: [GroceryItem] = []
-                        for entry in staged {
+                        for (offset, entry) in staged.enumerated() {
                             let item = GroceryItem(name: entry.grocery.name,
                                                    amount: entry.grocery.amount,
                                                    unit: entry.grocery.unit,
-                                                   position: position,
+                                                   position: positionBase + offset,
                                                    listID: owner.listID)
                             item.paprikaReminderID = entry.reminderID
                             modelContext.insert(item)
+                            modelContext.insert(GroceryMembership(item: item, listID: owner.listID, position: positionBase + offset))
                             importedItemIDs.append(item.id)
                             importedItems.append(item)
-                            position += 1
                         }
-                        for (index, item) in (importedItems + previousItems).enumerated() { item.position = index }
+                        for (index, item) in (importedItems + previousItems).enumerated() {
+                            if let membership = item.membership(in: owner.listID) { membership.position = index }
+                            if item.listID == owner.listID { item.position = index }
+                        }
                     }
                     saveFailed = false
                 } catch {
@@ -3556,22 +3860,195 @@ private struct ProductEntryEditor: UIViewRepresentable {
     }
 }
 
+// Selection rows shared by the Add-destination picker, the Lists… sheet and
+// the Lists section of Edit Item: full-row buttons with a checkmark, as in
+// the OpenPencil design. Whole rows are tappable; Inbox is exclusive: ticking
+// it clears every store, and ticking a store clears Inbox.
+private struct ListsSelectionRows: View {
+    let options: [ListOwner]
+    var lockedTo: ListOwner? = nil
+    @Binding var selection: Set<String>
+
+    var body: some View {
+        ForEach(options) { option in
+            let selected = selection.contains(option.rawValue)
+            Button {
+                if option == .inbox {
+                    if selected { selection.remove(option.rawValue) } else { selection = [option.rawValue] }
+                } else if selected {
+                    selection.remove(option.rawValue)
+                } else {
+                    selection.remove(ListOwner.inbox.rawValue)
+                    selection.insert(option.rawValue)
+                }
+            } label: {
+                HStack {
+                    Text(option.displayName)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    if selected { Image(systemName: "checkmark") }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(lockedTo != nil && option != lockedTo)
+            .accessibilityIdentifier("lists-row-\(option.rawValue)")
+            .accessibilityAddTraits(selected ? [.isSelected] : [])
+        }
+    }
+}
+
+private func joinedNames(_ names: [String]) -> String {
+    guard names.count > 1 else { return names.first ?? "" }
+    return names.dropLast().joined(separator: ", ") + " and " + names.last!
+}
+
+// The Add button's destination checklist on All items: Inbox first when on,
+// then the available stores. One or more stores, or Inbox alone, may be
+// chosen; Done applies the remembered set.
+private struct AddDestinationSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let options: [ListOwner]
+    let onDone: ([ListOwner]) -> Void
+    @State private var selection: Set<String>
+
+    init(options: [ListOwner], initialSelection: Set<String>, onDone: @escaping ([ListOwner]) -> Void) {
+        self.options = options
+        self.onDone = onDone
+        _selection = State(initialValue: initialSelection)
+    }
+
+    private var chosen: [ListOwner] { options.filter { selection.contains($0.rawValue) } }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Add to") {
+                    ListsSelectionRows(options: options, selection: $selection)
+                    if selection.isEmpty {
+                        Text("Choose at least one list.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                Section {
+                    Text("Adding to Inbox alone notes the item without a store. Ticking a store clears Inbox, and Inbox clears the stores.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Choose Lists")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { onDone(chosen); dismiss() }
+                        .disabled(selection.isEmpty)
+                }
+            }
+        }
+    }
+}
+
+// Lists… : the checklist that replaces Move to Another List. Ticking a store
+// puts the item on that list (at its end); unticking removes it from there.
+// Unticking the last list sends the item to Inbox when Inbox is on; with
+// Inbox off, Save stays disabled. Website products stay locked to their store.
+private struct ListsEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let item: GroceryItem
+    let options: [ListOwner]
+    let inboxAvailable: Bool
+    let onSave: ([ListOwner]) -> Void
+    @State private var selection: Set<String>
+
+    private var lockedTo: ListOwner? {
+        guard let origin = item.originStoreID, let store = StoreID(rawValue: origin) else { return nil }
+        return .store(store)
+    }
+
+    init(item: GroceryItem, options: [ListOwner], onSave: @escaping ([ListOwner]) -> Void) {
+        self.item = item
+        self.options = options
+        self.inboxAvailable = options.contains(.inbox)
+        self.onSave = onSave
+        let locked = item.originStoreID.flatMap { origin in options.first { $0.store?.rawValue == origin } }
+        _selection = State(initialValue: locked.map { Set([$0.rawValue]) }
+            ?? Set(item.listIDs.compactMap { ListOwner(listID: $0)?.rawValue }))
+    }
+
+    private var chosen: [ListOwner] { options.filter { selection.contains($0.rawValue) } }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Lists") {
+                    ListsSelectionRows(options: options, lockedTo: lockedTo, selection: $selection)
+                    if selection.isEmpty {
+                        Text("Choose at least one list.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    } else if let lockedTo {
+                        Text("Products chosen on \(lockedTo.displayName)'s website stay on its list.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    } else {
+                        Text("An item is in Inbox on its own, or on one or more stores. Unticking its last store moves it to Inbox\(inboxAvailable ? "" : " when Inbox is on").")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                Section {
+                    Text("This changes where the item is kept in ListRunner. It never changes any store cart or Apple Reminders.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Lists")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(chosen)
+                        dismiss()
+                    }
+                    .disabled(selection.isEmpty)
+                }
+            }
+        }
+    }
+}
+
 private struct ItemEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     let item: GroceryItem
-    let onSave: (String, Double?, String?) -> Void
+    // List options shown in the Lists section; empty hides the section.
+    let listOptions: [ListOwner]
+    let onSave: (String, Double?, String?, [ListOwner]) -> Void
     @State private var name: String
     @State private var amount: String
     @State private var unit: String
+    @State private var listSelection: Set<String>
     @State private var validationMessage: String?
 
-    init(item: GroceryItem, onSave: @escaping (String, Double?, String?) -> Void) {
+    private var lockedTo: ListOwner? {
+        guard let origin = item.originStoreID, let store = StoreID(rawValue: origin) else { return nil }
+        return .store(store)
+    }
+
+    init(item: GroceryItem, listOptions: [ListOwner],
+         onSave: @escaping (String, Double?, String?, [ListOwner]) -> Void) {
         self.item = item
+        self.listOptions = listOptions
         self.onSave = onSave
         _name = State(initialValue: item.name)
         _amount = State(initialValue: item.quantityAmount.map { String($0) } ?? "")
         _unit = State(initialValue: item.quantityUnit ?? "")
+        let locked = item.originStoreID.flatMap { origin in listOptions.first { $0.store?.rawValue == origin } }
+        _listSelection = State(initialValue: locked.map { Set([$0.rawValue]) }
+            ?? Set(item.listIDs.compactMap { ListOwner(listID: $0)?.rawValue }))
     }
+
+    private var chosenLists: [ListOwner] { listOptions.filter { listSelection.contains($0.rawValue) } }
 
     var body: some View {
         NavigationStack {
@@ -3585,6 +4062,21 @@ private struct ItemEditorSheet: View {
                     HStack(spacing: 8) {
                         ForEach(["g", "kg", "mL", "L", "cans", "packs"], id: \.self) { suggestion in
                             Button(suggestion) { unit = suggestion }.buttonStyle(.bordered).controlSize(.small)
+                        }
+                    }
+                }
+                if !listOptions.isEmpty {
+                    Section("Lists") {
+                        ListsSelectionRows(options: listOptions, lockedTo: lockedTo, selection: $listSelection)
+                        if let lockedTo {
+                            Text("Products chosen on \(lockedTo.displayName)'s website stay on its list.")
+                                .font(.footnote).foregroundStyle(.secondary)
+                        } else if listSelection.isEmpty {
+                            Text("Choose at least one list.")
+                                .font(.footnote).foregroundStyle(.secondary)
+                        } else {
+                            Text("Ticking a store adds it to that list; unticking removes it from there. An item is in Inbox on its own, or on one or more stores.")
+                                .font(.footnote).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -3610,7 +4102,7 @@ private struct ItemEditorSheet: View {
         if cleanedAmount.isEmpty { parsedAmount = nil }
         else if let value = Double(cleanedAmount), value.isFinite, value >= 0 { parsedAmount = value }
         else { validationMessage = "Enter a valid quantity"; return }
-        onSave(cleanedName, parsedAmount, unit.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty)
+        onSave(cleanedName, parsedAmount, unit.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty, chosenLists)
         dismiss()
     }
 }

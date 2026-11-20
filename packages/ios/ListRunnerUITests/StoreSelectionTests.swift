@@ -2182,7 +2182,7 @@ final class StoreSelectionTests: XCTestCase {
         let destination = app.buttons["all-items-add"].label
         app.buttons["all-items-scope-picker"].tap()
         app.buttons["Coles"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["store-picker"].waitForExistence(timeout: 5), app.debugDescription)
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.45))
         start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.45)))
         assertAllItemsIsCurrent()
@@ -2970,8 +2970,12 @@ final class StoreSelectionTests: XCTestCase {
         for _ in 0..<6 where !orphan.isHittable { app.collectionViews.firstMatch.swipeUp() }
         XCTAssertTrue(app.staticTexts["Uncategorised"].exists)
         app.buttons["Actions for Uncategorised saved item"].tap()
-        app.buttons["Move to Another List"].tap()
-        app.buttons["Woolworths"].firstMatch.tap()
+        app.buttons["Lists…"].tap()
+        XCTAssertTrue(app.buttons["lists-row-woolworths"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Save"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["Save"].isEnabled, "An empty list selection must block Save")
+        app.buttons["lists-row-woolworths"].tap()
+        app.buttons["Save"].tap()
         app.buttons["all-items-scope-picker"].tap()
         app.buttons["Woolworths"].firstMatch.tap()
         XCTAssertTrue(row("Uncategorised saved item", status: "Pending").waitForExistence(timeout: 5))
@@ -3698,24 +3702,27 @@ final class StoreSelectionTests: XCTestCase {
         choose("Coles")
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
         app.buttons["Actions for Coles fixture item"].tap()
-        app.buttons["Move to Another List"].tap()
-        for name in ["Amazon US", "Costco US", "New World", "PAK’nSAVE", "Boots", "CVS"] {
-            XCTAssertFalse(app.buttons["Move to \(name)"].exists, name)
+        app.buttons["Lists…"].tap()
+        XCTAssertTrue(app.buttons["lists-row-costco"].waitForExistence(timeout: 3),
+                      "Search-verified/manual-cart stores remain valid list options")
+        for name in ["Amazon US", "Costco US", "New World", "PAK’nSAVE", "Boots", "CVS", "Kmart"] {
+            XCTAssertFalse(app.buttons.matching(identifier: "lists-row-" + name).firstMatch.exists
+                           || app.buttons[name].exists, name)
         }
-        XCTAssertTrue(app.buttons["Move to Costco"].exists,
-                       "Search-verified/manual-cart stores remain valid destinations")
-        XCTAssertFalse(app.buttons["Move to Kmart"].exists, "Disabled stores are not offered as move destinations")
-        // iOS 27 can present this as a native menu with outside-tap dismissal,
-        // not a sheet exposing Cancel. Teardown closes this isolated test app;
-        // do not select a destination merely to dismiss a read-only inspection.
+        // Read-only inspection: cancel without changing the item's lists.
+        app.buttons["Cancel"].tap()
     }
 
     func testExplicitMoveTransfersOnlySelectedRow() {
         choose("Coles")
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
         app.buttons["Actions for Coles fixture item"].tap()
-        app.buttons["Move to Another List"].tap()
-        app.buttons["Move to Woolworths"].tap()
+        app.buttons["Lists…"].tap()
+        XCTAssertTrue(app.buttons["lists-row-woolworths"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["lists-row-coles"].waitForExistence(timeout: 3))
+        app.buttons["lists-row-woolworths"].tap()
+        app.buttons["lists-row-coles"].tap()
+        app.buttons["Save"].tap()
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
         choose("Woolworths")
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 3))
@@ -3734,10 +3741,13 @@ final class StoreSelectionTests: XCTestCase {
         choose("Coles")
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
         app.buttons["Actions for Coles fixture item"].tap()
-        app.buttons["Move to Another List"].tap()
-        XCTAssertTrue(app.buttons["Move to Inbox"].waitForExistence(timeout: 3))
-        app.buttons["Move to Inbox"].tap()
-        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
+        app.buttons["Lists…"].tap()
+        XCTAssertTrue(app.buttons["lists-row-inbox"].waitForExistence(timeout: 3))
+        // Ticking Inbox clears every store tick in the same sheet.
+        app.buttons["lists-row-inbox"].tap()
+        XCTAssertFalse(app.buttons["lists-row-coles"].isSelected, "Ticking Inbox must clear the store ticks")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3), app.debugDescription)
 
         choose("Inbox")
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
@@ -3753,8 +3763,10 @@ final class StoreSelectionTests: XCTestCase {
         app.buttons["Inbox"].firstMatch.tap()
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 5))
         app.buttons["Actions for Coles fixture item"].tap()
-        app.buttons["Move to Another List"].tap()
-        app.buttons["Move to Woolworths"].tap()
+        app.buttons["Lists…"].tap()
+        // Ticking a store clears the Inbox tick in the same sheet.
+        app.buttons["lists-row-woolworths"].tap()
+        app.buttons["Save"].tap()
         XCTAssertTrue(app.staticTexts["Your list is empty"].waitForExistence(timeout: 3))
         choose("Woolworths")
         XCTAssertTrue(row("Coles fixture item", status: "Pending").waitForExistence(timeout: 3))
