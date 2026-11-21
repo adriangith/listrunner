@@ -1,5 +1,12 @@
 # Reusable store framework validation
 
+## Siri and App Shortcuts (22 November 2026)
+
+Branch `feat/siri-support`, tested in Mac worktree `~/Projects/listrunner-worktrees/siri-support`.
+
+- `579a4f0`: simulator app build (Xcode 27.2, iPhone 18 Pro `BC63C21F-093F-4D8E-8F3F-B12BDA23DC4F` destination) succeeded with no errors and no warnings in `SiriIntents.swift`. `appintentsmetadataprocessor` and `appintentsnltrainingprocessor` accepted all nine phrases in three App Shortcuts. The spoken app names were `ListRunner` and `List Runner`. `run-parser-tests.sh` passed, including the new spoken-splitting checks. `run-recovery-tests.sh` passed 1983 checks.
+- Not yet done: hands-on checks of each phrase with Siri (with and without a list name, under each Settings → Siri option), Open List from a cold launch, and a check that Shortcuts shows the actions. These need a device or a simulator with Siri; no UI tests cover them. The OpenPencil design was not consulted for the one new Settings picker.
+
 ## Inbox list (17 November 2026)
 
 Branch `feat/inbox-list`, tested in Mac worktree `~/Projects/listrunner-worktrees/inbox-list` on simulator iPhone 18 Pro `BC63C21F-093F-4D8E-8F3F-B12BDA23DC4F`.
