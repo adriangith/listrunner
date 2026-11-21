@@ -164,6 +164,18 @@ struct IngredientParserTests {
         check(importedProduct.count == 1 && importedProduct.first?.name == "Penne"
               && importedProduct.first?.amount == 500 && importedProduct.first?.unit == "g",
               "imports still canonicalise ingredient names and extract quantities")
+        for (spoken, expected) in [
+            ("eggs and milk", ["eggs", "milk"]),
+            ("Eggs, milk, and bread.", ["Eggs", "milk", "bread"]),
+            ("2 litres of milk & 6 eggs", ["2 litres of milk", "6 eggs"]),
+            ("brandy snaps", ["brandy snaps"]),
+            ("milk?", ["milk"]),
+        ] {
+            let entries = ParsedGrocery.spokenEntries(in: spoken)
+            check(entries.map(\.name) == expected && entries.allSatisfy { $0.amount == nil && $0.unit == nil },
+                  "Siri dictation separates products on and/&: \(spoken) → \(entries.map(\.name))")
+        }
+        check(ParsedGrocery.spokenEntries(in: " and . , ").isEmpty, "Siri dictation ignores empty products")
         if !ParsedGrocery.productEntries(in: " , ;\t\n, ").isEmpty {
             print("FAIL empty product segments must be ignored")
             failures += 1

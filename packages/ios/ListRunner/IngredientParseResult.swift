@@ -16,6 +16,21 @@ struct ParsedGrocery {
                 return ParsedGrocery(name: name, amount: nil, unit: nil)
             }
     }
+
+    // Siri dictation rarely produces commas: "eggs milk and bread" or "eggs
+    // and milk." The word "and" (or "&") also separates products here, and
+    // sentence punctuation is dropped. A product whose name contains "and"
+    // must be typed in the app instead; this only applies to spoken input.
+    static func spokenEntries(in text: String) -> [ParsedGrocery] {
+        let separated = text.replacingOccurrences(of: #"\s+(?:and|&)\s+"#, with: ",",
+                                                  options: [.regularExpression, .caseInsensitive])
+        return productEntries(in: separated).compactMap { entry in
+            let name = entry.name
+                .replacingOccurrences(of: #"^(?:and|&)\s+|[.!?]+$"#, with: "", options: [.regularExpression, .caseInsensitive])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? nil : ParsedGrocery(name: name, amount: nil, unit: nil)
+        }
+    }
 }
 
 struct IngredientParseResult: Codable, Equatable {

@@ -12,7 +12,18 @@ final class LocalDataController: ObservableObject {
     private let opener: (ModelConfiguration) throws -> ModelContainer
     let diagnostics: DiagnosticStore
 
+    private static var appController: LocalDataController?
+
+    // One controller per process: the app scene and Siri intents share the
+    // same container, so a voice add appears in the open list at once.
     static func forApp() -> LocalDataController {
+        if let appController { return appController }
+        let controller = makeForApp()
+        appController = controller
+        return controller
+    }
+
+    private static func makeForApp() -> LocalDataController {
         #if DEBUG
         if let raw = ProcessInfo.processInfo.environment["LISTRUNNER_UI_TEST_SESSION"], let token = UUID(uuidString: raw) {
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent("ListRunnerUITests/" + token.uuidString)
@@ -132,7 +143,8 @@ final class LocalDataController: ObservableObject {
                          GroceryImportSource.preferenceKey, GroceryImportSource.removeRemindersKey,
                          GroceryImportSource.remindersListIDKey, GroceryImportSource.remindersListNameKey,
                           "autoScrollToResults.v1", "appearance.v1", "hasCollapsedShoppingCards.v1", "allItemsScope.v1", "allItemsGrouping.v1",
-                          "allItemsRecentStoreOrder.v1", "allItemsRecentItemOrder.v1", "allItemsAddDestination.v1", "allItemsDraft.v1"] {
+                          "allItemsRecentStoreOrder.v1", "allItemsRecentItemOrder.v1", "allItemsAddDestination.v1", "allItemsDraft.v1",
+                          "siriDefaultList.v1"] {
                 defaults.removeObject(forKey: key)
             }
             try diagnostics.clear()

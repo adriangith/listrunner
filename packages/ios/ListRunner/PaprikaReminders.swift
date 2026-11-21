@@ -131,6 +131,9 @@ final class ReminderWritebackQueue {
 
 @MainActor
 final class PaprikaReminders: ObservableObject {
+    // The app's one instance, shared with Siri so a voice add sees an import in
+    // progress and queues Reminders write-back on the same queue.
+    static let shared = PaprikaReminders()
     @Published private(set) var importing = false
     private(set) var snapshotListName: String?
     private let eventStore: EKEventStore

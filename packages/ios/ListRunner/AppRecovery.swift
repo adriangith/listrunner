@@ -252,6 +252,7 @@ struct SettingsOverviewScreen: View {
     @State private var notice: String?
     @AppStorage(GroceryImportSource.preferenceKey) private var importSourceID = ""
     @AppStorage("appearance.v1") private var appearance = "system"
+    @AppStorage(SiriDefaultList.preferenceKey) private var siriDefaultList = SiriDefaultList.inbox.rawValue
     let importInProgress: Bool
     let importDestinationName: String
     let onOpenStoreList: (StoreID) -> Void
@@ -264,6 +265,14 @@ struct SettingsOverviewScreen: View {
         case "light": "Light"
         case "dark": "Dark"
         default: "System"
+        }
+    }
+
+    private var siriFooter: LocalizedStringKey {
+        switch SiriDefaultList(rawValue: siriDefaultList) ?? .inbox {
+        case .inbox: "When you don’t name a list, Siri adds to Inbox and turns it on if needed. Try “Add items in ListRunner”."
+        case .lastUsed: "When you don’t name a list, Siri adds to the list you last opened. Try “Add items in ListRunner”."
+        case .ask: "When you don’t name a list, Siri asks which one to use. Try “Add items in ListRunner”."
         }
     }
 
@@ -323,6 +332,19 @@ struct SettingsOverviewScreen: View {
                 Text("Lists")
             } footer: {
                 Text("A list for items that aren’t tied to a store yet.")
+            }
+            Section {
+                Picker("Add to", selection: $siriDefaultList) {
+                    Text("Inbox").tag(SiriDefaultList.inbox.rawValue)
+                    Text("Last List Opened").tag(SiriDefaultList.lastUsed.rawValue)
+                    Text("Ask Every Time").tag(SiriDefaultList.ask.rawValue)
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("siri-default-list")
+            } header: {
+                Text("Siri")
+            } footer: {
+                Text(siriFooter)
             }
             Section {
                 Toggle("Auto-scroll to results", isOn: Binding(

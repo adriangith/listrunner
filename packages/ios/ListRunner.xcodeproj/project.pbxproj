@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
         A40000000000000000000001 /* StoreProductSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B40000000000000000000001 /* StoreProductSelection.swift */; };
+		A50000000000000000000001 /* SiriIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50000000000000000000001 /* SiriIntents.swift */; };
 		A10000000000000000000001 /* ListRunnerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* ListRunnerApp.swift */; };
 		A10000000000000000000002 /* GroceryListScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* GroceryListScreen.swift */; };
 		A10000000000000000000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000003 /* Assets.xcassets */; };
@@ -77,6 +78,7 @@
 
 /* Begin PBXFileReference section */
         B40000000000000000000001 /* StoreProductSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreProductSelection.swift; sourceTree = "<group>"; };
+		B50000000000000000000001 /* SiriIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiriIntents.swift; sourceTree = "<group>"; };
 		B10000000000000000000001 /* ListRunnerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListRunnerApp.swift; sourceTree = "<group>"; };
 		B10000000000000000000002 /* GroceryListScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceryListScreen.swift; sourceTree = "<group>"; };
 		B10000000000000000000003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -204,6 +206,7 @@
 				B10000000000000000000008 /* ShoppingModels.swift */,
 				B10000000000000000000009 /* StoreShoppingView.swift */,
                 B40000000000000000000001 /* StoreProductSelection.swift */,
+				B50000000000000000000001 /* SiriIntents.swift */,
 				B10000000000000000000010 /* RecoverySupport.swift */,
 				B10000000000000000000011 /* AppRecovery.swift */,
 				B10000000000000000000012 /* RecoveryServices.swift */,
@@ -375,6 +378,7 @@
 				A10000000000000000000008 /* ShoppingModels.swift in Sources */,
 				A10000000000000000000009 /* StoreShoppingView.swift in Sources */,
                 A40000000000000000000001 /* StoreProductSelection.swift in Sources */,
+				A50000000000000000000001 /* SiriIntents.swift in Sources */,
 				A10000000000000000000010 /* RecoverySupport.swift in Sources */,
 				A10000000000000000000011 /* AppRecovery.swift in Sources */,
 				A10000000000000000000012 /* RecoveryServices.swift in Sources */,

@@ -9,7 +9,8 @@ struct ShoppingRootScreen: View {
     @Query private var allItems: [GroceryItem]
     @StateObject private var sessions: StoreSessions
     @StateObject private var visibility: StoreVisibilityPreferences
-    @StateObject private var paprikaReminders = PaprikaReminders()
+    @StateObject private var paprikaReminders = PaprikaReminders.shared
+    @ObservedObject private var siriNavigation = SiriNavigation.shared
     @AppStorage("activeStoreID") private var activeStoreID = StoreID.coles.rawValue
     @State private var drafts: [ListOwner: String] = [:]
     @AppStorage("allItemsScope.v1") private var showingAllItems = false
@@ -125,8 +126,23 @@ struct ShoppingRootScreen: View {
                     let rows = try context.fetch(FetchDescriptor<GroceryItem>())
                     return Dictionary(grouping: rows.flatMap(\.listIDs), by: { $0 }).mapValues(\.count)
                 }
+                // A cold launch from Siri's Open List arrives before this view.
+                openSiriRequestedList(siriNavigation.requestedList)
+                ListRunnerShortcuts.updateAppShortcutParameters()
             }
             .onChange(of: nonEmptyListIDs) { _, ids in visibility.updateNonEmptyListIDs(ids) }
+            .onChange(of: siriNavigation.requestedList) { _, owner in openSiriRequestedList(owner) }
+            .onChange(of: availableOwners) { _, _ in
+                // Siri's spoken list names come from the enabled lists.
+                ListRunnerShortcuts.updateAppShortcutParameters()
+            }
+    }
+
+    private func openSiriRequestedList(_ owner: ListOwner?) {
+        guard let owner else { return }
+        siriNavigation.requestedList = nil
+        guard !previewingStoreWelcome else { return }
+        selectStore(owner)
     }
 
     // Shared route construction for a direct single-list root and a list detail.
@@ -205,10 +221,7 @@ struct ShoppingRootScreen: View {
 
     private func promote(_ store: ListOwner, _ itemIDs: [UUID]) {
         guard !itemIDs.isEmpty else { return }
-        var order = allItemsRecentStoreOrder.split(separator: ",")
-            .compactMap { ListOwner(rawValue: String($0)) }.filter { $0 != store }
-        order.insert(store, at: 0)
-        allItemsRecentStoreOrder = order.map(\.rawValue).joined(separator: ",")
+        allItemsRecentStoreOrder = ItemPromotionOrder.promotingList(store, in: allItemsRecentStoreOrder)
         allItemsRecentItemOrder = ItemPromotionOrder.promoting(itemIDs, in: allItemsRecentItemOrder,
                                                                existing: Set(allItems.map(\.id)).union(itemIDs))
     }

@@ -1338,6 +1338,16 @@ final class StoreVisibilityPreferences: ObservableObject {
     private let pendingSelectionKey = "pendingEnabledStoreSelection.v1"
     private let setupCompletedKey = "storeSetupCompleted.v1"
     static let inboxEnabledKey = "inboxEnabled.v1"
+    static let inboxEnabledExternally = Notification.Name("ListRunner.inboxEnabledExternally")
+    private var externalInboxSubscription: AnyCancellable?
+
+    // Turns Inbox on from outside the visible UI (Siri adds to Inbox while it
+    // is off). Enabling is never blocked; live preference objects refresh.
+    static func enableInbox(in defaults: UserDefaults) {
+        defaults.set(true, forKey: inboxEnabledKey)
+        defaults.set(true, forKey: "storeSetupCompleted.v1")
+        NotificationCenter.default.post(name: inboxEnabledExternally, object: nil)
+    }
 
     init(defaults: UserDefaults? = nil, suggestedCountryCode: String? = Locale.current.region?.identifier) {
         if let defaults {
@@ -1400,6 +1410,15 @@ final class StoreVisibilityPreferences: ObservableObject {
         // Superseded by checking the active store on every return to the list.
         defaults.removeObject(forKey: "selectEnabledStoreAfterEmpty.v1")
         ingredientSearchContext = IngredientSearchContext(countryCode: shoppingCountryCode, enabled: localNames)
+        externalInboxSubscription = NotificationCenter.default.publisher(for: Self.inboxEnabledExternally)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                // UI tests open the same suite through separate instances, so
+                // re-read this object's own store rather than compare objects.
+                guard let self else { return }
+                self.inboxEnabled = self.defaults.bool(forKey: Self.inboxEnabledKey)
+                if self.inboxEnabled { self.hasCompletedStoreSetup = true }
+            }
     }
 
     func updateNonEmptyListIDs(_ ids: Set<UUID>) {

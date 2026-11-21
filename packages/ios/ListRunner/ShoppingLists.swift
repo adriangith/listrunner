@@ -35,6 +35,14 @@ enum ItemPromotionOrder {
         return (ids + previous).filter { existing.contains($0) && seen.insert($0).inserted }
             .map(\.uuidString).joined(separator: ",")
     }
+
+    // All items' list recency: the owner that just received items moves first.
+    static func promotingList(_ owner: ListOwner, in rawValue: String) -> String {
+        var order = rawValue.split(separator: ",")
+            .compactMap { ListOwner(rawValue: String($0)) }.filter { $0 != owner }
+        order.insert(owner, at: 0)
+        return order.map(\.rawValue).joined(separator: ",")
+    }
 }
 
 @Model
