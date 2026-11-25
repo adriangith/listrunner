@@ -361,7 +361,7 @@ The MVP is an app that imports or accepts a grocery list, uses Coles as the only
 * Clicking a next button to skip the cooldown.
 * Marking items as added manually, particularly useful when automation is not available or not working correctly.
 * Skipping items
-* Ability to import from Reminders on Apple systems from a list called `Paprika`. Paprika exports grocery lists to Apple Reminders. ListRunner reads incomplete reminders from that list and imports each reminder title as grocery-list input. Reminder notes and other fields are ignored.
+* Ability to import from Reminders on Apple systems from a list called `Paprika`. Paprika exports grocery lists to Apple Reminders. ListRunner reads incomplete reminders from the selected list and parses each readable reminder title as one item; commas do not separate items. Reminder notes and other fields are ignored.
 * Items that do not have any specified quantity will display as a quantity of '1' in the overlay without any quantity unit.
 * Item quantity is display guidance only. ListRunner does not automatically set or enforce the quantity in the Coles cart.
 

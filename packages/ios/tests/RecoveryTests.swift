@@ -1682,7 +1682,7 @@ struct RecoveryTests {
             PaprikaReminderSnapshot(id: "late", title: "bread", creationDate: Date(timeIntervalSince1970: 20)),
             PaprikaReminderSnapshot(id: "old", title: "2L milk", creationDate: Date(timeIntervalSince1970: 10)),
             PaprikaReminderSnapshot(id: "existing", title: "eggs", creationDate: Date(timeIntervalSince1970: 5)),
-            PaprikaReminderSnapshot(id: "blank", title: " •  ", creationDate: nil),
+            PaprikaReminderSnapshot(id: "blank", title: " • , ", creationDate: nil),
             PaprikaReminderSnapshot(id: "late", title: "duplicate", creationDate: Date(timeIntervalSince1970: 30)),
             PaprikaReminderSnapshot(id: "undated", title: "apples", creationDate: nil)
         ]
@@ -1725,9 +1725,11 @@ struct RecoveryTests {
                                                     existingIDs: Set(paprikaStaged.compactMap(\.reminderID)).union(["existing"]), parser: ingredientParser)
         check(reimported.isEmpty,
               "re-import ignores already-linked Paprika reminder IDs: \(reimported.map { ($0.reminderID ?? "nil") + ":" + $0.grocery.name })")
-        let multiTitle = PaprikaImportPlanner.stage(reminders: [PaprikaReminderSnapshot(id: "comma", title: "milk, bread", creationDate: nil)], existingIDs: [], parser: ingredientParser)
-        check(multiTitle.map(\.grocery.name) == ["Milk", "Bread"] && multiTitle.map(\.reminderID) == ["comma", nil],
-              "comma-separated reminder creates rows but only one reminder writeback owner")
+        let commaTitle = PaprikaImportPlanner.stage(reminders: [PaprikaReminderSnapshot(id: "comma", title: "2L milk, bread", creationDate: nil)], existingIDs: [], parser: ingredientParser)
+        check(commaTitle.count == 1 && commaTitle[0].reminderID == "comma"
+              && commaTitle[0].grocery.name == "milk, bread"
+              && commaTitle[0].grocery.amount == 2 && commaTitle[0].grocery.unit == "l",
+              "Paprika imports a comma-containing title as one linked grocery and still parses its quantity")
 
         var queueStarted = false
         var unblockFirstWrite: CheckedContinuation<Void, Never>?
