@@ -1,5 +1,26 @@
 ## ListRunner Build Specification
 
+### iCloud sync and list sharing (25 November 2026, proposal)
+
+User-approved direction: live sharing through iCloud, one store list at a time, plus iCloud sync of all lists across the user's own devices. This supersedes `Backend sync` in **Out of scope** and the on-device-only list wording under **Privacy**: lists may now travel through the user's own iCloud account and, for shared lists, the participants' accounts. ListRunner still runs no server, accounts or analytics. Design: **List sharing (proposal)** page in the **List Runner — iOS 27** OpenPencil document (to be drawn before UI work); this section is the behavioural source of truth.
+
+* **Own devices.** With `iCloud Sync` on (Settings → new **iCloud** section, default on; footer explains lists sync through the user's iCloud account), every list and item syncs across the user's devices signed in to the same Apple Account. Turning it off stops syncing and keeps local data; it does not delete iCloud data. Without an iCloud account the app works exactly as today and the toggle explains why it is unavailable. Synced items arriving for a store that is off on this device turn that store on (the store-disable rule never hides rows).
+* **What syncs:** lists (owner, per-list order), items (name, search term, quantity, unit, status, originating store) and memberships. **Never synced:** retailer website sessions/cookies, selected item, cart associations and detection state, Reminders/Paprika links (`paprikaReminderID` stays on the device that imported it), diagnostics, app preferences, addition-promotion order.
+* **Sharing unit:** one store list. Inbox and All items cannot be shared. A store list's toolbar gains a Share button that opens the system collaboration sheet (invite via Messages, Mail or link; permissions *can make changes* / *view only*). A shared list shows a people badge and `Shared with Sam` (or `Shared by Sam`) under its title; tapping it opens the system participant manager (add people, change permissions, stop sharing / leave).
+* **Accepting a share** opens ListRunner with a sheet: `Sam shared their Coles list` and two choices:
+  * **Use as My Coles List** (merge): the shared list becomes this person's Coles list. Their existing Coles items move into it, keeping status/quantity; same-name duplicates are *not* merged automatically. Footer states how many items will join.
+  * **Add as Separate List**: the shared list appears as its own list named `Coles · Sam`, treated like another store everywhere lists appear (scope chooser, All items groups, Lists… checklists, Add destinations, Show Store). It uses Coles' website, shopping flow, cart detection and this device's Coles session; it has its own list ID and order. It is not a new registry store: Manage Stores, country discovery and store diagnostics are unchanged, and it stays visible until the person leaves, even if Coles is turned off.
+  * If the store is unavailable in this person's region/build, only **Add as Separate List** is offered; its shopping actions follow that store's availability.
+* **Items across lists.** An item stays one item (Multi-store items rule): if it is on a shared Coles list and a private Woolworths list, participants see only the Coles membership, but name/quantity/status edits apply everywhere. An item can be on at most one shared list: Lists… disables other shared lists for it with the footer `Items can only be on one shared list.` Merging into a shared list copies (rather than moves) any incoming item already on another shared list.
+* **Conflicts:** field-level last-writer-wins per item, using each field's modification time; a membership's position is last-writer-wins. Deleting an item or list wins over concurrent edits. Removing an item from a shared list removes it for everyone on that list only.
+* **Ending a share.** When a participant leaves, or the owner stops sharing or removes them, the participant keeps a private copy of the list's current items in their own list for that store (merge-mode lists simply become private; separate lists fold into the store's list and disappear). Never lose rows. The owner keeps everything.
+* **Unchanged:** shopping flow, cart rules (never touch another retailer's cart; detection acts on this device's session only), Reminders import, Clear List semantics per list (applies to everyone on a shared list; the confirmation says so), Reset Local Data (also offers to delete this person's iCloud copy; never deletes others' shared data).
+* **Architecture:** SwiftData stays the local store and the UI's only source. A `CKSyncEngine`-based sync layer (one engine for the private database, one for the shared database) mirrors local changes to CloudKit and applies incoming records. SwiftData's built-in CloudKit mirroring is not used: it cannot share and conflicts with the existing unique attributes. Each list lives in its own record zone (`list-<listID>`) in its owner's private database; sharing a list is a zone-wide `CKShare`. Records: `List`, `Item`, `Membership`. An item's record lives in its shared list's zone when it has one, otherwise in its first list's zone; memberships live in their list's zone and refer to items by ID, so cross-zone references are plain IDs. Engine state and record system fields live in a sidecar file in Application Support, not in the SwiftData schema.
+* **Storage:** schema V5 (additive) adds to `GroceryList` an optional display name and owner name for separate shared lists, and per-field modification times on `GroceryItem`. `ListOwner` gains a separate-shared-list case (own list ID, base `StoreID`). Older builds cannot open a V5 store; failed migration uses the existing recovery.
+* **Capabilities:** iCloud (CloudKit, container `iCloud.com.adrianzafir.listrunner`), Push Notifications and the Remote notifications background mode; `CKSharingSupported` in Info.plist; the CloudKit schema deployed to production before release.
+* **Out of scope:** sharing Inbox/All items, sharing with non-iCloud users or the web, per-person item attribution, change history, comments, syncing preferences or website sessions.
+* **Delivery order:** (1) OpenPencil design; (2) V5 schema, `ListOwner` case, record mapping and conflict merge with unit tests; (3) private-database sync across own devices; (4) share creation, acceptance sheet and both join modes; (5) separate-list support across list UI; (6) leave/stop-sharing copies and Clear/Reset rules; (7) Mac build, sharded UI tests and a two-iCloud-account device test, recorded in `packages/ios/VALIDATION.md`.
+
 ### Multi-store items (19 November 2026)
 
 * One item can be on several store lists at once. It stays a single item, not linked copies: name, search term, quantity, unit, status and Reminders link are shared. Each list it is on keeps its own position, so reordering Coles never reorders Woolworths. Design: **Multi-store items (proposal)** page in the **List Runner — iOS 27** OpenPencil document (screens M1–M5 plus a Decisions card); this section is the behavioural source of truth.
@@ -477,7 +498,7 @@ The in-app Coles browser uses persistent website storage so Coles cookies, login
 
 ### Privacy
 * The MVP has no analytics, remote telemetry, user account, or ListRunner backend.
-* Grocery lists, item state, source identifiers, and ListRunner diagnostics remain on-device.
+* Source identifiers and ListRunner diagnostics remain on-device. Grocery lists and item state remain on-device unless iCloud Sync or list sharing is used (see **iCloud sync and list sharing**).
 * Store automation messages travel only between the injected script and the native app. ListRunner does not transmit them to its own server.
 * Coles website traffic remains between the embedded browser and Coles. ListRunner does not read or store Coles credentials or payment details.
 * Release diagnostics may contain only a timestamp, local monotonic insertion sequence, event category and type, typed reason or error code from a closed native enum, outcome, and the exact allowlisted Coles host. The insertion sequence is local bookkeeping used only for deterministic eviction and is not shown as diagnostic content. Entries never contain grocery item names, quantities, search terms, reminder or product identifiers, session or interaction identifiers, full URLs or URL paths and queries, credentials, payment data, cookies, arbitrary page content, raw error descriptions, or bridge payload bodies.
@@ -486,7 +507,7 @@ The in-app Coles browser uses persistent website storage so Coles cookies, login
 ### Out of scope
 - Pantry/exclusion list feature.
 - User accounts.
-- Backend sync.
+- A ListRunner backend server (iCloud sync and sharing are specified in **iCloud sync and list sharing**).
 - Payment or checkout automation.
 - Automatic product selection.
 - Price comparison.
