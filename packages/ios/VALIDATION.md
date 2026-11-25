@@ -1,5 +1,11 @@
 # Reusable store framework validation
 
+## iCloud sync and list sharing: sync model (25 November 2026)
+
+Branch `feat/list-sharing`, tested in Mac worktree `~/Projects/listrunner-worktrees/list-sharing` (offline only; no iCloud account, capability or network involved yet).
+
+- `dbe6698`: `run-sync-tests.sh` passed (163 checks: zone and record names, list aliases, zone placement, copy planning, field-level merge including order independence and same-instant ties, deletes winning, and the CloudKit record format with malformed input); `run-recovery-tests.sh` passed (1983 checks); generic iOS Simulator app build succeeded with no errors or `SyncModel.swift` warnings.
+
 ## Inbox list (17 November 2026)
 
 Branch `feat/inbox-list`, tested in Mac worktree `~/Projects/listrunner-worktrees/inbox-list` on simulator iPhone 18 Pro `BC63C21F-093F-4D8E-8F3F-B12BDA23DC4F`.
