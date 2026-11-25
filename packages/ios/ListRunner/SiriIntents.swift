@@ -194,7 +194,12 @@ enum SiriLists {
         catch { throw SiriListError.storageUnavailable }
         return ShoppingLists.orderedItems(in: owner.listID, from: allItems)
             .filter { $0.status == .pending }
-            .map { $0.quantityAmount == nil ? $0.name : "\($0.displayQuantity) \($0.name)" }
+            .map { item in
+                // A bare count of one adds nothing when spoken ("1 milk").
+                let unit = item.quantityUnit?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                guard let amount = item.quantityAmount, amount != 1 || !unit.isEmpty else { return item.name }
+                return "\(item.displayQuantity) \(item.name)"
+            }
     }
 
     static func open(_ id: String) throws {
@@ -303,7 +308,8 @@ struct OpenListIntent: OpenIntent {
 
 // Free-form item text cannot appear in a phrase, so Siri asks for the items
 // after "Add items in ListRunner". List names can: they expand from the
-// enabled lists, refreshed when those change.
+// enabled lists, refreshed when those change. Each intent keeps one phrase
+// without a list so Shortcuts also shows a generic tile that asks.
 struct ListRunnerShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
@@ -330,6 +336,7 @@ struct ListRunnerShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: OpenListIntent(),
             phrases: [
+                "Open a list in \(.applicationName)",
                 "Open \(\.$target) in \(.applicationName)",
                 "Shop at \(\.$target) with \(.applicationName)"
             ],
