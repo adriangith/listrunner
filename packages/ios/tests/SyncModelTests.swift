@@ -23,9 +23,10 @@ struct SyncModelTests {
         check(SyncZone(.list(coles)).name == "list-\(coles.uuidString)" && groupA.name.hasPrefix("group-"),
               "zone names say whether they hold one list or a share group")
         for bad in ["", "list-", "list-nope", "group-\(UUID().uuidString)x", "other-\(UUID().uuidString)", "_defaultZone"] {
-            check(SyncZone(zoneID: CKRecordZone.ID(zoneName: bad, ownerName: CKCurrentUserDefaultName)) == nil,
-                  "unrecognised zone name \(bad) is ignored")
+            check(SyncZone.kind(named: bad) == nil, "unrecognised zone name \(bad) is ignored")
         }
+        check(SyncZone(zoneID: CKRecordZone.ID(zoneName: "_defaultZone", ownerName: CKCurrentUserDefaultName)) == nil,
+              "the default zone is never treated as a list or group")
         check(SyncZone(.list(coles)).isOwnedByCurrentUser && !samsGroup.isOwnedByCurrentUser,
               "own zones and someone else's are told apart")
         check(groupA.isShareGroup && !SyncZone(.list(coles)).isShareGroup, "only share groups are shared")
