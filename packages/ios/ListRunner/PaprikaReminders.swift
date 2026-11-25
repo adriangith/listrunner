@@ -43,6 +43,14 @@ enum PaprikaImportError: Error, Equatable {
 }
 
 enum PaprikaImportPlanner {
+    private static let titleSeparators = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ",;•·-–—"))
+
+    private static func parseTitle(_ title: String, parser: IngredientParser) -> ParsedGrocery? {
+        guard !title.trimmingCharacters(in: titleSeparators).isEmpty else { return nil }
+        // The reminder already defines the item boundary; commas are not list syntax here.
+        return parser.parseRecord(title)?.grocery
+    }
+
     static func canRemove(calendarID: String, selectedCalendarID: String, title: String?, originalTitle: String, isCompleted: Bool) -> Bool {
         !selectedCalendarID.isEmpty && calendarID == selectedCalendarID && title == originalTitle && !isCompleted
     }
@@ -50,7 +58,7 @@ enum PaprikaImportPlanner {
         var seen = Set<String>()
         return reminders.filter {
             savedIDs.contains($0.id) && !$0.id.isEmpty && seen.insert($0.id).inserted
-                && !parser.parseGroceries($0.title).isEmpty
+                && parseTitle($0.title, parser: parser) != nil
         }
     }
 
@@ -58,7 +66,7 @@ enum PaprikaImportPlanner {
     /// "already imported" just because it was ignored by the parser.
     static func emptyImportError(reminders: [PaprikaReminderSnapshot], existingIDs: Set<String>, parser: IngredientParser = .application) -> PaprikaImportError {
         if reminders.isEmpty { return .noUncheckedItems }
-        let readable = reminders.filter { !$0.id.isEmpty && !parser.parseGroceries($0.title).isEmpty }
+        let readable = reminders.filter { !$0.id.isEmpty && parseTitle($0.title, parser: parser) != nil }
         if !readable.isEmpty && readable.allSatisfy({ existingIDs.contains($0.id) }) { return .noNewItems }
         return .noReadableItems
     }
@@ -77,14 +85,8 @@ enum PaprikaImportPlanner {
         var staged: [StagedPaprikaItem] = []
         for reminder in ordered {
             guard !reminder.id.isEmpty, seen.insert(reminder.id).inserted else { continue }
-            let parsed = parser.parseGroceries(reminder.title)
-            guard !parsed.isEmpty else { continue }
-            // Paprika normally exports one grocery per reminder. If a title uses
-            // ListRunner's comma syntax, preserve every parsed grocery while
-            // linking the source reminder only once to avoid competing writebacks.
-            for (index, grocery) in parsed.enumerated() {
-                staged.append(StagedPaprikaItem(reminderID: index == 0 ? reminder.id : nil, grocery: grocery))
-            }
+            guard let grocery = parseTitle(reminder.title, parser: parser) else { continue }
+            staged.append(StagedPaprikaItem(reminderID: reminder.id, grocery: grocery))
         }
         return staged
     }
