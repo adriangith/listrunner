@@ -20,6 +20,7 @@
 		A10000000000000000000013 /* StoreConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000013 /* StoreConfiguration.swift */; };
 		A10000000000000000000014 /* ShoppingLists.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000014 /* ShoppingLists.swift */; };
 		A10000000000000000000015 /* StoreSessions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000015 /* StoreSessions.swift */; };
+		A50000000000000000000001 /* SyncModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50000000000000000000001 /* SyncModel.swift */; };
 		A10000000000000000000016 /* Resources/coles.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000016 /* Resources/coles.json */; };
 		A10000000000000000000017 /* Resources/woolworths.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000017 /* Resources/woolworths.json */; };
 		A10000000000000000000018 /* PaprikaReminders.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000018 /* PaprikaReminders.swift */; };
@@ -92,6 +93,7 @@
 		B10000000000000000000013 /* StoreConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreConfiguration.swift; sourceTree = "<group>"; };
 		B10000000000000000000014 /* ShoppingLists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoppingLists.swift; sourceTree = "<group>"; };
 		B10000000000000000000015 /* StoreSessions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreSessions.swift; sourceTree = "<group>"; };
+		B50000000000000000000001 /* SyncModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncModel.swift; sourceTree = "<group>"; };
 		B10000000000000000000016 /* Resources/coles.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Resources/coles.json; sourceTree = "<group>"; };
 		B10000000000000000000017 /* Resources/woolworths.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Resources/woolworths.json; sourceTree = "<group>"; };
 		B10000000000000000000018 /* PaprikaReminders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaprikaReminders.swift; sourceTree = "<group>"; };
@@ -210,6 +212,7 @@
 				B10000000000000000000013 /* StoreConfiguration.swift */,
 				B10000000000000000000014 /* ShoppingLists.swift */,
 				B10000000000000000000015 /* StoreSessions.swift */,
+				B50000000000000000000001 /* SyncModel.swift */,
 				B10000000000000000000016 /* Resources/coles.json */,
 				B10000000000000000000017 /* Resources/woolworths.json */,
 				B10000000000000000000018 /* PaprikaReminders.swift */,
@@ -381,6 +384,7 @@
 				A10000000000000000000013 /* StoreConfiguration.swift in Sources */,
 				A10000000000000000000014 /* ShoppingLists.swift in Sources */,
 				A10000000000000000000015 /* StoreSessions.swift in Sources */,
+				A50000000000000000000001 /* SyncModel.swift in Sources */,
 				A10000000000000000000018 /* PaprikaReminders.swift in Sources */,
 				A10000000000000000000019 /* IngredientQuantity.swift in Sources */,
 				A10000000000000000000020 /* IngredientParseResult.swift in Sources */,
